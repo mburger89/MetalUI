@@ -273,7 +273,7 @@ traps naming `GX-D`), `ShapeGeometry` (`.roundedRectangle`, `.ellipse`,
 `Image.Interpolation`, `ContentMode`; **`Image(systemName:)`** with `Image.Scale`/`imageScale`, `SymbolRenderingMode` (no `.palette`)/`symbolRenderingMode`, `SymbolVariants`/`symbolVariant` (A; macOS draws SF Symbols through AppKit, Linux and Windows draw a bundled Lucide icon for a mapped name, divergences 227-231, `SYM-`); **`Icon`** with `Icon.Layer` (`.stroke(width:cap:join:)`/`.fill(_:)`, `.primary`/`.secondary`), `Icon.bundled(_:)`, `Image(icon:label:)` and `Image(decorative:)` over an `Icon` (M; vector layers of `Path`s, `MetalUIIconData`); `ImageBitmap` (M, the portable image
 type). **Decoding** (`PX-B`…`PX-E`): `ImageBitmap(contentsOfFile:)`,
 `ImageBitmap(data:)` and `ImageBitmap(resource:withExtension:subdirectory:bundle:)`
-(M) decode PNG and JPEG with MetalUI's own decoder (stb_image, vendored as
+(M; plus `ImageBitmap(data:maxPixelSize:)` and `(contentsOfFile:maxPixelSize:)`, `PX-W`: the same decode area-averaged down so its longest side is at most `maxPixelSize`, never up, trapping below 1) decode PNG and JPEG with MetalUI's own decoder (stb_image, vendored as
 `CStbImage`) on every platform — the same premultiplied sRGB bytes on macOS,
 Linux and Windows, colour profiles ignored (138); other formats go through
 ImageIO on macOS and are `nil` elsewhere; a corrupt or truncated file is

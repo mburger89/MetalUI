@@ -129,6 +129,7 @@ F	symbol-image	A	swiftui-symbol-images.swift	S1	aSymbolsSizeIsTheFontsAtTheImage
 F	bundled-icon	M	-	-	-	230 231	SYM-I SYM-J SYM-N	Icon (layers of Paths on a view box), Icon.Layer/Paint/Level, Icon.bundled(_:), Image(icon:label:) and Image(decorative:): MetalUI-only; the bundled Lucide subset Image(systemName:) draws off Apple platforms
 F	image-bitmap	M	-	-	-	-	TE-AL	ImageBitmap: the portable stand-in for CGImage (premultiplied RGBA8)
 F	image-decoding	M	-	-	-	138	PX-B PX-C PX-D PX-E	ImageBitmap(contentsOfFile:)/(data:)/(resource:withExtension:subdirectory:bundle:): PNG and JPEG decoded by MetalUI's own decoder (CStbImage) on every platform, identical premultiplied sRGB bytes, colour profiles ignored (138), corrupt input nil; MetalUI-only: SwiftUI's images come from CGImage/NSImage/asset catalogs, and its Image(_:bundle:) reads asset catalogs, not loose files (probe swiftui-bundle-image B0-B9); the resource form decodes once per path
+F	image-bitmap-max-pixel-size	M	-	-	-	-	PX-W	ImageBitmap(contentsOfFile:maxPixelSize:)/(data:maxPixelSize:): a decode no larger than maxPixelSize on its longest side, PNG/JPEG through the one vendored decoder then an area average of premultiplied texels; SwiftUI has no decode-time downscale API, so MetalUI-only
 F	image-decode	M	-	-	-	-	IB-A IB-B IB-C IB-D IB-I IB-J IB-K	DecodedImage (+ ImageBitmap(_:)): PNG/JPEG decoded to straight RGBA8 or 8-bit grey by the one vendored decoder on every platform, width, height, bytesPerRow, the EXIF orientation reported and not applied, applyingOrientation(); SwiftUI has no pixel-level decode API, so MetalUI-only
 F	image-info	M	-	-	-	-	IH-A IH-B IH-C IH-D IH-E IH-F IH-G IH-I IH-J	ImageInfo and DecodedImage.Limits: PNG IHDR / JPEG SOF header read (format, stored size, EXIF orientation, bit depth, channels) with no pixel work, nil for other formats, no size limit of its own; the limited DecodedImage initialisers refuse from the header before the decoder allocates; SwiftUI has no header-only image API, so MetalUI-only
 F	image-sniff	M	-	-	-	-	IS-A IS-B IS-C IS-D IS-E IS-F IS-G IS-H IS-I IS-J	ImageFileFormat and ImageInfo.sniffedFormat(of:)/(ofFile:): a header-only, total format sniff from at most the first 18 bytes (png, jpeg, gif, tiff, bmp, webp, heif, avif, unknown), naming a prefix and never promising ImageInfo succeeds; SwiftUI has no such API, so MetalUI-only
@@ -478,6 +479,7 @@ M	MetalUI	ImageSniff.swift	.*	.*	.*	image-sniff
 M	MetalUI	ImageOrientation.swift	Image\.Orientation	(init\?|exifValue|swapsAxes)	.*	image-orientation-exif
 M	MetalUI	ImageOrientation.swift	.*	.*	.*	image-orientation
 M	MetalUI	ImageBitmap.swift	ImageBitmap	.*	oriented	image-bitmap-oriented
+M	MetalUI	ImageBitmap.swift	ImageBitmap	init\??	maxPixelSize	image-bitmap-max-pixel-size
 M	MetalUI	ImageBitmap.swift	ImageBitmap	init\??	(contentsOfFile|data|resource)	image-decoding
 M	MetalUI	ImageBitmap.swift	.*	.*	.*	image-bitmap
 M	MetalUI	KeyPress.swift	StyledElement	focusable	.*	focus-interactions
