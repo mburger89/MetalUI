@@ -184,7 +184,7 @@ func jpegScanIsTerminated(_ bytes: UnsafeRawBufferPointer) -> Bool {
 /// portable decoder does not read (TIFF, GIF, HEIC, …; `PX-C` item 5): the
 /// first frame drawn into a premultiplied sRGB RGBA8 context, so its colours
 /// are converted to sRGB and its rows read top-down. Apple only.
-private func decodeThroughImageIO(_ bytes: UnsafeRawBufferPointer) -> ImageTexture? {
+func decodeThroughImageIO(_ bytes: UnsafeRawBufferPointer) -> ImageTexture? {
     guard !bytes.isEmpty,
           let source = CGImageSourceCreateWithData(Data(bytes) as CFData, nil),
           let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
