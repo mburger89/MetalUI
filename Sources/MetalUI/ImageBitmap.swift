@@ -82,6 +82,35 @@ public struct ImageBitmap: Sendable {
         variants = OrientedVariants()
     }
 
+    /// Decodes the image file at `path` no larger than `maxPixelSize` on its longest side,
+    /// MetalUI-only (ruling `PX-W`): for a large photo drawn small, so the bitmap keeps a
+    /// window-sized texture instead of the full decode. `nil` in the cases ``init(contentsOfFile:)``
+    /// is. **A `maxPixelSize` below 1 traps**, naming `ImageBitmap`. See ``init(data:maxPixelSize:)``.
+    public init?(contentsOfFile path: String, maxPixelSize: Int) {
+        precondition(maxPixelSize >= 1, "ImageBitmap: maxPixelSize \(maxPixelSize) is below 1")
+        guard let data = FileManager.default.contents(atPath: path) else { return nil }
+        self.init(data: data, maxPixelSize: maxPixelSize)
+    }
+
+    /// Decodes an image held in memory no larger than `maxPixelSize` on its longest side,
+    /// MetalUI-only (ruling `PX-W`). An image whose longest side already fits is exactly what
+    /// ``init(data:)`` gives (never upscaled); a larger one is shrunk by an area average of
+    /// premultiplied texels, aspect preserved: the longest side is exactly `maxPixelSize`, the
+    /// other `max(1, round(other × maxPixelSize / longest))`. PNG and JPEG decode through
+    /// MetalUI's own decoder first (`PX-C`), so the result is the same on every platform; other
+    /// formats decode through ImageIO and are resampled by the same code. EXIF orientation is
+    /// treated as ``init(data:)`` treats it. **Only the resident size shrinks**: the full-size
+    /// decode still exists transiently, so the peak is the same as ``init(data:)``'s. Pure, so
+    /// callable off the main thread. `nil` as ``init(data:)`` is; **`maxPixelSize` below 1 traps**,
+    /// naming `ImageBitmap`.
+    public init?(data: Data, maxPixelSize: Int) {
+        precondition(maxPixelSize >= 1, "ImageBitmap: maxPixelSize \(maxPixelSize) is below 1")
+        guard let texture = data.withUnsafeBytes({ decodeImageTexture($0, maxPixelSize: maxPixelSize) })
+        else { return nil }
+        self.texture = texture
+        variants = OrientedVariants()
+    }
+
     /// Decodes the resource `name`.`ext` in `bundle` (in `subdirectory` when
     /// given; `ext` `nil` when `name` carries its extension) — e.g. an SwiftPM
     /// target's `Bundle.module` — as ``init(data:)`` does (ruling `PX-E`

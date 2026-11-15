@@ -20,7 +20,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
   next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
-  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-W`), `CI-` (input APIs: wheel, pinch, other
+  app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-X`), `CI-` (input APIs: wheel, pinch, other
   buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AM`), `TF-` (`.task`
   follow-ups: `2026-10-08-task-followups-decisions.md`, next `TF-F`), `VL-`
   (variable-height `List`: `2026-10-08-variable-height-list-decisions.md`, next `VL-W`), `WS-` (AccessKit before the first show:

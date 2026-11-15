@@ -32,7 +32,7 @@ Where SwiftUI has no answer (decoding bit-identity across platforms, how a
 package ships a backend, a C library with no pkg-config) the ruling says so;
 gpui is named as a comparison where it has one, never as evidence.
 
-Prefix **`PX-`**, lettered. **Next unused: `PX-W`.** (This line moves in the
+Prefix **`PX-`**, lettered. **Next unused: `PX-X`.** (This line moves in the
 commit that appends a ruling; read the last `## PX-` heading.)
 
 Branch `feat/portable-app` from `359444e` (master: port gaps, medium, merged,
@@ -1155,3 +1155,30 @@ two are corrected in the Record phase's commit, three are ruled here.
 
 **Cost if wrong.** Item 1 is a stale id in a corner. Item 2 is a
 test that would stay green if a warning appeared. Nothing else moves.
+
+## PX-W — A downscaled decode: `ImageBitmap(data:maxPixelSize:)`
+
+**Ruling.** Alloy shows a per-window background; a 4000 x 3000 wallpaper decoded by `init(data:)`
+keeps about 48 MB resident where a window-sized texture is 8 to 15 MB. MetalUI-only (SwiftUI has no
+such API), class M, no divergence label.
+
+1. **API.** `ImageBitmap(contentsOfFile:maxPixelSize:)` and `ImageBitmap(data:maxPixelSize:)`, `nil`
+   in the cases of the existing initialisers; `maxPixelSize < 1` traps, naming `ImageBitmap`.
+2. **Size.** A longest side of at most `maxPixelSize` is exactly `init(data:)` (never upscaled).
+   Otherwise the longest side becomes `maxPixelSize` and the other
+   `max(1, Int((other x maxPixelSize / longest).rounded()))`.
+3. **Decoder.** `PX-C` stands (identical PNG and JPEG bytes on every platform), so ImageIO's thumbnail
+   path is not used: PNG and JPEG decode through stb (`decodeImage`) and are then resampled; other
+   formats decode through `decodeThroughImageIO` as today and are resampled from their texture.
+4. **Resampler.** `Sources/MetalUI/ImageDownscale.swift`: an area average (fractional pixel coverage on
+   both axes, vertical then horizontal, memory one source row of `Double`) over **premultiplied**
+   channels, so a transparent texel adds alpha and no colour. The stb path premultiplies while
+   reading, with `ImageTexture`'s rule `(c x a + 127) / 255`, so no second full-size buffer exists;
+   the result is rounded to nearest and stored through `ImageTexture(premultipliedRGBA:)`. Pure; any
+   thread. The full-size buffer is local and gone on return.
+5. **EXIF orientation** is whatever `init(data:)` does (nothing is added).
+6. **Peak memory** still includes the transient full decode; only the resident size shrinks (doc
+   comment says so).
+
+**Cost if wrong.** A resampler with a different kernel (Lanczos, say) would change the bytes, which
+no test outside this file pins; the rule in item 2 is the contract Alloy sizes its textures by.

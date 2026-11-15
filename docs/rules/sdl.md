@@ -12,7 +12,7 @@ ignored (divergence 138), premultiplied once by `ImageTexture`; a corrupt or
 truncated file is `nil` (PNG chunk CRCs and `IEND`, JPEG end marker checked
 first — never trap); ImageIO stays only for other formats on macOS.
 `ImageBitmap(contentsOfFile:)`, `init?(data:)`, `init?(resource:…bundle:)`
-(decoded once per path); `Image(_:bundle:)` is not offered (`PX-E`).
+(decoded once per path); `Image(_:bundle:)` is not offered (`PX-E`). `ImageBitmap(data:maxPixelSize:)`/`(contentsOfFile:maxPixelSize:)` decode as `init(data:)` then area-average (premultiplied) down to the longest side, never up; a trap below 1, peak memory unchanged (`PX-W`).
 **The SDL backend is a root-package product** behind traits `SDL` and
 `AccessKit`: `MetalUISDL`/`SDLBridge`/`CSDL`/`CAccessKit` are declared by
 `path:` into `Backends/SDL/Sources`, **no `pkgConfig:`** (it makes the default
