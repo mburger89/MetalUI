@@ -148,10 +148,12 @@ struct PickerMenuLabel: Element {
                                                   scale: frame.scaleFactor) {
             Float(frame.textSystem.measure($0, font: font, wrappingAt: nil).widestLine)
         }
-        // The title's ideal is its basis; it may give up the chevron's width (the old floors) and truncates, so a squeezed
-        // picker shows a shorter title and keeps its indicator (`BY-O`).
+        // The title's ideal is its basis; it may give up the chevron's width, to at most 24 (the old floors for short
+        // titles: the `Picker.menu` pin at 67), and truncates, so a squeezed picker shows a shorter value and keeps its
+        // indicator (`BY-O`). The cap keeps a long option list from holding the capsule wide while the picker's own title
+        // wraps (`BY-P`): SwiftUI shortens the capsule first.
         let chevronWidth = Float(frame.textSystem.measure(" \u{2304}", font: font, wrappingAt: nil).widestLine)
-        let ideal = Pixels(width.rounded(.up)), floor = Pixels(max(0, width.rounded(.up) - chevronWidth))
+        let ideal = Pixels(width.rounded(.up)), floor = Pixels(min(24, max(0, width.rounded(.up) - chevronWidth)))
         var row = Style()
         row.flexDirection = .row
         row.alignItems = .center

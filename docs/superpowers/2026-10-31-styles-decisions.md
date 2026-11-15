@@ -4,7 +4,7 @@ Rulings for round 3, item R3-1: `ButtonStyle` and `PrimitiveButtonStyle` as open
 `.link`, `toggleStyle(_:)` with an open `ToggleStyle`, and `.pickerStyle(.inline)`. Branch `feat/button-styles`. Code:
 `Sources/MetalUI/ButtonStyle.swift`, `ToggleStyle.swift`, `Button.swift`, `Toggle.swift`, `PasteButton.swift`,
 `Picker.swift`, `Frame.pointerOwner` (stamped in `Window.swift`). Tests: `ButtonStyleTests.swift`, `ToggleStyleTests.swift`,
-`StyleCompileGuards.swift`. **Next unused: `BY-P`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
+`StyleCompileGuards.swift`. **Next unused: `BY-Q`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
 (the closed `ButtonStyle` struct) and `DD-AB` item 7 / `IX-M` (the absent toggle styles and `.inline`).
 **None of the looks is measured** (the probe capture draws no text and SwiftUI's chrome for these styles was not probed
 in this round): sizes, fills and the pressed looks are MetalUI's, human check group BY.
@@ -158,6 +158,14 @@ With `BY-N` merged, Alloy's row (`HStack { Picker(...); Menu(...); Menu(...) }`,
 Pinned by `aMenuPickerBesideMenusAlwaysPaintsItsChevronInsideItsCapsule` (widths 600 to 200, red on the old row at 340 to 200: the rightmost glyph in the capsule has width, lies within it and ends within 16 of its right edge). No divergence label.
 
 **Cost if wrong.** Reverting the row restores a chevron-less capsule in any row narrower than about 340.
+
+## BY-P: a menu `Picker`'s title never wraps; the selected value's title gives way first (Alloy composer pills, record 307)
+
+Alloy's row (`HStack { Picker("Mode", ...); Menu("Model"); Menu("Effort") }`, all `.capsule`) in a 300 to 320 wide column drew the picker's own title "Mode" as "Mod" / "e". **Probe (`docs/probes/swiftui-picker-label-compression.swift`, macOS 27):** SwiftUI's picker keeps its title whole on one line and shortens the capsule first (the capsule 123 wide at the ideal, 54 at a 97-wide picker, 41 at 75), and the picker is 24 tall down to 280; only below that, with the capsule at its floor, does the title wrap. It is never given less than the leftover after the menus. **Cause:** `BY-O`'s title floor (the widest option less the chevron, about 70 in the capsule) was higher than the capsule SwiftUI allows, so `PickerTitleLayout` squeezed the title to 12 wide. **Fix:** the selected-value title's `minWidth` is the old floor capped at 24 (it truncates, `lineLimit(1)`; the chevron stays, `BY-O`), so the capsule is 62 wide at its floor and the picker's own title keeps its line down to a picker about 105 wide; ideal 109 x 24 is unchanged (`BY-N`). A floor of 0 matched SwiftUI's capsule even closer but moved the probe-measured `Picker.menu` zero floor 67 to 43.4 (`ProposalControlsTests`), so the cap is the smallest that keeps that pin (the old floor of the short `Alpha`/`Beta` titles there is 23.6). Below a row that cannot give the picker 105 the title still wraps, as SwiftUI's at about 85; MetalUI's `Menu`s are narrower than SwiftUI's, so its rows fit where SwiftUI's compress. Plain `Text` squeezed in an `HStack` breaks mid-word in SwiftUI as in MetalUI ("sourcekit-" / "lsp", then character by character), so that case is not a divergence.
+
+Pinned by `aMenuPickersTitleNeverWrapsWhenTheRowIsNarrow` (`Mode`, `Model`, `Effort`, widths 600 to 280; red on the `BY-O` floor at 360 to 280). No divergence label.
+
+**Cost if wrong.** Restoring the floor brings back the wrapped title in any row narrower than about 360 (Alloy's row at 300 to 320).
 
 ## Carried
 
