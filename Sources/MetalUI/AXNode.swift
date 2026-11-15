@@ -180,20 +180,30 @@ public struct AXNode: Equatable {
     /// `Frame.registerHandlers` as `selectionHint` is: no `axNodes`, no `$ax`.
     var isSelectableRow = false
 
+    /// The four Bool role hints below (`menuButtonHint`, `popUpButtonHint`, `popoverHint`, `colorWellHint`) packed into one
+    /// byte, so the outline hint (`OG-F`) fits `AXNode`'s pinned size (121) and `Handlers`' exact 480. Internal.
+    private var boolHints: UInt8 = 0
+
     /// **A role hint, not a declaration** (menus, ruling `MN-H` item 2): set by
     /// `Menu`'s pull-down button, published as `.menuButton` (SwiftUI's
     /// `AXMenuButton`, arm M1) where the node would otherwise be a `.button`.
     /// Stripped by `Frame.registerHandlers` before `isEmpty`'s gate exactly as
     /// `selectionHint` is, so it writes neither `Frame.axNodes` nor a `$ax`
     /// slot (`AB-U`). Internal.
-    var menuButtonHint = false
+    var menuButtonHint: Bool {
+        get { boolHints & 1 != 0 }
+        set { if newValue { boolHints |= 1 } else { boolHints &= ~1 } }
+    }
 
     /// **A role hint, not a declaration** (platform services, ruling `SV-S`,
     /// `SV-P` item 5): set by a menu `Picker`'s pull-down button, published as
     /// `.popUpButton` (SwiftUI's `AXPopUpButton`, arms `P0`–`P3`) where the
     /// node would otherwise be a `.button`. Stripped by
     /// `Frame.registerHandlers` exactly as `menuButtonHint` is. Internal.
-    var popUpButtonHint = false
+    var popUpButtonHint: Bool {
+        get { boolHints & 2 != 0 }
+        set { if newValue { boolHints |= 2 } else { boolHints &= ~2 } }
+    }
 
     /// **A role hint, not a declaration** (menus, popovers and tooltips,
     /// ruling `MN-O`): set by a popover's chrome, published as `.popover`
@@ -201,14 +211,20 @@ public struct AXNode: Equatable {
     /// before `isEmpty`'s gate as `menuButtonHint` is, so the chrome writes
     /// neither `Frame.axNodes` nor a `$ax` slot (`AB-U`); it still makes the
     /// chrome's record, as a selection hint does. Internal.
-    var popoverHint = false
+    var popoverHint: Bool {
+        get { boolHints & 4 != 0 }
+        set { if newValue { boolHints |= 4 } else { boolHints &= ~4 } }
+    }
 
     /// **A role hint, not a declaration** (C10, ruling `LK-G`, `LK-C` item 7):
     /// set by a `ColorPicker`'s well, published as `.colorWell` (SwiftUI's
     /// `AXColorWell`, probe `C1`) where the node would otherwise be a
     /// `.button`. Stripped by `Frame.registerHandlers` exactly as
     /// `popUpButtonHint` is. Internal.
-    var colorWellHint = false
+    var colorWellHint: Bool {
+        get { boolHints & 8 != 0 }
+        set { if newValue { boolHints |= 8 } else { boolHints &= ~8 } }
+    }
 
     /// **A role hint, not a declaration** (C10 lane 2, rulings `LK-G`,
     /// `LK-E` item 5, `LK-V` item 6): set by a `ProgressView`'s indicator,
@@ -222,8 +238,9 @@ public struct AXNode: Equatable {
     /// (`.list`) and on each of its realised rows (the row's disclosure level and whether it is a group, open or
     /// closed), so a client reads the row's `AXDisclosureLevel`/`AXDisclosing` and a tree reads its `TREE_ITEM`'s level
     /// and `expanded`. **Packed in three bytes** (`AXOutlineHint`) so `AXNode` and `Handlers` stay under their pinned
-    /// sizes. Stripped by `Frame.registerHandlers` as the other hints are, so it writes neither `Frame.axNodes` nor a
-    /// `$ax` slot (`AB-U`). The disclosed-by row is not stored: the builder derives it from the levels of the realised
+    /// sizes (declared after `roleHint`, in the bytes the packed Bool hints freed; alignment 1, so no padding). Stripped by
+    /// `Frame.registerHandlers` as the other hints are, so it writes neither `Frame.axNodes` nor a `$ax` slot (`AB-U`).
+    /// The disclosed-by row is not stored: the builder derives it from the levels of the realised
     /// rows in order. Internal.
     var outlineHint: AXOutlineHint?
 
@@ -405,12 +422,18 @@ struct AXOutlineHint: Equatable, Sendable {
         case expanded
     }
 
-    /// The disclosure level of a row (0 for a root); 0 for the list.
-    var level: UInt16
+    /// The disclosure level of a row (0 for a root); 0 for the list. Stored as two bytes so the hint's alignment is 1 and
+    /// it fits the bytes between the Bool hints without padding.
+    private var levelHigh: UInt8
+    private var levelLow: UInt8
     var state: State
 
+    var level: Int { Int(levelHigh) << 8 | Int(levelLow) }
+
     init(level: Int, state: State) {
-        self.level = UInt16(clamping: level)
+        let clamped = UInt16(clamping: level)
+        self.levelHigh = UInt8(clamped >> 8)
+        self.levelLow = UInt8(clamped & 0xFF)
         self.state = state
     }
 }

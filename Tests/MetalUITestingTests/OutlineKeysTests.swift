@@ -278,6 +278,28 @@ private func rowY(_ index: Int) -> Float { 10 + 32 * Float(index) + 16 }
     }
 }
 
+/// **K5c (`OG-E` deviation (c)).** ⌥← reaches the expanded groups below the group only through expanded ancestors: a group
+/// under an already collapsed child keeps its own state. A, A/B, A/B/F opened, then A/B collapsed by a plain click (F stays
+/// open inside it); ⌥← on A, A re-opened and A/B re-opened shows F still open. Mutation: the data cascade descending into
+/// collapsed children (F is written closed).
+@Test @MainActor func optionLeftLeavesAGroupUnderACollapsedChildAlone() throws {
+    for form in Form.allCases {
+        let model = Folders()
+        let window = try listWindow(form, chain(), model)
+        open(window, ["A", "A/B", "A/B/F"], model)
+        chevron(window, "A/B")
+        #expect(visible(window) == ["A", "A/B", "A/C", "Z"], "\(form): control: A/B collapsed: \(visible(window))")
+        select(window, "A", model)
+        key(window, .leftArrow, .option)
+        #expect(visible(window) == ["A", "Z"], "\(form): \(visible(window))")
+        chevron(window, "A")
+        chevron(window, "A/B")
+        #expect(visible(window) == ["A", "A/B", "A/B/F", "A/B/F/G", "A/C", "Z"],
+                "\(form): F kept its own state under the collapsed child: \(visible(window))")
+        if form == .content { #expect(model.open.contains("A/B/F"), "\(form): F's binding was not written: \(model.open.sorted())") }
+    }
+}
+
 /// **P-C1.** ⌥-click on the chevron cascades like ⌥→ and ⌥←; a plain click toggles one group. Mutations: the chevron
 /// ignoring ⌥; ⌥ cascading a plain click.
 @Test @MainActor func optionClickOnTheChevronCascades() throws {
