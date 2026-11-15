@@ -74,3 +74,5 @@ element's `.id`, so a guide test reads an accessibility frame (`DG-T`). No publi
 **Glyphs in a harness test (`CT-A`, record 291).** `TestWindow.scene.glyphs` is the root target's glyphs only: text inside an offscreen group (an ellipse or path clip, two crossing rounded clips, `opacity`, a blur, a shadow) is in `scene.groupScenes`. A test asking what colour or where the window's text is reads `TestWindow.allGlyphs`.
 
 **Real windows in a test call `installAppKitEventSignal()` first (record 304).** Without HIToolbox's enqueue-signal block the event thread stops the main run loop (`CFRunLoopStop`), and one stop outside a nested run ends the whole test process with exit 0 and no summary line; every helper that builds an `AppKitPlatform` or `AppKitWindow` calls it, and a new one does too.
+
+**Website and API reference.** The site lives in `site/` and the DocC API reference is built by `scripts/build-docs.sh`; both deploy from master through `.github/workflows/pages.yml` to `https://mburger89.github.io/MetalUI/` (API at `/api/`, MetalUITesting at `/api/testing/`).

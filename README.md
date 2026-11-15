@@ -6,6 +6,8 @@ semantics. It runs on macOS (AppKit and Metal) and on Linux and Windows (SDL3).
 
 > **Status: experimental.** The API still changes.
 
+Website: <https://mburger89.github.io/MetalUI/> · [API reference](https://mburger89.github.io/MetalUI/api/documentation/metalui/)
+
 ## Requirements
 
 - Swift 6.4
