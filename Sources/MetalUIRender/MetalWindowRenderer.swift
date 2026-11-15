@@ -18,7 +18,7 @@ public final class MetalWindowRenderer: WindowRenderer {
     /// This window's backdrop frame target and blur pool (`BB-C`, `BB-K`): per window, as the surface table is, so
     /// two windows sharing one ``renderer`` neither share a frame target nor drop each other's pool every frame.
     let backdropState = BackdropFrameState()
-    /// The GPU copy of this window's glyph atlas (`WA-A`): per window, because each `Window` owns its own
+    /// The GPU copy of this window's glyph atlas (`PW-A`): per window, because each `Window` owns its own
     /// `GlyphAtlas` and its slots are UVs into that atlas only. Two windows sharing one ``renderer`` would
     /// otherwise overwrite one texture and sample each other's glyphs.
     package let atlasState = WindowTextureState()

@@ -1,4 +1,4 @@
-# 305 — One atlas texture per window (`WA-A`)
+# 305 — One atlas texture per window (`PW-A`)
 
 Branch `fix/per-window-atlas` from `9639c33f`. Reported by Alloy: with two windows open (Settings via
 `App.openWindow`), text in the other window rendered as garbled glyph fragments.

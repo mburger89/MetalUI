@@ -749,7 +749,7 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     #expect(textPixels[hit + 2] > 200, "with the orders swapped, the red glyph's red channel must win")
 }
 
-// MARK: - One atlas texture per window (`WA-A`)
+// MARK: - One atlas texture per window (`PW-A`)
 
 /// A window surface over one offscreen texture, readable after a frame.
 @MainActor private final class AtlasProbeSurface: RenderSurface {
@@ -773,7 +773,7 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     }
 }
 
-/// **Two windows on one `Renderer` each sample their own atlas** (`WA-A`; the Alloy Settings-window bug). Each
+/// **Two windows on one `Renderer` each sample their own atlas** (`PW-A`; the Alloy Settings-window bug). Each
 /// `Window` owns a `GlyphAtlas` and its slots are UVs into that atlas only, but the renderer kept one atlas texture:
 /// window B's upload replaced the texture window A sampled, and A — with nothing new to upload — drew its UVs
 /// against B's glyphs. Both windows pack a different glyph into the same slot, then draw A, B, A (no new glyphs
@@ -823,7 +823,7 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     #expect(bytesA == atlasA.pixels, "window A's texture holds window A's atlas")
 }
 
-/// The image-texture cache is per window too (`WA-A`): it drops every texture the current scene does not
+/// The image-texture cache is per window too (`PW-A`): it drops every texture the current scene does not
 /// reference, so one shared cache made two windows showing different images re-upload both every frame.
 /// Mutation: route `MetalWindowRenderer`'s `encode` back to `atlasState: nil`; the upload count then grows.
 @Test @MainActor func twoWindowsOnOneRendererDoNotReuploadEachOthersImages() throws {

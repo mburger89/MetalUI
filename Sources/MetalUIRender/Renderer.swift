@@ -27,7 +27,7 @@ public enum RendererError: Error, CustomStringConvertible {
 }
 
 /// The GPU copy of one `GlyphAtlas` plus the bookkeeping that keeps `Renderer.upload` from writing a texture an
-/// in-flight frame may still read (`WA-A`). One per window (`MetalWindowRenderer`), plus the renderer's default.
+/// in-flight frame may still read (`PW-A`). One per window (`MetalWindowRenderer`), plus the renderer's default.
 ///
 /// **`wasEncoded` exists to keep `upload` from writing to a texture the GPU may still be reading**, and it is the
 /// whole of that guarantee. `Window` commits a frame's command buffer and does not wait, so a `texture.replace`
@@ -1270,7 +1270,7 @@ public final class Renderer {
     ///   can see.
     public func upload(_ atlas: GlyphAtlas) { upload(atlas, into: defaultTextureState) }
 
-    /// ``upload(_:)`` into `state`, the GPU copy of one window's atlas (`WA-A`): each window's
+    /// ``upload(_:)`` into `state`, the GPU copy of one window's atlas (`PW-A`): each window's
     /// `MetalWindowRenderer` owns one, so two windows sharing this renderer never overwrite the texture
     /// the other samples.
     package func upload(_ atlas: GlyphAtlas, into state: WindowTextureState) {
