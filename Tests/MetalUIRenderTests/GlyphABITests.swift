@@ -748,3 +748,106 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     #expect(coveredPixels[hit + 2] < 80, "no red text may show through an opaque rect (red channel)")
     #expect(textPixels[hit + 2] > 200, "with the orders swapped, the red glyph's red channel must win")
 }
+
+// MARK: - One atlas texture per window (`PW-A`)
+
+/// A window surface over one offscreen texture, readable after a frame.
+@MainActor private final class AtlasProbeSurface: RenderSurface {
+    let texture: any MTLTexture
+    init(device: any MTLDevice, side: Int) throws {
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Renderer.pixelFormat, width: side, height: side, mipmapped: false)
+        d.usage = .renderTarget; d.storageMode = .shared
+        texture = try #require(device.makeTexture(descriptor: d))
+    }
+    func nextFrame() throws -> SurfaceFrame {
+        SurfaceFrame(views: [SurfaceView(colorTexture: texture, viewport: MTLViewport(
+            originX: 0, originY: 0, width: Double(texture.width), height: Double(texture.height), znear: 0, zfar: 1))],
+                     scaleFactor: 1)
+    }
+    func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer) {}
+    func pixels() -> [UInt8] {
+        var out = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
+        out.withUnsafeMutableBytes { texture.getBytes($0.baseAddress!, bytesPerRow: texture.width * 4,
+                                                      from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0) }
+        return out
+    }
+}
+
+/// **Two windows on one `Renderer` each sample their own atlas** (`PW-A`; the Alloy Settings-window bug). Each
+/// `Window` owns a `GlyphAtlas` and its slots are UVs into that atlas only, but the renderer kept one atlas texture:
+/// window B's upload replaced the texture window A sampled, and A — with nothing new to upload — drew its UVs
+/// against B's glyphs. Both windows pack a different glyph into the same slot, then draw A, B, A (no new glyphs
+/// for A on its second frame): A's second frame must equal its first, and differ from B's.
+/// Mutation: route `MetalWindowRenderer`'s `upload`/`encode` back to the renderer's default state; this goes red.
+@Test @MainActor func twoWindowsOnOneRendererEachSampleTheirOwnAtlas() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let shared = try Renderer(device: device)
+    let (atlasA, slotsA) = try packedAtlas(["H"])
+    let (atlasB, slotsB) = try packedAtlas(["g"])
+    try #require(slotsA[0].x == slotsB[0].x && slotsA[0].y == slotsB[0].y, "same slot, different bitmap")
+    let side = 64
+    let surfaceA = try AtlasProbeSurface(device: device, side: side)
+    let surfaceB = try AtlasProbeSurface(device: device, side: side)
+    let windowA = MetalWindowRenderer(renderer: shared, surface: surfaceA)
+    let windowB = MetalWindowRenderer(renderer: shared, surface: surfaceB)
+
+    func scene(_ slot: AtlasSlot) -> Scene {
+        var scene = Scene()
+        scene.insert(sprite(slot, at: (x: 4, y: 4), color: .white))
+        scene.finalize()
+        return scene
+    }
+    func frame(_ window: MetalWindowRenderer, _ scene: Scene, _ atlas: GlyphAtlas) throws {
+        try #require(window.beginFrame() != nil)
+        try #require(window.finishFrame(scene: scene, atlas: atlas, surfaces: []))
+        let barrier = shared.commandQueue.makeCommandBuffer()!
+        barrier.commit(); barrier.waitUntilCompleted()   // in-order queue: the frame has finished
+    }
+
+    try frame(windowA, scene(slotsA[0]), atlasA)
+    let firstA = surfaceA.pixels()
+    try frame(windowB, scene(slotsB[0]), atlasB)
+    let drawnB = surfaceB.pixels()
+    try frame(windowA, scene(slotsA[0]), atlasA)   // nothing new to upload
+    let secondA = surfaceA.pixels()
+
+    #expect(firstA != [UInt8](repeating: 0, count: firstA.count), "window A drew its glyph")
+    #expect(firstA != drawnB, "the two glyphs differ, so the comparison below can discriminate")
+    #expect(secondA == firstA, "window A's second frame sampled another window's atlas")
+    let textureA = try #require(windowA.atlasState.texture)
+    let textureB = try #require(windowB.atlasState.texture)
+    #expect(textureA !== textureB)
+    var bytesA = [UInt8](repeating: 0, count: atlasA.width * atlasA.height)
+    bytesA.withUnsafeMutableBytes { textureA.getBytes($0.baseAddress!, bytesPerRow: atlasA.width,
+                                                      from: MTLRegionMake2D(0, 0, atlasA.width, atlasA.height), mipmapLevel: 0) }
+    #expect(bytesA == atlasA.pixels, "window A's texture holds window A's atlas")
+}
+
+/// The image-texture cache is per window too (`PW-A`): it drops every texture the current scene does not
+/// reference, so one shared cache made two windows showing different images re-upload both every frame.
+/// Mutation: route `MetalWindowRenderer`'s `encode` back to `atlasState: nil`; the upload count then grows.
+@Test @MainActor func twoWindowsOnOneRendererDoNotReuploadEachOthersImages() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let shared = try Renderer(device: device)
+    let atlas = GlyphAtlas(width: 64, height: 64)
+    let windowA = MetalWindowRenderer(renderer: shared, surface: try AtlasProbeSurface(device: device, side: 16))
+    let windowB = MetalWindowRenderer(renderer: shared, surface: try AtlasProbeSurface(device: device, side: 16))
+    let red = ImageTexture(width: 1, height: 1, straightRGBA: [255, 0, 0, 255])
+    let blue = ImageTexture(width: 1, height: 1, straightRGBA: [0, 0, 255, 255])
+    func scene(_ texture: ImageTexture) -> Scene {
+        var scene = Scene()
+        let box = Bounds<ScaledPixels>(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+                                       size: Size(width: ScaledPixels(8), height: ScaledPixels(8)))
+        scene.insert(MUIImage(bounds: box, contentMask: box, maskCornerRadii: Corners(all: ScaledPixels(0)),
+                              opacity: 1, filter: .linear, order: 0), texture: texture)
+        scene.finalize()
+        return scene
+    }
+    for _ in 0..<3 {
+        for (window, texture) in [(windowA, red), (windowB, blue)] {
+            try #require(window.beginFrame() != nil)
+            try #require(window.finishFrame(scene: scene(texture), atlas: atlas, surfaces: []))
+        }
+    }
+    #expect(shared.imageTextureUploadCount == 2, "each image uploaded once, not once per alternating frame")
+}
