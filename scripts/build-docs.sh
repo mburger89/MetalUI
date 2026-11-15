@@ -22,7 +22,7 @@ for m in MetalUI MetalUICore MetalUILayout MetalUIPlatform MetalUIPrimitives \
   done
 done
 
-rm -rf "$out"
+rm -rf "$out"; mkdir -p "${out:h}"
 xcrun docc convert Sources/MetalUI/MetalUI.docc \
   --additional-symbol-graph-dir "$tmp/sg" \
   --fallback-display-name MetalUI \

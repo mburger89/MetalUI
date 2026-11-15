@@ -1,0 +1,56 @@
+# The website (site/) and the DocC API reference, published to GitHub Pages from master.
+# Site: https://mburger89.github.io/MetalUI/   API: https://mburger89.github.io/MetalUI/api/
+name: Pages
+
+on:
+  push:
+    branches: [ "master" ]
+    paths:
+      - "site/**"
+      - "Sources/**"
+      - "scripts/build-docs.sh"
+      - "scripts/check-site.sh"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: xcode-27  # Swift 6.4 (Xcode 27, preview image), as swift.yml
+    steps:
+    - uses: actions/checkout@v7
+    # Reuses the SwiftPM cache action; its own key (name) keeps it apart from the build job's.
+    - uses: ./.github/actions/swift-cache
+      with:
+        name: pages-docs
+        paths: .build
+    - name: Check the site
+      run: scripts/check-site.sh
+    - name: Build the API reference
+      run: scripts/build-docs.sh _site/api
+    - name: Assemble the site
+      run: |
+        rsync -a --exclude quickstart.md --exclude CREDITS.md site/ _site/
+        test -f _site/index.html
+        test -f _site/api/documentation/metalui/index.html
+    - uses: actions/upload-pages-artifact@v4
+      with:
+        path: _site
+
+  deploy:
+    needs: build
+    runs-on: xcode-27
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - id: deployment
+      uses: actions/deploy-pages@v4
