@@ -314,7 +314,8 @@ private func f(_ value: Pixels) -> Float { value.value }
             OutlineGroup(tree, children: \.kids) { label($0) }
         }
     }
-    #expect(literal.count == 1 + 3 + 3, "the table, one row and one label per root: \(literal.count)")
+    #expect(literal.count == 1 + 3 + 3 + 2 + 2,
+            "the table, one row and one label per root, and (lane 5) a cell and a triangle for each of the two groups: \(literal.count)")
     let viaOptional = try ids { List(tree, children: \.kids, selection: Binding<String?>(get: { optional }, set: { optional = $0 })) { label($0) } }
     let viaSet = try ids { List(tree, children: \.kids, selection: Binding(get: { many }, set: { many = $0 })) { label($0) } }
     let viaPlain = try ids { List(tree, children: \.kids, selection: Binding(get: { plain }, set: { plain = $0 })) { label($0) } }

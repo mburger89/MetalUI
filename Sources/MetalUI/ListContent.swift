@@ -105,16 +105,21 @@ extension DisclosureGroupBody {
     /// label. Only the chevron cell toggles (`P-C1`); a click anywhere else on the row is the list's, and selects. The
     /// chevron is the secondary level (`P-L3` measured #808080 light, #7C7C7C dark: secondary is 0.498 of black over white,
     /// #808080), a glyph swap as the standalone group's is; it is not focusable (`FC-F`: the list is the one focus stop).
-    var listHeader: some ElementGroup {
+    /// A ⌥-click on the chevron runs `cascade` instead of the plain toggle (`P-C1`).
+    func listHeader(cascade: (@MainActor (Bool) -> Void)?) -> some ElementGroup {
         let open = isExpanded
         let toggle = self.toggle
         return HStack(alignment: .center, spacing: Pixels(0)) {
             Image(systemName: open ? "chevron.down" : "chevron.right")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
                 .frame(width: Pixels(Float(ListRowChrome.chevronCell)), height: Pixels(Float(ListRowChrome.rowHeight)))
-                .onTapGesture { toggle() }
+                .onClick {
+                    // ⌥-click cascades like ⌥→ and ⌥← (`P-C1`). An `onClick`, not a tap gesture: only a click reads the
+                    // modifiers of the mouse-up (`ClickDispatch`).
+                    if let cascade, ClickDispatch.modifiers == .option { cascade(!open) } else { toggle() }
+                }
+                .accessibilityHidden(true)   // the row's triangle child is the client's way in (`OG-F`)
             label
             Spacer()
         }
@@ -217,6 +222,11 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         GlobalElementID.child(of: list, at: 0, name: ElementID("$listlead"))
     }
 
+    /// The entry a pending ⌥ cascade lives in (`OutlineCascade`): the groups whose descendants the next build expands or collapses.
+    private static func cascadeID(_ list: GlobalElementID) -> GlobalElementID {
+        GlobalElementID.child(of: list, at: 0, name: ElementID("$listcascade"))
+    }
+
     /// A row's chrome id (its hitbox, its accessibility row), named by the unit's key under the list.
     private static func rowID(_ list: GlobalElementID, unitKey: AnyHashable) -> GlobalElementID {
         GlobalElementID.child(of: list, at: 0, name: ElementID(name: "row " + String(describing: unitKey.base), key: IdentityKey(unitKey)))
@@ -257,6 +267,19 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> LayoutNodeID {
         pass.frame.stateTable.mark(Self.leadID(id))
+        let cascadeID = Self.cascadeID(id)
+        pass.frame.stateTable.mark(cascadeID)
+        let pendingCascades = pass.frame.stateTable.peek(cascadeID, as: [GlobalElementID: Bool].self) ?? [:]
+        let lifecycle = pass.frame.animationStore.lifecycle
+        let cascadeContext = OutlineCascade.Context(
+            pending: pendingCascades,
+            queue: { owner, write in lifecycle.enqueue(LifecycleEvent(owner: owner, action: { write() }, departed: nil)) },
+            request: { [weak table = pass.frame.stateTable] group, expand in
+                guard let table else { return }
+                var current = table.peek(cascadeID, as: [GlobalElementID: Bool].self) ?? [:]
+                current[group] = expand
+                table.write(cascadeID, current)
+            })
         rowValues = [:]
         let reader = selection.reader()
         let highlight = pass.frame.environmentTop.tint ?? Color(.accent)
@@ -291,6 +314,22 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
                 rowHandlers = handlers
                 values[rowID] = value
             }
+            // An outline row tells a client its level, whether it is a group and open, and (a group) can expand or collapse
+            // (`OG-F`); a row of an outline with no selection is published too.
+            if hierarchical, pass.collectsAccessibility {
+                var handlers = rowHandlers ?? Handlers()
+                if context.bounded, handlers.axNode.logicalIndex == nil { handlers.axNode.logicalIndex = box.unit }
+                let disclosure = context.table.disclosure(box.unit)
+                let state: AXOutlineHint.State = disclosure.map { $0.isExpanded() ? .expanded : .collapsed } ?? .leaf
+                handlers.axNode.outlineHint = AXOutlineHint(level: box.depth, state: state)
+                if let disclosure {
+                    handlers.actions[ObjectIdentifier(AccessibilityDisclosure.self)] = { action in
+                        guard let request = action as? AccessibilityDisclosure else { return }
+                        disclosure.set(request.expand)
+                    }
+                }
+                rowHandlers = handlers
+            }
             let geometry = ListRowGeometry()
             var fill = Decoration()
             fill.background = highlight
@@ -304,7 +343,10 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
                                                 height: all.size.height - Pixels(Float(topInset))))
                     geometry.rect = row
                     if let rowHandlers {
-                        pass.registerAndScope(rowHandlers, Decoration(), at: row, for: rowID) { box.prepaint(&pass) }
+                        // The row adopts the records its content makes (`OG-F`): its text is the row's child.
+                        pass.registerAndScope(rowHandlers, Decoration(), at: row, for: rowID) {
+                            pass.frame.withAccessibilityAdopter(rowID) { box.prepaint(&pass) }
+                        }
                     } else {
                         box.prepaint(&pass)
                     }
@@ -321,7 +363,15 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
             wrapped.selectionTag = box.selectionTag
             return wrapped
         }
-        let (node, laidOut) = ListRowChrome.whileActive { engine.requestLayout(id, pass: &pass) }
+        let (node, laidOut) = ListRowChrome.whileActive {
+            OutlineCascade.whileActive(cascadeContext) { engine.requestLayout(id, pass: &pass) }
+        }
+        // The requests this build carried out are spent once the window has run the writes they queued, in the same drain.
+        if !pendingCascades.isEmpty {
+            lifecycle.enqueue(LifecycleEvent(owner: id, action: { [weak table = pass.frame.stateTable] in
+                table?.write(cascadeID, [GlobalElementID: Bool]())
+            }, departed: nil))
+        }
         engine.unitWrapper = nil
         stack = engine
         state = laidOut
@@ -337,6 +387,7 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         guard var laidOut = state else { return }
         var listHandlers = handlers
         if listHandlers.axNode.isEmpty { listHandlers.axNode = AXNode(role: .container) }
+        if hierarchical { listHandlers.axNode.outlineHint = AXOutlineHint(level: 0, state: .list) }   // `OG-F`: a tree
         if let table = laidOut.table {
             listHandlers.axNode.logicalCount = table.count
             if !selection.isNone { compose(&listHandlers, table: table, id: id, pass: pass) }
@@ -386,19 +437,56 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         let controller = self.controller(table: table, list: id, stateTable: stateTable)
         let callerKey = handlers.onKey
         listHandlers.isFocusable = true
+        let hierarchical = self.hierarchical
         listHandlers.onKey = { [weak queue] event in
             if let callerKey, callerKey(event) { return true }
-            guard let move = ControlKeys.listMove(event),
-                  let moved = controller.move(move.direction, extends: move.extends) else { return false }
             // The new lead is revealed like any `scrollTo` of its id (`OG-E`: the key moves reveal the lead).
-            if let scope = id.parent {
-                queue?.enqueue(ScrollRequest(scope: scope, key: table.rawID(moved.index), anchor: nil))
+            @MainActor func reveal(_ index: Int) {
+                if let scope = id.parent {
+                    queue?.enqueue(ScrollRequest(scope: scope, key: table.rawID(index), anchor: nil))
+                }
             }
+            if let move = ControlKeys.listMove(event) {
+                guard let moved = controller.move(move.direction, extends: move.extends) else { return false }
+                reveal(moved.index)
+                return true
+            }
+            guard hierarchical, let key = ControlKeys.outlineDisclosure(event) else { return false }
+            if let parent = Self.disclose(key, table: table, controller: controller) { reveal(parent) }
             return true
         }
         let rows = rowValues
         listHandlers.actions[ObjectIdentifier(AccessibilityRowSelection.self)] =
             controller.accessibilityRowSelection { rows }
+    }
+
+    /// An outline list's ← and → (`OG-E`, probes `P-K2`..`P-K5`), on the lead row: → expands a collapsed group, ← collapses
+    /// an expanded one or selects the parent of a leaf or a collapsed group; with ⌥ they cascade. Anything else does
+    /// nothing, and the selection never changes but by moving to a parent. Returns the position to reveal, if the
+    /// selection moved. The key is consumed whenever the list has a lead row.
+    @inline(never)
+    private static func disclose(_ key: (direction: ControlKeys.Direction, cascades: Bool), table: LazyUnitTable,
+                                 controller: ListSelectionController<SelectionValue>) -> Int? {
+        guard let lead = controller.leadPosition() else { return nil }
+        let disclosure = table.disclosure(lead)
+        switch key.direction {
+        case .forward:
+            guard let disclosure, !disclosure.isExpanded() else { return nil }
+            if key.cascades { disclosure.cascade(true) } else { disclosure.set(true) }
+            return nil
+        case .backward:
+            if let disclosure, disclosure.isExpanded() {
+                if key.cascades { disclosure.cascade(false) } else { disclosure.set(false) }
+                return nil
+            }
+            // A leaf or a collapsed group: the parent is the nearest row above at a lower level.
+            let depth = table.depth(lead)
+            guard depth > 0 else { return nil }
+            var position = lead - 1
+            while position >= 0, table.depth(position) >= depth { position -= 1 }
+            guard position >= 0, controller.select(position: position) != nil else { return nil }
+            return position
+        }
     }
 
     func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, pass: inout PaintPass) {

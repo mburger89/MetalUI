@@ -98,6 +98,13 @@ extension Window {
             if accessibility.activate() { setNeedsRedraw() }
             return true
         case .press(let node):
+            // A group row's synthesized triangle (`OG-F`): the row's expand or collapse, whichever it is not yet.
+            if let triangle = node.base as? OutlineTriangle {
+                let row = AccessibilityNodeID(triangle.row)
+                guard isOfferedUnderIsolation(row), let actions = accessibility.lastPublished.nodes[row]?.actions
+                else { return false }
+                return setDisclosure(row, expand: actions.contains(.expand))
+            }
             guard isOfferedUnderIsolation(node), let id = node.base as? GlobalElementID else { return false }
             if let chosen = pressAlertButton(id) { return chosen }   // the drawn alert is modal (SV-J item 4)
             if let chosen = pressMenuRow(id) { return chosen }   // the in-window menu (MN-F item 4)
@@ -144,6 +151,12 @@ extension Window {
         case .selectRows(let table, let rows):
             guard isOfferedUnderIsolation(table) else { return false }
             return selectRows(table, rows)
+        case .expand(let node):
+            guard isOfferedUnderIsolation(node) else { return false }
+            return setDisclosure(node, expand: true)
+        case .collapse(let node):
+            guard isOfferedUnderIsolation(node) else { return false }
+            return setDisclosure(node, expand: false)
         case .showMenu(let node):
             // A recorded context menu (`MN-G` item 2), at the element's
             // bottom-leading corner; refused for a node without one (C11n).
@@ -153,6 +166,22 @@ extension Window {
             if opened { setNeedsRedraw() }
             return opened
         }
+    }
+
+    /// An accessibility expand or collapse of an outline row (`OG-F`): refused unless the last published row advertises
+    /// that action (a group row in the other state, in an enabled list) and the last frame registered the row's
+    /// `AccessibilityDisclosure` handler, which writes the group's expansion exactly as a click on its chevron does.
+    private func setDisclosure(_ row: AccessibilityNodeID, expand: Bool) -> Bool {
+        guard let node = accessibility.lastPublished.nodes[row],
+              node.actions.contains(expand ? .expand : .collapse),
+              let id = row.base as? GlobalElementID,
+              let handler = lastFocusRegistry.actionHandler(
+                  for: id, type: ObjectIdentifier(AccessibilityDisclosure.self)) else { return false }
+        StateDispatch.dispatching(to: id) {   // ID-F: the row
+            handler(AccessibilityDisclosure(expand: expand))
+        }
+        setNeedsRedraw()
+        return true
     }
 
     /// Divergence 95 (plan task 12 part 2, `IX-Z` item 3): when the last

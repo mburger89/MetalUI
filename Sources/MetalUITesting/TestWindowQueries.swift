@@ -59,7 +59,7 @@ extension TestWindow {
 
     /// Asks the window to perform `action` on `element` as a screen reader
     /// does (`AccessibilityRequest`), then draws one frame. Several actions in
-    /// the set run in the order press, increment, decrement, show-menu.
+    /// the set run in the order press, increment, decrement, show-menu, expand, collapse.
     /// Answers whether the window handled every one (`false` for an empty
     /// set).
     @discardableResult
@@ -70,6 +70,8 @@ extension TestWindow {
         if action.contains(.increment) { requests.append(.increment(element.id)) }
         if action.contains(.decrement) { requests.append(.decrement(element.id)) }
         if action.contains(.showMenu) { requests.append(.showMenu(element.id)) }
+        if action.contains(.expand) { requests.append(.expand(element.id)) }
+        if action.contains(.collapse) { requests.append(.collapse(element.id)) }
         var handled = !requests.isEmpty
         for request in requests where !platformWindow.simulateAccessibilityRequest(request) {
             handled = false

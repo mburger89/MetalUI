@@ -223,6 +223,8 @@ final class AccessKitAdapter: @unchecked Sendable {
         }
         if let rowCount = node.rowCount { accesskit_node_set_row_count(out, rowCount) }
         if let rowIndex = node.rowIndex { accesskit_node_set_row_index(out, rowIndex) }
+        if let level = node.level { accesskit_node_set_level(out, level) }          // `OG-F`: a tree item's level
+        if let expanded = node.expanded { accesskit_node_set_expanded(out, expanded) }   // and a group row's state
         if let hint = node.hint { accesskit_node_set_description(out, hint) }
         if let authorID = node.authorID { accesskit_node_set_author_id(out, authorID) }
         if node.hasPopupMenu {
@@ -262,6 +264,9 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .alertDialog: ACCESSKIT_ROLE_ALERT_DIALOG.rawValue
         case .progressIndicator: ACCESSKIT_ROLE_PROGRESS_INDICATOR.rawValue
         case .colorWell: ACCESSKIT_ROLE_COLOR_WELL.rawValue
+        case .tree: ACCESSKIT_ROLE_TREE.rawValue
+        case .treeItem: ACCESSKIT_ROLE_TREE_ITEM.rawValue
+        case .cell: ACCESSKIT_ROLE_CELL.rawValue
         }
         return UInt8(value)
     }
@@ -274,6 +279,8 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .decrement: ACCESSKIT_ACTION_DECREMENT.rawValue
         case .customAction: ACCESSKIT_ACTION_CUSTOM_ACTION.rawValue
         case .showContextMenu: ACCESSKIT_ACTION_SHOW_CONTEXT_MENU.rawValue
+        case .expand: ACCESSKIT_ACTION_EXPAND.rawValue
+        case .collapse: ACCESSKIT_ACTION_COLLAPSE.rawValue
         }
         return UInt8(value)
     }
@@ -282,7 +289,7 @@ final class AccessKitAdapter: @unchecked Sendable {
 extension AccessKitSnapshot {
     /// The snapshot action an AccessKit action code means, if MetalUI has one.
     static func action(_ code: UInt8) -> Action? {
-        [Action.click, .focus, .increment, .decrement, .customAction, .showContextMenu]
+        [Action.click, .focus, .increment, .decrement, .customAction, .showContextMenu, .expand, .collapse]
             .first { AccessKitAdapter.code($0) == code }
     }
 }

@@ -2209,6 +2209,7 @@ public final class Frame {
         declaration.isSelectableRow = false  // DD-AJ, the same
         declaration.colorWellHint = false    // LK-G, the same
         declaration.roleHint = nil       // LK-G, LK-V item 6, the same
+        declaration.outlineHint = nil    // OG-F, the same
         if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
@@ -2234,7 +2235,7 @@ public final class Frame {
             // carries the show-menu action, so a client can open it.
             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
                 || handlers.axNode.selectionHint || handlers.axNode.popoverHint
-                || handlers.axNode.roleHint != nil
+                || handlers.axNode.roleHint != nil || handlers.axNode.outlineHint != nil
                 || declaresAction || declaresNamedAction
                 || handlers.contextual?.menu != nil
                 || (synthesizesAccessibility
@@ -2250,7 +2251,7 @@ public final class Frame {
                                               geometry: accessibilityGeometry(for: bounds),
                                               declaresAction: declaresAction,
                                               local: accessibilityLocalRects(for: bounds),
-                                              clipDepth: clipDepth))
+                                              clipDepth: clipDepth, adopter: accessibilityAdopter))
             }
         }
     }
@@ -2268,7 +2269,7 @@ public final class Frame {
                                       portal: portalStack.last ?? 0,
                                       geometry: accessibilityGeometry(for: bounds),
                                       local: accessibilityLocalRects(for: bounds),
-                                      clipDepth: clipDepth))
+                                      clipDepth: clipDepth, adopter: accessibilityAdopter))
     }
 
     /// `bounds` inset by a declared content shape, or `bounds` itself — the
@@ -2483,6 +2484,20 @@ public final class Frame {
     func requestAccessibilityRetry() {
         guard collectsAccessibility else { return }
         wantsAccessibilityRetry = true
+    }
+
+    /// The row whose content is being recorded (`OG-F`): a record made inside it is adopted by that row's record when
+    /// no nearer ancestor of the same row recorded, so a content list's row is the parent of its content's text
+    /// although the content's ids do not hang under the row's.
+    private(set) var accessibilityAdopter: GlobalElementID?
+
+    /// Runs `body` with `row` as the accessibility adopter of every record it makes. A no-op while not collecting.
+    func withAccessibilityAdopter<R>(_ row: GlobalElementID, _ body: () -> R) -> R {
+        guard collectsAccessibility else { return body() }
+        let outer = accessibilityAdopter
+        accessibilityAdopter = row
+        defer { accessibilityAdopter = outer }
+        return body()
     }
 
     /// The exceptions of the open suppression scopes, outermost first.

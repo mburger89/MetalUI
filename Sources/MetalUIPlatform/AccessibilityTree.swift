@@ -91,6 +91,9 @@ public enum AccessibilityRole: Equatable, Sendable {
     /// `AXDisclosureTriangle`, whose `AXValue` and `AXPress` the outline probe `P-A2` read; AccessKit `BUTTON`: the
     /// expanded state is not published there, lane 5).
     case disclosureTriangle
+    /// An outline row's cell, the one child of a group row that holds its disclosure triangle (ruling `OG-F`, probe
+    /// `P-A`; AppKit `AXCell`, AccessKit `CELL`).
+    case cell
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from
@@ -109,6 +112,12 @@ public struct AccessibilityActions: OptionSet, Equatable, Sendable {
     /// The node has a context menu a client may open (ruling `MN-G` item 2;
     /// AppKit `accessibilityPerformShowMenu`, AccessKit `SHOW_CONTEXT_MENU`).
     public static let showMenu = AccessibilityActions(rawValue: 1 << 3)
+    /// An outline row that is collapsed can be expanded (`OG-F`; AppKit `setAccessibilityDisclosed(true)`,
+    /// AccessKit `EXPAND`).
+    public static let expand = AccessibilityActions(rawValue: 1 << 4)
+    /// An outline row that is expanded can be collapsed (`OG-F`; AppKit `setAccessibilityDisclosed(false)`,
+    /// AccessKit `COLLAPSE`).
+    public static let collapse = AccessibilityActions(rawValue: 1 << 5)
 }
 
 /// What a node says and what it can do. No geometry: see `AccessibilityGeometry`,
@@ -154,6 +163,17 @@ public struct AccessibilityNode: Equatable {
     /// and `setAccessibilitySelectedRows(_:)` on its table; AccessKit publishes
     /// its `selected` state as `false` as well as `true`.
     public var isSelectable: Bool
+    /// An outline `List`'s own node (`OG-F`): a tree rather than a table (AppKit stays `AXOutline`, AccessKit `TREE`).
+    public var isOutline: Bool
+    /// A row's disclosure level in an outline (`AXDisclosureLevel`, AccessKit `level`): 0 for a root; `nil` outside an
+    /// outline.
+    public var outlineLevel: Int?
+    /// Whether an outline row that is a group is expanded (`AXDisclosing`, AccessKit `expanded`); `nil` for a leaf and
+    /// outside an outline.
+    public var isExpanded: Bool?
+    /// An outline row's parent row when that row is realised (`AXDisclosedByRow`); `nil` for a root, and for a row whose
+    /// parent is not realised (the disclosed rows are the realised ones only).
+    public var disclosedBy: AccessibilityNodeID?
 
     /// A node; every field but `role` defaults to absent, enabled and not
     /// focusable.
@@ -161,7 +181,9 @@ public struct AccessibilityNode: Equatable {
                 isSelected: Bool = false, isEnabled: Bool = true, isFocusable: Bool = false,
                 actions: AccessibilityActions = [], children: [AccessibilityNodeID] = [],
                 rowCount: Int? = nil, rowIndex: Int? = nil, hint: String? = nil,
-                identifier: String? = nil, customActions: [String] = [], isSelectable: Bool = false) {
+                identifier: String? = nil, customActions: [String] = [], isSelectable: Bool = false,
+                isOutline: Bool = false, outlineLevel: Int? = nil, isExpanded: Bool? = nil,
+                disclosedBy: AccessibilityNodeID? = nil) {
         self.role = role
         self.label = label
         self.value = value
@@ -176,6 +198,10 @@ public struct AccessibilityNode: Equatable {
         self.identifier = identifier
         self.customActions = customActions
         self.isSelectable = isSelectable
+        self.isOutline = isOutline
+        self.outlineLevel = outlineLevel
+        self.isExpanded = isExpanded
+        self.disclosedBy = disclosedBy
     }
 }
 
@@ -280,4 +306,8 @@ public enum AccessibilityRequest: Equatable {
     /// `AccessibilityRequest` or `AccessibilityRole` outside this package adds
     /// the new cases or a `default:`.
     case showMenu(AccessibilityNodeID)
+    /// Expand the outline row (`OG-F`; AppKit `AXDisclosing` set true). Refused for a row that is not a collapsed group.
+    case expand(AccessibilityNodeID)
+    /// Collapse the outline row (`OG-F`; AppKit `AXDisclosing` set false). Refused for a row that is not an expanded group.
+    case collapse(AccessibilityNodeID)
 }

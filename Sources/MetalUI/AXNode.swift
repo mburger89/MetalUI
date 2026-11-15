@@ -218,6 +218,15 @@ public struct AXNode: Equatable {
     /// `popoverHint` is, and like it makes the indicator's record. Internal.
     var roleHint: AXRoleHint?
 
+    /// **An outline hint, not a declaration** (hierarchical lists, ruling `OG-F`): set on an outline `List`'s own node
+    /// (`.list`) and on each of its realised rows (the row's disclosure level and whether it is a group, open or
+    /// closed), so a client reads the row's `AXDisclosureLevel`/`AXDisclosing` and a tree reads its `TREE_ITEM`'s level
+    /// and `expanded`. **Packed in three bytes** (`AXOutlineHint`) so `AXNode` and `Handlers` stay under their pinned
+    /// sizes. Stripped by `Frame.registerHandlers` as the other hints are, so it writes neither `Frame.axNodes` nor a
+    /// `$ax` slot (`AB-U`). The disclosed-by row is not stored: the builder derives it from the levels of the realised
+    /// rows in order. Internal.
+    var outlineHint: AXOutlineHint?
+
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
     /// geometry. Settable only from inside this module; see this type's own
@@ -380,4 +389,28 @@ enum AXRoleHint: Equatable, Sendable {
     case determinate, busy
     /// A `DisclosureGroup`'s label row.
     case disclosureTriangle
+}
+
+/// An outline list's accessibility hint (`OG-F`): packed into three bytes (`AXNode.outlineHint`).
+struct AXOutlineHint: Equatable, Sendable {
+    /// What the hinted node is in the outline.
+    enum State: UInt8, Sendable {
+        /// The outline `List`'s own node: a tree rather than a table.
+        case list
+        /// A row with no children to disclose.
+        case leaf
+        /// A group row, collapsed.
+        case collapsed
+        /// A group row, expanded.
+        case expanded
+    }
+
+    /// The disclosure level of a row (0 for a root); 0 for the list.
+    var level: UInt16
+    var state: State
+
+    init(level: Int, state: State) {
+        self.level = UInt16(clamping: level)
+        self.state = state
+    }
 }
