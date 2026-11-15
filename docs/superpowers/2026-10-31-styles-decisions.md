@@ -4,7 +4,7 @@ Rulings for round 3, item R3-1: `ButtonStyle` and `PrimitiveButtonStyle` as open
 `.link`, `toggleStyle(_:)` with an open `ToggleStyle`, and `.pickerStyle(.inline)`. Branch `feat/button-styles`. Code:
 `Sources/MetalUI/ButtonStyle.swift`, `ToggleStyle.swift`, `Button.swift`, `Toggle.swift`, `PasteButton.swift`,
 `Picker.swift`, `Frame.pointerOwner` (stamped in `Window.swift`). Tests: `ButtonStyleTests.swift`, `ToggleStyleTests.swift`,
-`StyleCompileGuards.swift`. **Next unused: `BY-O`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
+`StyleCompileGuards.swift`. **Next unused: `BY-P`.** Divergence 885 (reserved 885–894; 886–894 unused). Supersedes `IX-E` item 2
 (the closed `ButtonStyle` struct) and `DD-AB` item 7 / `IX-M` (the absent toggle styles and `.inline`).
 **None of the looks is measured** (the probe capture draws no text and SwiftUI's chrome for these styles was not probed
 in this round): sizes, fills and the pressed looks are MetalUI's, human check group BY.
@@ -150,6 +150,14 @@ Alloy's composer row (`HStack { Picker("Mode", ...).buttonBorderShape(.capsule);
 Pinned by `aMenuPickerBesideAMenuIsOneLineAndAsTallAsTheMenu` and `aMenuPickerGivenItsIdealWidthIsExactlyItsIdeal`. No divergence label.
 
 **Cost if wrong.** The menu `Picker`'s title row is the segmented one and its chevron has a line limit; reverting both restores the 98 x 36.
+
+## BY-O: a menu `Picker`'s chevron does not shrink (Alloy composer pills, record 306)
+
+With `BY-N` merged, Alloy's row (`HStack { Picker(...); Menu(...); Menu(...) }`, all `.capsule`) drew the picker's capsule as "Auto" and empty space, no chevron, while both `Menu`s showed theirs. **Cause (measured):** `PickerMenuLabel` is a flex row of the fixed-width title box (the widest option) and the ` \u{2304}` text, and both had the default `flexShrink` of 1. A row too narrow for the three controls compresses the picker (98 against its 109 ideal at row widths 200 to 340); the row's deficit was shared in proportion to base size and the chevron's `lineLimit(1)` text was left narrower than its glyph, so no glyph was painted (probe: the picker's last glyph "o" at x 44 in a capsule 12 to 110; the chevron glyph was absent, not clipped or filled in the capsule's colour). At 600 wide (ideal) it painted at 261 in a 172 to 281 capsule. **Fix:** the chevron sits in a `Box` with `flexShrink = 0`, and the title (`lineLimit(1)`) is a frame with `idealWidth`/`maxWidth` the widest option and `minWidth` that less the chevron's measured width. Squeezed, the title truncates and the indicator stays, as SwiftUI's macOS menu `Picker`; the floors are the old ones (`Picker.menu` 67, the lone picker about 98 at its widest) and the ideal is unchanged (109 x 24, `BY-N`). A rigid title with a rigid chevron was tried first: it never compressed (110 at a 60 frame) and moved the `Picker.menu` pin to 78.4.
+
+Pinned by `aMenuPickerBesideMenusAlwaysPaintsItsChevronInsideItsCapsule` (widths 600 to 200, red on the old row at 340 to 200: the rightmost glyph in the capsule has width, lies within it and ends within 16 of its right edge). No divergence label.
+
+**Cost if wrong.** Reverting the row restores a chevron-less capsule in any row narrower than about 340.
 
 ## Carried
 

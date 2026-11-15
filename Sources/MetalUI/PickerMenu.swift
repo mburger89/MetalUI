@@ -130,7 +130,7 @@ struct OptionSink<Content: ElementGroup>: ElementGroup {
 /// width is measured through `Frame.textSystem` (`TS-A`) once per change of
 /// the titles, the font or the scale (`PickerTitleWidths`).
 struct PickerMenuLabel: Element {
-    typealias Inner = Box<Pair<Box<Text>, EnvironmentScope<Text>>>
+    typealias Inner = Box<Pair<ModifiedElement<EnvironmentScope<Text>>, Box<EnvironmentScope<Text>>>>
     let scope: PickerScope
     let pickerID: GlobalElementID
 
@@ -148,14 +148,21 @@ struct PickerMenuLabel: Element {
                                                   scale: frame.scaleFactor) {
             Float(frame.textSystem.measure($0, font: font, wrappingAt: nil).widestLine)
         }
-        var titleStyle = Style()
-        titleStyle.size.width = .length(.pixels(Pixels(width.rounded(.up))))
+        // The title's ideal is its basis; it may give up the chevron's width (the old floors) and truncates, so a squeezed
+        // picker shows a shorter title and keeps its indicator (`BY-O`).
+        let chevronWidth = Float(frame.textSystem.measure(" \u{2304}", font: font, wrappingAt: nil).widestLine)
+        let ideal = Pixels(width.rounded(.up)), floor = Pixels(max(0, width.rounded(.up) - chevronWidth))
         var row = Style()
         row.flexDirection = .row
         row.alignItems = .center
         // `BY-N`: the chevron is one line, so a narrow button is 24 tall with it inline, never wrapped under the value.
-        var inner = Inner(style: row, content: Pair(Box(style: titleStyle, content: Text(scope.selectedTitle)),
-                                                    Text(" \u{2304}").accessibilityHidden(true).lineLimit(1)))
+        // `BY-O`: the chevron never shrinks (`flexShrink = 0`): under compression the title gives up width, never the indicator.
+        var chevronStyle = Style()
+        chevronStyle.flexShrink = 0
+        var inner = Inner(style: row, content: Pair(Text(scope.selectedTitle).lineLimit(1)
+                                                        .frame(minWidth: floor, idealWidth: ideal, maxWidth: ideal, alignment: .leading),
+                                                    Box(style: chevronStyle,
+                                                        content: Text(" \u{2304}").accessibilityHidden(true).lineLimit(1))))
         let (node, layout) = inner.requestLayout(id, pass: &pass)
         return (node, LayoutState(inner: inner, layout: layout))
     }
