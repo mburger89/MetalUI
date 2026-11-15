@@ -26,6 +26,27 @@ public enum RendererError: Error, CustomStringConvertible {
     }
 }
 
+/// The GPU copy of one `GlyphAtlas` plus the bookkeeping that keeps `Renderer.upload` from writing a texture an
+/// in-flight frame may still read (`WA-A`). One per window (`MetalWindowRenderer`), plus the renderer's default.
+///
+/// **`wasEncoded` exists to keep `upload` from writing to a texture the GPU may still be reading**, and it is the
+/// whole of that guarantee. `Window` commits a frame's command buffer and does not wait, so a `texture.replace`
+/// into the same object on the next frame races the previous frame's sampling of it; the atlas is the only
+/// persistent CPU-written GPU resource `encode` touches. A texture is written only while `wasEncoded` is `false`;
+/// once bound, it is immutable and a dirty upload allocates a replacement (the old one lives as long as the
+/// in-flight buffer retains it). Set when the texture is *bound*, not when a glyph is drawn from it.
+package final class WindowTextureState {
+    /// The texture; `nil` until the first upload.
+    package internal(set) var texture: (any MTLTexture)?
+    /// Whether `texture` has been bound into an encoder since it was created.
+    package internal(set) var wasEncoded = false
+    /// The GPU copy of each `ImageTexture` this window's scenes drew (see `Renderer.prepareImageTextures`). Per
+    /// window because the cache drops whatever the *current* scene does not reference: shared, two windows
+    /// showing different images would release and re-upload each other's textures every frame.
+    var imageTextures: [ObjectIdentifier: (source: ImageTexture, gpu: any MTLTexture)] = [:]
+    package init() {}
+}
+
 /// The Metal renderer: pipelines, the glyph atlas texture and image texture
 /// cache, and the encoding of a `Scene` into a render pass.
 @MainActor
@@ -132,7 +153,19 @@ public final class Renderer {
     /// The GPU copy of a ``MetalUIText/GlyphAtlas``, maintained by
     /// ``upload(_:)``. `nil` until the first upload; a scene carrying glyphs is
     /// then drawn against whatever was uploaded last.
-    private(set) var atlasTexture: (any MTLTexture)?
+    ///
+    /// This is the **default** atlas state, the one headless renders and the
+    /// one-argument ``upload(_:)`` use. A window draws against its own
+    /// ``WindowTextureState`` (`MetalWindowRenderer`), because each `Window`
+    /// owns its own `GlyphAtlas` whose slots are only meaningful against its
+    /// own texture.
+    var atlasTexture: (any MTLTexture)? { defaultTextureState.texture }
+
+    /// The atlas state ``encode(_:view:in:surfaces:backdropState:atlasState:)`` and
+    /// ``encodeSurfaceText(_:targets:atlasState:in:)`` are drawing against right now; the default outside them.
+    /// Frames encode synchronously on the main actor, so one scratch pointer is enough.
+    private var activeTextures: WindowTextureState
+    let defaultTextureState = WindowTextureState()
 
     /// The MetalUI-owned text passes the last ``encodeSurfaceText(_:targets:in:)`` ran: one per surface that
     /// recorded `drawText` glyphs, 0 for a frame with none (`DT-A`; a work counter).
@@ -141,30 +174,7 @@ public final class Renderer {
     /// Calls of ``upload(_:)``, ever: `MetalWindowRenderer` makes one per frame (`DT-B`; a work counter).
     package private(set) var uploadCalls = 0
 
-    /// Whether ``atlasTexture`` has been bound into a render command encoder
-    /// since it was created.
-    ///
-    /// **This exists to keep `upload(_:)` from writing to a texture the GPU may
-    /// still be reading**, and it is the whole of that guarantee. `Window`
-    /// commits a frame's command buffer and does not wait; there is no
-    /// semaphore on the live path. So on the next frame, a `texture.replace`
-    /// into the same object races the previous frame's sampling of it — and the
-    /// atlas is the *only* place that could happen, every other GPU resource
-    /// `encode` touches being a fresh per-frame `makeBuffer`.
-    ///
-    /// The invariant this buys: **a texture is written only while this is
-    /// `false`** — that is, only before any command buffer references it. Once
-    /// encoded, the object is immutable for the rest of its life and a dirty
-    /// upload allocates a replacement instead. The old one stays alive as long
-    /// as the in-flight buffer retains it, which is Metal's job and not ours.
-    ///
-    /// Conservative on purpose: set when the texture is *bound*, not when a
-    /// glyph is actually drawn from it. `encodeGlyphs` only runs on a non-empty
-    /// glyph array, so the two coincide today; binding is the property that
-    /// stays true if that changes.
-    private var atlasTextureWasEncoded = false
-
-    /// The GPU copy of each `ImageTexture` a recent scene drew (ruling TE-AF
+    /// The image textures cache (`WindowTextureState.imageTextures`; ruling TE-AF
     /// item 3), keyed by the object's identity **and holding the object**, so
     /// the identifier cannot be reused by a new bitmap while the entry lives.
     /// Uploaded on first sight into a fresh texture that no command buffer has
@@ -174,19 +184,19 @@ public final class Renderer {
     /// every frame) must not accumulate the way the grow-only atlas does. A
     /// dropped texture an in-flight command buffer still reads stays alive
     /// through that buffer's own retain, which is Metal's job.
-    private var imageTextures: [ObjectIdentifier: (source: ImageTexture, gpu: any MTLTexture)] = [:]
 
     /// How many image textures have been uploaded to the GPU, ever. Test
     /// support for the cache (`TE-AF` item 3).
     private(set) var imageTextureUploadCount = 0
 
     /// The `ImageTexture` identities with a GPU copy cached right now.
-    var cachedImageTextureIdentities: Set<ObjectIdentifier> { Set(imageTextures.keys) }
+    var cachedImageTextureIdentities: Set<ObjectIdentifier> { Set(defaultTextureState.imageTextures.keys) }
 
     /// A renderer on `device`; throws if the queue, shader library or a
     /// pipeline cannot be created.
     public init(device: any MTLDevice) throws {
         self.device = device
+        self.activeTextures = defaultTextureState
         guard let queue = device.makeCommandQueue() else {
             throw RendererError.commandQueueUnavailable
         }
@@ -279,7 +289,10 @@ public final class Renderer {
                 view: SurfaceView,
                 in commandBuffer: any MTLCommandBuffer,
                 surfaces: [SurfaceID: any MTLTexture],
-                backdropState: BackdropFrameState?) throws {
+                backdropState: BackdropFrameState?,
+                atlasState: WindowTextureState? = nil) throws {
+        activeTextures = atlasState ?? defaultTextureState
+        defer { activeTextures = defaultTextureState }
         lastBackdropSplits = 0; lastBackdropBlurs = 0; lastBackdropPasses = 0
         lastGlassRecords = 0; lastGlassSharpCopies = 0
         lastFrameTargetCopies = 0; lastBackdropTexturesMade = 0; lastBackdropRegionTargets = 0
@@ -348,7 +361,7 @@ public final class Renderer {
         // every cached texture too.
         // A group's scene reads the textures the root's `prepareImageTextures` already uploaded for the whole tree.
         let imageTextures = isGroup
-            ? scene.textures.map { imageTextures[ObjectIdentifier($0)]!.gpu }
+            ? scene.textures.map { activeTextures.imageTextures[ObjectIdentifier($0)]!.gpu }
             : try prepareImageTextures(for: scene)
 
         guard !scene.isEmpty else { return }
@@ -1093,7 +1106,7 @@ public final class Renderer {
                               viewport: inout MUISize,
                               projection: inout simd_float4x4,
                               transforms: any MTLBuffer) throws {
-        guard let atlasTexture else { return }
+        guard let atlasTexture = activeTextures.texture else { return }
 
         encoder.setRenderPipelineState(glyphPipeline)
 
@@ -1121,8 +1134,8 @@ public final class Renderer {
                                    index: Int(MUIGlyphTextureAtlas.rawValue))
         // From here the GPU may read this texture at any time until the command
         // buffer completes, and nothing waits for that. See
-        // ``atlasTextureWasEncoded``.
-        atlasTextureWasEncoded = true
+        // ``WindowTextureState/wasEncoded``.
+        activeTextures.wasEncoded = true
 
         encoder.drawPrimitives(type: .triangleStrip,
                                vertexStart: 0,
@@ -1136,9 +1149,12 @@ public final class Renderer {
     /// `commandBuffer` and **never commits, enqueues or waits** (`MV-F`). The atlas must already be uploaded
     /// (`upload(_:)`, after the surface draws); with none uploaded nothing is drawn, as ``encodeGlyphs``.
     package func encodeSurfaceText(_ sink: SurfaceTextSink?, targets: [SurfaceID: any MTLTexture],
+                                   atlasState: WindowTextureState? = nil,
                                    in commandBuffer: any MTLCommandBuffer) throws {
         lastSurfaceTextPasses = 0
-        guard let sink, atlasTexture != nil else { return }
+        activeTextures = atlasState ?? defaultTextureState
+        defer { activeTextures = defaultTextureState }
+        guard let sink, activeTextures.texture != nil else { return }
         for batch in sink.batches {
             guard let target = targets[batch.target], !batch.range.isEmpty else { continue }
             let pass = MTLRenderPassDescriptor()
@@ -1161,7 +1177,7 @@ public final class Renderer {
 
     /// The GPU texture for each of `scene.textures`, in order, uploading the
     /// ones not cached and releasing every cached one the scene does not
-    /// reference (see ``imageTextures``).
+    /// reference (see ``WindowTextureState/imageTextures``).
     private func prepareImageTextures(for scene: Scene) throws -> [any MTLTexture] {
         var kept: [ObjectIdentifier: (source: ImageTexture, gpu: any MTLTexture)] = [:]
         var result: [any MTLTexture] = []
@@ -1177,7 +1193,7 @@ public final class Renderer {
         }
         for (source, forRoot) in pending {
             let key = ObjectIdentifier(source)
-            if let cached = imageTextures[key] ?? kept[key] {
+            if let cached = activeTextures.imageTextures[key] ?? kept[key] {
                 kept[key] = cached
                 if forRoot { result.append(cached.gpu) }
                 continue
@@ -1198,7 +1214,7 @@ public final class Renderer {
             kept[key] = (source, texture)
             if forRoot { result.append(texture) }
         }
-        imageTextures = kept
+        activeTextures.imageTextures = kept
         return result
     }
 
@@ -1252,18 +1268,23 @@ public final class Renderer {
     ///   upload here would leave every earlier glyph blank, which is the
     ///   intermittent-blank-run failure spec 4.2 names and nothing in this repo
     ///   can see.
-    public func upload(_ atlas: GlyphAtlas) {
+    public func upload(_ atlas: GlyphAtlas) { upload(atlas, into: defaultTextureState) }
+
+    /// ``upload(_:)`` into `state`, the GPU copy of one window's atlas (`WA-A`): each window's
+    /// `MetalWindowRenderer` owns one, so two windows sharing this renderer never overwrite the texture
+    /// the other samples.
+    package func upload(_ atlas: GlyphAtlas, into state: WindowTextureState) {
         uploadCalls += 1
-        let existing = atlasTexture
+        let existing = state.texture
         let sizeChanged = existing == nil
             || existing!.width != atlas.width
             || existing!.height != atlas.height
         // **A texture that has been encoded is immutable from here on.** See
-        // ``atlasTextureWasEncoded``: writing into it would race the in-flight
+        // ``WindowTextureState/wasEncoded``: writing into it would race the in-flight
         // frame that bound it. Note the `dirtyRect != nil` conjunct — without
         // it, a steady-state frame with nothing to upload would allocate a whole
         // atlas every time, which is the churn this formulation avoids.
-        let wouldMutateAnEncodedTexture = atlasTextureWasEncoded
+        let wouldMutateAnEncodedTexture = state.wasEncoded
             && !atlas.dirtyRects.isEmpty
         let needsFullUpload = sizeChanged || wouldMutateAnEncodedTexture
 
@@ -1278,13 +1299,13 @@ public final class Renderer {
                 // Nothing to recover to: leaving the previous texture bound
                 // would paint the wrong glyphs from a stale atlas, and there is
                 // no smaller correct answer than "no text this frame".
-                atlasTexture = nil
-                atlasTextureWasEncoded = false
+                state.texture = nil
+                state.wasEncoded = false
                 return
             }
             texture = made
             // Never bound; safe to write for exactly as long as that holds.
-            atlasTextureWasEncoded = false
+            state.wasEncoded = false
         } else {
             texture = existing!
         }
@@ -1296,14 +1317,14 @@ public final class Renderer {
         } else if !atlas.dirtyRects.isEmpty {
             regions = atlas.dirtyRects
         } else {
-            atlasTexture = texture
+            state.texture = texture
             return
         }
 
         // **`texture` is unencoded here, and that is a precondition rather than
         // a coincidence** — `needsFullUpload` made a fresh one if the existing
         // one had ever been bound. Writing to an encoded texture would race the
-        // frame still sampling it (``atlasTextureWasEncoded``).
+        // frame still sampling it (``WindowTextureState/wasEncoded``).
         atlas.pixels.withUnsafeBufferPointer { buffer in
             // `bytesPerRow` stays the ATLAS's width, not the region's: the
             // source rows are slices of a wider bitmap, and Metal walks them by
@@ -1320,7 +1341,7 @@ public final class Renderer {
         }
 
         atlas.clearDirtyRect()
-        atlasTexture = texture
+        state.texture = texture
     }
 
     /// Render to an offscreen texture and read the pixels back. Test support.

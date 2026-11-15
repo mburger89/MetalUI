@@ -1935,7 +1935,7 @@ public final class Window {
         // but only because of an invariant `Renderer` maintains, not because of
         // anything here.** There is no semaphore on this path, so frame N-1's
         // draw may still be sampling the atlas texture while this call runs.
-        // `Renderer.atlasTextureWasEncoded` is what makes that harmless: a
+        // `WindowTextureState.wasEncoded` (this window's own atlas texture, `WA-A`) is what makes that harmless: a
         // texture is written only while it has never been bound, and a dirty
         // upload after an encode allocates a replacement. **If you add an
         // in-flight semaphore here, that invariant becomes redundant rather than

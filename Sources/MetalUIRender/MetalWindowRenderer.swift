@@ -18,6 +18,10 @@ public final class MetalWindowRenderer: WindowRenderer {
     /// This window's backdrop frame target and blur pool (`BB-C`, `BB-K`): per window, as the surface table is, so
     /// two windows sharing one ``renderer`` neither share a frame target nor drop each other's pool every frame.
     let backdropState = BackdropFrameState()
+    /// The GPU copy of this window's glyph atlas (`WA-A`): per window, because each `Window` owns its own
+    /// `GlyphAtlas` and its slots are UVs into that atlas only. Two windows sharing one ``renderer`` would
+    /// otherwise overwrite one texture and sample each other's glyphs.
+    package let atlasState = WindowTextureState()
     /// How long a window draws no frame before it frees its backdrop textures (`BB-U`); the next backdrop frame
     /// makes them again. Longer than a caret's blink, so a window that is typing keeps them.
     package var idleReleaseDelay: Duration = .seconds(1)
@@ -153,7 +157,7 @@ public final class MetalWindowRenderer: WindowRenderer {
         // encode allocates a replacement — so the one upload comes after the draws (which may insert
         // glyphs, `drawText`) and before the first encode that binds the atlas (`DT-B`; see
         // `Renderer.upload`). No draw can bind the atlas: the app has no handle to it.
-        renderer.upload(atlas)
+        renderer.upload(atlas, into: atlasState)
         var targets: [SurfaceID: any MTLTexture] = [:]
         for target in scene.allSurfaceTargets() {
             if let texture = surfaceTable.handle(for: target.id) { targets[target.id] = texture }
@@ -165,11 +169,12 @@ public final class MetalWindowRenderer: WindowRenderer {
             for batch in sink?.batches ?? [] {
                 if let texture = surfaceTable.handle(for: batch.target) { textTargets[batch.target] = texture }
             }
-            try renderer.encodeSurfaceText(sink, targets: textTargets, in: commandBuffer)
+            try renderer.encodeSurfaceText(sink, targets: textTargets, atlasState: atlasState, in: commandBuffer)
             precondition(commandBuffer.status == .notEnqueued,
                          "MetalWindowRenderer: a surface text pass left the frame's command buffer "
                          + "\(commandBuffer.status) (MV-F item 5)")
-            try renderer.encode(scene, view: pending.view, in: commandBuffer, surfaces: targets, backdropState: backdropState)
+            try renderer.encode(scene, view: pending.view, in: commandBuffer, surfaces: targets, backdropState: backdropState,
+                                atlasState: atlasState)
         } catch {
             return false
         }
