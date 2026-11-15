@@ -313,13 +313,17 @@ private enum CWith { case menuAndAction, menuOnly, mismatched, noSelection }
         #expect(visibleRows(window) == ["A", "Z", "M"], "\(form): M4b: no toggle")
         withExtendedLifetime(window) {}
     }
-    // Nothing selected: nothing to act on.
-    let model = CModel()
-    let window = try cWindow(.content, model)
-    window.click(at: pt(200, 380))   // focus-less empty space
-    window.typeKey(.return)
-    #expect(model.primary.isEmpty)
-    withExtendedLifetime(window) {}
+    // Nothing selected (the list still focused): nothing to act on. Mutation: Return running with `{}`.
+    for form in CForm.allCases {
+        let model = CModel()
+        let window = try cWindow(form, model)
+        selectByClick(window, "Z", model)
+        model.selection = nil
+        settle(window)
+        window.typeKey(.return)
+        #expect(model.primary.isEmpty, "\(form): \(model.primary)")
+        withExtendedLifetime(window) {}
+    }
 }
 
 /// A multi list's Return runs the action with the whole selection.

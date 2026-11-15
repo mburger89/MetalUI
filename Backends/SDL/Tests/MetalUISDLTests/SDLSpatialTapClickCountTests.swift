@@ -53,3 +53,38 @@ private let fonts = URL(fileURLWithPath: #filePath)
     #expect(log.counts == [1, 2], "\(log.counts)")
     withExtendedLifetime(window) {}
 }
+
+/// **OG-N.** The same push reaches `ClickDispatch.clickCount` while an `onClick` handler runs: a press/release pair with
+/// `clicks` 1 then 2 reads 1 then 2 (the platform's own count, which a list's double-click primary action reads).
+/// Mutation: `Window.runClick` not passing the release's count on (reads 1 both times).
+@MainActor
+@Test func anSDLDoubleClickReachesClickDispatchAsClickCountTwo() throws {
+    #if os(macOS)
+    armMainRunLoopExitCheck()
+    #endif
+    let font = [UInt8](try Data(contentsOf: fonts.appendingPathComponent("NotoSans-Regular.ttf")))
+    let resolver = try PortableFontResolver(defaultFont: font)
+    let platform = try SDLPlatform(hiddenWindows: true, offscreenRenderers: true)
+    let app = App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
+    platform.pumpEvents()
+    let log = TapLog()
+    let window = try app.openWindow(title: "click count", size: Size(width: Pixels(120), height: Pixels(80))) {
+        Box().frame(width: Pixels(120), height: Pixels(80))
+            .onClick { log.counts.append(ClickDispatch.clickCount) }
+    }
+    platform.pumpEvents()
+    let sdl = try #require(window.platformWindow as? SDLWindow)
+    func push(_ kind: Int, clicks: Int32) {
+        var event = MUIEvent()
+        event.kind = UInt32(kind); event.window_id = sdl.id
+        event.x = 60; event.y = 40; event.clicks = clicks
+        #expect(mui_push_event(&event))
+    }
+    for n: Int32 in 1...2 {
+        push(MUI_EVENT_MOUSE_DOWN, clicks: n)
+        push(MUI_EVENT_MOUSE_UP, clicks: n)
+    }
+    platform.pumpEvents()
+    #expect(log.counts == [1, 2], "\(log.counts)")
+    withExtendedLifetime(window) {}
+}
