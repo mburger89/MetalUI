@@ -216,7 +216,7 @@ public struct AXNode: Equatable {
     /// `.busyIndicator` (indeterminate, `V8`) where the node would otherwise be
     /// a `.group`. Stripped by `Frame.registerHandlers` exactly as
     /// `popoverHint` is, and like it makes the indicator's record. Internal.
-    var progressHint: ProgressRoleHint?
+    var roleHint: AXRoleHint?
 
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
@@ -371,8 +371,13 @@ final class AXDeclarationsBox: Equatable {
     static func == (lhs: AXDeclarationsBox, rhs: AXDeclarationsBox) -> Bool { lhs.value == rhs.value }
 }
 
-/// Which of the two progress roles a `ProgressView`'s indicator publishes
-/// (`AXNode.progressHint`, `LK-G`).
-enum ProgressRoleHint: Equatable, Sendable {
+/// Which role hint a node publishes through `AXNode.roleHint`: one of the two progress roles of a `ProgressView`'s
+/// indicator (`LK-G`), or a `DisclosureGroup`'s label row (`OG-F`: published as `.disclosureTriangle` where the node
+/// would otherwise be a `.button`, its value `"1"` expanded and `"0"` collapsed). **One field for both, deliberately:**
+/// a seventh `Bool` on `AXNode` grew it past `theNewDeclarationsCostHandlersAtMostOnePointer`'s 121 bytes, and the
+/// optional enum costs nothing. Stripped by `Frame.registerHandlers` as the other role hints are.
+enum AXRoleHint: Equatable, Sendable {
     case determinate, busy
+    /// A `DisclosureGroup`'s label row.
+    case disclosureTriangle
 }

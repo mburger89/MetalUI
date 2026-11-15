@@ -633,8 +633,10 @@ enum AccessibilityTreeBuilder {
         if node.record.declared.popoverHint, role == .group { role = .popover }
         // A `ColorPicker`'s well (`LK-G`, C1): a button with the hint.
         if node.record.declared.colorWellHint, role == .button { role = .colorWell }
+        // A `DisclosureGroup`'s label row (`OG-F`): a button with the hint, its value `"1"` or `"0"`.
+        if node.record.declared.roleHint == .disclosureTriangle, role == .button { role = .disclosureTriangle }
         // A `ProgressView`'s indicator (`LK-G`, V7, V8): a group with the hint.
-        if let hint = node.record.declared.progressHint, role == .group {
+        if let hint = node.record.declared.roleHint, hint != .disclosureTriangle, role == .group {
             role = hint == .determinate ? .progressIndicator : .busyIndicator
         }
         return role

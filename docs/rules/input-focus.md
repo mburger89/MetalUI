@@ -218,7 +218,7 @@ gesture: the end runs at the top of `Window`'s input hook for `.mouseUp` **and**
 `Handlers` keeps its size (`LK-Q`, `LK-U`). `ColorPicker` is a drawn well and a
 drawn popover panel on every platform (divergence 165; edits write gamma-sRGB
 literals; `LK-C`, `LK-D`); the well's and `ProgressView`'s roles reach the
-element side as `AXNode.colorWellHint`/`progressHint` (internal, stripped in
+element side as `AXNode.colorWellHint`/`roleHint` (internal, stripped in
 `registerHandlers`, `LK-G`), and a new `AccessibilityRole` owes a row on both
 bridges. The spinner steps by the frame clock only while visibly painted
 (`LK-F`); keyframes are a transparent scope whose records live in
@@ -258,3 +258,5 @@ flattenings (`multiplyAlpha`, `RenderEffect.apply`).
 **Menu picker chevron (`BY-O`, record 306).** A menu `Picker`'s ` ⌄` is in a `flexShrink = 0` box and the title truncates first: the indicator never disappears. **Menu picker title (`BY-P`, record 307).** The selected value's title floor is capped at 24 (it truncates), so the picker's own title never wraps; SwiftUI shortens the capsule first.
 
 **Tab strip paint (`TBS-N`, record 299).** `TabStrip.stripBackground(_:)` and `.selectedTabFill(_:)` take a `TabStripPaint` (`.automatic` byte-identical, `.clear` draws no bar rectangle, `.color`, `.material`); never name a strip modifier `background`. `ButtonBorderShape` is not a `Shape` and has no `.buttonBorder` (class R).
+
+**`DisclosureGroup` (`OG-A`, `OG-D`, `OG-F`, `OG-H`, `OG-J`, record 311).** `DisclosureGroup` is an `ElementGroup` over a `Component` body (`DisclosureGroupBody`), so its uncontrolled state is the body's `@State` slot at the group's id (collapsed initially); the label row is a plain `Button` (focus, Space, press, disabled gate) whose `axNode.roleHint = .disclosureTriangle` (the existing optional role-hint enum, because a new `Bool` grew `AXNode` past its pinned size) publishes `.disclosureTriangle` with value `"1"`/`"0"`, and the chevron is a glyph swap with `accessibilityHidden(true)` (an unhidden symbol folds "Forward" into the row's label). Content is `@escaping` and called only while expanded; the expansion is written only from input, a click writes bare (snaps, D3c unmeasured) and `withAnimation` fades the content through the `XF-H` default unit.

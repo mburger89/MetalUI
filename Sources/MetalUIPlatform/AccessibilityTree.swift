@@ -87,6 +87,10 @@ public enum AccessibilityRole: Equatable, Sendable {
     /// A `ColorPicker`'s well, its value `rgb R G B A` (`LK-G`, `LK-C` item 7,
     /// probe `C1`; AppKit `AXColorWell`, AccessKit `COLOR_WELL`).
     case colorWell
+    /// A `DisclosureGroup`'s label row, its value `"1"` expanded and `"0"` collapsed (ruling `OG-F`; AppKit
+    /// `AXDisclosureTriangle`, whose `AXValue` and `AXPress` the outline probe `P-A2` read; AccessKit `BUTTON`: the
+    /// expanded state is not published there, lane 5).
+    case disclosureTriangle
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from

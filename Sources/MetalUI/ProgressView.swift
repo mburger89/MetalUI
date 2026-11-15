@@ -290,7 +290,7 @@ struct ProgressIndicator: Element, StyledElement {
                            pass: inout PrepaintPass) {
         var composed = handlers
         let determinate = (kind == .bar || kind == .ring) ? fraction : nil
-        composed.axNode.progressHint = determinate == nil ? .busy : .determinate
+        composed.axNode.roleHint = determinate == nil ? .busy : .determinate
         if let determinate, composed.axNode.value == nil {
             composed.axNode.value = ValueStepping.accessibilityText(determinate)
         }

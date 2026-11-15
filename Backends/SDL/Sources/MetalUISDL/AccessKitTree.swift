@@ -210,6 +210,9 @@ extension AccessKitSnapshot {
         // determinate one carries a numeric value and its 0…1 range.
         case .progressIndicator, .busyIndicator: .progressIndicator
         case .colorWell: .colorWell
+        // A `DisclosureGroup`'s label row (ruling `OG-F`): a `BUTTON` whose value is `"1"` or `"0"`; the expanded
+        // state needs `accesskit_node_set_expanded`, whose name lane 5 verifies against the fetched header.
+        case .disclosureTriangle: .button
         }
     }
 
