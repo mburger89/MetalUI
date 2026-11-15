@@ -84,12 +84,17 @@ enum AccessibilityTreeBuilder {
         var roots: [GlobalElementID] = []
         var children: [GlobalElementID: [GlobalElementID]] = [:]
         for id in order {
-            let portal = records[id]!.portal
+            let record = records[id]!
+            let portal = record.portal
+            // A record made inside a content list's row (`OG-F`) is parented by an ancestor that recorded inside the
+            // SAME row, else by the row itself: a unit's content ids do not hang under the row's id.
+            let adopter = record.adopter.flatMap { records[$0]?.portal == portal ? $0 : nil }
             var ancestor = id.parent
-            while let candidate = ancestor, records[candidate]?.portal != portal {
+            while let candidate = ancestor,
+                  records[candidate]?.portal != portal || (adopter != nil && records[candidate]?.adopter != record.adopter) {
                 ancestor = candidate.parent
             }
-            if let parent = ancestor {
+            if let parent = ancestor ?? adopter {
                 children[parent, default: []].append(id)
             } else {
                 roots.append(id)
@@ -132,6 +137,7 @@ enum AccessibilityTreeBuilder {
         let adjustment = ObjectIdentifier(AccessibilityAdjustment.self)
         let defaultAction = ObjectIdentifier(AccessibilityDefaultAction.self)
         let namedAction = ObjectIdentifier(AccessibilityNamedAction.self)
+        let disclosure = ObjectIdentifier(AccessibilityDisclosure.self)
         var state: [GlobalElementID: Resolving] = [:]
         state.reserveCapacity(order.count)
         for (position, id) in order.enumerated() {
@@ -150,6 +156,12 @@ enum AccessibilityTreeBuilder {
             // a disabled node.
             if menus.contains(id), record.isEnabled {
                 actions.insert(.showMenu)
+            }
+            // An outline group row expands or collapses through its own handler (`OG-F`); a disabled list
+            // registered none.
+            if let outline = record.declared.outlineHint, outline.state == .collapsed || outline.state == .expanded,
+               focusRegistry.actionHandler(for: id, type: disclosure) != nil {
+                actions.insert(outline.state == .collapsed ? .expand : .collapse)
             }
             let names = focusRegistry.actionHandler(for: id, type: namedAction) != nil ? declarations.actionNames : []
             state[id] = Resolving(record: record, position: position, role: record.declared.role,
@@ -187,11 +199,15 @@ enum AccessibilityTreeBuilder {
         // emit order visits a parent before its children.
         let rowSelection = ObjectIdentifier(AccessibilityRowSelection.self)
         var selectableRows = Set<GlobalElementID>()
+        var disclosedBy: [GlobalElementID: GlobalElementID] = [:]
         var pending = publishedRoots
         while let id = pending.popLast() {
             let node = state[id]!
             var kids = (placed[id] ?? []).map(AccessibilityNodeID.init)
             pending.append(contentsOf: placed[id] ?? [])
+            if node.record.declared.outlineHint?.state == .list {
+                Self.deriveDisclosure(of: placed[id] ?? [], records: records, into: &disclosedBy)
+            }
             if focusRegistry.actionHandler(for: id, type: rowSelection) != nil {
                 selectableRows.formUnion(placed[id] ?? [])
             }
@@ -212,6 +228,27 @@ enum AccessibilityTreeBuilder {
                 geometry[contained] = placedGeometry
             }
             let publishedRole = publishedRole(of: node)
+            // An outline row (`OG-F`): its level, whether a group is open, the realised row it is disclosed by, and for
+            // a group row the cell and triangle a client reads (`P-A`): the row's one child is the cell, which holds
+            // the triangle first and then the row's own content.
+            let outline = declared.outlineHint
+            let isRow = publishedRole == .row ? outline : nil
+            let isGroupRow = isRow.map { $0.state == .collapsed || $0.state == .expanded } ?? false
+            if isGroupRow, let hint = isRow {
+                let cell = AccessibilityNodeID(OutlineCell(row: id)), triangle = AccessibilityNodeID(OutlineTriangle(row: id))
+                let enabled = node.record.isEnabled && !declared.traits.contains(.disabled)
+                var triangleActions: AccessibilityActions = []
+                if node.actions.contains(.expand) || node.actions.contains(.collapse) { triangleActions.insert(.press) }
+                nodes[cell] = AccessibilityNode(role: .cell, isEnabled: enabled, children: [triangle] + kids)
+                nodes[triangle] = AccessibilityNode(role: .disclosureTriangle, value: hint.state == .expanded ? "1" : "0",
+                                                    isEnabled: enabled, actions: triangleActions)
+                var hidden = placedGeometry
+                hidden.visibleFrame = Bounds(origin: placedGeometry.frame.origin,
+                                             size: Size(width: Pixels(0), height: Pixels(0)))   // a client's, never a hit test's
+                geometry[cell] = hidden
+                geometry[triangle] = hidden
+                kids = [cell]
+            }
             nodes[nodeID] = AccessibilityNode(
                 role: publishedRole,
                 label: node.label,
@@ -227,7 +264,11 @@ enum AccessibilityTreeBuilder {
                 hint: node.hint,
                 identifier: node.identifier ?? declared.declarations.derivedIdentifier,
                 customActions: node.customActions,
-                isSelectable: publishedRole == .row && selectableRows.contains(id))
+                isSelectable: publishedRole == .row && selectableRows.contains(id),
+                isOutline: publishedRole == .table && outline?.state == .list,
+                outlineLevel: isRow.map { Int($0.level) },
+                isExpanded: isRow.flatMap { $0.state == .leaf ? nil : $0.state == .expanded },
+                disclosedBy: isRow == nil ? nil : disclosedBy[id].map(AccessibilityNodeID.init))
             if !node.customTargets.isEmpty { result.customActions[id] = node.customTargets }
             geometry[nodeID] = placedGeometry
         }
@@ -238,6 +279,21 @@ enum AccessibilityTreeBuilder {
         result.tree = AccessibilityTree(roots: publishedRoots.map(AccessibilityNodeID.init), nodes: nodes,
                                         geometry: geometry, focused: published)
         return result
+    }
+
+    /// Each outline row's disclosed-by row among a list's published rows, in order (`OG-F`): the nearest preceding row
+    /// of a lower level, when it is exactly one level up. A row's parent between it and the window's start is realised;
+    /// a parent scrolled out of the window leaves no lower-level row before the child, so the child has none.
+    private static func deriveDisclosure(of rows: [GlobalElementID], records: [GlobalElementID: AXEmission],
+                                         into result: inout [GlobalElementID: GlobalElementID]) {
+        var stack: [(level: Int, id: GlobalElementID)] = []
+        for row in rows {
+            guard let hint = records[row]?.declared.outlineHint, hint.state != .list else { continue }
+            let level = Int(hint.level)
+            while let top = stack.last, top.level >= level { stack.removeLast() }
+            if let top = stack.last, top.level == level - 1 { result[row] = top.id }
+            stack.append((level, row))
+        }
     }
 
     /// One kept record while its label, value and role are being resolved.
@@ -648,4 +704,16 @@ enum AccessibilityTreeBuilder {
 /// base is not a `GlobalElementID`, so the child has no actions.
 struct ContainedText: Hashable {
     let id: GlobalElementID
+}
+
+/// The cell a group row of an outline publishes between itself and its disclosure triangle (`OG-F`, probe `P-A`): a key
+/// no request resolves to an element, the row's own press and disclosure requests reaching the row instead.
+struct OutlineCell: Hashable {
+    let row: GlobalElementID
+}
+
+/// The disclosure triangle a group row of an outline publishes (`OG-F`, probe `P-A`): a press on it is the row's
+/// expand or collapse, whichever the row is not yet.
+struct OutlineTriangle: Hashable {
+    let row: GlobalElementID
 }

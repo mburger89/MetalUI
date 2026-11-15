@@ -136,6 +136,9 @@ private let frameChannels: [String: Channel] = [
     "verifyAbandoned": .frameLocal,
     // C14-g (`AT-G`): the open effects as steps, a cache dropped whenever the stack changes.
     "axEffectChain": .frameLocal,
+    // OG lane 5 (`OG-F`): the outline row whose records adopt the cell and triangle made inside it; set and restored
+    // around the row's prepaint by `withAccessibilityAdopter`, so never left set and never replayed.
+    "accessibilityAdopter": .frameLocal,
     // C14-h (`RL-I`): the effect chain each hitbox was registered under, kept only while a prepaint log records.
     "hitboxChains": .frameLocal,
     // FP-B: the window's frame instrumentation, stamped at the end of three phases; a clock read, never replayed.

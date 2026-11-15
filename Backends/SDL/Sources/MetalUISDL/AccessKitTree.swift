@@ -24,6 +24,8 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A progress view — determinate or busy — and a colour well (ruling
         /// `LK-G`).
         case progressIndicator, colorWell
+        /// An outline `List` (`TREE`), its rows (`TREE_ITEM`) and a cell (ruling `OG-F`).
+        case tree, treeItem, cell
     }
     public enum Action: Equatable, Hashable, Sendable {
         case click, focus, increment, decrement
@@ -34,6 +36,8 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         case customAction
         /// `SHOW_CONTEXT_MENU` — a node with a context menu (`MN-G` item 2).
         case showContextMenu
+        /// `EXPAND` and `COLLAPSE` — an outline group row (`OG-F`).
+        case expand, collapse
     }
 
     public struct Node: Equatable, Sendable {
@@ -74,6 +78,11 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A determinate progress indicator's range, AccessKit's
         /// `min_numeric_value` 0 and `max_numeric_value` 1 (ruling `LK-G`).
         public var numericRange: Bool = false
+        /// A tree item's level, AccessKit's `level` (ARIA's `aria-level`: 1 for a root, so the disclosure level plus one),
+        /// and whether a group row is expanded, AccessKit's `expanded`; `nil` for a node outside an outline or a leaf
+        /// (`OG-F`).
+        public var level: Int? = nil
+        public var expanded: Bool? = nil
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
@@ -85,6 +94,7 @@ public struct AccessKitSnapshot: Equatable, Sendable {
                 && a.hint == b.hint && a.authorID == b.authorID
                 && a.customActions == b.customActions && a.isSelectable == b.isSelectable
                 && a.hasPopupMenu == b.hasPopupMenu && a.numericRange == b.numericRange
+                && a.level == b.level && a.expanded == b.expanded
         }
 
         /// What AccessKit's `selected` is set to: the selection when it is
@@ -141,6 +151,7 @@ extension AccessKitSnapshot {
     static func translate(_ tree: AccessibilityTree, title: String, scale: Double,
                           ids: AccessKitIDs) -> AccessKitSnapshot {
         ids.retain(only: Set(tree.nodes.keys))
+        let tree = nestingOutlines(tree)
         var nodes = [Node(id: rootID, role: .window, label: title, value: nil, bounds: nil,
                           children: tree.roots.map(ids.number(for:)), actions: [],
                           isDisabled: false, isSelected: false)]
@@ -157,9 +168,11 @@ extension AccessKitSnapshot {
             if node.isFocusable { actions.insert(.focus) }
             if !node.customActions.isEmpty { actions.insert(.customAction) }
             if node.actions.contains(.showMenu) { actions.insert(.showContextMenu) }
+            if node.actions.contains(.expand) { actions.insert(.expand) }
+            if node.actions.contains(.collapse) { actions.insert(.collapse) }
             let frame = tree.geometry[id]?.frame
             nodes.append(Node(
-                id: ids.number(for: id), role: role(node.role), label: node.label, value: node.value,
+                id: ids.number(for: id), role: role(of: node), label: node.label, value: node.value,
                 bounds: frame.map { f in
                     let x = Double(f.origin.x.value) * scale, y = Double(f.origin.y.value) * scale
                     return (x, y, x + Double(f.size.width.value) * scale, y + Double(f.size.height.value) * scale)
@@ -170,11 +183,52 @@ extension AccessKitSnapshot {
                 rowCount: node.rowCount, rowIndex: node.rowIndex, hint: node.hint,
                 authorID: node.identifier, customActions: node.customActions,
                 isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton,
-                numericRange: node.role == .progressIndicator))
+                numericRange: node.role == .progressIndicator,
+                level: node.outlineLevel.map { $0 + 1 }, expanded: node.isExpanded))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
         return AccessKitSnapshot(nodes: nodes, focus: focus)
+    }
+
+    /// The role of a node: an outline `List` is a `TREE` and its rows `TREE_ITEM`s (`OG-F`), everything else by
+    /// ``role(_:)``.
+    static func role(of node: AccessibilityNode) -> Role {
+        if node.role == .table, node.isOutline { return .tree }
+        if node.role == .row, node.outlineLevel != nil { return .treeItem }
+        return role(node.role)
+    }
+
+    /// `tree` with each outline's rows nested under their realised parent row (`OG-F`): a `TREE`'s children are the
+    /// rows with no realised parent (a row whose parent is scrolled out hangs under the tree), a `TREE_ITEM`'s are its
+    /// own content and then the rows it discloses. A group row's cell and triangle are dropped (a tree item carries
+    /// `expanded` and the `EXPAND`/`COLLAPSE` actions itself), the cell's content lifted into the row.
+    static func nestingOutlines(_ tree: AccessibilityTree) -> AccessibilityTree {
+        guard tree.nodes.values.contains(where: \.isOutline) else { return tree }
+        var result = tree
+        var disclosed: [AccessibilityNodeID: [AccessibilityNodeID]] = [:]
+        for (id, list) in tree.nodes where list.isOutline {
+            var top: [AccessibilityNodeID] = []
+            for child in list.children {
+                if let parent = tree.nodes[child]?.disclosedBy, tree.nodes[parent] != nil {
+                    disclosed[parent, default: []].append(child)
+                } else {
+                    top.append(child)
+                }
+            }
+            result.nodes[id]?.children = top
+        }
+        for (id, row) in tree.nodes where row.outlineLevel != nil && row.role == .row {
+            var content: [AccessibilityNodeID] = []
+            for child in row.children {
+                guard let node = tree.nodes[child], node.role == .cell else { content.append(child); continue }
+                var inner = node.children
+                if let first = inner.first, tree.nodes[first]?.role == .disclosureTriangle { inner.removeFirst() }
+                content.append(contentsOf: inner)
+            }
+            result.nodes[id]?.children = content + (disclosed[id] ?? [])
+        }
+        return result
     }
 
     static func role(_ role: AccessibilityRole) -> Role {
@@ -213,6 +267,7 @@ extension AccessKitSnapshot {
         // A `DisclosureGroup`'s label row (ruling `OG-F`): a `BUTTON` whose value is `"1"` or `"0"`; the expanded
         // state needs `accesskit_node_set_expanded`, whose name lane 5 verifies against the fetched header.
         case .disclosureTriangle: .button
+        case .cell: .cell
         }
     }
 
@@ -246,6 +301,8 @@ extension AccessKitSnapshot {
         case .decrement: return .decrement(id)
         case .customAction: return nil
         case .showContextMenu: return .showMenu(id)
+        case .expand: return .expand(id)
+        case .collapse: return .collapse(id)
         }
     }
 

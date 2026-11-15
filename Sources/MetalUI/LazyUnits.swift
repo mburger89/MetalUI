@@ -84,6 +84,19 @@ final class LazyUnitBox {
     }
 }
 
+/// What a content `List` can do with a disclosure group's label unit at input time, without realising it (`OG-E`,
+/// `OG-F`): read whether it is expanded, set that, or cascade the change through every descendant.
+struct LazyDisclosure {
+    /// Whether the group is expanded now (read live, at input time).
+    let isExpanded: @MainActor () -> Bool
+    /// Writes the group's own expansion, as a click on its chevron does (the binding, or the state slot), and nothing else.
+    let set: @MainActor (Bool) -> Void
+    /// ⌥→ and ⌥← (`P-K4`, `P-K5`): expands the group and every descendant, or collapses it and every expanded one. A
+    /// content list's cannot reach a descendant that was never built, so it is a request the next build carries out
+    /// (`OutlineCascade`); an outline's walks its data and writes at once.
+    let cascade: @MainActor (Bool) -> Void
+}
+
 /// A source of lazily realised units (package: the lazy core's own seam; `LazyContainerGuards`'
 /// plain-import guard pins it unreachable).
 @MainActor
@@ -104,6 +117,13 @@ protocol LazyUnitSource {
     /// nothing out.
     func lazySelectionTag(_ unit: Int) -> AnyHashable?
 
+    /// How many disclosure levels unit `unit` sits below, as its realised box's `depth` will say (`OG-E`, `OG-F`), at
+    /// input time and for a unit that may not be realised.
+    func lazyDepth(_ unit: Int) -> Int
+
+    /// The disclosure of unit `unit` when it is a group's label row, else `nil` (`OG-E`).
+    func lazyDisclosure(_ unit: Int) -> LazyDisclosure?
+
     /// Called once per frame before any of this source's units is realised, with the source's one
     /// structural slot (`LZ-H`: `noteWindowedParent`).
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass)
@@ -117,6 +137,8 @@ protocol LazyUnitSource {
 extension LazyUnitSource {
     func lazyScrollID(_ unit: Int) -> AnyHashable { lazyUnitID(unit) }
     func lazySelectionTag(_ unit: Int) -> AnyHashable? { nil }
+    func lazyDepth(_ unit: Int) -> Int { 0 }
+    func lazyDisclosure(_ unit: Int) -> LazyDisclosure? { nil }
 }
 
 /// A content group that can list its units (conformers: `ForEach` over proposal content, `Pair`,
@@ -274,7 +296,10 @@ struct LazyLegacyStaticSource<G: ElementGroup>: LazyUnitSource {
     let group: G
     /// Whether the unit is a disclosure group's label row (`OG-J`).
     var marksHeader = false
+    /// What input can do to that group (`OG-E`).
+    var disclosure: LazyDisclosure?
     var lazyUnitCount: Int { 1 }
+    func lazyDisclosure(_ unit: Int) -> LazyDisclosure? { disclosure }
     func lazyUnitID(_ unit: Int) -> AnyHashable { AnyHashable(LazyStaticUnitID()) }
     func lazySelectionTag(_ unit: Int) -> AnyHashable? { (group as? any ListRowTagged)?.listRowTag }
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {}
@@ -385,6 +410,18 @@ struct LazyUnitTable {
     func rawID(_ unit: Int) -> AnyHashable {
         let (segment, local) = locate(unit)
         return sources[segment].lazyScrollID(local)
+    }
+
+    /// The disclosure level of global unit `unit` (`OG-E`).
+    func depth(_ unit: Int) -> Int {
+        let (segment, local) = locate(unit)
+        return sources[segment].lazyDepth(local)
+    }
+
+    /// The disclosure of global unit `unit` when it is a group's label row (`OG-E`).
+    func disclosure(_ unit: Int) -> LazyDisclosure? {
+        let (segment, local) = locate(unit)
+        return sources[segment].lazyDisclosure(local)
     }
 
     /// The `.tag(_:)` value of global unit `unit`'s element, or `nil` (`OG-E`).

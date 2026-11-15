@@ -48,6 +48,9 @@ struct AXEmission {
     /// The clip depth the record was made at (`RL-H`): a layout translation re-cuts `geometry.visibleFrame` against the ambient clip
     /// only for a record whose clip was the ambient one itself, the hitbox rule (`Hitbox.clipDepth`).
     var clipDepth = 0
+    /// The content list row this record was made inside (`OG-F`), or `nil`: the builder parents a record under its row
+    /// when no recorded ancestor shares the row (`AccessibilityTreeBuilder`, step 2).
+    var adopter: GlobalElementID?
 }
 
 /// One open render effect as an accessibility replay re-derives it (`AT-G`): its own map and the clip in force at its entry.

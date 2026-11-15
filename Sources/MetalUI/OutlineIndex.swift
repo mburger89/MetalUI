@@ -281,7 +281,7 @@ extension OutlineGroup: LazyTreeFlattenable
         let id = body.enterComponent(under: parent, at: &cursor, pass: &pass)
         let index = body.index
         index.prepare(roots: roots, id: spec.id, children: spec.children, scope: id, frame: pass.frame)
-        sources.append(OutlineGroupSource(index: index, scope: id, spec: spec))
+        sources.append(OutlineGroupSource(index: index, scope: id, spec: spec, stateTable: pass.frame.stateTable))
         return true
     }
 }
@@ -292,9 +292,81 @@ struct OutlineGroupSource<Data: RandomAccessCollection, ID: Hashable, Leaf: Elem
     let index: OutlineIndex<Data, ID>
     let scope: GlobalElementID
     let spec: OutlineSpec<Data, ID, Leaf>
+    /// The window's state table, where each group's expansion slot lives (`DisclosureSlot`): input writes it by id.
+    let stateTable: StateTable
 
     var lazyUnitCount: Int { index.count }
     func lazyUnitID(_ unit: Int) -> AnyHashable { AnyHashable(index.entries[unit].key) }
+    func lazyDepth(_ unit: Int) -> Int { index.entries[unit].depth }
+
+    /// The disclosure component id of row `unit`, when it is a group.
+    private func groupID(of entry: OutlineEntry<ID>) -> GlobalElementID? {
+        guard entry.isGroup else { return nil }
+        let parentLevel = entry.parentSlot < 0 ? scope : index.groups[entry.parentSlot].childLevel
+        let elementScope = OutlineScopes.element(in: parentLevel, at: entry.indexInParent, key: entry.key,
+                                                 needsKey: index.needsKey)
+        return OutlineScopes.group(of: OutlineScopes.node(of: elementScope))
+    }
+
+    func lazyDisclosure(_ unit: Int) -> LazyDisclosure? {
+        guard unit < index.entries.count, let group = groupID(of: index.entries[unit]) else { return nil }
+        return outlineDisclosure(unit: unit, group: group)
+    }
+
+    /// What input can do to the group at `unit` (`OG-E`): its own slot, and a cascade over the data below it.
+    func outlineDisclosure(unit: Int, group: GlobalElementID) -> LazyDisclosure {
+        let table = stateTable, index = self.index
+        let slot = DisclosureSlot.slot(of: group)
+        let source = self
+        return LazyDisclosure(
+            isExpanded: { table.peek(slot, as: Bool.self) ?? false },
+            set: { want in
+                guard (table.peek(slot, as: Bool.self) ?? false) != want else { return }
+                table.write(slot, want)
+                index.expansionGeneration &+= 1
+            },
+            cascade: { want in source.cascade(from: unit, group: group, expand: want) })
+    }
+
+    /// ⌥→ and ⌥← over the data (`P-K4`, `P-K5`): the group's slot, then every group below it. An outline's expansion is
+    /// a state slot named by the row's ids, so unlike a binding it can be written for a row never built: the walk reads
+    /// the data's `children`, an expand writes every group, a collapse every expanded one, in this turn. Iterative, so a
+    /// deep tree does not deepen the stack.
+    @inline(never)
+    private func cascade(from unit: Int, group: GlobalElementID, expand: Bool) {
+        let entry = index.entries[unit]
+        guard let level = index.collection(forParentSlot: entry.parentSlot), entry.indexInParent < level.count
+        else { return }
+        let table = stateTable
+        func isOpen(_ id: GlobalElementID) -> Bool { table.peek(DisclosureSlot.slot(of: id), as: Bool.self) ?? false }
+        func write(_ id: GlobalElementID) {
+            if isOpen(id) != expand { table.write(DisclosureSlot.slot(of: id), expand) }
+        }
+        write(group)
+        var stack: [OutlineCursor<Data>] = []
+        if let kids = level[entry.indexInParent][keyPath: spec.children] {
+            stack.append(OutlineCursor(level: OutlineRoots(collection: kids), parentSlot: -1,
+                                       scope: OutlineScopes.children(of: group), depth: 0))
+        }
+        while let top = stack.last {
+            if top.next == top.level.count {
+                stack.removeLast()
+                continue
+            }
+            let position = top.next
+            stack[stack.count - 1].next += 1
+            let element = top.level[position]
+            guard let kids = element[keyPath: spec.children] else { continue }
+            let scope = OutlineScopes.element(in: top.scope, at: position, key: element[keyPath: spec.id],
+                                              needsKey: index.needsKey)
+            let child = OutlineScopes.group(of: OutlineScopes.node(of: scope))
+            if !expand, !isOpen(child) { continue }   // a collapse reaches the expanded groups only
+            write(child)
+            stack.append(OutlineCursor(level: OutlineRoots(collection: kids), parentSlot: -1,
+                                       scope: OutlineScopes.children(of: child), depth: 0))
+        }
+        index.expansionGeneration &+= 1
+    }
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {}
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
@@ -330,6 +402,7 @@ struct OutlineGroupSource<Data: RandomAccessCollection, ID: Hashable, Leaf: Elem
             pass.frame.stateTable.noteProduced(groupBranch)
             pass.frame.stateTable.noteAbsent(leafBranch)
             let index = self.index
+            let disclosure = outlineDisclosure(unit: unit, group: OutlineScopes.group(of: node))
             var body = DisclosureGroupBody<Leaf, OutlineSubgroupChildren>(
                 expansion: nil, label: spec.content(element), makeContent: { OutlineSubgroupChildren() })
             body.keepsHiddenState = true
@@ -341,7 +414,9 @@ struct OutlineGroupSource<Data: RandomAccessCollection, ID: Hashable, Leaf: Elem
                 pass.frame.requestAnotherFrame()
             }
             let source: any LazyUnitSource = ListRowChrome.isActive
-                ? LazyLegacyStaticSource(group: body.listHeader, marksHeader: true) : LazyLegacyStaticSource(group: body.header)
+                ? LazyLegacyStaticSource(group: body.listHeader(cascade: disclosure.cascade), marksHeader: true,
+                                         disclosure: disclosure)
+                : LazyLegacyStaticSource(group: body.header)
             let box = source.realizeLazyUnit(0, globalIndex: globalIndex, segment: 0, parent: OutlineScopes.stack(of: group),
                                              cursorBase: 0, pass: &pass)
             box.depth += entry.depth

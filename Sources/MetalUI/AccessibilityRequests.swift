@@ -16,3 +16,13 @@ import MetalUICore
 struct AccessibilityRowSelection: Action {
     let rows: [GlobalElementID]
 }
+
+/// What an accessibility client's expand or collapse request dispatches to an outline row (`OG-F`): the wanted state.
+/// Internal; a content `List` registers a handler for it on each group row, and `Window.handleAccessibilityRequest`
+/// sends it for AppKit's `AXDisclosing` set and AccessKit's `EXPAND`/`COLLAPSE`, and for a press on the row's triangle.
+///
+/// An `Action`, so it rides the registry and its disabled gate (a disabled list registers none, so nothing is
+/// advertised and the request is refused), as `AccessibilityRowSelection` does.
+struct AccessibilityDisclosure: Action {
+    let expand: Bool
+}

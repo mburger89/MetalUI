@@ -402,6 +402,28 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         mainActorAnswer(self, fallback: []) { $0.selectedRows }
     }
 
+    // An outline's rows (`OG-F`, probe `P-A1`/`P-A2`): `AXDisclosureLevel`, `AXDisclosing` (settable on a group),
+    // `AXDisclosedByRow` and `AXDisclosedRows`. There is no `AXExpanded` on a row: `isAccessibilityExpanded` is not
+    // overridden.
+    override func accessibilityDisclosureLevel() -> Int {
+        mainActorAnswer(self, fallback: 0) { $0.node.outlineLevel ?? 0 }
+    }
+    override func isAccessibilityDisclosed() -> Bool {
+        mainActorAnswer(self, fallback: false) { $0.node.isExpanded ?? false }
+    }
+    override func setAccessibilityDisclosed(_ disclosed: Bool) {
+        mainActorAnswer(self, fallback: ()) { $0.requestDisclosure(disclosed) }
+    }
+    override func accessibilityDisclosedByRow() -> Any? {
+        mainActorAnswer(self, fallback: nil) { element in
+            guard let bridge = element.liveBridge, let parent = element.node.disclosedBy else { return nil }
+            return bridge.element(for: parent)
+        }
+    }
+    override func accessibilityDisclosedRows() -> Any? {
+        mainActorAnswer(self, fallback: nil) { $0.disclosedRows }
+    }
+
     // MARK: Answers (main actor)
 
     private var role: NSAccessibility.Role {
@@ -446,6 +468,8 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .busyIndicator: .busyIndicator
         case .colorWell: .colorWell
         case .disclosureTriangle: .disclosureTriangle
+        // A group row of an outline holds its triangle in one cell (`OG-F`, probe `P-A`).
+        case .cell: .cell
         }
     }
 
@@ -499,6 +523,22 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     private func requestSelectedRows(_ rows: [AccessibilityNodeID]) {
         guard allowsSettingSelectedRows, let onRequest = bridge?.onRequest else { return }
         _ = onRequest(.selectRows(id, rows))
+    }
+
+    /// `AXDisclosing` set: expands or collapses a group row through the window's disclosure handler (`OG-F`). Sends
+    /// nothing for a row that is not a group, already in the wanted state, or disabled.
+    private func requestDisclosure(_ disclosed: Bool) {
+        guard liveBridge != nil, node.actions.contains(disclosed ? .expand : .collapse),
+              let onRequest = bridge?.onRequest else { return }
+        _ = onRequest(disclosed ? .expand(id) : .collapse(id))
+    }
+
+    /// The realised rows this row discloses, in published order (`AXDisclosedRows`); none for a leaf.
+    private var disclosedRows: [Any] {
+        guard let bridge = liveBridge, node.outlineLevel != nil else { return [] }
+        let parentList = bridge.parents[id].flatMap { bridge.tree.nodes[$0] }
+        return (parentList?.children ?? []).filter { bridge.tree.nodes[$0]?.disclosedBy == id }
+            .map { bridge.element(for: $0) }
     }
 
     private var allowsSelecting: Bool { liveBridge != nil && node.isSelectable }
@@ -614,6 +654,15 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
              #selector(NSAccessibilityElement.accessibilityVisibleRows):
             node.role == .table
         case #selector(NSAccessibilityElement.accessibilityIndex): node.role == .row
+        // An outline row's disclosure attributes (`OG-F`): only a row inside an outline has them; `AXDisclosing` is
+        // settable only on a group row the window would expand or collapse (a disabled list advertises neither).
+        case #selector(NSAccessibilityElement.accessibilityDisclosureLevel),
+             #selector(NSAccessibilityElement.isAccessibilityDisclosed),
+             #selector(NSAccessibilityElement.accessibilityDisclosedByRow),
+             #selector(NSAccessibilityElement.accessibilityDisclosedRows):
+            node.outlineLevel != nil
+        case #selector(NSAccessibilityElement.setAccessibilityDisclosed(_:)):
+            liveBridge != nil && !node.actions.intersection([.expand, .collapse]).isEmpty
         // Plan task 12 part 2 (`IX-AA`, `IX-AG`): the selection setters only
         // where a list offers them, and `AXFocused` settable only where the
         // window would honour it (`isFocusable`, AB-J).

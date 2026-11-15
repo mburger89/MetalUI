@@ -153,7 +153,8 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
     let full = AccessibilityNode(
         role: .row, label: "L", value: "V", isSelected: false, isEnabled: false, isFocusable: true,
         actions: [.press, .increment, .decrement], children: [nid("kid")], rowCount: 7, rowIndex: 3,
-        hint: "H", identifier: "I", customActions: ["C"], isSelectable: true)
+        hint: "H", identifier: "I", customActions: ["C"], isSelectable: true,
+        isOutline: false, outlineLevel: nil, isExpanded: nil, disclosedBy: nil)
     let tree = AccessibilityTree(roots: [nid("full")],
                                  nodes: [nid("full"): full, nid("kid"): AccessibilityNode(role: .staticText)],
                                  geometry: [:], focused: nil)
@@ -186,9 +187,31 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
         "customActions": { c in customActions(c).map(\.1) == ["C"] },
         "isSelectable": { c in accesskit_node_is_selected(c).has_value },
     ]
+    // The four outline fields (`OG-F`) are read off an outline's own nodes: a list that `isOutline` is a `TREE`, a row with an
+    // `outlineLevel` a `TREE_ITEM` at that level plus one, `isExpanded` its `expanded`, and `disclosedBy` nests it under its
+    // parent (`AccessKitOutlineTests` pins each in full).
+    let outlineArms: [String: Bool] = {
+        let list = AccessibilityNode(role: .table, children: [nid("p"), nid("c")], isOutline: true)
+        let parent = AccessibilityNode(role: .row, outlineLevel: 4, isExpanded: true)
+        let child = AccessibilityNode(role: .row, outlineLevel: 5, disclosedBy: nid("p"))
+        let outline = AccessibilityTree(roots: [nid("l")], nodes: [nid("l"): list, nid("p"): parent, nid("c"): child],
+                                        geometry: [:], focused: nil)
+        let oids = AccessKitIDs()
+        let all = translate(outline, ids: oids)
+        let byID = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        let p = byID[oids.number(for: nid("p"))], l = byID[oids.number(for: nid("l"))]
+        return [
+            "isOutline": l?.role == .tree,
+            "outlineLevel": p?.role == .treeItem && p?.level == 5,
+            "isExpanded": p?.expanded == true,
+            "disclosedBy": p?.children == [oids.number(for: nid("c"))] && l?.children == [oids.number(for: nid("p"))],
+        ]
+    }()
+    for (field, holds) in outlineArms.sorted(by: { $0.key < $1.key }) { #expect(holds, "\(field)'s arm") }
     let fields = Set(Mirror(reflecting: full).children.compactMap(\.label))
-    #expect(fields.count == 14, "the neutral node's field count: \(fields.sorted())")
-    #expect(Set(arms.keys) == fields, "one arm per field — missing \(fields.subtracting(arms.keys).sorted())")
+    #expect(fields.count == 18, "the neutral node's field count: \(fields.sorted())")
+    #expect(Set(arms.keys).union(outlineArms.keys) == fields,
+            "one arm per field — missing \(fields.subtracting(arms.keys).subtracting(outlineArms.keys).sorted())")
     withCNode(node) { c in
         for (field, arm) in arms.sorted(by: { $0.key < $1.key }) { #expect(arm(c), "\(field)'s arm") }
     }

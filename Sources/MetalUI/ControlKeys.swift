@@ -93,6 +93,20 @@ enum ControlKeys {
         }
     }
 
+    /// An outline `List`'s disclosure keys (outline lane 5, `OG-E`; probes `P-K2`..`P-K5`), read after `listMove`: → expands
+    /// a collapsed group and ← collapses an expanded one or moves to the parent; with ⌥ and only ⌥, they cascade through
+    /// every descendant. ⇧, ⌘ and ⌃ decline the key. The same on every platform (an outline's keys are NSOutlineView's).
+    static func outlineDisclosure(_ event: KeyEvent,
+                                  platform: Platform = TextEditing.platform) -> (direction: Direction, cascades: Bool)? {
+        guard event.modifiers.isEmpty || event.modifiers == .option else { return nil }
+        let cascades = event.modifiers == .option
+        switch event.charactersIgnoringModifiers {
+        case TextEditing.leftArrow: return (.backward, cascades)
+        case TextEditing.rightArrow: return (.forward, cascades)
+        default: return nil
+        }
+    }
+
     /// The modifier that toggles one row in a multi-selection `List` on click
     /// (lane 3, `DD-Z` item 4): ⌘ on Apple, ctrl elsewhere.
     static func selectionToggleModifier(platform: Platform = TextEditing.platform) -> Modifiers {

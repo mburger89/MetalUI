@@ -235,12 +235,36 @@ extension DisclosureGroupBody {
         let id = enterComponent(under: parent, at: &cursor, pass: &pass)
         let stack = GlobalElementID.child(of: id, at: 0, name: nil)   // the body's `VStack` (no name)
         // `OG-J`: inside a content `List` the label row is the list's (chevron cell in the lead slot, no standalone look).
+        let body = self
+        var disclosure: LazyDisclosure?
+        if ListRowChrome.isActive {
+            let request = OutlineCascade.context?.request
+            disclosure = LazyDisclosure(
+                isExpanded: { body.isExpanded },
+                set: { want in if body.isExpanded != want { body.toggle() } },
+                cascade: { want in
+                    if let request { request(id, want) } else if body.isExpanded != want { body.toggle() }
+                })
+        }
         var level: [any LazyUnitSource] = [ListRowChrome.isActive
-            ? LazyLegacyStaticSource(group: listHeader, marksHeader: true) : LazyLegacyStaticSource(group: header)]
+            ? LazyLegacyStaticSource(group: listHeader(cascade: disclosure?.cascade), marksHeader: true,
+                                     disclosure: disclosure)
+            : LazyLegacyStaticSource(group: header)]
         let slot = GlobalElementID(component: .positional(1), parent: stack)
-        if isExpanded {
+        // A pending ⌥ cascade (`OutlineCascade`): an expand builds the group open and every group below it open, queueing
+        // each write for after the build; a collapse queues the write of each expanded group.
+        let cascade = OutlineCascade.direction(for: id)
+        var open = isExpanded
+        if let cascade, let context = OutlineCascade.context {
+            if cascade != open {
+                context.queue(id) { if body.isExpanded != cascade { body.toggle() } }
+            }
+            if cascade { open = true }
+        }
+        if open {
             pass.frame.stateTable.noteProduced(slot)
-            guard var nested = lazyNested(makeContent(), scope: slot, pass: &pass) else { return false }
+            guard var nested = OutlineCascade.forcing(cascade, { lazyNested(makeContent(), scope: slot, pass: &pass) })
+            else { return false }
             nested.depthStep = 1
             level.append(nested)
         } else {
@@ -288,6 +312,8 @@ struct LazyNestedSource: LazyUnitSource {
     func lazyUnitID(_ unit: Int) -> AnyHashable { table.key(unit) }
     func lazyScrollID(_ unit: Int) -> AnyHashable { table.rawID(unit) }
     func lazySelectionTag(_ unit: Int) -> AnyHashable? { table.selectionTag(unit) }
+    func lazyDepth(_ unit: Int) -> Int { table.depth(unit) + depthStep }
+    func lazyDisclosure(_ unit: Int) -> LazyDisclosure? { table.disclosure(unit) }
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {}   // the level's hooks ran when it was built
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
@@ -372,6 +398,16 @@ struct LazyTreeForEachSource<Data: RandomAccessCollection, ID: Hashable, Content
     func lazySelectionTag(_ unit: Int) -> AnyHashable? {
         let (element, local) = locate(unit)
         return elements[element].table.selectionTag(local)
+    }
+
+    func lazyDepth(_ unit: Int) -> Int {
+        let (element, local) = locate(unit)
+        return elements[element].table.depth(local)
+    }
+
+    func lazyDisclosure(_ unit: Int) -> LazyDisclosure? {
+        let (element, local) = locate(unit)
+        return elements[element].table.disclosure(local)
     }
 
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {

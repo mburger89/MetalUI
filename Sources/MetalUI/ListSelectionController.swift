@@ -131,43 +131,63 @@ struct ListSelectionController<ID: Hashable> {
         }
     }
 
+    /// The lead row's position: the stored lead while it is still selected, else the first selected row, else `nil`
+    /// (also `nil` for a list with no selection). Input time only.
+    func leadPosition() -> Int? {
+        guard let stored = leads.read() else { return nil }
+        return leadPosition(stored: stored)
+    }
+
+    private func leadPosition(stored: (lead: AnyHashable?, anchor: AnyHashable?)) -> Int? {
+        switch selection {
+        case .none:
+            return nil
+        case .single(let binding):
+            let current = binding.wrappedValue
+            return leadIndex(stored: stored.lead, isSelected: { $0 == current })
+        case .multi(let binding):
+            return leadIndex(stored: stored.lead, isSelected: binding.wrappedValue.contains)
+        }
+    }
+
     /// One keyboard move (KY6, KY8): the next/previous selectable row from the lead — with nothing selected, or the
     /// selection hidden (`P-K7`), ↓ the first and ↑ the last — clamped at the ends; a multi list's plain move collapses
     /// to that row and ⇧ selects from the anchor to it; a single list ignores ⇧. Writes only a changed selection; stores
     /// the new lead (and anchor). Returns the new lead's position and id, or nil when the list has no selectable row.
     func move(_ direction: ControlKeys.Direction, extends: Bool) -> (index: Int, id: ID)? {
         let count = space.count
-        guard count > 0, let stored = leads.read() else { return nil }
-        func target(from lead: Int?) -> Int? {
-            let step = direction == .forward ? 1 : -1
-            var position = lead.map { $0 + step } ?? (direction == .forward ? 0 : count - 1)
-            while position >= 0, position < count {
-                if space.id(position) != nil { return position }
-                position += step
-            }
-            return lead   // clamped at the end: the lead stays (nil: nothing is selectable)
+        guard count > 0, let stored = leads.read(), !selection.isNone else { return nil }
+        let lead = leadPosition(stored: stored)
+        let step = direction == .forward ? 1 : -1
+        var position = lead.map { $0 + step } ?? (direction == .forward ? 0 : count - 1)
+        var next = lead   // clamped at the end: the lead stays (nil: nothing is selectable)
+        while position >= 0, position < count {
+            if space.id(position) != nil { next = position; break }
+            position += step
         }
-        let row: ID
-        let index: Int
-        var anchor: AnyHashable
+        guard let next else { return nil }
+        return commit(to: next, extends: extends, stored: stored, lead: lead)
+    }
+
+    /// Selects the row at `position` as a plain move would (`OG-E`: ← on a leaf or a collapsed group moves to its
+    /// parent): a single list writes it, a multi list collapses to it; stores the lead. `nil` for a list with no
+    /// selection or a row that cannot be selected.
+    func select(position: Int) -> (index: Int, id: ID)? {
+        guard let stored = leads.read(), !selection.isNone, space.id(position) != nil else { return nil }
+        return commit(to: position, extends: false, stored: stored, lead: leadPosition(stored: stored))
+    }
+
+    private func commit(to next: Int, extends: Bool, stored: (lead: AnyHashable?, anchor: AnyHashable?),
+                        lead: Int?) -> (index: Int, id: ID)? {
+        guard let row = space.id(next) else { return nil }
+        var anchor = AnyHashable(row)
         switch selection {
         case .none:
             return nil
         case .single(let binding):
-            let current = binding.wrappedValue
-            let lead = leadIndex(stored: stored.lead, isSelected: { $0 == current })
-            guard let next = target(from: lead), let id = space.id(next) else { return nil }
-            row = id
-            index = next
-            anchor = AnyHashable(row)
-            if current != row { binding.wrappedValue = row }
+            if binding.wrappedValue != row { binding.wrappedValue = row }
         case .multi(let binding):
             let current = binding.wrappedValue
-            let lead = leadIndex(stored: stored.lead, isSelected: current.contains)
-            guard let next = target(from: lead), let id = space.id(next) else { return nil }
-            row = id
-            index = next
-            anchor = AnyHashable(row)
             var selected: Set<ID> = [row]
             if extends {
                 if let storedAnchor = stored.anchor?.base as? ID, current.contains(storedAnchor),
@@ -182,6 +202,6 @@ struct ListSelectionController<ID: Hashable> {
             if selected != current { binding.wrappedValue = selected }
         }
         leads.write(AnyHashable(row), anchor)
-        return (index, row)
+        return (next, row)
     }
 }
