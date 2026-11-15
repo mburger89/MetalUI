@@ -159,7 +159,7 @@ public struct DisclosureGroupBody<Label: ElementGroup, Content: ElementGroup>: C
             .frame(height: Pixels(Self.rowHeight))
         }
         .buttonStyle(.plain)
-        button.handlers.axNode.progressHint = .disclosureTriangle
+        button.handlers.axNode.roleHint = .disclosureTriangle
         button.handlers.axNode.value = open ? "1" : "0"
         return button
     }

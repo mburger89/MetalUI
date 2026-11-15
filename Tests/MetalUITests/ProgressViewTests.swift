@@ -407,7 +407,7 @@ private func progressNodes(_ tree: AccessibilityTree) -> [AccessibilityNode] {
 /// declaration test, as `popoverHint` is — an untitled `ProgressView()` emits
 /// no `axNodes` entry and writes no `$ax` slot, while its client record still
 /// carries the busy hint. Mutation **V3**: `Frame.registerHandlers`'
-/// `declaration.progressHint = nil` deleted (a declared node and a `$ax` slot).
+/// `declaration.roleHint = nil` deleted (a declared node and a `$ax` slot).
 @Test @MainActor func anUntitledProgressViewWritesNoAXSlotAndNoDeclaredNodeV3() throws {
     let table = StateTable()
     var root = controlRoot { ProgressView() }
@@ -416,7 +416,7 @@ private func progressNodes(_ tree: AccessibilityTree) -> [AccessibilityNode] {
     frame.render(&root)
     #expect(frame.axNodes.isEmpty, "declared nodes \(frame.axNodes.values.map(\.role))")
     #expect(!table.ids.contains { $0.component == .named(ElementID("$ax")) }, "a $ax slot was written")
-    #expect(frame.axEmissions.contains { $0.declared.progressHint == .busy }, "the client record carries the busy hint")
+    #expect(frame.axEmissions.contains { $0.declared.roleHint == .busy }, "the client record carries the busy hint")
 }
 
 /// `LK-F` item 2: the indeterminate bar's segment moves with the frame clock —
