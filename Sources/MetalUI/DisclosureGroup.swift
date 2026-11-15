@@ -119,6 +119,9 @@ public struct DisclosureGroupBody<Label: ElementGroup, Content: ElementGroup>: C
     var keepsHiddenState = false
     /// Called by input's toggle after the write: an outline index's generation bump (`OG-K`).
     var onToggle: (@MainActor () -> Void)?
+    /// The group's component id when it is a row of a content `List`: input's toggle marks it, so the splice that follows
+    /// animates (`OG-P`); `nil` for a standalone group, whose write is the ambient animation's (`OG-H`).
+    var inputMark: GlobalElementID?
 
     init(expansion: Binding<Bool>?, label: Label, makeContent: @escaping @MainActor () -> Content) {
         self.expansion = expansion
@@ -138,6 +141,7 @@ public struct DisclosureGroupBody<Label: ElementGroup, Content: ElementGroup>: C
 
     /// Input's write: the one place the expansion changes.
     func toggle() {
+        if let inputMark { OutlineSplice.noteInput(inputMark) }
         if let expansion {
             expansion.wrappedValue = !expansion.wrappedValue
         } else {

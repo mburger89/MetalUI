@@ -217,6 +217,7 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         stack = LazyStackEngine(content: content, spacing: Pixels(0), axis: .vertical,
                                 alignment: HorizontalAlignment.leading.proposalAlignment)
         stack.cachesFlatten = true   // `OG-O`
+        stack.animatesSplices = true   // `OG-P`
     }
 
     // MARK: ids
@@ -280,6 +281,7 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
             queue: { owner, write in lifecycle.enqueue(LifecycleEvent(owner: owner, action: { write() }, departed: nil)) },
             request: { [weak table = pass.frame.stateTable] group, expand in
                 guard let table else { return }
+                OutlineSplice.noteInput(group)   // `OG-P`: the ⌥ cascade's rows slide as a plain toggle's do
                 var current = table.peek(cascadeID, as: [GlobalElementID: Bool].self) ?? [:]
                 current[group] = expand
                 table.write(cascadeID, current)
