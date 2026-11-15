@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AB`.**
+**Next unused id: `KF-AD`.**
 
 ## The final spellings (what an app writes)
 
@@ -1040,3 +1040,12 @@ Next unused id: `KF-AC`.
 2. **SDL suppresses keys while composing.** SDL sends key events and `TEXT_EDITING` separately, so keys the IME consumes still arrived. `SDLWindow` keeps `isComposing` (non-empty `TEXT_EDITING` text since the last commit, cancel or text input off) and does not forward a key-down or key-up without control or command (`SDLWindow.suppressesKey(composing:modifiers:)`). Neither the Keymap nor `onKeyPress` nor the field sees them; they resume after the composition ends.
 3. **Rejected: `KeyPress.isComposing`.** A property would leave every handler to remember to check it, and SwiftUI has none.
 
+## KF-AC — `onKeyPress` on any `ElementGroup` (Alloy; record 316)
+
+Next unused id: `KF-AD`.
+
+1. **The five SwiftUI spellings exist on every `ElementGroup`.** `onKeyPress(_:action:)`, `(_:phases:action:)`, `(keys:phases:action:)`, `(characters:phases:action:)` and `(phases:action:)` in `ElementGroupKeyPress.swift`. A helper returning `some ElementGroup`, a `Pair`, a `ForEach` or a scope (`Box().environment(…)`) can write `.onKeyPress`, as a SwiftUI `View` can. Class A.
+2. **One layer, the legacy wrapper's.** Each wraps the group once in `_wrap(ModifierLayer(style: Style()))` — a `ModifiedElement<LayerBase>`, one node and one identity level, what `.padding(0)` makes — and calls the layer's own `StyledElement.onKeyPress`. The result is a `StyledElement`, so every later keyboard modifier (`onKeyPress`, `.focusable()`, `.keyContext`, `.focused`) joins that one layer (`KF-H` item 2's rule, reached through `ModifiedElement` rather than `KeyboardModifier`, which needs a proposal content with one native child). Only the first call on a plain group is the new overload.
+3. **Overload resolution is unchanged for existing conformers.** `StyledElement` (returns `Self`), `ProposalElementGroup` (`KeyboardModifier<Self>`) and `KeyboardModifier` (`Self`) are refinements of, or more specific than, `ElementGroup`, so their own spellings win; a legacy `ModifiedElement` is a `StyledElement` and returns `Self`. Pinned by `existingConformersKeepTheirOverload` (each is an `accept(_, as:)` compile-time type assertion).
+4. **Routing: handlers sit on the group's layer, which is an ancestor of whatever inside holds focus.** The group does not take focus (`focusable(_:)` is separate, as on a `StyledElement` and in SwiftUI): it hears a key while a descendant is focused, with `KF-C`'s order — outermost first, so the group's handler runs **before** a focused descendant's, and a `.handled` answer from the group shadows the descendant (the existing `StyledElement` order, unchanged; SwiftUI's own order for an ancestor `onKeyPress` is the same reading of K2v). With nothing focused it hears nothing (K1s), except through `hoverKeyRegion` as on any element.
+5. **Cost.** A group of N members now sits inside a layer with a default flex-row `Style`, as under `.padding(0)`; members keep their order and ids shift one level under the layer's id, as for any wrapper modifier.
