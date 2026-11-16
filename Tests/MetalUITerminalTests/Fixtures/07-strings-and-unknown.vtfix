@@ -1,0 +1,7 @@
+# OSC, DCS and APC strings, SOS/PM and sequences with no screen meaning yet are consumed without a trace.
+size 10 2
+input "a\e]0;title\x07b\eP1$qm\e\\c\e_Gx\e\\d\eXjunk\e\\e\e[1;31mf\e[?9999hg"
+text
+|abcdefg|
+||
+cursor 0 7

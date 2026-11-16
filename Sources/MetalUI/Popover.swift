@@ -139,7 +139,7 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
     static func chrome(_ body: PopoverContent, name: String?, padding: Float,
                        popoverHint: Bool = true, textAnchor: CodeTextAnchorBox? = nil) -> Box<PopoverContent> {
         var box = Box(content: body)
-        if let textAnchor {   // a text-anchored panel tells the view's hover the pointer is in it (`CV-AS`)
+        if let textAnchor, textAnchor.kind == .popover {   // a text-anchored popover's panel tells the view's hover the pointer is in it (`CV-AS`)
             box.handlers.hover = HoverAttachment.hover({ [weak textAnchor] inside in
                 MainActor.assumeIsolated { textAnchor?.hover?.panel(inside) }
             }, over: nil)

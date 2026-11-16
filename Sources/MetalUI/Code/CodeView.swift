@@ -50,8 +50,9 @@ public struct CodeView: Element, StyledElement {
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
     var geometryObject: CodeViewGeometry?
-    /// Where a text-anchored popover or suggestion overlay points, resolved in prepaint (`CV-AQ`).
-    var textAnchorBox: CodeTextAnchorBox?
+    /// Where each chained text-anchored popover or suggestion overlay points, resolved in prepaint (`CV-AQ`, `CV-BC`).
+    /// Empty (no allocation) for a view with none.
+    var textAnchorBoxes: [CodeTextAnchorBox] = []
 
     /// A view of `buffer` drawn with `decorations`, whose buffer must be the same.
     public init(buffer: CodeBuffer, decorations: CodeDecorations) {
@@ -245,8 +246,9 @@ public struct CodeView: Element, StyledElement {
         var hoverRuntime: CodeTextHoverRuntime?
         if let hover = textHover {
             let runtime = CodeTextHoverRuntime(id: id, table: table, plan: plan, origin: bounds.origin, buffer: buffer,
-                                               perform: hover.perform, box: textAnchorBox)
-            textAnchorBox?.hover = runtime
+                                               perform: hover.perform,
+                                               boxes: textAnchorBoxes.filter { $0.kind == .popover })
+            for box in textAnchorBoxes where box.kind == .popover { box.hover = runtime }
             // The view's own `onHover` and `onContinuousHover` keep their space and run beside it (`CV-AS`).
             let existing = handlers.hover
             handlers.hover = HoverAttachment(onHover: existing?.onHover, onContinuousHover: existing?.onContinuousHover,
@@ -301,9 +303,11 @@ public struct CodeView: Element, StyledElement {
             geometry.plan = plan
             geometry.origin = bounds.origin
         }
-        if let box = textAnchorBox {   // a text-anchored presentation (`CV-AQ`); unused: this one check
-            box.windowRect = plan.textAnchorRect(for: box.anchor, buffer: buffer).map {
-                frame.effectBoundingBox(of: frame.scrolled($0), ownEffects: decoration.renderEffects, bounds: bounds)
+        if !textAnchorBoxes.isEmpty {   // text-anchored presentations (`CV-AQ`, `CV-BC`); unused: this one check
+            for box in textAnchorBoxes {
+                box.windowRect = plan.textAnchorRect(for: box.anchor, buffer: buffer).map {
+                    frame.effectBoundingBox(of: frame.scrolled($0), ownEffects: decoration.renderEffects, bounds: bounds)
+                }
             }
         }
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }

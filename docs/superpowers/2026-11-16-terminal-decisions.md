@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-F`.
+Next unused id: `TRM-Z`.
 
 ## TRM-A: module split
 
@@ -56,6 +56,41 @@ Why: Alloy's answers 3 and 4 (2026-11-16): keys that encode to nothing fall thro
 
 Why: Alloy's answers 7 and 9 (2026-11-16): `pwsh` if present else `powershell`; Win10 1809+ OK; signal mapping accepted; Linux 5.3+ OK.
 
+## TRM-F: storage layout and the shapes Phase 1.1 pins
+
+1. A `TerminalRow` is a value type: `bytes` (the UTF-8 text of its cells, one grapheme cluster per cell, a wide character once), `runs` (run-length attribute spans covering exactly the stored columns, empty when every cell is default), the grid width, the stored column count and two flags (`isASCII`, so column and byte offset coincide; `wrapsToNext`, for reflow). No struct or `Character` per cell; `TerminalCell` and `cell(at:)` are produced on demand. Copying a row shares both arrays until one copy writes.
+2. A row leaving the screen is compacted (trailing default blanks dropped, both arrays sized exactly) into a fixed-capacity ring (`ScrollbackRing`) that grows lazily to its capacity; evicting the oldest row is O(1). Absolute row `n` is the screen's first row plus its index, `firstRow` the oldest retained.
+3. The census is counted, not sampled: the ring's array capacity times the row stride plus, per row, 32 header bytes plus capacity of each array rounded to 16. A 10 000 x 120 ASCII scrollback measures 1.85 MB, a row costing 32 bytes of struct and 160 of heap against 120 of text.
+4. `TerminalRow.text` and `rowText` trim trailing spaces. `cell(at:)` answers the same cell for both columns of a wide character and a blank default cell outside the stored text. `graphemes` lists stored cells only (a wide cell once, no trailing blanks).
+5. `TerminalModes()` is the power-on state: autowrap on, cursor visible, a steady block. The first `publishSnapshot()` is a full frame; the version bumps when damage, the cursor or the modes changed. The memberwise initialisers of `TerminalCursor`, `TerminalDamagedRow`, `TerminalSnapshot`, `TerminalCell` and `TerminalRow` are internal: the spec froze their members, not a constructor, and Alloy's fakes ask for one by a later ruling.
+
+Why: Alloy flagged memory (10 000 rows of scrollback); the spec's budget is 4 MB per pane.
+
+## TRM-G: the parser's reading of the byte stream
+
+1. UTF-8 is decoded incrementally before the state machine; an invalid sequence yields U+FFFD for each maximal invalid subpart (the standard library's rule, which the tests use as the oracle) and the byte that broke it is decoded afresh. A sequence cut by the end of a feed waits for the next one.
+2. C1 controls are the scalars U+0080-U+009F (two bytes in UTF-8); a lone byte 0x80-0x9F is invalid UTF-8 and prints U+FFFD, never a command.
+3. A non-ASCII scalar inside an escape, CSI or DCS header cancels the sequence and prints; inside a string it is payload; inside an ignored CSI or DCS it is swallowed.
+4. OSC, DCS and APC end at ESC (ST is ESC then `\`), U+009C, or, for OSC only, BEL, and are dispatched then. CAN, SUB and a C1 introducer drop a string in progress. SOS and PM are consumed without a dispatch. The payload counts bytes: exactly the cap is delivered, one more is dropped to the terminator and the parser recovers; nothing grows past the cap. C0 controls other than CAN, SUB and ESC are payload in a DCS and ignored in an OSC or APC.
+5. CSI: C0 controls execute in place; ESC restarts; CAN and SUB abort (the final byte then prints). Parameters saturate at 65 535 and at most 32 are kept; `:` marks a sub-parameter (`isSub`); a private marker `<=>?` may only lead; more than 4 intermediates, a marker after digits or a digit after an intermediate suppress the dispatch.
+
+Why: spec section 2.1 rules 1 and 2, written from the ECMA-48 and DEC state descriptions.
+
+## TRM-H: what Phase 1.2 executes
+
+The emulator prints text with autowrap and pending wrap (a wide character wraps whole, a combining mark joins the previous cell), runs BS, HT (fixed stops every 8 columns until 1.3), LF/VT/FF/IND (scrolling the whole screen into scrollback), CR, NEL, CUU, CUD, CUF, CUB, CNL, CPL, CHA/HPA, VPA, CUP/HVP, DECKPAM/DECKPNM and the mode flags `?1 ?7 ?9 ?25 ?1000 ?1002 ?1003 ?1004 ?1005 ?1006 ?2004`. Every cursor movement clears pending wrap. Everything else (SGR, erase, insert/delete, regions, RI, HTS, alternate screen, origin mode, OSC, DCS, APC, replies) is parsed and dropped until its phase; `modes.alternateScreen` and `originMode` therefore stay false. The pen is the default rendition until SGR lands.
+
+Why: a seam that tests can assert on, with no stub that pretends to work.
+
+## TRM-I: the `.vtfix` fixture format (version 1)
+
+Line-oriented, `#` comments: `size`, `scrollback`, `input "<escaped>"` (`\e \r \n \t \\ \xHH \u{H}`), a `text` block and a `history` block of `|row|` lines (trailing blanks not compared), `cursor <row> <col> [pending]`, `modes name=value ...`. Later phases add attribute maps, events and replies as new keys; an unknown key fails the fixture. Every fixture runs whole, byte at a time and cut at every position.
+
+## TRM-J: Phase 1 guards
+
+Chunk-split invariance (every two-way cut, byte at a time, seeded partitions, over the parser event log and the whole emulator state), seeded fuzz (random bytes never trap, the cursor stays in the grid, ring and screen sizes hold), the counted census (4 MB) and the gated bench `METALUI_RUN_TERMINAL_BENCH=1` (release, plain ASCII, proposal 300 MB/s). The bench measures through the public API only, so it needs no `-enable-testing`.
+
+Why: spec sections 7 and 8.
 ## TRM-U: the capture stage - where it sits and what it offers (Phase 4.1, record 338)
 
 1. `keyCapture(except:optionAsMeta:)` marks the keyboard layer it joins (the layer of the `onKeyPress` it is written beside, in either order). While the focus chain holds a marked layer, `Window.dispatchKeyCapture` runs as the first key stage, ahead of `dispatchAction` (the Keymap), and offers the key to that layer's `onKeyPress` handlers: outermost capture layer first, each layer's handlers last-written first (`KF-C`), under `StateDispatch.dispatching(to:)` the layer's element (`ID-F`).

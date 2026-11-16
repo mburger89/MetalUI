@@ -1,0 +1,12 @@
+# Line feed at the bottom scrolls the top row into history; history is oldest first and holds `scrollback` rows.
+size 6 2
+scrollback 3
+input "one\r\ntwo\r\nthree\r\nfour\r\nfive"
+history
+|one|
+|two|
+|three|
+text
+|four|
+|five|
+cursor 1 4
