@@ -78,6 +78,8 @@ public struct GestureModifier<Content: ProposalElementGroup>: Element {
     var attachment: GestureAttachment
     /// A `.contentShape(_:)` written after the gesture (ruling `IX-L`), or `nil`.
     var shape: ContentShape?
+    /// A context menu registered with the gesture (`TBS-Q`): written by the tab strip only, `nil` otherwise.
+    var contextual: ContextualAttachment?
 
     init(content: Content, attachment: GestureAttachment) {
         self.content = content
@@ -100,6 +102,7 @@ public struct GestureModifier<Content: ProposalElementGroup>: Element {
         var handlers = Handlers()
         handlers.gestures = [attachment]
         handlers.contentShape = shape
+        handlers.contextual = contextual
         // As `OnTapModifier`: routes a press like any hitbox and synthesizes no
         // accessibility node (ruling AB-Y).
         // A wrapper's registration follows an effect written inside it at the
