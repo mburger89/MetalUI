@@ -179,6 +179,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     var tabs: [TabStripItem<ID>]
     var closeHandler: (@MainActor (ID) -> Void)?
     var moveHandler: (@MainActor (Int, Int) -> Void)?
+    var tabMenu: (@MainActor (ID) -> MenuItems)?
     var selectionShape: TabStripSelectionShape = .rectangle
     var barPaint: TabStripPaint = .automatic
     var selectedPaint: TabStripPaint = .automatic
@@ -207,6 +208,26 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     public func onMoveTab(_ action: @escaping @MainActor (_ from: Int, _ to: Int) -> Void) -> TabStrip<ID> {
         var copy = self
         copy.moveHandler = action
+        return copy
+    }
+
+    /// Gives every tab a context menu (`TBS-O`): `menu` is handed the tab's id at each open and builds that tab's items, as
+    /// `contextMenu(menuItems:)`'s builder does (it may read `@State` and models freshly). A secondary press on a tab, its
+    /// close slot included, opens it; Shift-F10 or the Menu key off Apple while the tab is focused, and an accessibility
+    /// client's show-menu on the tab, open it too. **The press selects nothing** and closes nothing (Safari, Xcode and
+    /// Chrome do not switch tabs on a right click): the menu's actions decide. A menu with no items opens nothing, so
+    /// `menu` can answer per tab (no menu for a pinned file); empty bar space past the last tab has no menu. MetalUI-only.
+    ///
+    /// ```swift
+    /// TabStrip(selection: $openFile, tabs: items)
+    ///     .tabContextMenu { id in
+    ///         Button("Split Right") { split(id, .right) }
+    ///         Button("Split Down") { split(id, .down) }
+    ///     }
+    /// ```
+    public func tabContextMenu<M: MenuContent>(@MenuContentBuilder _ menu: @escaping @MainActor (ID) -> M) -> TabStrip<ID> {
+        var copy = self
+        copy.tabMenu = { MenuItems([menu($0)]) }
         return copy
     }
 
@@ -256,6 +277,11 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
     /// The strip: a bar of tabs in a horizontal scroller over a rule (`TBS-B`).
     public var content: some ElementGroup {
         let tabs = tabs, selection = selection, closeHandler = closeHandler, moveHandler = moveHandler
+        let tabMenu = tabMenu
+        let menuFor: @MainActor (ID) -> (@MainActor () -> MenuItems)? = { id in
+            guard let build = tabMenu else { return nil }
+            return { build(id) }
+        }
         let selected = selection.wrappedValue
         let drag = drag, shape = selectionShape, barPaint = barPaint, selectedPaint = selectedPaint
         let widths = $widths
@@ -277,6 +303,7 @@ public struct TabStrip<ID: Hashable>: Component, @MainActor Equatable {
                                 dropEdge: Self.dropEdge(index: index, target: target),
                                 select: { selection.wrappedValue = item.id },
                                 close: { closeHandler?(item.id) },
+                                menu: menuFor(item.id),
                                 width: { widths.wrappedValue[item.id] = $0 },
                                 dragChanged: { dragBinding.wrappedValue = TabStripDrag(id: item.id, translation: $0) },
                                 dragEnded: { translation in
@@ -334,6 +361,7 @@ struct TabStripTab<ID: Hashable>: Component {
     let dropEdge: TabStripDropEdge?
     let select: @MainActor () -> Void
     let close: @MainActor () -> Void
+    let menu: (@MainActor () -> MenuItems)?
     let width: @MainActor (Float) -> Void
     let dragChanged: @MainActor (Float) -> Void
     let dragEnded: @MainActor (Float) -> Void
@@ -343,7 +371,7 @@ struct TabStripTab<ID: Hashable>: Component {
 
     var content: some ElementGroup {
         let isSelected = isSelected, isHovered = isHovered, hover = $isHovered, size = $tabWidth, tabWidth = tabWidth
-        let item = item, close = close, width = width
+        let item = item, close = close, width = width, menu = menu
         let dragChanged = dragChanged, dragEnded = dragEnded, dragCancelled = dragCancelled
         let ink = isSelected ? Color(.textPrimary) : Color.tabStripUnselectedInk
         let selectedFill: Color
@@ -358,13 +386,13 @@ struct TabStripTab<ID: Hashable>: Component {
         let selectedMaterial = isSelected ? material : nil
         let shape = shape
         let row = HStack(spacing: Pixels(0)) {
-            TabStripLabel(item: item, isSelected: isSelected, select: select)
+            TabStripLabel(item: item, isSelected: isSelected, menu: menu, select: select)
             if item.isClosable || item.isDirty {
                 TabStripCloseSlot(item: item, showsClose: item.isClosable && (isHovered || isSelected),
                                   showsDot: item.isDirty && !(item.isClosable && isHovered), close: close)
             }
         }
-        return TabStripWidthLayout()() {
+        let cell = TabStripWidthLayout()() {
             if shape.kind == .rectangle && selectedMaterial == nil {
                 row   // the default: the cell's own rectangle fill, unchanged
             } else {
@@ -384,6 +412,7 @@ struct TabStripTab<ID: Hashable>: Component {
         .overlay(alignment: dropEdge == .leading ? .leading : .trailing) {
             if dropEdge != nil { Color(.accent).frame(width: Pixels(2)) }
         }
+        let interactive = cell
         .opacity(isDragSource ? 0.5 : 1)
         .onHover { hover.wrappedValue = $0 }
         .gesture(DragGesture(minimumDistance: Pixels(TabStripMetrics.dragSlop))
@@ -400,6 +429,7 @@ struct TabStripTab<ID: Hashable>: Component {
             size.wrappedValue = measured
             width(measured)
         })
+        return interactive.tabContextMenu(menu)
     }
 }
 
@@ -407,10 +437,11 @@ struct TabStripTab<ID: Hashable>: Component {
 struct TabStripLabel<ID: Hashable>: Component {
     let item: TabStripItem<ID>
     let isSelected: Bool
+    let menu: (@MainActor () -> MenuItems)?
     let select: @MainActor () -> Void
 
     var content: some ElementGroup {
-        let item = item, select = select
+        let item = item, select = select, menu = menu
         let body = HStack(spacing: Pixels(6)) {
             if let accent = item.accent {
                 accent.frame(width: Pixels(3), height: Pixels(14))
@@ -429,6 +460,7 @@ struct TabStripLabel<ID: Hashable>: Component {
         .accessibilityLabel(item.title)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { select() }
+        .tabContextMenu(menu)   // the same menu on the accessibility node, so a client's show-menu finds it (`TBS-O`)
         return VStack(spacing: Pixels(0)) {
             if let identifier = item.accessibilityIdentifier {
                 if item.isDirty { body.accessibilityIdentifier(identifier).accessibilityValue("edited") }
@@ -496,5 +528,27 @@ struct TabStripFill: Component {
                 else { RoundedRectangle(cornerRadius: Pixels(radius)).fill(fill).padding(inset) }
             }
         }
+    }
+}
+
+
+extension ProposalElementGroup {
+    /// A tab's context menu on the proposal path (`TBS-O`): one `ContextualModifier` always, so the tree has one shape with
+    /// and without a menu; with none it carries a menu-less attachment, which opens nothing and shadows no outer menu.
+    func tabContextMenu(_ menu: (@MainActor () -> MenuItems)?) -> ContextualModifier<Self> {
+        let attachment: ContextualAttachment
+        if let menu { attachment = ContextualAttachment(menu: menu, help: nil) }
+        else { attachment = ContextualAttachment(locatedMenu: nil, help: nil) }
+        return ContextualModifier(content: self, attachment: attachment)
+    }
+}
+
+extension StyledElement {
+    /// `ProposalElementGroup.tabContextMenu(_:)` on the element path: the menu when there is one, `self` otherwise (`TBS-O`).
+    func tabContextMenu(_ menu: (@MainActor () -> MenuItems)?) -> Self {
+        guard let menu else { return self }
+        var copy = self
+        copy.handlers.contextual = ContextualAttachment(menu: menu, help: handlers.contextual?.help)
+        return copy
     }
 }
