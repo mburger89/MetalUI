@@ -133,8 +133,8 @@ extension TerminalEmulator {
             let value = parameter(p)
             guard value <= 6 else { return }
             let shape: TerminalCursorStyle.Shape = value <= 2 ? .block : value <= 4 ? .underline : .bar
-            // 0 is "the default", which is the power-on steady block (`TRM-AD`); 1 is the blinking block.
-            currentModes.cursorStyle = TerminalCursorStyle(shape: shape, blinking: value != 0 && value % 2 == 1)
+            // 0 and 1 are both the blinking block (xterm ctlseqs, VT520; `TRM-AD`); odd values blink, even are steady.
+            currentModes.cursorStyle = TerminalCursorStyle(shape: shape, blinking: value % 2 == 1 || value == 0)
         case (0x21, 0x70):  // DECSTR
             softReset()
         case (0x24, 0x70):  // DECRQM

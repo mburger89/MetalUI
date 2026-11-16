@@ -129,7 +129,7 @@ Why: vttest's character-set screens and the spec's list; keeping the fast path u
 
 1. `TerminalAttributes` gains `underlineStyle` (`TerminalUnderlineStyle`: none, single, double, curly, dotted, dashed), `underlineColor` and `blink`; `underline` stays and reads `underlineStyle != .none` (writing sets single or none), so frozen readers compile unchanged.
 2. SGR handles 0-9, 21-29, 30-37, 38, 39, 40-47, 48, 49, 58, 59, 90-97 and 100-107, with `;` and `:` forms (`38;5;n`, `38;2;r;g;b`, `38:5:n`, `38:2:r:g:b`, `38:2::r:g:b`, `38:2:cs:r:g:b`; `4:0`-`4:5`). 5 and 6 both set blink. A malformed or out-of-range extended colour changes nothing and ends the sequence there; what came before applies.
-3. DECSCUSR 1-6 are blinking and steady block, underline and bar; 0 is the power-on default, a steady block (`TRM-F`), not the blinking block of xterm's table.
+3. DECSCUSR 1-6 are blinking and steady block, underline and bar; 0 is a blinking block like 1 (xterm ctlseqs and VT520; Alloy's review). The power-on style stays the steady block (`TRM-F`) and DECSTR returns to it; only an explicit `CSI 0 SP q` blinks.
 4. DA1 answers `CSI ? 62 ; 22 c` (VT220 class, ANSI colour), DA2 `CSI > 1 ; 0 ; 0 c`; DSR 5 answers `CSI 0 n`, DSR 6 `CSI r ; c R`, `CSI ? 6 n` `CSI ? r ; c ; 1 R`. A request with any other parameter is not answered.
 
 Why: spec section 2.1 rule 3 (SGR in all forms) and the replies the spec requires the owner to write.
