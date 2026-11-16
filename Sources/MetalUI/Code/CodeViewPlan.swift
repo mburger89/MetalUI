@@ -160,6 +160,9 @@ final class CodeViewPlan {
     var visibleHeightPx: Int { max(pitchPx, heightPx - insetTopPx - insetBottomPx) }
     var scrollXPx = 0, maxScrollXPx = 0
     var selection: Range<Int> = 0..<0
+    /// Whether the view's window is the key window (`CV-BB`): with the view focused, the selection draws in
+    /// ``CodeTheme/selection``, else in ``CodeTheme/inactiveSelection``.
+    var windowIsKey = true
     /// The primary selection's moving end.
     var head = 0
     var spaceAdvance = 0.0
@@ -436,6 +439,7 @@ extension CodeView {
         let pitchPx = max(1, Int((metrics.height * scaleD).rounded()))
         let plan = CodeViewPlan(snapshot: snap, font: font)
         plan.scale = scale
+        plan.windowIsKey = environment.controlActiveState == .key
         plan.pitchPx = pitchPx
         plan.originX = Int((Double(bounds.origin.x.value) * scaleD).rounded())
         plan.originY = Int((Double(bounds.origin.y.value) * scaleD).rounded())
@@ -1040,7 +1044,7 @@ extension CodeView {
             // The text region: backgrounds of runs, the selection and the glyphs.
             pass.clipped(to: rect(textLeft, viewTop, textRight, viewBottom), offsetBy: zero) {
                 let tokens = pass.resolve(theme.foreground)
-                let selectionColor = pass.resolve(theme.selection)
+                let selectionColor = pass.resolve(plan.windowIsKey && pass.isFocused(id) ? theme.selection : theme.inactiveSelection)   // `CV-BB`
                 let findColor = pass.resolve(theme.findMatch), currentFindColor = pass.resolve(theme.currentFindMatch)
                 let currentMatch = decorations.currentMatch
                 var colors: [Hsla] = []

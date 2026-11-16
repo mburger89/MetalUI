@@ -855,3 +855,7 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 ## Record 330 (a `CodeView` reveal pending at mount, `CV-BA`)
 
 **Behaviour change.** A `CodeView` that mounts while its state has a `select(_:reveal: true)` no view has shown yet now opens scrolled to centre that selection's line, where before it opened at the top and ignored the request. Code that called `select(range, reveal: true)` before showing a view and relied on it starting at the top should pass `reveal: false`, or assign the scroll state afterwards. A reveal a view has already taken in is never replayed, and swapping a mounted view's state still reveals nothing.
+
+## Record 331 (`CodeTheme.inactiveSelection`, `CV-BB`)
+
+**Behaviour change.** A `CodeView` that is not the focused element of a key window now paints its selection in `theme.inactiveSelection` (light grey #DCDCDC, dark #464646 by default) instead of `theme.selection`. An app that wants the old look in an unfocused view sets `CodeTheme(inactiveSelection:)` to its `selection` colour. The new initialiser parameter is last and defaulted: no source change is needed.

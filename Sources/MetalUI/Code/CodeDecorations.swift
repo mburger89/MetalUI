@@ -173,6 +173,10 @@ public struct CodeTheme: Equatable, Sendable {
     public var background: Color
     /// The selection rectangles.
     public var selection: Color
+    /// The selection rectangles while the view is not the focused element of a key window (`CV-BB`): another
+    /// split has the focus, or the window is not key. The default is AppKit's
+    /// `unemphasizedSelectedTextBackgroundColor`, #DCDCDC in light and #464646 in dark.
+    public var inactiveSelection: Color
     /// The caret; `nil` draws it in ``foreground``.
     public var caret: Color?
     /// The line numbers.
@@ -186,6 +190,10 @@ public struct CodeTheme: Equatable, Sendable {
     /// A tint across the row of the caret while nothing is selected; `nil` (the default) draws none.
     public var currentLine: Color?
 
+    /// The default ``inactiveSelection``: AppKit's `unemphasizedSelectedTextBackgroundColor` as the probe
+    /// `appkit-inactive-selection.swift` recorded it (`CV-BB`), on every platform.
+    public static let defaultInactiveSelection = Color(light: Color(hex: 0xDCDCDC), dark: Color(hex: 0x464646))
+
     /// A theme; the defaults follow the window's theme.
     public init(foreground: Color = .textPrimary,
                 background: Color = Color(.surface),
@@ -195,7 +203,9 @@ public struct CodeTheme: Equatable, Sendable {
                 caret: Color? = nil,
                 findMatch: Color = Color.yellow.opacity(0.35),
                 currentFindMatch: Color = Color.orange.opacity(0.65),
-                currentLine: Color? = nil) {
+                currentLine: Color? = nil,
+                inactiveSelection: Color = CodeTheme.defaultInactiveSelection) {
+        self.inactiveSelection = inactiveSelection
         self.findMatch = findMatch
         self.currentFindMatch = currentFindMatch
         self.currentLine = currentLine
