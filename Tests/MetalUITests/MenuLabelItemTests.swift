@@ -19,7 +19,7 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px
 private let red = Color.red.resolved(theme: .light, scheme: .light).toRgba()
 private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
 
-/// **MN-AP 1.** Every spelling reaches the item as a symbol and no tint: `Button(_:systemImage:)`, a `Label` in a
+/// **MN-AP 1** (probe arms L1, L2, L8-L10). Every spelling reaches the item as a symbol and no tint: `Button(_:systemImage:)`, a `Label` in a
 /// `Button`, a `Toggle` with a symbol (still on), a `Menu(_:systemImage:)` and the item inside it. The control, a
 /// plain `Button`, has none. Mutation: drop `image:` from `Button._menuNodes` (the first two expectations redden);
 /// from `Toggle._menuNodes` (the third); from `Menu._menuNodes` (the fourth).

@@ -893,7 +893,7 @@ show-menu. A native `NSMenu` on AppKit, MetalUI's drawn menu (keyboard, hover,
 submenus, outside click) where the platform declines — SDL — through the
 defaultless `PlatformWindow.presentMenu(_:at:)`; the choice returns as
 `InputEvent.menuAction`. A secondary press never presses a `Button` (D 110).
-`Section` and image items are not offered (a `.menu`-style `Picker` is a view, below).
+`Section` is not offered (a `.menu`-style `Picker` is a view, below). Image items are (`MN-AP`): `Button(_:systemImage:)`, `Button { } label: { Label(_:systemImage:) }`, `Toggle(_:systemImage:isOn:)` and `Menu(_:systemImage:content:)` show the symbol beside the title (an `NSMenuItem.image` on AppKit, a drawn icon column elsewhere); `.tint` colours it, `.foregroundStyle` does not, as in SwiftUI's menu; `Label(_:systemImage:)` is also a view (an icon, 8 points, the title; no `labelStyle`, divergence 242).
 
 **A list's selection-typed context menu and primary action (A; `OG-G`, `OG-N`).**
 `.contextMenu(forSelectionType: I.self, menu: { (ids: Set<I>) in … }, primaryAction:)`
