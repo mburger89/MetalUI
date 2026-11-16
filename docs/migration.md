@@ -843,3 +843,7 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 ## Record 319 (`onKeyPress` folded into a proposal modifier chain, `KF-AD`)
 
 **API addition, one build hazard.** `LayoutModifier` gains a case, `.keyboard(KeyboardLayer)`: an exhaustive `switch` over `LayoutModifier` outside the package needs a new arm. `onKeyPress` on a proposal modifier chain now returns the chain itself (`Self`) instead of `KeyboardModifier<Self>`; code that named the `KeyboardModifier<…>` type of such an expression must name the chain's type (or use `some ElementGroup`). Behaviour is unchanged: the handlers run in the same order, the content is still not focusable, and a `.focusable()` written after them still hears them.
+
+## Record 321 (`onKeyPress` in generic code, `KF-AE`)
+
+**API change.** `ElementGroup` gains `associatedtype KeyPressed` (default `ModifiedElement<LayerBase>`) and `_addingKeyPress(_:)` (default provided; not for conformers to implement). The `ElementGroup` spellings of `onKeyPress` return `KeyPressed` instead of `ModifiedElement<LayerBase>`: generic code that named that type writes `G.KeyPressed` (or `some ElementGroup`). Concrete code is unchanged except where a receiver gained a layer to join: an `AccessibilityModifier` or an `OverlayModifier` (both sides proposal content) now returns itself from `onKeyPress` instead of `KeyboardModifier<…>`, and a `LifecycleScope` returns a `LifecycleScope`. Behaviour (order, not focusable, `.focusable()` absorbing) is unchanged.

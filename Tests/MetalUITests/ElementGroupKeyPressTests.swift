@@ -171,7 +171,12 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 
 @MainActor private func plainGroupKeepsItsWrapper<G: ElementGroup>(_ group: G) {
     let plain = group.onKeyPress("a") { .handled }
-    accept(plain, as: ModifiedElement<G.LayerBase>.self)
-    // A second spelling on the result joins the first layer (a StyledElement).
-    accept(plain.onKeyPress("b") { .handled }, as: ModifiedElement<G.LayerBase>.self)
+    // `KF-AE`: the result is the conformer's own `KeyPressed` (a scope over a `StyledElement` is itself).
+    accept(plain, as: G.KeyPressed.self)
+    accept(plain.onKeyPress("b") { .handled }, as: G.KeyPressed.KeyPressed.self)
+    // A group with no layer of its own still takes one wrapper, and a second spelling joins it (a StyledElement).
+    let pair = Pair(Box(), Box())
+    accept(pair.onKeyPress("a") { .handled }, as: ModifiedElement<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>.self)
+    accept(pair.onKeyPress("a") { .handled }.onKeyPress("b") { .handled },
+           as: ModifiedElement<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>.self)
 }
