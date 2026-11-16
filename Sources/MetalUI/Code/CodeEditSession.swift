@@ -57,6 +57,8 @@ struct CodeKeyOutcome {
 @MainActor
 final class CodeEditSession {
     let buffer: CodeBuffer
+    /// The selections this view edits through (`CV-AY`): its own state, else the buffer's default one.
+    let selectionState: CodeSelectionState
     let id: GlobalElementID
     let table: StateTable
     let plan: CodeViewPlan
@@ -77,7 +79,9 @@ final class CodeEditSession {
          editable: Bool, indentUsingSpaces: Bool, tabColumns: Int,
          gutterClick: (@MainActor (CodeGutterHit) -> Void)? = nil,
          textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)? = nil,
-         decorations: CodeDecorations? = nil, hover: CodeTextHoverRuntime? = nil) {
+         decorations: CodeDecorations? = nil, hover: CodeTextHoverRuntime? = nil,
+         selectionState: CodeSelectionState? = nil) {
+        self.selectionState = selectionState ?? buffer.selectionState
         self.hover = hover
         self.gutterClick = gutterClick
         self.textClick = textClick
@@ -118,6 +122,7 @@ final class CodeEditSession {
     func dropComposition() {
         guard isComposing else { return }
         update { $0.composition = .none }
+        selectionState.foreignEditHandlers[id] = nil
     }
 
     /// Marked text from the input method (`CV-AA`): shown at the caret (the selection's start, which a commit
@@ -135,7 +140,7 @@ final class CodeEditSession {
         let lower = min(max(composition.selection.lowerBound, 0), count)
         let upper = min(max(composition.selection.upperBound, lower), count)
         let version = buffer.version
-        let anchor = buffer.primarySelection.range.lowerBound
+        let anchor = selectionState.primarySelection.range.lowerBound
         update {
             if $0.composition.text.isEmpty || $0.compositionVersion != version {
                 $0.compositionOffset = anchor
@@ -143,6 +148,18 @@ final class CodeEditSession {
             }
             $0.composition = TextComposition(text: text, selection: lower..<upper)
             $0.revealsCaret = true
+        }
+        // An edit made through another state ends this composition, committing the composed text through this view's
+        // state (`CV-AZ`, from the AppKit probe). Registered with the state, run by the buffer after the edit.
+        let owner = selectionState, table = table, id = id
+        selectionState.foreignEditHandlers[id] = { [weak owner, weak table] in
+            guard let owner, let table else { return }
+            owner.foreignEditHandlers[id] = nil
+            let composition = table.readState(id, initial: CodeViewState()).composition
+            guard !composition.text.isEmpty else { return }
+            table.withState(id, initial: CodeViewState()) { $0.composition = .none; $0.goalX = nil }
+            let text = CodeEditing.normalizingLineBreaks(composition.text, to: owner.buffer.lineEnding.text)
+            owner.replaceSelections(with: text, origin: composition.text.count == 1 ? .typing : .paste)
         }
     }
 
@@ -177,11 +194,11 @@ final class CodeEditSession {
             granularity = 1
         }
         if granularity == 0 {
-            let anchor = extend ? buffer.primarySelection.anchor : offset
+            let anchor = extend ? selectionState.primarySelection.anchor : offset
             origin = anchor..<anchor
-            buffer.selections = [CodeSelection(anchor: anchor, head: offset)]
+            selectionState.selections = [CodeSelection(anchor: anchor, head: offset)]
         } else {
-            buffer.selections = [CodeSelection(anchor: origin.lowerBound, head: origin.upperBound)]
+            selectionState.selections = [CodeSelection(anchor: origin.lowerBound, head: origin.upperBound)]
         }
         update {
             $0.dragOriginLower = origin.lowerBound
@@ -215,7 +232,7 @@ final class CodeEditSession {
         let vx = speed(x < left ? x - left : (x > right ? x - right : 0))
         let inside = Point(x: point.x, y: Pixels(Float(min(max(y, top), bottom - 1 / scale))))
         let offset = plan.offset(at: inside)
-        buffer.selections = [plan.dragSelection(to: offset, origin: st.dragOriginLower..<st.dragOriginUpper,
+        selectionState.selections = [plan.dragSelection(to: offset, origin: st.dragOriginLower..<st.dragOriginUpper,
                                                 granularity: st.dragGranularity)]
         let topPx = plan.topPx, scrollXPx = plan.scrollXPx
         update { state in
@@ -237,7 +254,7 @@ final class CodeEditSession {
     func endDrag() {
         let st = state()
         guard st.dragging else { return }
-        if st.autoscroll != nil, let selection = plan.liveDragSelection { buffer.selections = [selection] }
+        if st.autoscroll != nil, let selection = plan.liveDragSelection { selectionState.selections = [selection] }
         update { $0.dragging = false; $0.autoscroll = nil }
     }
 
@@ -248,8 +265,9 @@ final class CodeEditSession {
         hover?.hardEnd()   // typed text ends a hover (`CV-AS`)
         guard isEditable, !text.isEmpty else { return }
         let normalized = CodeEditing.normalizingLineBreaks(text, to: buffer.lineEnding.text)
-        buffer.replaceSelections(with: normalized, origin: text.count == 1 ? .typing : .paste)
+        selectionState.replaceSelections(with: normalized, origin: text.count == 1 ? .typing : .paste)
         update { $0.composition = .none; $0.goalX = nil; $0.revealsCaret = true }   // a commit ends the composition (`CV-AA`)
+        selectionState.foreignEditHandlers[id] = nil
     }
 
     // MARK: Keys
@@ -267,13 +285,13 @@ final class CodeEditSession {
 
     func run(_ command: CodeCommand, clipboard: () -> String?) -> CodeKeyOutcome {
         let snap = buffer.snapshot()
-        let selection = buffer.primarySelection
+        let selection = selectionState.primarySelection
         switch command {
         case .move(let motion, let extend):
             move(motion, extend: extend, snap: snap, selection: selection)
             return CodeKeyOutcome(handled: true)
         case .selectAll:
-            buffer.selections = [CodeSelection(anchor: 0, head: snap.utf8Count)]
+            selectionState.selections = [CodeSelection(anchor: 0, head: snap.utf8Count)]
             update { $0.goalX = nil; $0.revealsCaret = false }
             return CodeKeyOutcome(handled: true)
         case .findNext, .findPrevious:
@@ -281,7 +299,7 @@ final class CodeEditSession {
             guard let decorations, let match = decorations.stepCurrentMatch(forward: command == .findNext, from: selection.range) else {
                 return CodeKeyOutcome(handled: false)
             }
-            buffer.select(match, reveal: true)   // centres it in every view of the buffer (`CV-V`)
+            selectionState.select(match, reveal: true)   // centres it in every view of the buffer (`CV-V`)
             update { $0.goalX = nil; $0.revealsCaret = false }
             return CodeKeyOutcome(handled: true)
         case .copy:
@@ -304,7 +322,7 @@ final class CodeEditSession {
         case .newline:
             let text = buffer.lineEnding.text + leadingWhitespace(before: selection.range.lowerBound, snap: snap)
             buffer.breakUndoCoalescing()
-            buffer.replaceSelections(with: text, origin: .typing)
+            selectionState.replaceSelections(with: text, origin: .typing)
             buffer.breakUndoCoalescing()
         case .indent:
             indent(snap: snap, selection: selection)
@@ -314,20 +332,20 @@ final class CodeEditSession {
             if selection.isEmpty {
                 let line = wholeLine(of: selection.head, snap: snap)
                 copied = line.text
-                buffer.replace(line.range, with: "", origin: .deletion)
+                selectionState.replace(line.range, with: "", origin: .deletion)
                 buffer.breakUndoCoalescing()
             } else {
                 copied = snap.text(in: selection.range)
-                buffer.replace(selection.range, with: "", origin: .deletion)
+                selectionState.replace(selection.range, with: "", origin: .deletion)
                 buffer.breakUndoCoalescing()
             }
         case .paste:
             guard let pasted = clipboard(), !pasted.isEmpty else { return CodeKeyOutcome(handled: true) }
-            buffer.replaceSelections(with: CodeEditing.normalizingLineBreaks(pasted, to: buffer.lineEnding.text), origin: .paste)
+            selectionState.replaceSelections(with: CodeEditing.normalizingLineBreaks(pasted, to: buffer.lineEnding.text), origin: .paste)
         case .undo:
-            buffer.undo()
+            selectionState.undo()
         case .redo:
-            buffer.redo()
+            selectionState.redo()
         default:
             break
         }
@@ -358,7 +376,7 @@ final class CodeEditSession {
         default:
             target = destination(motion, selection: selection, extend: extend, snap: snap)
         }
-        buffer.selections = [CodeSelection(anchor: extend ? selection.anchor : target, head: target)]
+        selectionState.selections = [CodeSelection(anchor: extend ? selection.anchor : target, head: target)]
         update { $0.goalX = goal; $0.revealsCaret = true }
     }
 
@@ -491,7 +509,7 @@ final class CodeEditSession {
             }
         }
         guard !range.isEmpty else { return }
-        buffer.replace(range, with: "", origin: .deletion)
+        selectionState.replace(range, with: "", origin: .deletion)
         if !coalesces { buffer.breakUndoCoalescing() }
     }
 
@@ -520,12 +538,12 @@ final class CodeEditSession {
             let start = selection.range.lowerBound
             let line = snap.lineRange(snap.point(at: start).row)
             buffer.breakUndoCoalescing()
-            buffer.replaceSelections(with: indentText(forPrefix: snap.text(in: line.lowerBound..<start)), origin: .typing)
+            selectionState.replaceSelections(with: indentText(forPrefix: snap.text(in: line.lowerBound..<start)), origin: .typing)
             buffer.breakUndoCoalescing()
             return
         }
         let unit = indentUsingSpaces ? String(repeating: " ", count: tabColumns) : "\t"
-        buffer.transaction { buffer in
+        selectionState.transaction { buffer in
             var row = rows.upperBound
             while row >= rows.lowerBound {
                 let at = snap.lineRange(row).lowerBound
@@ -538,7 +556,7 @@ final class CodeEditSession {
 
     private func outdent(snap: CodeSnapshot, selection: CodeSelection) {
         let rows = touchedRows(snap: snap, selection: selection)
-        buffer.transaction { buffer in
+        selectionState.transaction { buffer in
             var row = rows.upperBound
             while row >= rows.lowerBound {
                 let line = snap.lineRange(row)

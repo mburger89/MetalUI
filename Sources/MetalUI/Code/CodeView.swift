@@ -41,6 +41,7 @@ public struct CodeView: Element, StyledElement {
     var isEditable = true
     var indentsWithSpaces = false
     var scrollStateObject: CodeScrollState?
+    var selectionStateObject: CodeSelectionState?
     var onScrollAction: (@MainActor (CodeScrollPosition) -> Void)?
     var gutterClick: (@MainActor (CodeGutterHit) -> Void)?
     var textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)?
@@ -108,6 +109,25 @@ public struct CodeView: Element, StyledElement {
         copy.scrollStateObject = state
         return copy
     }
+
+    /// Gives this view its own selections over the buffer (`CV-AY`, record 329): its caret, range, reveal, find,
+    /// copy, undo target and caret-anchored overlays are `state`'s, so two views of one buffer can each have a
+    /// caret, as two text views over one text storage do. An edit in either moves the other's caret by
+    /// ``CodeSelectionState``'s rule and never its scroll. A view with no state of its own uses
+    /// ``CodeBuffer/selectionState``, the buffer's own selection, so views that do not opt in still share one
+    /// caret and nothing changes for them, in element requests or retention. `state.buffer` must be this
+    /// view's buffer. A new split: `CodeSelectionState(buffer:selections:)` over the source's selections.
+    /// Marked text (an input method's composition) belongs to the view and its state: an edit made through
+    /// another view ends it, committing the composed text (`CV-AZ`).
+    public func selectionState(_ state: CodeSelectionState) -> CodeView {
+        precondition(state.buffer === buffer, "CodeView.selectionState: the state belongs to another buffer")
+        var copy = self
+        copy.selectionStateObject = state
+        return copy
+    }
+
+    /// The selections this view reads and writes: its own state, else the buffer's default one.
+    var selectionSource: CodeSelectionState { selectionStateObject ?? buffer.selectionState }
 
     /// Calls `action` after a frame in which the view scrolled by itself: a wheel, a drag, a clamp after the
     /// text shrank, or an edit above that moved the reader's row. It runs outside every frame phase, so it may
@@ -253,7 +273,7 @@ public struct CodeView: Element, StyledElement {
         // method's area, under the view's own render effects (`GX-I`).
         let session = CodeEditSession(buffer: buffer, id: id, table: table, plan: plan, editable: isEditable,
                                       indentUsingSpaces: indentsWithSpaces, tabColumns: tabColumns, gutterClick: gutterClick, textClick: textClick,
-                                      decorations: decorations, hover: hoverRuntime)
+                                      decorations: decorations, hover: hoverRuntime, selectionState: selectionSource)
         if let menu = gutterMenu {
             let existing = handlers.contextual
             // The menu's point is relative to the region's origin (`CI-R` item 3); the plan hits in the view's
@@ -271,7 +291,7 @@ public struct CodeView: Element, StyledElement {
                                size: Size(width: Pixels(1), height: Pixels(Float(plan.pitchPx) / scaleF)))
         handlers.textInput = TextInputTarget(code: session,
                                              caretRect: frame.effectBoundingBox(of: caretRect, ownEffects: decoration.renderEffects, bounds: bounds))
-        handlers = handlers.copyingSelection(of: buffer)
+        handlers = handlers.copyingSelection(of: buffer, state: selectionSource)
         // One `.textArea` node, built only while an accessibility client is present (`CV-U`).
         if frame.collectsAccessibility {
             handlers.axNode.fillControl(role: .textArea, label: nil, value: plan.accessibilityText())
@@ -302,13 +322,13 @@ public struct CodeView: Element, StyledElement {
 }
 
 extension Handlers {
-    /// This layer's copy handler: the buffer's selection as plain text, nothing for an empty selection.
-    fileprivate func copyingSelection(of buffer: CodeBuffer) -> Handlers {
+    /// This layer's copy handler: the view's selection (its state's, `CV-AY`) as plain text, nothing for an empty selection.
+    fileprivate func copyingSelection(of buffer: CodeBuffer, state: CodeSelectionState) -> Handlers {
         var copy = self
         copy.keyboard = KeyboardAttachment.clipboard(
             ClipboardAttachment.copying({ () -> [String] in
                 MainActor.assumeIsolated {
-                    let selection = buffer.primarySelection.range
+                    let selection = state.primarySelection.range
                     return selection.isEmpty ? [] : [buffer.snapshot().text(in: selection)]
                 }
             }, over: copy.keyboard?.clipboard), over: copy.keyboard)
