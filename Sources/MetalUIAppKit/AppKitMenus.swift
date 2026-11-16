@@ -56,6 +56,7 @@ enum AppKitMenuBuilder {
                 built.submenu = submenu
                 built.isEnabled = item.isEnabled
                 built.image = image(for: item.image)
+                if let label = item.accessibilityLabel { built.setAccessibilityLabel(label) }   // MN-AQ
                 menu.addItem(built)
             case .action:
                 let built = NSMenuItem(title: item.title, action: nil, keyEquivalent: item.shortcut?.key ?? "")
@@ -65,6 +66,7 @@ enum AppKitMenuBuilder {
                 built.state = item.isOn ? .on : .off
                 built.image = image(for: item.image)
                 built.toolTip = item.help?.isEmpty == false ? item.help : nil   // MN-AL: AppKit shows it on hover, a disabled item's too
+                if let label = item.accessibilityLabel { built.setAccessibilityLabel(label) }   // MN-AQ: the title stays as drawn
                 if let identifier = item.accessibilityIdentifier {
                     built.identifier = NSUserInterfaceItemIdentifier(identifier)
                     built.setAccessibilityIdentifier(identifier)

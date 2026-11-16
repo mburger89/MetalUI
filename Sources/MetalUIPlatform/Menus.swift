@@ -91,12 +91,16 @@ public struct PlatformMenuItem: Sendable, Equatable {
     public var help: String?
     /// The symbol shown beside the title (`MN-AP`); `nil` when none.
     public var image: PlatformMenuImage?
+    /// What an accessibility client reads as the item's name instead of its title (`MN-AQ`), from the item's
+    /// `.accessibilityLabel`; `nil` when none (the title is read). The visible title is unchanged.
+    public var accessibilityLabel: String?
 
-    /// An item; enabled, off, with no shortcut, standard action, identifier, help or
-    /// image unless given.
+    /// An item; enabled, off, with no shortcut, standard action, identifier, help, image or
+    /// accessibility label unless given.
     public init(id: Int, kind: Kind, title: String, isEnabled: Bool = true, isOn: Bool = false,
                 shortcut: PlatformKeyEquivalent? = nil, standardAction: StandardMenuAction? = nil,
-                accessibilityIdentifier: String? = nil, help: String? = nil, image: PlatformMenuImage? = nil) {
+                accessibilityIdentifier: String? = nil, help: String? = nil, image: PlatformMenuImage? = nil,
+                accessibilityLabel: String? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -107,6 +111,7 @@ public struct PlatformMenuItem: Sendable, Equatable {
         self.accessibilityIdentifier = accessibilityIdentifier
         self.help = help
         self.image = image
+        self.accessibilityLabel = accessibilityLabel
     }
 }
 

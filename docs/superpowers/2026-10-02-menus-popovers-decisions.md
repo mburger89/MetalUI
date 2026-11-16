@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AQ`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AR`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1469,4 +1469,33 @@ attributed title (L16, not built).
 an unknown name) reddens `theDrawnMenuDrawsTheIconInItsColumnInTheTint`, `theImageColumnWidensAPanelWhoseTitleFillsIt`;
 an untinted image not a template, or a tinted one with no palette, reddens `anNSMenuItemsImageIsATemplateUntintedAndTheTintWhenTinted`.
 
-Next unused: `MN-AQ`.
+## MN-AQ — A menu item's `.accessibilityLabel` is what an accessibility client reads (Alloy request; record 328; class `M`, no divergence)
+
+Probe `docs/probes/swiftui-menu-item-accessibility.swift` (macOS 27.0, the `NSMenu` SwiftUI builds from a `.contextMenu`, run twice, byte-identical).
+
+**Measured.** SwiftUI's `SwiftUIMenuItem` (an `NSMenuItem` subclass) does **not** carry `.accessibilityLabel`, `.accessibilityHint`, `.accessibilityIdentifier` or
+`.accessibilityValue` anywhere it is written: on the `Button` (A1, A4, A14), after a `.tint` (A1b, Alloy's spelling), on the `Label` (A2), the
+`Text` (A3, A5), the `Image` (A6), a `Toggle` (A11), a `Menu` (A12), a disabled item (A15), an empty label (A13), read closed or open under `popUp` (O1, O2):
+`accessibilityLabel()` and `accessibilityTitle()` equal the title, `accessibilityHelp()` is nil, `accessibilityIdentifier()` is "", `title` is unchanged,
+`attributedTitle` is nil. `.help` is honoured as `toolTip` (A10, the control). Not measured: the real AX tree (the in-process `AXUIElement` query returned no
+role), a pull-down `Menu` button's menu, the main menu bar's `CommandMenu`. So "as SwiftUI does" is not what the probe found; the ruling follows `MN-AL`
+(identifier and help, also absent from SwiftUI's `NSMenuItem`): a MetalUI-only addition that gives the item the name its author declared, class `M`.
+
+**Ruling.**
+
+1. **Declaration site.** `.accessibilityLabel(_:)` on a `Button`, `Toggle` or `Menu` item (through `.tint`, `.disabled` and other scopes either side of it) is
+   the item's label. A label on the `Text` inside a button's label is not (the probe: nothing honours it; `Label` has no such modifier). An empty string
+   declares none, as `MN-AM`'s empty help.
+2. **Model.** `MenuNode.accessibilityLabel` -> `PlatformMenuItem.accessibilityLabel: String?`, read from the item's `handlers.axNode.label` in
+   `Button`, `Toggle` and `Menu`'s `_menuNodes`; the title is unchanged (it is what is drawn and what the native menu shows).
+3. **AppKit.** `NSMenuItem.setAccessibilityLabel(_:)` on action and submenu items; `title` stays the visible title; no label leaves AppKit's default (the title).
+4. **Drawn menu.** The menu row's accessibility node publishes the label as `AccessibilityNode.label` (the title when none); the row still draws the title.
+5. **Cost.** None in a steady frame: menus are evaluated when they open (`MN-D` item 4); `aMenuWhoseItemsCarryLabelsCostsNoExtraRequestInASteadyFrame` pins 1 element request with and without labels.
+6. **Not added.** `accessibilityHint` and `accessibilityValue` (no SwiftUI behaviour to match; `.help` is already the hint, `MN-P`/`MN-AL`).
+
+**Mutation** (`MenuItemAccessibilityLabelTests`, `AppKitMenuTests`): dropping `accessibilityLabel:` from `Button._menuNodes` reddens
+`anItemsAccessibilityLabelReachesThePlatformMenuItemAndTheTitleIsUnchanged` and the drawn-menu test; the drawn row publishing `item.title` reddens
+`aDrawnMenuRowPublishesTheAccessibilityLabelAsItsNodeLabel`; dropping `setAccessibilityLabel` reddens `anAppKitMenuItemCarriesItsAccessibilityLabelAndKeepsItsTitle`;
+an extra `.accessibilityLabel` wrapper reddens the cost literal.
+
+Next unused: `MN-AR`.
