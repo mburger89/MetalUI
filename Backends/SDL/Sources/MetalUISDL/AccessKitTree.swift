@@ -197,8 +197,8 @@ extension AccessKitSnapshot {
                 authorID: node.identifier, customActions: node.customActions,
                 isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton,
                 numericRange: node.role == .progressIndicator,
-                level: node.outlineLevel.map { $0 + 1 }, expanded: node.isExpanded,
-                range: node.numericRange, orientation: node.orientation.map { $0 == .vertical ? .vertical : .horizontal }))
+                range: node.numericRange, orientation: node.orientation.map { $0 == .vertical ? .vertical : .horizontal },
+                level: node.outlineLevel.map { $0 + 1 }, expanded: node.isExpanded))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
