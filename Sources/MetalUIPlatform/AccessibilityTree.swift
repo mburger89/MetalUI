@@ -94,6 +94,16 @@ public enum AccessibilityRole: Equatable, Sendable {
     /// An outline row's cell, the one child of a group row that holds its disclosure triangle (ruling `OG-F`, probe
     /// `P-A`; AppKit `AXCell`, AccessKit `CELL`).
     case cell
+    /// A split view's divider (ruling `HS-K`, probe `docs/probes/swiftui-split-divider-ax.swift`; AppKit `AXSplitter`,
+    /// AccessKit `SPLITTER`). Its value is the size in points of the pane before it; the value is settable
+    /// (`AccessibilityRequest.setValue`), and a divider that cannot move is disabled.
+    case splitter
+}
+
+/// Which way a node lies (AppKit's `AXOrientation`, AccessKit's `orientation`): a splitter between side-by-side panes is
+/// `.vertical` (a vertical line), as `NSSplitViewSplitter` answers (ruling `HS-K`).
+public enum AccessibilityOrientation: Equatable, Sendable {
+    case horizontal, vertical
 }
 
 /// What a client may ask a node to do. **Derived from live handlers, never from
@@ -118,6 +128,9 @@ public struct AccessibilityActions: OptionSet, Equatable, Sendable {
     /// An outline row that is expanded can be collapsed (`OG-F`; AppKit `setAccessibilityDisclosed(false)`,
     /// AccessKit `COLLAPSE`).
     public static let collapse = AccessibilityActions(rawValue: 1 << 5)
+    /// The node's numeric value can be set directly — a split view's divider (`HS-K`; AppKit a settable `AXValue`,
+    /// AccessKit `SET_VALUE`).
+    public static let setValue = AccessibilityActions(rawValue: 1 << 6)
 }
 
 /// What a node says and what it can do. No geometry: see `AccessibilityGeometry`,
@@ -174,6 +187,11 @@ public struct AccessibilityNode: Equatable {
     /// An outline row's parent row when that row is realised (`AXDisclosedByRow`); `nil` for a root, and for a row whose
     /// parent is not realised (the disclosed rows are the realised ones only).
     public var disclosedBy: AccessibilityNodeID?
+    /// The numeric range the value lies in (`AXMinValue`/`AXMaxValue`, AccessKit `min_numeric_value`/`max_numeric_value`):
+    /// a split divider's `0...(the sum of its two panes)` (`HS-K`); `nil` for every other node.
+    public var numericRange: ClosedRange<Double>?
+    /// `AXOrientation`: a split divider's (`HS-K`); `nil` for every other node.
+    public var orientation: AccessibilityOrientation?
 
     /// A node; every field but `role` defaults to absent, enabled and not
     /// focusable.
@@ -183,7 +201,8 @@ public struct AccessibilityNode: Equatable {
                 rowCount: Int? = nil, rowIndex: Int? = nil, hint: String? = nil,
                 identifier: String? = nil, customActions: [String] = [], isSelectable: Bool = false,
                 isOutline: Bool = false, outlineLevel: Int? = nil, isExpanded: Bool? = nil,
-                disclosedBy: AccessibilityNodeID? = nil) {
+                disclosedBy: AccessibilityNodeID? = nil, numericRange: ClosedRange<Double>? = nil,
+                orientation: AccessibilityOrientation? = nil) {
         self.role = role
         self.label = label
         self.value = value
@@ -202,6 +221,8 @@ public struct AccessibilityNode: Equatable {
         self.outlineLevel = outlineLevel
         self.isExpanded = isExpanded
         self.disclosedBy = disclosedBy
+        self.numericRange = numericRange
+        self.orientation = orientation
     }
 }
 
@@ -310,4 +331,11 @@ public enum AccessibilityRequest: Equatable {
     case expand(AccessibilityNodeID)
     /// Collapse the outline row (`OG-F`; AppKit `AXDisclosing` set false). Refused for a row that is not an expanded group.
     case collapse(AccessibilityNodeID)
+    /// Set the node's numeric value (ruling `HS-K`; AppKit `setAccessibilityValue(_:)` on a splitter, AccessKit
+    /// `SET_VALUE`): a split divider moves as a drag would, within its panes' limits. Refused for a node that does not
+    /// advertise `.setValue`.
+    ///
+    /// **Migration** (`HS-K`): an exhaustive `switch` over `AccessibilityRequest` or `AccessibilityRole` outside this
+    /// package adds the new cases or a `default:`.
+    case setValue(AccessibilityNodeID, Double)
 }

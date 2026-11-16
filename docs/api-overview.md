@@ -162,7 +162,8 @@ The `Native…` names and `.native…` modifiers are deprecated aliases (X) —
 except `nativeFrame`, kept undeprecated (`SA-K`).
 
 `HSplitView`/`VSplitView` dividers: `.splitViewDivider(_:thickness:)` (M; hides the line and sets the
-gutter, environment-propagated, hit area `max(thickness, 6)`, `HS-I`, record 286).
+gutter, environment-propagated, hit area `max(thickness, 6)`, `HS-I`, record 286); `.splitViewDividerIdentifier(_:)` (M; each
+divider, an `AXSplitter` with a settable value, gets the identifier `prefix.index`, `HS-K`, record 324).
 
 ## Layout, legacy vocabulary — M
 

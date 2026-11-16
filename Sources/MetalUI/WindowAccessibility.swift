@@ -157,6 +157,19 @@ extension Window {
         case .collapse(let node):
             guard isOfferedUnderIsolation(node) else { return false }
             return setDisclosure(node, expand: false)
+        case .setValue(let node, let value):
+            // A split divider's (`HS-K`): refused unless the last published node advertises it, then the divider's own
+            // handler moves it as a drag would.
+            guard isOfferedUnderIsolation(node), value.isFinite,
+                  accessibility.lastPublished.nodes[node]?.actions.contains(.setValue) == true,
+                  let id = node.base as? GlobalElementID,
+                  let handler = lastFocusRegistry.actionHandler(
+                      for: id, type: ObjectIdentifier(SplitterAccessibility.self)) else { return false }
+            StateDispatch.dispatching(to: id) {   // ID-F: the divider
+                handler(SplitterAccessibility(request: .set(value)))
+            }
+            setNeedsRedraw()
+            return true
         case .showMenu(let node):
             // A recorded context menu (`MN-G` item 2), at the element's
             // bottom-leading corner; refused for a node without one (C11n).

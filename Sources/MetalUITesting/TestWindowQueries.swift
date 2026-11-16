@@ -80,6 +80,17 @@ extension TestWindow {
         return handled
     }
 
+    /// Sets `element`'s numeric value as a screen reader does (`AccessibilityRequest.setValue`, ruling `HS-K`: a split
+    /// view's divider, whose value is the size in points of the pane before it), then draws one frame. Answers whether the
+    /// window handled it (`false` for an element that does not advertise `.setValue`).
+    @discardableResult
+    public func setAccessibilityValue(_ value: Double, on element: TestElement) throws -> Bool {
+        _ = try accessibilityTree
+        let handled = platformWindow.simulateAccessibilityRequest(.setValue(element.id, value))
+        tick()
+        return handled
+    }
+
     /// Moves keyboard focus to `element` as a screen reader does
     /// (`AccessibilityRequest.focus`), then draws one frame. An element the
     /// last frame found unfocusable keeps focus where it was.
