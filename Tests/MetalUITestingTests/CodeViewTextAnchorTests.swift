@@ -334,3 +334,249 @@ private struct AnchorHost: Component, @MainActor Equatable {
 
 @Observable @MainActor private final class Tick { var value = 0 }
 
+
+// MARK: chained presentations (`CV-BC`, `CV-BD`, record 332, Alloy code-intel #4)
+
+private let sugLabel = "SUG"
+
+private enum ChainOrder: CaseIterable { case suggestionFirst, popoverFirst }
+
+@MainActor @ElementBuilder
+private func chainedView(_ model: AnchorModel, _ buffer: CodeBuffer, _ geometry: CodeViewGeometry, _ order: ChainOrder,
+                         popoverAnchor: CodeTextAnchor) -> some ElementGroup {
+    switch order {
+    case .suggestionFirst:
+        baseView(model, buffer, geometry)
+            .suggestionOverlay(isPresented: model.shownBinding, attachmentAnchor: .caret) { Text(sugLabel) }
+            .popover(item: model.itemBinding, attachmentAnchor: popoverAnchor, arrowEdge: .bottom) { _ in Text(popoverText) }
+            .frame(width: Pixels(400), height: Pixels(200))
+    case .popoverFirst:
+        baseView(model, buffer, geometry)
+            .popover(item: model.itemBinding, attachmentAnchor: popoverAnchor, arrowEdge: .bottom) { _ in Text(popoverText) }
+            .suggestionOverlay(isPresented: model.shownBinding, attachmentAnchor: .caret) { Text(sugLabel) }
+            .frame(width: Pixels(400), height: Pixels(200))
+    }
+}
+
+@MainActor private func chainedWindow(_ model: AnchorModel, _ buffer: CodeBuffer, _ geometry: CodeViewGeometry, _ order: ChainOrder,
+                                      popoverAnchor: CodeTextAnchor) async throws -> TestWindow {
+    let window = try harnessWindow(size: sz(400, 300)) {
+        VStack(spacing: 0) {
+            chainedView(model, buffer, geometry, order, popoverAnchor: popoverAnchor)
+            Spacer(minLength: 0)
+        }
+    }
+    try await window.runUntilIdle()
+    window.click(at: pt(60, 6))   // focuses the view, caret on row 0 (a press on the anchored text dismisses a popover: open it after)
+    buffer.selections = [CodeSelection(caret: 0)]
+    model.item = Pick(id: 1)
+    window.window.setNeedsRedraw()
+    try await window.runUntilIdle()
+    window.tick(); window.tick()
+    return window
+}
+
+@MainActor private func frameOf(_ window: TestWindow, _ label: String) throws -> Bounds<Pixels> { try window.element(label: label).frame }
+
+/// 10 — a suggestion overlay at the caret and an `item:` popover at a word, chained on one view, both show in one frame,
+/// each at its own anchor; typing moves only the caret's, the word's stays. Both orders. **Mutation:** one shared box
+/// (the second `anchored` replacing the first, as the single `textAnchorBox` did) leaves the first wrapper at the view's
+/// bounds, and in the other order the overlay on the word's anchor.
+@Test @MainActor func aSuggestionOverlayAndAnItemPopoverPresentTogether() async throws {
+    for order in ChainOrder.allCases {
+        let model = AnchorModel()
+        let buffer = CodeBuffer(plainText)
+        let word = byteRange(of: "gamma", inRow: 5, buffer)
+        let geometry = CodeViewGeometry()
+        // `asOf`: typing on row 0 moves the word's bytes, and the anchor follows the word, not the offsets.
+        let window = try await chainedWindow(model, buffer, geometry, order, popoverAnchor: .range(word, asOf: buffer.version))
+        defer { withExtendedLifetime(window) {} }
+        let caret = try #require(geometry.caretRect())
+        let wordRect = try #require(geometry.rects(for: word).first)
+        var sug = try frameOf(window, sugLabel), pop = try frameOf(window, popoverText)
+        #expect(near(sug.origin.x.value, caret.origin.x.value) && near(sug.origin.y.value, caret.bottom + 2), "\(order) overlay at the caret: \(sug) vs \(caret)")
+        #expect(near(pop.origin.y.value, wordRect.bottom + 8 + 12) && near(pop.origin.x.value + pop.size.width.value / 2, wordRect.origin.x.value + wordRect.size.width.value / 2),
+                "\(order) popover at the word: \(pop) vs \(wordRect)")
+        let popBefore = pop
+        model.consumes = false
+        window.typeText("xyz")
+        try await window.runUntilIdle()
+        let moved = try #require(geometry.caretRect())
+        #expect(moved.origin.x.value > caret.origin.x.value + 10)
+        sug = try frameOf(window, sugLabel); pop = try frameOf(window, popoverText)
+        #expect(near(sug.origin.x.value, moved.origin.x.value) && near(sug.origin.y.value, moved.bottom + 2), "\(order) overlay followed the caret: \(sug) vs \(moved)")
+        #expect(near(pop.origin.x.value, popBefore.origin.x.value) && near(pop.origin.y.value, popBefore.origin.y.value), "\(order) popover stayed: \(pop) vs \(popBefore)")
+    }
+}
+
+/// 11 — three chained presentations (an overlay and two popovers) each resolve their own anchor: three different
+/// places in one frame. **Mutation:** the anchor loop in the view's prepaint stopping after the first box leaves the
+/// later wrappers at the view's bounds.
+@Test @MainActor func threeChainedPresentationsResolveTheirOwnAnchors() async throws {
+    let model = AnchorModel()
+    let buffer = CodeBuffer(plainText)
+    let geometry = CodeViewGeometry()
+    let first = byteRange(of: "alpha", inRow: 3, buffer), second = byteRange(of: "gamma", inRow: 8, buffer)
+    let second2 = Binding<Bool>.constant(true)
+    let window = try harnessWindow(size: sz(400, 300)) {
+        VStack(spacing: 0) {
+            baseView(model, buffer, geometry)
+                .popover(item: model.itemBinding, attachmentAnchor: .range(first), arrowEdge: .bottom) { _ in Text("ONE") }
+                .suggestionOverlay(isPresented: model.shownBinding, attachmentAnchor: .caret) { Text(sugLabel) }
+                .popover(isPresented: second2, attachmentAnchor: .range(second), arrowEdge: .bottom) { Text("TWO") }
+                .frame(width: Pixels(400), height: Pixels(200))
+            Spacer(minLength: 0)
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    try await window.runUntilIdle()
+    window.click(at: pt(60, 6))
+    buffer.selections = [CodeSelection(caret: 0)]
+    model.item = Pick(id: 1)
+    window.window.setNeedsRedraw()
+    try await window.runUntilIdle()
+    window.tick(); window.tick()
+    let caret = try #require(geometry.caretRect())
+    let r1 = try #require(geometry.rects(for: first).first), r2 = try #require(geometry.rects(for: second).first)
+    let one = try frameOf(window, "ONE"), two = try frameOf(window, "TWO"), sug = try frameOf(window, sugLabel)
+    #expect(near(one.origin.y.value, r1.bottom + 8 + 12), "ONE under the first word: \(one) vs \(r1)")
+    #expect(near(two.origin.y.value, r2.bottom + 8 + 12), "TWO under the second word: \(two) vs \(r2)")
+    #expect(near(sug.origin.y.value, caret.bottom + 2) && near(sug.origin.x.value, caret.origin.x.value), "overlay at the caret: \(sug) vs \(caret)")
+}
+
+/// 12 — with a popover and a suggestion overlay both open, the first Escape dismisses the popover (an open popover takes
+/// Escape first, `MN-N`) and the overlay stays; the second reaches the view's `onKeyPress`. **Mutation:** the overlay
+/// registering a dismissal (or the popover not) lets Escape reach the handler on the first press.
+@Test @MainActor func escapeDismissesThePopoverFirstThenReachesOnKeyPress() async throws {
+    for order in ChainOrder.allCases {
+        let model = AnchorModel()
+        let buffer = CodeBuffer(plainText)
+        let geometry = CodeViewGeometry()
+        let window = try await chainedWindow(model, buffer, geometry, order, popoverAnchor: .range(byteRange(of: "gamma", inRow: 5, buffer)))
+        defer { withExtendedLifetime(window) {} }
+        window.typeKey(.escape)
+        #expect(model.item == nil && model.keys.isEmpty && model.shown, "\(order) first Esc: the popover only: \(model.keys)")
+        window.typeKey(.escape)
+        #expect(model.keys == ["1b"] && model.shown, "\(order) second Esc reached onKeyPress: \(model.keys)")
+    }
+}
+
+/// 13 — dismissing one presentation leaves the other at its own anchor: the overlay's after the popover went, and the
+/// popover's after the overlay was turned off. **Mutation:** the wrapper that stays recording the view's bounds (its box
+/// dropped with the other's) moves it.
+@Test @MainActor func dismissingOneKeepsTheOthersAnchor() async throws {
+    let model = AnchorModel()
+    let buffer = CodeBuffer(plainText)
+    let word = byteRange(of: "gamma", inRow: 5, buffer)
+    let geometry = CodeViewGeometry()
+    let window = try await chainedWindow(model, buffer, geometry, .suggestionFirst, popoverAnchor: .range(word))
+    defer { withExtendedLifetime(window) {} }
+    let sugBefore = try frameOf(window, sugLabel), popBefore = try frameOf(window, popoverText)
+    model.item = nil
+    window.window.setNeedsRedraw(); try await window.runUntilIdle(); window.tick()
+    #expect(throws: (any Error).self) { _ = try frameOf(window, popoverText) }
+    let sugAfter = try frameOf(window, sugLabel)
+    #expect(near(sugAfter.origin.x.value, sugBefore.origin.x.value) && near(sugAfter.origin.y.value, sugBefore.origin.y.value), "\(sugAfter) vs \(sugBefore)")
+    model.item = Pick(id: 1); model.shown = false
+    window.window.setNeedsRedraw(); try await window.runUntilIdle(); window.tick()
+    #expect(throws: (any Error).self) { _ = try frameOf(window, sugLabel) }
+    let popAfter = try frameOf(window, popoverText)
+    #expect(near(popAfter.origin.x.value, popBefore.origin.x.value) && near(popAfter.origin.y.value, popBefore.origin.y.value), "\(popAfter) vs \(popBefore)")
+}
+
+/// 14 — both anchors survive retained replay (`RW-K`), each journaled under its own wrapper: a view in an `.equatable()`
+/// component that replays places an overlay and a popover opened afterwards in the very frame they open in. **Mutation:**
+/// journaling only the first wrapper's anchor (or recording outside the journal) leaves the other one frame late.
+private struct ChainedHost: Component, @MainActor Equatable {
+    let buffer: CodeBuffer, decorations: CodeDecorations, geometry: CodeViewGeometry, model: AnchorModel, word: Range<Int>
+    static func == (a: ChainedHost, b: ChainedHost) -> Bool { a.buffer === b.buffer && a.model === b.model }
+    var content: some ElementGroup {
+        CodeView(buffer: buffer, decorations: decorations).font(size: 12).showsLineNumbers(false)
+            .codeCaretBlink(.off).geometry(geometry)
+            .suggestionOverlay(isPresented: model.shownBinding, attachmentAnchor: .caret) { Text(sugLabel) }
+            .popover(item: model.itemBinding, attachmentAnchor: .range(word), arrowEdge: .bottom) { _ in Text(popoverText) }
+            .frame(width: Pixels(400), height: Pixels(200))
+    }
+}
+
+@Test @MainActor func retainedReplayKeepsBothAnchors() async throws {
+    let model = AnchorModel()
+    model.shown = false
+    let buffer = CodeBuffer(plainText)
+    let decorations = CodeDecorations(buffer: buffer)
+    let geometry = CodeViewGeometry()
+    let word = byteRange(of: "gamma", inRow: 5, buffer)
+    let tick = Tick()
+    let window = try harnessWindow(size: sz(400, 300)) {
+        VStack(spacing: 0) {
+            Text("\(tick.value)").frame(width: Pixels(40), height: Pixels(10))
+            ChainedHost(buffer: buffer, decorations: decorations, geometry: geometry, model: model, word: word).equatable()
+            Spacer(minLength: 0)
+            TextField("other", text: Binding(get: { "" }, set: { _ in })).accessibilityIdentifier("other").frame(width: Pixels(100), height: Pixels(24))
+        }
+    }
+    defer { withExtendedLifetime(window) {} }
+    try await window.runUntilIdle()
+    buffer.selections = [CodeSelection(caret: 9)]
+    window.window.setNeedsRedraw()
+    try window.click(try window.element(identifier: "other"))
+    window.resetFrameWork()
+    for _ in 0..<4 { tick.value += 1; window.window.setNeedsRedraw(); window.tick() }
+    if !rsVerifying { #expect(window.frameWork.reduce(FrameWork(), +).retainedHits >= 4, "the host replays while both are closed") }
+    model.shown = true
+    model.item = Pick(id: 1)
+    window.window.setNeedsRedraw()
+    window.tick()
+    let caret = try #require(geometry.caretRect())
+    let wordRect = try #require(geometry.rects(for: word).first)
+    let sug = try frameOf(window, sugLabel), pop = try frameOf(window, popoverText)
+    #expect(near(sug.origin.x.value, caret.origin.x.value) && near(sug.origin.y.value, caret.bottom + 2 + 10), "overlay at the caret under the 10 pt row: \(sug) vs \(caret)")
+    #expect(near(pop.origin.y.value, wordRect.bottom + 8 + 12 + 10), "popover at the word under the 10 pt row: \(pop) vs \(wordRect)")
+}
+
+/// 15 — only a presented popover holds the text hover's grace (`CV-BD`): leaving the text with only an overlay open ends
+/// the hover at once; with a popover open beside it, `.ended` waits the 150 ms. **Mutation:** the overlay's box counted
+/// in `CodeTextHoverRuntime.boxes` (the old single box) holds the grace in the first arm.
+@Observable @MainActor private final class GraceModel {
+    var ends = 0
+    var overlay = false
+    var popover = false
+}
+
+@Test @MainActor func onlyAPopoverHoldsTheHoverGrace() async throws {
+    for withPopover in [false, true] {
+        let model = GraceModel()
+        let buffer = CodeBuffer("row0 alpha beta gamma\n" + String(repeating: "\n", count: 40))
+        let geometry = CodeViewGeometry()
+        let word = 5..<10
+        let window = try harnessWindow(size: sz(400, 300)) {
+            VStack(spacing: 0) {
+                CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12).showsLineNumbers(false)
+                    .codeCaretBlink(.off).geometry(geometry)
+                    .onTextHover(delay: .milliseconds(300)) { phase in
+                        if case .active = phase { model.overlay = true; model.popover = withPopover }
+                        if phase == .ended { model.ends += 1; model.overlay = false; model.popover = false }
+                    }
+                    .suggestionOverlay(isPresented: Binding(get: { model.overlay }, set: { model.overlay = $0 }), attachmentAnchor: .range(word)) { Text(sugLabel) }
+                    .popover(isPresented: Binding(get: { model.popover }, set: { model.popover = $0 }), attachmentAnchor: .range(word), arrowEdge: .bottom) { Text(popoverText) }
+                    .frame(width: Pixels(400), height: Pixels(200))
+                Spacer(minLength: 0)
+            }
+        }
+        defer { withExtendedLifetime(window) {} }
+        try await window.runUntilIdle()
+        let rect = try #require(geometry.rects(for: word).first)
+        window.hover(at: pt(rect.origin.x.value + 3, rect.origin.y.value + 3))
+        window.advance(by: 0.3)
+        window.window.setNeedsRedraw(); try await window.runUntilIdle(); window.tick(); window.tick()
+        #expect(model.overlay && model.popover == withPopover, "opened")
+        window.hover(at: pt(300, 150))   // an empty row, away from both panels
+        if withPopover {
+            #expect(model.ends == 0, "the popover holds the grace: \(model.ends)")
+            window.advance(by: 0.2)
+            #expect(model.ends == 1, "ended after the grace: \(model.ends)")
+        } else {
+            #expect(model.ends == 1, "an overlay holds none: \(model.ends)")
+        }
+    }
+}
