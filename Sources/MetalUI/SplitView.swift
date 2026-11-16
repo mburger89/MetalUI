@@ -314,21 +314,55 @@ struct SplitDivider: Component, ProposalElementGroup {
             .frame(width: vertical ? thickness : nil,
                    height: vertical ? nil : thickness)
             .overlay {
-                Color.clear
-                    .frame(width: vertical ? hit : nil,
-                           height: vertical ? nil : hit)
-                    .gesture(drag)
-                    .pointerStyle(vertical ? .columnResize : .rowResize)
-                    // The divider's accessibility element (`HS-K`): `AXSplitter`, on the hit area, as the probe's
-                    // `NSSplitViewSplitter` is on the divider.
-                    .accessibilityWrapper { handlers in
-                        handlers.axNode.roleHint = .splitter
-                        if let accessibility { handlers.actions[ObjectIdentifier(SplitterAccessibility.self)] = accessibility }
-                        if let identifier { handlers.axNode.declarations.identifier = identifier }
-                    }
+                SplitDividerHitArea(
+                    content: Color.clear.frame(width: vertical ? hit : nil, height: vertical ? nil : hit),
+                    drag: drag, pointer: vertical ? .columnResize : .rowResize,
+                    accessibility: accessibility, identifier: identifier)
             }
     }
 }
+
+/// A divider's 6-point hit area (`HS-K`, `HS-L`): the drag gesture, the resize pointer and the `AXSplitter` element on ONE
+/// wrapper. Each of those written as a modifier is a wrapper element entered, and counted in `Frame.elementRequests`, on
+/// every frame; the accessibility one made a split view's steady frame cost one request per divider more than before
+/// (record 326). Like `GestureModifier`, no layout node of its own and one child numbered from 0 under its id.
+struct SplitDividerHitArea<Content: ProposalElementGroup>: Element {
+    var content: Content
+    var drag: DragGesture
+    var pointer: PointerStyle
+    var accessibility: ActionHandler?
+    var identifier: String?
+
+    struct Layout { var content: Content.GroupLayout }
+
+    mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        precondition(children.count == 1, "a divider hit area requires one native child")
+        return (children[0], Layout(content: contentLayout))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                           pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        var handlers = Handlers()
+        handlers.gestures = [GestureAttachment(drag, priority: .normal)]
+        handlers.pointer = PointerAttachment.style(pointer, over: nil)
+        handlers.axNode.roleHint = .splitter
+        if let accessibility { handlers.actions[ObjectIdentifier(SplitterAccessibility.self)] = accessibility }
+        if let identifier { handlers.axNode.declarations.identifier = identifier }
+        let frame = pass.frame
+        return frame.sharingRegistrationsWithEffects(at: bounds, register: {
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil, synthesizesAccessibility: true)
+        }, content: { content.prepaintGroup(layout: &layout.content, pass: &pass) })
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                        prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension SplitDividerHitArea: ProposalElement {}
 
 // MARK: - The engine both public types share
 
