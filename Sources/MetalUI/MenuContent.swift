@@ -37,6 +37,8 @@ struct MenuNode {
     var help: String?
     /// The symbol shown beside the title (`MN-AP`), from a `Label` or a `systemImage:` item.
     var image: MenuNodeImage?
+    /// The item's declared `.accessibilityLabel` (`MN-AQ`); an empty one is none.
+    var accessibilityLabel: String?
 }
 
 /// A menu item's symbol and the tint it was evaluated under (`MN-AP`): `.tint` on the item or a scope above it
@@ -52,6 +54,11 @@ struct MenuNodeImage {
     func platform(_ resolve: (Color) -> Rgba) -> PlatformMenuImage {
         PlatformMenuImage(symbol: symbol, tint: tint.map(resolve))
     }
+}
+
+/// The `.accessibilityLabel` an item declared on itself (`MN-AQ`): an empty string declares none.
+@MainActor private func declaredMenuLabel(_ handlers: Handlers) -> String? {
+    handlers.axNode.label.flatMap { $0.isEmpty ? nil : $0 }
 }
 
 /// What a menu item is evaluated in: the menu's environment, of which only
@@ -153,7 +160,8 @@ extension Button: MenuContent where Label: MenuItemLabel {
                                     shortcut: shortcut, run: handlers.onClick ?? action,
                                     accessibilityIdentifier: handlers.axNode.declarations.identifier,
                                     help: handlers.contextual?.help,
-                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) })])
+                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) },
+                                    accessibilityLabel: declaredMenuLabel(handlers))])
     }
 }
 
@@ -169,7 +177,8 @@ extension Toggle: MenuContent where Label: MenuItemLabel {
                                     isOn: on, run: { binding.wrappedValue = !on },
                                     accessibilityIdentifier: handlers.axNode.declarations.identifier,
                                     help: handlers.contextual?.help,
-                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) })])
+                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) },
+                                    accessibilityLabel: declaredMenuLabel(handlers))])
     }
 }
 
@@ -203,7 +212,8 @@ extension Menu: MenuContent where Label: MenuItemLabel {
         let items = content()._menuNodes(in: context).nodes
         let parts = label._menuItemLabel()
         return _MenuNodes([MenuNode(kind: .submenu(items), title: parts.title, isEnabled: context.isEnabled,
-                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) })])
+                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) },
+                                    accessibilityLabel: declaredMenuLabel(handlers))])
     }
 }
 
