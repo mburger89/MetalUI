@@ -12,6 +12,9 @@ import Observation
 ///   red bar and a `-` marker, which are not selectable and have no line numbers;
 /// - a second, narrow view of the same buffer scrolled with the first through ``CodeScrollState`` and
 ///   ``CodeView/onScroll(_:)``, to see the synced scroll and the shared selection;
+/// - "Own carets" (`CV-AY`, record 329, check CV22): the two views then have a ``CodeSelectionState`` each, so a caret
+///   in one is not the other's, typing in either moves the other's caret without scrolling it, and ⌘Z in a view
+///   brings that view's caret to the change; off (the default), they share the buffer's one selection;
 /// - buttons: Top, "Line 50 000" (`select(_:reveal:)` centres it in both views) and "Insert a line at the top"
 ///   (the reader's row and the decorations hold still).
 ///
@@ -28,7 +31,7 @@ public func codeViewDemoContent(model: CodeViewDemoModel = codeViewDemoModel) ->
 }
 
 /// The demo's state: one buffer of 100 000 generated lines, its decorations and the two scroll states.
-@MainActor
+@MainActor @Observable
 public final class CodeViewDemoModel {
     /// The generated file.
     public let buffer: CodeBuffer
@@ -38,6 +41,12 @@ public final class CodeViewDemoModel {
     public let mainScroll = CodeScrollState()
     /// The side view's scroll position.
     public let sideScroll = CodeScrollState()
+    /// Whether the two views have a selection state each (the "Own carets" button); off, they share the buffer's.
+    public var ownCarets = false
+    /// The main view's own selection state, used while ``ownCarets``.
+    @ObservationIgnored public private(set) lazy var mainState = CodeSelectionState(buffer: buffer)
+    /// The side view's own selection state, used while ``ownCarets``.
+    @ObservationIgnored public private(set) lazy var sideState = CodeSelectionState(buffer: buffer)
     let highlighter: CodeDemoHighlighter?
 
     /// The 100 000-line file with all of its decorations.
@@ -205,12 +214,26 @@ private func codeDemoButtons(_ model: CodeViewDemoModel) -> some Element {
             model.buffer.select(offset..<offset, reveal: true)
         }
         Button("Insert a line at the top") { model.buffer.replace(0..<0, with: "// inserted\n") }
+        Button(model.ownCarets ? "Own carets: on" : "Own carets: off") {
+            if !model.ownCarets {   // a new split starts at the shared caret
+                model.mainState.selections = model.buffer.selections
+                model.sideState.selections = model.buffer.selections
+            }
+            model.ownCarets.toggle()
+        }
     }
+}
+
+/// `view` with `state` as its own selections, or as it is (the buffer's shared selection) for `nil`.
+@MainActor
+private func codeDemoCarets(_ view: CodeView, _ state: CodeSelectionState?) -> CodeView {
+    guard let state else { return view }
+    return view.selectionState(state)
 }
 
 @MainActor
 private func codeDemoMainView(_ model: CodeViewDemoModel) -> some Element {
-    return CodeView(buffer: model.buffer, decorations: model.decorations)
+    return codeDemoCarets(CodeView(buffer: model.buffer, decorations: model.decorations), model.ownCarets ? model.mainState : nil)
         .font(size: 12)
         .scrollState(model.mainScroll)
         .onScroll { model.sideScroll.position = $0 }
@@ -220,7 +243,7 @@ private func codeDemoMainView(_ model: CodeViewDemoModel) -> some Element {
 
 @MainActor
 private func codeDemoSideView(_ model: CodeViewDemoModel) -> some Element {
-    return CodeView(buffer: model.buffer, decorations: model.decorations)
+    return codeDemoCarets(CodeView(buffer: model.buffer, decorations: model.decorations), model.ownCarets ? model.sideState : nil)
         .font(size: 9)
         .showsLineNumbers(false)
         .scrollState(model.sideScroll)

@@ -5,7 +5,7 @@ import MetalUI
 import MetalUIScene
 import MetalUITesting
 
-// Per-view selections of `CodeView` (`CV-AY`, `CV-AZ`, record 329): `selectionState(_:)` over the buffer lane's
+// Per-view selections of `CodeView` (`CV-AY`, `CV-AZ`, record 329): `selectionState(_:)` over the 's
 // `CodeSelectionState` (record 327). PLAIN imports; the harness text system; every pin counts work or reads state,
 // never a clock. Two views of one buffer side by side in a 400 x 200 window: A is the left 200, B the right.
 
@@ -156,6 +156,13 @@ private let threeLines = "hello\nworld\nthird\n"
     s.stateB.selections = [CodeSelection(anchor: 6, head: 11)]
     s.window.typeKey("c", modifierFlags: codePrimary)
     #expect(s.window.platformWindow.clipboard == "hello", "A copies its own: \(String(describing: s.window.platformWindow.clipboard))")
+    #expect(s.window.clipboardRepresentations.last.map { String(decoding: $0.bytes, as: UTF8.self) } == "hello", "the copy handler too")
+    // A view with an empty selection copies its line, not another state's selection (the default state's here).
+    s.buffer.selections = [CodeSelection(anchor: 0, head: 5)]
+    s.stateA.selections = [CodeSelection(caret: 8)]
+    s.window.typeKey("c", modifierFlags: codePrimary)
+    #expect(s.window.platformWindow.clipboard == "world\n", "A's empty selection copies its line: \(String(describing: s.window.platformWindow.clipboard))")
+    s.buffer.selections = [CodeSelection(caret: 0)]
     s.click(true)
     s.stateA.selections = [CodeSelection(anchor: 0, head: 5)]
     s.stateB.selections = [CodeSelection(anchor: 6, head: 11)]
@@ -296,8 +303,8 @@ private struct Steady: Equatable { var requests = 0, hits = 0, misses = 0, ineli
 }
 
 /// **12** A caret move in A replans A only: with a state each, the retained card of B hits and A's misses; sharing the
-/// buffer's default state, both miss (the caret is shared). **Mutation:** the plan reading `buffer.primarySelection`
-/// wakes B (two misses) in the first arm.
+/// buffer's default state, both miss (the caret is shared). **Mutation:** `selectionSource` ignoring the
+/// view's state (always the default one) makes the first arm two misses.
 @Test @MainActor func anArrowKeyInOneViewDoesNotReplanTheOther() throws {
     func run(states: Bool) throws -> (hits: Int, misses: Int) {
         let buffer = CodeBuffer(codeText(lines: 60))
@@ -317,6 +324,6 @@ private struct Steady: Equatable { var requests = 0, hits = 0, misses = 0, ineli
         return (f.retainedHits, f.retainedMisses)
     }
     let own = try run(states: true), shared = try run(states: false)
-    #expect(own.hits >= 1 && own.misses <= 1, "own states: \(own)")
-    #expect(shared.hits < own.hits || shared.misses > own.misses, "shared default state: \(shared) vs \(own)")
+    #expect(own.misses == 1 && own.hits == 1, "own states: A replans, B hits: \(own)")
+    #expect(shared.misses == 2 && shared.hits == 0, "the shared default caret wakes both: \(shared)")
 }
