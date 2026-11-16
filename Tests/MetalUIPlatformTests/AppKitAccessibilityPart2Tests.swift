@@ -179,7 +179,8 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         role: .row, label: "L", value: "V", isSelected: true, isEnabled: false, isFocusable: true,
         actions: [.press, .increment, .decrement], children: [nid("kid")], rowCount: 7, rowIndex: 3,
         hint: "H", identifier: "I", customActions: ["C"], isSelectable: true,
-        isOutline: false, outlineLevel: 3, isExpanded: true, disclosedBy: nid("parent"))
+        isOutline: false, outlineLevel: 3, isExpanded: true, disclosedBy: nid("parent"),
+        numericRange: 0...265, orientation: .vertical)
     let (bridge, _) = makeBridge(tree(roots: ["full", "parent"], ["full": full, "kid": AccessibilityNode(role: .staticText),
                                                                    "parent": AccessibilityNode(role: .row)]))
     let element = bridge.element(for: nid("full"))
@@ -208,13 +209,16 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         "outlineLevel": { $0.accessibilityDisclosureLevel() == 3 },
         "isExpanded": { $0.isAccessibilityDisclosed() },
         "disclosedBy": { ($0.accessibilityDisclosedByRow() as? AppKitAccessibilityElement)?.id == nid("parent") },
+        // A split divider's range and orientation (`HS-K`): `AXMinValue`/`AXMaxValue` and `AXOrientation`.
+        "numericRange": { ($0.accessibilityMinValue() as? NSNumber) == 0 && ($0.accessibilityMaxValue() as? NSNumber) == 265 },
+        "orientation": { $0.accessibilityOrientation() == .vertical },
         "isOutline": { _ in
             let (list, _) = makeBridge(tree(roots: ["l"], ["l": AccessibilityNode(role: .table, isOutline: true)]))
             return list.element(for: nid("l")).accessibilityRole() == .outline
         },
     ]
     let fields = Set(Mirror(reflecting: full).children.compactMap(\.label))
-    #expect(fields.count == 18, "the neutral node's field count: \(fields.sorted())")
+    #expect(fields.count == 20, "the neutral node's field count: \(fields.sorted())")
     #expect(Set(arms.keys) == fields, "one arm per field — missing \(fields.subtracting(arms.keys).sorted())")
     for (field, arm) in arms.sorted(by: { $0.key < $1.key }) { #expect(arm(element), "\(field)'s arm") }
 

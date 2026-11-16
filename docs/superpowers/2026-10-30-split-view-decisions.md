@@ -1,7 +1,7 @@
 # Split views - decisions
 
 Rulings for `HSplitView` / `VSplitView` (MetalFlow's palette | canvas | inspector layout). Prefix `HS-`. Branch `feat/mf-split`. Code: `Sources/MetalUI/SplitView.swift`; tests:
-`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-K`.** Divergence 206 (the orchestrator moves the label if another branch took it).
+`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-L`.** Divergence 206 (the orchestrator moves the label if another branch took it).
 
 ## HS-A - the shape: two ProposalElements over one engine, class D not A
 
@@ -85,6 +85,18 @@ a stored array whose length differs from the pane count is ignored.
 **Pins.** `aBareNestedSplitViewStretchesLikeSwiftUIs` (literals from the probe: 300 / 299 wide at x 301), `aBareNestedHSplitViewInAVSplitViewStretches` (was already green: the cross axis never hit the bug), and the other tests of `NestedSplitViewTests`.
 **Mutation.** Restoring the sum-of-ideals answer for an infinite proposal reddens `aBareNestedSplitViewStretchesLikeSwiftUIs` alone.
 
+## HS-K - a divider is an accessibility element: `AXSplitter`, value = the pane before it, settable, no actions
+
+**Ruling.** Probe `docs/probes/swiftui-split-divider-ax.swift` (record 324, macOS 27.2.1): SwiftUI's dividers are `NSSplitViewSplitter`s, `NSAccessibilityElement`s interleaved with the panes in the split's `accessibilityChildren`: role `AXSplitter` ("splitter"), `AXOrientation` 1 (vertical) for an `HSplitView`'s line and 2 for a `VSplitView`'s, `AXValue` a number in points equal to the size of the pane BEFORE the divider (not its position, not a fraction), `AXMinValue` 0, `AXMaxValue` the two neighbours' sum (the panes' own limits are not in it), `AXValue` settable: a write moves the divider as a drag does (the pair keeps its total; below the pane's minimum clamps to it; above the total is ignored, not clamped). **No actions**: `accessibilityPerformIncrement`/`Decrement` are inherited and raise "unrecognized selector". No label, identifier or help; `.accessibilityIdentifier` on the split or a pane does not reach it.
+
+MetalUI matches: each `SplitDivider` records an element (the proposal-path accessibility wrapper over its hit area) with `AXNode.roleHint = .splitter` (the existing optional role-hint enum gains a case, 1 byte: `AXNode` and `Handlers` keep their pinned sizes) and one internal `SplitterAccessibility` action registered on the divider, which the tree builder asks for the value, the pair's total, the orientation and whether the pair can move (`SplitSolver.movableRange` is not a point), and `Window` sends `.set(value)` through `AccessibilityRequest.setValue` (new; `AccessibilityActions.setValue`, `AccessibilityRole.splitter`, `AccessibilityOrientation`, `AccessibilityNode.numericRange`/`orientation`). A set is `SplitSolver.dragged(snapshot, by: value - current)` written as `SplitModel.sizes`, and the autosave entry once, only if the sizes changed (a drag writes at its end; a set has no end). Increment and decrement are NOT advertised, as the probe. A divider whose neighbours cannot move (fixed, or limits that leave no room) or in a disabled subtree is disabled and advertises nothing (SwiftUI's element reads enabled `false` always, so this is the same signal made meaningful). AppKit: `AXSplitter`, `AXOrientation`, numeric `AXValue`, `AXMinValue`, `AXMaxValue`, `setAccessibilityValue(_:)`; AccessKit 0.23: `SPLITTER` (it has the role), `orientation`, `numeric_value`, `min/max_numeric_value`, `SET_VALUE` with numeric action data (a string value names no action), no `INCREMENT`/`DECREMENT`.
+
+**Identifiers (class M).** SwiftUI has no way to name a divider (probe arm I). `splitViewDividerIdentifier(_ prefix:)` on `HSplitView`/`VSplitView` (MetalUI-only; family `split-view-divider-accessibility`) gives divider *i* the identifier `prefix.i` (`AXIdentifier`, AccessKit `author_id`); none by default, so a plain split matches SwiftUI's nil. A split's own `.accessibilityIdentifier` is not inherited by the dividers.
+
+**Differences kept, in divergence 206's row, no new label.** The element's frame is the 6-point hit area, not the 1-point line; the dividers are published after the panes, not interleaved with them (the tree order is the registration order: panes, then dividers); an immovable divider is disabled (see above); a hidden divider (`splitViewDivider(.hidden)`) is still an element. VoiceOver's own keyboard resize is not measurable by an agent (human check HS1).
+
+**Pins.** `SplitDividerAccessibilityTests`, `SplitDividerAppKitAccessibilityTests`, `AccessKitSplitterTests` (SDL package). Mutations are listed in record 324.
+
 ## Mutations
 
 Method: edit the named declaration in `Sources/MetalUI/SplitView.swift`, run `--filter SplitViewTests` under `--build-system native`, restore. Named tests are those that reddened.
@@ -117,7 +129,7 @@ The mutated spelling was applied to the declaration named; the 1 MB-stack and Ap
 ## Carried
 
 - A probe of `HSplitView` against real SwiftUI/`NSSplitView` (resize distribution, divider thickness and colour, minimum overflow) and a human look; either settles divergence 206 and could make the family class A.
-- No pane collapse or hide, no double-click-to-reset, no keyboard resize, no divider accessibility node (a `separator` role with a value), no hover highlight on the divider.
+- No pane collapse or hide, no double-click-to-reset, no keyboard resize, no keyboard increment/decrement of a divider (the probe: none in SwiftUI), no hover highlight on the divider.
 - Autosave is per split view and not environment-propagated, so `.frame(...).splitViewAutosaveName(...)` does not compile; two split views must take two names.
 - Autosave saves at drag end only (a window resize does not write), so the saved array can sum to a different total than a later window; the solver reconciles it.
 - Nested split views are tested to depth 5 (`HS-J`); the divider overlay of an inner view overlaps its own panes only.
