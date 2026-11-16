@@ -855,3 +855,7 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 ## Record 330 (a `CodeView` reveal pending at mount, `CV-BA`)
 
 **Behaviour change.** A `CodeView` that mounts while its state has a `select(_:reveal: true)` no view has shown yet now opens scrolled to centre that selection's line, where before it opened at the top and ignored the request. Code that called `select(range, reveal: true)` before showing a view and relied on it starting at the top should pass `reveal: false`, or assign the scroll state afterwards. A reveal a view has already taken in is never replayed, and swapping a mounted view's state still reveals nothing.
+
+## Record 333 (the primary selection, `CV-BE`, and batched edits, `CV-BF`)
+
+**`primarySelection` is no longer always the lowest selection.** It is `selections[primaryIndex]`. With one selection nothing differs. Assigning `selections` with several now makes the **first element of the array you assign** the primary (it was the lowest by offset after sorting), so code that assigns an unsorted array and then reads `primarySelection` expecting the lowest must read `selections[0]` instead, or assign the array sorted. `setSelections(_:primary:)` picks any. Edits and undo keep the primary on the range it came from. Multi-selection edits (`replaceSelections(with:)`) now log the same N events, move every state once, and `.typing` calls from one state coalesce into one undo step across carets (they were one step each).
