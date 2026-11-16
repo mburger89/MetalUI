@@ -120,7 +120,12 @@ enum MenuPanel {
         var rows: [Bounds<Pixels>] = []
         rows.reserveCapacity(items.count)
         let hasSubmenu = items.contains { if case .submenu = $0.kind { true } else { false } }
-        let imageColumn = items.contains { resolvedSymbol($0.image) != nil } ? imageSide + imageGap : 0
+        var anyImage = false
+        for item in items {
+            guard let image = item.image else { continue }
+            if resolvedSymbol(image) != nil { anyImage = true } else { SymbolDiagnostics.noteMiss(image.symbol) }
+        }
+        let imageColumn = anyImage ? imageSide + imageGap : 0
         for item in items {
             let height: Float
             if case .separator = item.kind {

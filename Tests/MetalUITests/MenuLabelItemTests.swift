@@ -16,6 +16,7 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: px(x), y: px
     content.testingEvaluateMenu(isEnabled: isEnabled).items
 }
 
+private let red = Color.red.resolved(theme: .light, scheme: .light).toRgba()
 private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
 
 /// **MN-AP 1.** Every spelling reaches the item as a symbol and no tint: `Button(_:systemImage:)`, a `Label` in a
@@ -40,7 +41,7 @@ private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
 }
 
 /// **MN-AP 2.** `.tint` on the item or a scope above it colours the image (probe L4); `.foregroundStyle` on the
-/// `Label`, the `Button` or the scope does not (probe L3, L3b, L3c, L5). A nearer `.tint` wins. Mutation: read
+/// `Label`, the `Button` or the scope does not (probe L3, L3b, L3c, L5). The nearer `.tint` wins (E: red). Mutation: read
 /// `foregroundStyle` for the tint (the first expectation reddens); ignore `context.tint` in `EnvironmentScope`'s
 /// menu conformance (the tinted ones redden).
 @Test @MainActor func aTintColoursTheImageAndAForegroundStyleDoesNot() {
@@ -49,10 +50,10 @@ private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
         Button { } label: { Label("B", systemImage: "circle.fill").foregroundStyle(.green) },
         Button { } label: { Label("C", systemImage: "circle.fill") }.foregroundStyle(.green),
         Button("D", systemImage: "circle.fill") {}.foregroundStyle(.green),
-        Button("E", systemImage: "circle.fill") {}.tint(.red).tint(.green),
+        Button("E", systemImage: "circle.fill") {}.tint(.red).tint(.green),   // the nearer write wins
         Button("F", systemImage: "circle.fill") {}.tint(.green).foregroundStyle(.red),
     ]))
-    #expect(items.map { $0.image?.tint } == [green, nil, nil, nil, green, green])
+    #expect(items.map { $0.image?.tint } == [green, nil, nil, nil, red, green])
 }
 
 /// **MN-AP 2b.** A tint on a `Menu` item reaches the item and each item inside it (the context a scope passes
