@@ -89,6 +89,11 @@ public protocol ModifierLayerKind {
     /// prefix and appends; a proposal chain moves every layer into the prefix.
     static func _legacyStack(_ outermost: Self, _ inner: [Self], _ prefix: [LayoutModifier])
         -> (prefix: [LayoutModifier], layers: [ModifierLayer])
+
+    /// `chain` with an `onKeyPress` handler added to a layer it already holds (ruling `KF-AE`): a legacy chain's
+    /// outermost layer, a proposal chain's outermost `keyboard` layer or a new one. Framework entry point.
+    static func _addingKeyPress<C: ElementGroup>(_ registration: KeyPressRegistration,
+                                                 to chain: ModifiedContent<C, Self>) -> ModifiedContent<C, Self>
 }
 
 /// One flat modifier chain over `Content`, in one vocabulary: `ModifierLayer`
@@ -132,6 +137,14 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
     /// The content type a legacy wrapper wraps, so a further wrapper flattens
     /// into this chain rather than nesting it (`MC-A`).
     public typealias LayerBase = Content
+
+    /// `onKeyPress` joins the chain's own outermost layer, whichever vocabulary it is (ruling `KF-AE`).
+    public typealias KeyPressed = ModifiedContent<Content, Modifier>
+
+    /// A handler on the chain: its own layer's, no further element (ruling `KF-AE`).
+    public func _addingKeyPress(_ registration: KeyPressRegistration) -> ModifiedContent<Content, Modifier> {
+        Modifier._addingKeyPress(registration, to: self)
+    }
 
     /// The chain's base content — never another `ModifiedContent` of the same
     /// chain (spec §3.4: until stage 11 a proposal chain's `content` was the
@@ -416,7 +429,24 @@ extension ModifiedContent: StyledElement where Modifier == ModifierLayer {
     }
 }
 
+extension ModifierLayerKind {
+    /// An external conformer cannot build a `ModifiedContent` (spec §3.7), so its `onKeyPress` has no chain to join:
+    /// the default returns the chain unchanged (ruling `KF-AE`). Both of MetalUI's kinds implement it.
+    public static func _addingKeyPress<C: ElementGroup>(_ registration: KeyPressRegistration,
+                                                        to chain: ModifiedContent<C, Self>) -> ModifiedContent<C, Self> {
+        chain
+    }
+}
+
 extension ModifierLayer: ModifierLayerKind {
+    /// The legacy chain's `StyledElement.onKeyPress`: the outermost layer's handlers.
+    public static func _addingKeyPress<C: ElementGroup>(_ registration: KeyPressRegistration,
+                                                        to chain: ModifiedContent<C, ModifierLayer>)
+        -> ModifiedContent<C, ModifierLayer> {
+        let h = registration.handler
+        return chain.addingKeyPress(h.phases, h.filter, h.action)
+    }
+
     /// The layer's own `.id(_:)` name, read when the chain mints its ids
     /// (`MC-C`).
     public var _elementID: ElementID? {
@@ -513,6 +543,21 @@ extension ModifiedContent: ProposalElementGroup, ProposalElement
 }
 
 extension LayoutModifier: ModifierLayerKind {
+    /// The proposal chain's fold (`KF-AD`): the handler joins the outermost `keyboard` layer, or adds one.
+    public static func _addingKeyPress<C: ElementGroup>(_ registration: KeyPressRegistration,
+                                                        to chain: ModifiedContent<C, LayoutModifier>)
+        -> ModifiedContent<C, LayoutModifier> {
+        var copy = chain
+        if case var .keyboard(layer) = copy.outermost, layer.presses != nil {
+            layer.add(registration.handler)
+            copy.outermost = .keyboard(layer)
+        } else {
+            copy.inner.append(copy.outermost)
+            copy.outermost = .keyboard(KeyboardLayer(presses: [registration.handler]))
+        }
+        return copy
+    }
+
     /// A proposal layer has no `.id(_:)`: always `nil`, and a write is dropped.
     public var _elementID: ElementID? {
         get { nil }

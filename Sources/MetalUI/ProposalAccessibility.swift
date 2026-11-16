@@ -78,6 +78,39 @@ public struct AccessibilityModifier<Content: ProposalElementGroup>: Element {
         change(&copy.handlers)
         return copy
     }
+
+    /// `onKeyPress` joins the wrapper's own handlers (ruling `KF-AE`): the wrapper registers them at its bounds, as a
+    /// `KeyboardModifier` does, and is not focusable.
+    public typealias KeyPressed = AccessibilityModifier<Content>
+
+    /// This wrapper with the handler added to the ones it registers.
+    public func _addingKeyPress(_ registration: KeyPressRegistration) -> AccessibilityModifier<Content> {
+        declaring { $0.keyboard = KeyboardAttachment.adding(registration.handler, to: $0.keyboard) }
+    }
+}
+
+extension AccessibilityModifier: KeyboardLayerHolder {
+    mutating func takeKeyPresses() -> [KeyPressHandler]? {
+        guard let kb = handlers.keyboard, !kb.keyPresses.isEmpty else { return nil }
+        handlers.keyboard = KeyboardAttachment.make(
+            keyPresses: [], focusInteractions: kb.focusInteractions, isKeyRegion: kb.isKeyRegion,
+            resignsOnPress: kb.resignsOnPress, clipboard: kb.clipboard)
+        return kb.keyPresses
+    }
+}
+
+extension AccessibilityModifier: _KeyPressFolding {
+    /// The wrapper with `change` applied to its handlers as a keyboard layer. Framework entry point, not for callers.
+    public func _foldingKeyboardLayer(_ change: (inout KeyboardLayer) -> Void) -> Self {
+        var layer = KeyboardLayer(presses: handlers.keyboard?.keyPresses ?? [])
+        change(&layer)
+        return declaring {
+            $0.keyboard = KeyboardAttachment.make(
+                keyPresses: layer.presses ?? [], focusInteractions: $0.keyboard?.focusInteractions,
+                isKeyRegion: $0.keyboard?.isKeyRegion ?? false, resignsOnPress: $0.keyboard?.resignsOnPress ?? false,
+                clipboard: $0.keyboard?.clipboard)
+        }
+    }
 }
 
 extension AccessibilityModifier: ProposalElement {}

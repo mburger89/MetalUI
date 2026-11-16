@@ -33,6 +33,19 @@ public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Ele
     public var overlay: Overlay
     /// Where the overlay sits within the primary's bounds.
     public var alignment: ProposalAlignment
+    /// The `onKeyPress` handlers written on this modifier (ruling `KF-AE`), registered at its bounds: both sides are
+    /// descendants, so they hear what the primary's and the overlay's focused elements pass on.
+    var keyPresses: [KeyPressHandler] = []
+
+    /// `onKeyPress` joins the modifier's own handlers: no wrapper element (ruling `KF-AE`).
+    public typealias KeyPressed = OverlayModifier<Content, Overlay>
+
+    /// This modifier with the handler added.
+    public func _addingKeyPress(_ registration: KeyPressRegistration) -> OverlayModifier<Content, Overlay> {
+        var copy = self
+        copy.keyPresses.append(registration.handler)
+        return copy
+    }
 
     /// An overlay above `content`, SwiftUI's `.overlay(alignment:content:)`
     /// (`MC-P`, `LR-FX`). A primary of zero or several nodes traps naming the
@@ -124,8 +137,20 @@ public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Ele
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> (Content.GroupPrepaint, Overlay.GroupPrepaint) {
-        (content.prepaintGroup(layout: &layout.content, pass: &pass),
-         overlay.prepaintGroup(layout: &layout.overlay, pass: &pass))
+        guard !keyPresses.isEmpty else {
+            return (content.prepaintGroup(layout: &layout.content, pass: &pass),
+                    overlay.prepaintGroup(layout: &layout.overlay, pass: &pass))
+        }
+        var handlers = Handlers()
+        handlers.keyboard = KeyboardAttachment(keyPresses: keyPresses)
+        let frame = pass.frame
+        // As a `KeyboardModifier` registers (`GX-P` item 1); the handlers are the modifier's own, not focusable.
+        return frame.sharingRegistrationsWithEffects(at: bounds, register: {
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil, synthesizesAccessibility: false)
+        }, content: {
+            (content.prepaintGroup(layout: &layout.content, pass: &pass),
+             overlay.prepaintGroup(layout: &layout.overlay, pass: &pass))
+        })
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
@@ -151,6 +176,14 @@ extension OverlayModifier: ProposalElementGroup, ProposalElement
                                                                                 pass: &pass)
         let node = attach(contentNodes.map(\.layoutNodeID), overlayNodes.map(\.layoutNodeID), pass: &pass)
         return (ProposalNodeID(node), Layout(node: node, content: contentLayout, overlay: overlayLayout))
+    }
+}
+
+extension OverlayModifier: KeyboardLayerHolder where Content: ProposalElementGroup, Overlay: ProposalElementGroup {
+    mutating func takeKeyPresses() -> [KeyPressHandler]? {
+        guard !keyPresses.isEmpty else { return nil }
+        defer { keyPresses = [] }
+        return keyPresses
     }
 }
 
