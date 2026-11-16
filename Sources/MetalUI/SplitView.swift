@@ -104,15 +104,23 @@ enum SplitSolver {
     /// its limits; every other pane keeps its size.
     static func dragged(_ start: SplitDragSnapshot, by translation: Double) -> [Double] {
         let a = start.index, b = start.index + 1
-        guard start.sizes.indices.contains(b) else { return start.sizes }
+        guard start.sizes.indices.contains(b), let range = movableRange(start) else { return start.sizes }
+        let total = start.sizes[a] + start.sizes[b]
+        var sizes = start.sizes
+        sizes[a] = Swift.min(Swift.max(start.sizes[a] + translation, range.lowerBound), range.upperBound)
+        sizes[b] = total - sizes[a]
+        return sizes
+    }
+
+    /// The sizes the pane before divider `start.index` can take with its pair's total fixed: both panes within their
+    /// limits (`HS-D`). `nil` when the limits leave no room (a drag then changes nothing).
+    static func movableRange(_ start: SplitDragSnapshot) -> ClosedRange<Double>? {
+        let a = start.index, b = start.index + 1
+        guard start.sizes.indices.contains(b) else { return nil }
         let total = start.sizes[a] + start.sizes[b]
         let low = Swift.max(start.minimums[a], total - start.maximums[b])
         let high = Swift.min(start.maximums[a], total - start.minimums[b])
-        var sizes = start.sizes
-        guard low <= high else { return sizes }
-        sizes[a] = Swift.min(Swift.max(start.sizes[a] + translation, low), high)
-        sizes[b] = total - sizes[a]
-        return sizes
+        return low <= high ? low...high : nil
     }
 }
 
@@ -287,6 +295,10 @@ struct SplitDivider: Component, ProposalElementGroup {
 
     var axis: ProposalStackAxis
     var style = SplitDividerStyle()
+    /// The accessibility element's handler (`HS-K`): answers a query, sets the size of the pane before the divider.
+    var accessibility: ActionHandler? = nil
+    /// The element's `AXIdentifier` (`HS-K`), from `splitViewDividerIdentifier(_:)`.
+    var identifier: String? = nil
     var onChanged: @MainActor (DragGesture.Value) -> Void
     var onEnded: @MainActor (DragGesture.Value) -> Void
     var onCancelled: @MainActor () -> Void
@@ -307,6 +319,13 @@ struct SplitDivider: Component, ProposalElementGroup {
                            height: vertical ? nil : hit)
                     .gesture(drag)
                     .pointerStyle(vertical ? .columnResize : .rowResize)
+                    // The divider's accessibility element (`HS-K`): `AXSplitter`, on the hit area, as the probe's
+                    // `NSSplitViewSplitter` is on the divider.
+                    .accessibilityWrapper { handlers in
+                        handlers.axNode.roleHint = .splitter
+                        if let accessibility { handlers.actions[ObjectIdentifier(SplitterAccessibility.self)] = accessibility }
+                        if let identifier { handlers.axNode.declarations.identifier = identifier }
+                    }
             }
     }
 }
@@ -320,6 +339,8 @@ struct SplitEngine<Content: ProposalElementGroup> {
     var axis: ProposalStackAxis
     var autosaveName: String?
     var store: (any SplitViewAutosaveStore)?
+    /// `splitViewDividerIdentifier(_:)`: the prefix of each divider's accessibility identifier (`HS-K`).
+    var dividerIdentifier: String?
     var dividers = ArrayGroup<SplitDivider>([])
 
     struct Layout {
@@ -347,8 +368,14 @@ struct SplitEngine<Content: ProposalElementGroup> {
         let store = effectiveStore
         let axis = self.axis
         let style = pass.frame.environmentTop.splitDividerStyle
+        let prefix = dividerIdentifier
         dividers = ArrayGroup((0..<Swift.max(0, paneNodes.count - 1)).map { index in
             SplitDivider(axis: axis, style: style,
+                         accessibility: { action in
+                             Self.accessibility(action as! SplitterAccessibility, index: index, axis: axis, report: report,
+                                                name: name, store: store, model: model)
+                         },
+                         identifier: prefix.map { "\($0).\(index)" },
                          onChanged: { Self.dragChanged($0, index: index, axis: axis, report: report, model: model) },
                          onEnded: { Self.dragEnded($0, axis: axis, name: name, store: store, model: model) },
                          onCancelled: { var m = model.wrappedValue; m.drag = nil; model.wrappedValue = m })
@@ -360,6 +387,35 @@ struct SplitEngine<Content: ProposalElementGroup> {
                                  thickness: style.thickness, report: report)
         let node = pass.requestNativeLayout(layout, children: paneNodes + dividerNodes)
         return (node, Layout(node: node, panes: paneLayout, dividers: dividerLayout))
+    }
+
+    /// A divider's accessibility element (`HS-K`). A query reads the sizes the layout placed last; a set moves the divider
+    /// as a drag does (`SplitSolver.dragged`, so the panes' limits hold), writes the sizes as state and, once, the autosave
+    /// entry. A value above the pair's total is ignored, as `NSSplitViewSplitter` ignores one (probe); one below the
+    /// pane's minimum clamps to it.
+    private static func accessibility(_ action: SplitterAccessibility, index: Int, axis: ProposalStackAxis,
+                                      report: SplitReport, name: String?, store: any SplitViewAutosaveStore,
+                                      model: Binding<SplitModel>) {
+        guard let snapshot = report.snapshot(at: index) else {
+            if case .query(let answer) = action.request { answer.isVertical = axis == .horizontal }
+            return
+        }
+        let total = snapshot.sizes[index] + snapshot.sizes[index + 1]
+        switch action.request {
+        case .query(let answer):
+            answer.value = snapshot.sizes[index]
+            answer.total = total
+            answer.isVertical = axis == .horizontal
+            answer.canMove = SplitSolver.movableRange(snapshot).map { $0.lowerBound < $0.upperBound } ?? false
+        case .set(let value):
+            guard value <= total else { return }
+            let sizes = SplitSolver.dragged(snapshot, by: value - snapshot.sizes[index])
+            guard sizes != snapshot.sizes else { return }
+            var state = model.wrappedValue
+            state.sizes = sizes
+            model.wrappedValue = state
+            if let name { store.setPaneSizes(sizes, forName: name) }
+        }
     }
 
     /// Writes state from input only (the first event keeps the snapshot, later ones the sizes).
@@ -429,6 +485,16 @@ public struct HSplitView<Content: ProposalElementGroup>: Element, ProposalElemen
         return copy
     }
 
+    /// Gives each divider an accessibility identifier, `prefix` then `.` then its index from 0 (MetalUI-only, ruling
+    /// `HS-K`): SwiftUI exposes no way to name a split view's divider (probe `swiftui-split-divider-ax.swift`, arm I), and
+    /// `.accessibilityIdentifier` on the split view does not reach it. Published as `AXIdentifier` (AppKit) and
+    /// `author_id` (AccessKit). Write it directly on the split view, before other modifiers.
+    public func splitViewDividerIdentifier(_ prefix: String) -> Self {
+        var copy = self
+        copy.engine.dividerIdentifier = prefix
+        return copy
+    }
+
     /// The split view's layout record.
     public struct Layout { var engine: SplitEngine<Content>.Layout }
     /// The split view's prepaint record.
@@ -469,6 +535,13 @@ public struct VSplitView<Content: ProposalElementGroup>: Element, ProposalElemen
         var copy = self
         copy.engine.autosaveName = name
         copy.engine.store = store
+        return copy
+    }
+
+    /// As ``HSplitView/splitViewDividerIdentifier(_:)``.
+    public func splitViewDividerIdentifier(_ prefix: String) -> Self {
+        var copy = self
+        copy.engine.dividerIdentifier = prefix
         return copy
     }
 

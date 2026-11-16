@@ -26,3 +26,29 @@ struct AccessibilityRowSelection: Action {
 struct AccessibilityDisclosure: Action {
     let expand: Bool
 }
+
+/// What the tree builder and `Window` send a split view's divider (ruling `HS-K`): `.query` fills the answer the divider
+/// publishes (its value, its range, its orientation, whether it can move), `.set` moves it as a drag would. Internal.
+///
+/// An `Action`, so it rides the registry and its disabled gate as `AccessibilityDisclosure` does: a divider in a
+/// disabled subtree registers none, so it publishes no value to set and a set request is refused.
+struct SplitterAccessibility: Action {
+    enum Request {
+        case query(Answer)
+        case set(Double)
+    }
+
+    /// What a query fills. A class, so the handler (which returns `Void`) can hand it back.
+    final class Answer {
+        /// The size in points of the pane before the divider (`AXValue`, probe `swiftui-split-divider-ax.swift`).
+        var value = 0.0
+        /// The sum of the two panes either side (`AXMaxValue`; the minimum is 0).
+        var total = 0.0
+        /// Whether the divider's line is vertical (an `HSplitView`'s).
+        var isVertical = true
+        /// Whether a drag could move the divider at all (the panes' limits leave it room).
+        var canMove = false
+    }
+
+    let request: Request
+}

@@ -27,6 +27,8 @@ final class AccessKitAdapter: @unchecked Sendable {
         case action(AccessKitSnapshot.Action, UInt64)
         /// A custom action on a node, with its index (`IX-AD`).
         case customAction(UInt64, Int)
+        /// A `SET_VALUE` on a node, with its numeric value (`HS-K`).
+        case setValue(UInt64, Double)
     }
 
     /// `nativeWindow` is `mui_window_native_handle`'s answer — required on
@@ -164,6 +166,12 @@ final class AccessKitAdapter: @unchecked Sendable {
     /// it. Pure, so a test can hand it a request as AccessKit builds one.
     static func queued(from request: accesskit_action_request) -> Queued? {
         guard let action = AccessKitSnapshot.action(request.action) else { return nil }
+        // A set-value names the number in the action data (`HS-K`); one without it names no action at all.
+        if action == .setValue {
+            guard request.data.has_value, request.data.value.tag == ACCESSKIT_ACTION_DATA_NUMERIC_VALUE
+            else { return nil }
+            return .setValue(request.target_node, request.data.value.numeric_value)
+        }
         guard action == .customAction else { return .action(action, request.target_node) }
         // A custom action names its index in the action data (`IX-AD`); one
         // without it names no action at all.
@@ -221,6 +229,14 @@ final class AccessKitAdapter: @unchecked Sendable {
             accesskit_node_set_min_numeric_value(out, 0)
             accesskit_node_set_max_numeric_value(out, 1)
         }
+        if let range = node.range {   // HS-K: a split divider's 0...(its pair's total)
+            accesskit_node_set_min_numeric_value(out, range.lowerBound)
+            accesskit_node_set_max_numeric_value(out, range.upperBound)
+        }
+        if let orientation = node.orientation {
+            accesskit_node_set_orientation(out, UInt8(orientation == .vertical ? ACCESSKIT_ORIENTATION_VERTICAL.rawValue
+                                                                              : ACCESSKIT_ORIENTATION_HORIZONTAL.rawValue))
+        }
         if let rowCount = node.rowCount { accesskit_node_set_row_count(out, rowCount) }
         if let rowIndex = node.rowIndex { accesskit_node_set_row_index(out, rowIndex) }
         if let level = node.level { accesskit_node_set_level(out, level) }          // `OG-F`: a tree item's level
@@ -267,6 +283,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .tree: ACCESSKIT_ROLE_TREE.rawValue
         case .treeItem: ACCESSKIT_ROLE_TREE_ITEM.rawValue
         case .cell: ACCESSKIT_ROLE_CELL.rawValue
+        case .splitter: ACCESSKIT_ROLE_SPLITTER.rawValue
         }
         return UInt8(value)
     }
@@ -281,6 +298,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .showContextMenu: ACCESSKIT_ACTION_SHOW_CONTEXT_MENU.rawValue
         case .expand: ACCESSKIT_ACTION_EXPAND.rawValue
         case .collapse: ACCESSKIT_ACTION_COLLAPSE.rawValue
+        case .setValue: ACCESSKIT_ACTION_SET_VALUE.rawValue
         }
         return UInt8(value)
     }
@@ -289,7 +307,8 @@ final class AccessKitAdapter: @unchecked Sendable {
 extension AccessKitSnapshot {
     /// The snapshot action an AccessKit action code means, if MetalUI has one.
     static func action(_ code: UInt8) -> Action? {
-        [Action.click, .focus, .increment, .decrement, .customAction, .showContextMenu, .expand, .collapse]
+        [Action.click, .focus, .increment, .decrement, .customAction, .showContextMenu, .expand, .collapse,
+         .setValue]
             .first { AccessKitAdapter.code($0) == code }
     }
 }

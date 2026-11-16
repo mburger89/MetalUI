@@ -406,6 +406,9 @@ enum AXRoleHint: Equatable, Sendable {
     case determinate, busy
     /// A `DisclosureGroup`'s label row.
     case disclosureTriangle
+    /// A split view's divider (`HS-K`): published as `.splitter` where the node would otherwise be a group, its value, range,
+    /// orientation and enabled state read from its `SplitterAccessibility` handler at build time.
+    case splitter
 }
 
 /// An outline list's accessibility hint (`OG-F`): packed into three bytes (`AXNode.outlineHint`).

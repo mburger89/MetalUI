@@ -352,6 +352,31 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     override func setAccessibilityFocused(_ focused: Bool) {
         mainActorAnswer(self, fallback: ()) { $0.requestFocus(focused) }
     }
+    // A split view's divider (`HS-K`, probe `swiftui-split-divider-ax.swift`): `AXMinValue` 0, `AXMaxValue` the pair's total,
+    // `AXOrientation`, and a settable `AXValue`, as `NSSplitViewSplitter` answers.
+    override func accessibilityMinValue() -> Any? {
+        mainActorAnswer(self, fallback: nil) { $0.node.numericRange.map { NSNumber(value: $0.lowerBound) } }
+    }
+    override func accessibilityMaxValue() -> Any? {
+        mainActorAnswer(self, fallback: nil) { $0.node.numericRange.map { NSNumber(value: $0.upperBound) } }
+    }
+    override func accessibilityOrientation() -> NSAccessibilityOrientation {
+        mainActorAnswer(self, fallback: .unknown) { element in
+            switch element.node.orientation {
+            case .vertical?: .vertical
+            case .horizontal?: .horizontal
+            case nil: .unknown
+            }
+        }
+    }
+    override func setAccessibilityValue(_ value: Any?) {
+        // Boxed for the hop's `Sendable` check, as `setAccessibilitySelectedRows` does.
+        let boxed = MainThreadAnswer(value: (value as? NSNumber)?.doubleValue)
+        mainActorAnswer(self, fallback: ()) { element in
+            guard let number = boxed.value else { return }
+            _ = element.perform(.setValue, .setValue(element.id, number))
+        }
+    }
     override func accessibilityPerformPress() -> Bool {
         mainActorAnswer(self, fallback: false) { $0.perform(.press, .press($0.id)) }
     }
@@ -470,6 +495,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .disclosureTriangle: .disclosureTriangle
         // A group row of an outline holds its triangle in one cell (`OG-F`, probe `P-A`).
         case .cell: .cell
+        case .splitter: .splitter
         }
     }
 
@@ -567,7 +593,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         let node = node
         guard let string = node.value else { return nil }
         switch node.role {
-        case .checkBox, .radioButton, .slider, .incrementor, .menuItemCheckBox, .progressIndicator:
+        case .checkBox, .radioButton, .slider, .incrementor, .menuItemCheckBox, .progressIndicator, .splitter:
             if let number = Double(string) { return NSNumber(value: number) }
             return string
         default:
@@ -654,6 +680,11 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
              #selector(NSAccessibilityElement.accessibilityVisibleRows):
             node.role == .table
         case #selector(NSAccessibilityElement.accessibilityIndex): node.role == .row
+        // A split divider's range, orientation and settable value (`HS-K`); every other node keeps the default answer.
+        case #selector(NSAccessibilityElement.accessibilityMinValue),
+             #selector(NSAccessibilityElement.accessibilityMaxValue): node.numericRange != nil ? true : nil
+        case #selector(NSAccessibilityElement.accessibilityOrientation): node.orientation != nil ? true : nil
+        case #selector(NSAccessibilityElement.setAccessibilityValue(_:)): node.role == .splitter ? allows(.setValue) : nil
         // An outline row's disclosure attributes (`OG-F`): only a row inside an outline has them; `AXDisclosing` is
         // settable only on a group row the window would expand or collapse (a disabled list advertises neither).
         case #selector(NSAccessibilityElement.accessibilityDisclosureLevel),

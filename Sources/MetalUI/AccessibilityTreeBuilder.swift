@@ -138,6 +138,8 @@ enum AccessibilityTreeBuilder {
         let defaultAction = ObjectIdentifier(AccessibilityDefaultAction.self)
         let namedAction = ObjectIdentifier(AccessibilityNamedAction.self)
         let disclosure = ObjectIdentifier(AccessibilityDisclosure.self)
+        let splitter = ObjectIdentifier(SplitterAccessibility.self)
+        var splitters: [GlobalElementID: SplitterAccessibility.Answer] = [:]
         var state: [GlobalElementID: Resolving] = [:]
         state.reserveCapacity(order.count)
         for (position, id) in order.enumerated() {
@@ -164,8 +166,19 @@ enum AccessibilityTreeBuilder {
                 actions.insert(outline.state == .collapsed ? .expand : .collapse)
             }
             let names = focusRegistry.actionHandler(for: id, type: namedAction) != nil ? declarations.actionNames : []
+            // A split view's divider (`HS-K`): its value, range and orientation come from its own handler's answer; it
+            // is settable while it can move, and a divider that cannot is disabled and advertises nothing.
+            var value = record.declared.value
+            if record.declared.roleHint == .splitter,
+               let handler = focusRegistry.actionHandler(for: id, type: splitter) {
+                let answer = SplitterAccessibility.Answer()
+                handler(SplitterAccessibility(request: .query(answer)))
+                splitters[id] = answer
+                value = Self.formatted(answer.value)
+                if answer.canMove, record.isEnabled { actions.insert(.setValue) }
+            }
             state[id] = Resolving(record: record, position: position, role: record.declared.role,
-                                  label: record.declared.label, value: record.declared.value,
+                                  label: record.declared.label, value: value,
                                   hint: declarations.hint, identifier: declarations.identifier,
                                   actions: actions, isFocusable: focusRegistry.isFocusable(id),
                                   hasDeclaredAction: record.declaresAction,
@@ -255,7 +268,8 @@ enum AccessibilityTreeBuilder {
                 value: node.value,
                 isSelected: declared.traits.contains(.selected) || declared.selectionHint
                     || node.traits.contains(.isSelected),
-                isEnabled: node.record.isEnabled && !declared.traits.contains(.disabled),
+                isEnabled: node.record.isEnabled && !declared.traits.contains(.disabled)
+                    && (splitters[id]?.canMove ?? true),
                 isFocusable: node.isFocusable,
                 actions: node.actions,
                 children: kids,
@@ -268,7 +282,10 @@ enum AccessibilityTreeBuilder {
                 isOutline: publishedRole == .table && outline?.state == .list,
                 outlineLevel: isRow.map { Int($0.level) },
                 isExpanded: isRow.flatMap { $0.state == .leaf ? nil : $0.state == .expanded },
-                disclosedBy: isRow == nil ? nil : disclosedBy[id].map(AccessibilityNodeID.init))
+                disclosedBy: isRow == nil ? nil : disclosedBy[id].map(AccessibilityNodeID.init),
+                numericRange: publishedRole == .splitter ? splitters[id].map { 0...$0.total } : nil,
+                orientation: publishedRole == .splitter
+                    ? splitters[id].map { $0.isVertical ? .vertical : .horizontal } : nil)
             if !node.customTargets.isEmpty { result.customActions[id] = node.customTargets }
             geometry[nodeID] = placedGeometry
         }
@@ -279,6 +296,12 @@ enum AccessibilityTreeBuilder {
         result.tree = AccessibilityTree(roots: publishedRoots.map(AccessibilityNodeID.init), nodes: nodes,
                                         geometry: geometry, focused: published)
         return result
+    }
+
+    /// A divider's size as the string a client reads: whole points without a fraction (`133`, as the probe read), else the
+    /// shortest decimal.
+    private static func formatted(_ points: Double) -> String {
+        points == points.rounded() && abs(points) < 1e15 ? String(Int(points)) : String(points)
     }
 
     /// Each outline row's disclosed-by row among a list's published rows, in order (`OG-F`): the nearest preceding row
@@ -691,8 +714,10 @@ enum AccessibilityTreeBuilder {
         if node.record.declared.colorWellHint, role == .button { role = .colorWell }
         // A `DisclosureGroup`'s label row (`OG-F`): a button with the hint, its value `"1"` or `"0"`.
         if node.record.declared.roleHint == .disclosureTriangle, role == .button { role = .disclosureTriangle }
+        // A split view's divider (`HS-K`): a group with the hint.
+        if node.record.declared.roleHint == .splitter, role == .group { role = .splitter }
         // A `ProgressView`'s indicator (`LK-G`, V7, V8): a group with the hint.
-        if let hint = node.record.declared.roleHint, hint != .disclosureTriangle, role == .group {
+        if let hint = node.record.declared.roleHint, hint != .disclosureTriangle, hint != .splitter, role == .group {
             role = hint == .determinate ? .progressIndicator : .busyIndicator
         }
         return role
