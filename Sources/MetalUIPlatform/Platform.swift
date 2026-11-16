@@ -146,6 +146,12 @@ public protocol PlatformWindow: AnyObject {
     /// `.textInput`, not `.keyDown`. No default implementation, on purpose.
     func setTextInputArea(_ caret: Bounds<Pixels>?)
 
+    /// Hints that both Option (Alt) keys act as meta while `raw` is `true` (ruling `TRM-X`, sent by `Window` while
+    /// a `keyCapture(optionAsMeta: true)` layer holds focus): the platform stops routing Option combinations
+    /// through the input context, so dead keys and the character palette are bypassed for them. Input methods
+    /// and marked text are otherwise untouched. **Defaulted to a no-op**, so a conformer compiles unchanged.
+    func setRawOptionKeys(_ raw: Bool)
+
     /// The system clipboard's plain text, if it holds any (ruling TI-A).
     func readClipboard() -> String?
 
@@ -753,6 +759,9 @@ extension Platform {
 }
 
 extension PlatformWindow {
+    /// The default: nothing to do (`TRM-X`).
+    public func setRawOptionKeys(_ raw: Bool) {}
+
     /// The default: the platform cannot show a backdrop (`WB-C`).
     public func setWindowBackdrop(_ backdrop: WindowBackdrop) -> Bool { false }
 }

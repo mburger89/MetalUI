@@ -187,6 +187,15 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
         addingKeyPress(phases, .any, action)
     }
 
+    /// Makes this layer a key capture layer — `StyledElement.keyCapture(except:optionAsMeta:)`'s rules
+    /// (ruling `TRM-U`); `Self`, so the chain stays one layer.
+    public func keyCapture(except shortcuts: [KeyboardShortcut] = [], optionAsMeta: Bool = false) -> Self {
+        handling {
+            $0.keyboard = KeyboardAttachment.adding(
+                KeyCapture(exceptions: shortcuts, optionAsMeta: optionAsMeta).marker, to: $0.keyboard)
+        }
+    }
+
     /// Makes this layer focusable (or not) with the automatic interactions —
     /// `StyledElement.focusable(_:)`'s rules (a primary press focuses it,
     /// `FC-A`). A later `focusable` replaces it.

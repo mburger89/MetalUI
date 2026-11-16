@@ -62,4 +62,11 @@ extension ElementGroup {
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> KeyPressed {
         addingKeyPress(phases, .any, action)
     }
+
+    /// `StyledElement.keyCapture(except:optionAsMeta:)` on any `ElementGroup` (ruling `TRM-U`): on the layer
+    /// this group owns where it has one, else on one wrapper layer, as `onKeyPress` (`KF-AC`, `KF-AE`).
+    @_disfavoredOverload
+    public func keyCapture(except shortcuts: [KeyboardShortcut] = [], optionAsMeta: Bool = false) -> KeyPressed {
+        _addingKeyPress(KeyPressRegistration(KeyCapture(exceptions: shortcuts, optionAsMeta: optionAsMeta).marker))
+    }
 }

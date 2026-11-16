@@ -10,6 +10,8 @@ Rulings: `docs/superpowers/2026-11-16-terminal-decisions.md`; frozen and draft s
 
 **Key capture** (`TRM-D`). A capture layer hears a key before every other stage, `except` shortcuts skip it, and a key answered `.ignored` (including every key that encodes to nothing) goes through the unchanged pipeline from its first stage. Option-as-meta covers both Option keys and bypasses dead keys while on; nothing is captured while marked text composes.
 
+**Key capture, built** (`TRM-U`..`TRM-Y`, record 338). `keyCapture(except:optionAsMeta:)` marks the keyboard layer of the `onKeyPress` handlers it sits with (a marker handler on `KeyboardAttachment.capture`, not a `Handlers` member); `Window.dispatchKeyCapture` is the first key stage and offers the key once, outermost layer first; `except` and marked text skip it; `PlatformWindow.setRawOptionKeys(_:)` follows focus and bypasses `inputContext` for Option on AppKit (Alt on SDL).
+
 **Platforms** (`TRM-E`). Windows 10 1809+ and Linux 5.3+ (pidfd); the Windows default shell is `pwsh` else `powershell`; on Windows `.interrupt` writes 0x03 and the other signals terminate the job object, and there is no foreground group.
 
 **Storage** (`TRM-F`). A row is UTF-8 text plus run-length attribute spans, copy-on-write, never a struct or `Character` per cell; scrollback is a ring of compacted rows, and a 10 000 x 120 ASCII scrollback is proved under 4 MB by a counted byte census.

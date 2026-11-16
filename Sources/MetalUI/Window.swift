@@ -606,6 +606,7 @@ public final class Window {
     /// frame's decision is still about the current focus".
     public private(set) var focusedElement: GlobalElementID? {
         didSet {
+            syncRawOptionKeys()   // `TRM-X`
             // A composition does not survive its field losing focus (ruling
             // `IM-I`): AppKit discards the input context's marked text and
             // sends nothing, so the stored composition is dropped here.
@@ -675,6 +676,13 @@ public final class Window {
     /// against a clock read here — see `KeyEvent.timestamp` for the bug that
     /// rule exists to avoid.
     private var pendingStroke: PendingStroke?
+
+    /// The capture layers the current key event was offered to (`TRM-U`): `dispatchKeyPress` skips them, so a
+    /// handler that answered `.ignored` to capture is not offered the same key again.
+    var keyCaptureOffered: Set<GlobalElementID> = []
+
+    /// The last `setRawOptionKeys` hint sent to the platform (`TRM-X`).
+    var sentRawOptionKeys = false
 
     /// An action nothing along the focus chain handled.
     ///
@@ -1305,6 +1313,13 @@ public final class Window {
             switch event {
             case .keyDown, .keyUp: keyChain = self.keyChain
             default: keyChain = []
+            }
+            // A key capture layer on the focus chain hears the key before every stage below (rulings `TRM-U`,
+            // `TRM-D`): the keymap, `onKeyPress`'s command decline, a field's keys, `onKey`, the clipboard,
+            // shortcuts, commands, F10, Tab and `onInput`. `.ignored` falls through to the first of them.
+            if self.dispatchKeyCapture(event) {
+                self.setNeedsRedraw()
+                return true
             }
             if self.dispatchAction(event, along: keyChain) {
                 self.setNeedsRedraw()
@@ -2241,6 +2256,7 @@ public final class Window {
         lastFrameStartCapacities = frame.startCapacities
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
         lastFocusRegistry = frame.focusRegistry
+        syncRawOptionKeys()   // `TRM-X`
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastContextMenus = frame.contextMenuRecords
         lastPresentationAnchors = frame.presentationAnchors
@@ -3636,7 +3652,7 @@ public final class Window {
         platformWindow.setTextInputArea(area)
     }
 
-    private func editState(_ id: GlobalElementID) -> TextEditState {
+    func editState(_ id: GlobalElementID) -> TextEditState {
         var state = TextEditState()
         stateTable.withState(id, initial: TextEditState()) { state = $0 }
         return state
@@ -3831,7 +3847,7 @@ public final class Window {
            let shortcuts = commandShortcuts?(), shortcuts.contains(where: { $0.0.matches(key) }) { return false }
         let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
                              modifiers: key.modifiers)
-        return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry)
+        return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry, skipping: keyCaptureOffered)
     }
 
     /// A typed character on a focused field, offered to `onKeyPress` before

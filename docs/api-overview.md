@@ -674,6 +674,18 @@ macOS) is not one of a `TextEditor`'s editing keys, so a declined one reaches
 the window; plain Return still breaks the line (`KF-Z` item 2). The demo:
 `METALUI_KEY_FOCUS_DEMO=1`.
 
+**Key capture** (`TRM-U`..`TRM-Y`, record 338, M; Alloy's terminal gap 3).
+`keyCapture(except: [KeyboardShortcut] = [], optionAsMeta: Bool = false)` joins the keyboard
+layer of the `onKeyPress` handlers it is written with, on every conformer family `onKeyPress`
+joins (`StyledElement`, `KeyboardModifier`, a proposal chain, any `ElementGroup`). While the
+focus chain holds that layer its handlers hear every key **first**: before the keymap, the
+command decline, a field's keys, `onKey`, the clipboard, `Button` and `CommandMenu` shortcuts,
+F10, Tab and, on AppKit, the main menu. `.handled` ends the event; `.ignored` sends it through
+the unchanged pipeline (the handler is offered it once). A key matching `except` (`.primary`
+per platform) and any key while marked text composes skip capture. `optionAsMeta: true` hints
+the platform (`PlatformWindow.setRawOptionKeys`, a defaulted no-op) to bypass dead keys for
+both Option keys while the layer is focused. It does not make the element focusable.
+
 **Text selection** (`SL-`, record §96;
 [`superpowers/2026-10-12-text-selection-decisions.md`](superpowers/2026-10-12-text-selection-decisions.md);
 probe `probes/swiftui-text-selection.swift`). `TextSelection` (A, macOS 15: `indices`, `isInsertion`,

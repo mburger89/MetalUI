@@ -443,8 +443,7 @@ extension ModifierLayer: ModifierLayerKind {
     public static func _addingKeyPress<C: ElementGroup>(_ registration: KeyPressRegistration,
                                                         to chain: ModifiedContent<C, ModifierLayer>)
         -> ModifiedContent<C, ModifierLayer> {
-        let h = registration.handler
-        return chain.addingKeyPress(h.phases, h.filter, h.action)
+        return chain.addingKeyPress(registration.handler)
     }
 
     /// The layer's own `.id(_:)` name, read when the chain mints its ids
