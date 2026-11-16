@@ -1,7 +1,7 @@
 # Split views - decisions
 
 Rulings for `HSplitView` / `VSplitView` (MetalFlow's palette | canvas | inspector layout). Prefix `HS-`. Branch `feat/mf-split`. Code: `Sources/MetalUI/SplitView.swift`; tests:
-`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-L`.** Divergence 206 (the orchestrator moves the label if another branch took it).
+`Tests/MetalUITestingTests/SplitViewTests.swift` (portable, plain imports). **Next unused: `HS-M`.** Divergence 206 (the orchestrator moves the label if another branch took it).
 
 ## HS-A - the shape: two ProposalElements over one engine, class D not A
 
@@ -96,6 +96,10 @@ MetalUI matches: each `SplitDivider` records an element (the proposal-path acces
 **Differences kept, in divergence 206's row, no new label.** The element's frame is the 6-point hit area, not the 1-point line; the dividers are published after the panes, not interleaved with them (the tree order is the registration order: panes, then dividers); an immovable divider is disabled (see above); a hidden divider (`splitViewDivider(.hidden)`) is still an element. VoiceOver's own keyboard resize is not measurable by an agent (human check HS1).
 
 **Pins.** `SplitDividerAccessibilityTests`, `SplitDividerAppKitAccessibilityTests`, `AccessKitSplitterTests` (SDL package). Mutations are listed in record 324.
+
+## HS-L - a divider's drag, pointer and accessibility element are one wrapper (record 326, amends `HS-K`'s mechanism)
+
+`HS-K` put the `AXSplitter` on a separate `accessibilityWrapper` over the hit area's gesture and pointer-style wrappers. Each is an `Element` entered, and counted in `Frame.elementRequests`, on every frame: a split view's steady frame cost one request per divider more than before `HS-K` (nested `HSplitView` over a `VSplitView`, four dividers: 39 at f9e2af33, 43 after #327). **Ruling.** `SplitDividerHitArea`, one proposal wrapper, registers the drag gesture, the resize `PointerAttachment`, the `.splitter` role hint, the `SplitterAccessibility` action and the identifier in ONE `Handlers` at the hit area's bounds (the same recipe `GestureModifier` and `AccessibilityModifier` each use for their half). That is two wrappers fewer than the three it replaces: the same frame costs 35, below the 39 before. Behaviour is unchanged (every `HS-K` test stays green); identifiers cost nothing. **Pins.** `TabSplitSteadyCostTests` (35; with identifiers the same).
 
 ## Mutations
 

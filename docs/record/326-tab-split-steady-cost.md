@@ -1,0 +1,9 @@
+# 326 - A menu-less `TabStrip` and an unchanged split view cost no steady-frame requests (`TBS-P`, `HS-L`)
+
+Branch `fix/tab-split-steady-cost` from master `9b612f73`. No API change, no divergence. Alloy (unchanged app code, no `tabContextMenu`, no `splitViewDividerIdentifier`) measured a steady typing frame at 90 element requests at f9e2af33 and 92 at 9b612f73 (Code-mode screens 93/110/121 to 95/113/125).
+
+**Bisect** (`TabSplitSteadyCostTests`' two shapes, three redraws then `lastFrameWork.elementRequests`; a strip of three tabs with `onCloseTab` and a selection; an `HSplitView` over a `VSplitView` of three panes, four dividers): f9e2af33 strip 70, split 39; 559b581a (#327) strip 70, split 43; 9b612f73 (#326 on top) strip 73, split 43. So #327 added one request per divider (an `AccessibilityModifier` over the gesture and pointer wrappers), #326 one per tab (a `ContextualModifier` over each cell, menu-less when the app sets no menu). Alloy's own +2 (its tab and divider counts differ from the reproduction's) was not re-measured in the app.
+
+**Fix.** `TBS-P`: with no menu `tabContextMenu` returns the receiver (an `EitherGroup`), no wrapper element. `HS-L`: `SplitDividerHitArea` registers the drag, the pointer style and the splitter element in one `Handlers`, replacing three wrappers (39 to 35, below before). After: strip 70, split 35; with identifiers set 35; with a tab menu 73 (one wrapper per tab, opt-in, pinned).
+
+**Tests** (`TabSplitSteadyCostTests`), each red under its mutation: a menu-less `ContextualModifier` again (strip 73, and the menu case 0 apart); one extra wrapper inside the hit area (split 39). The 146 TabStrip, split and context-menu tests are unchanged and green.

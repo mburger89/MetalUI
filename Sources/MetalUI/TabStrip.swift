@@ -533,13 +533,12 @@ struct TabStripFill: Component {
 
 
 extension ProposalElementGroup {
-    /// A tab's context menu on the proposal path (`TBS-O`): one `ContextualModifier` always, so the tree has one shape with
-    /// and without a menu; with none it carries a menu-less attachment, which opens nothing and shadows no outer menu.
-    func tabContextMenu(_ menu: (@MainActor () -> MenuItems)?) -> ContextualModifier<Self> {
-        let attachment: ContextualAttachment
-        if let menu { attachment = ContextualAttachment(menu: menu, help: nil) }
-        else { attachment = ContextualAttachment(locatedMenu: nil, help: nil) }
-        return ContextualModifier(content: self, attachment: attachment)
+    /// A tab's context menu on the proposal path (`TBS-O`, `TBS-P`): a `ContextualModifier` when there is a menu, the receiver
+    /// itself (no wrapper element, so no element request per frame) when there is none. A menu-less tab registers no
+    /// contextual region, so an outer `contextMenu` is not shadowed either.
+    func tabContextMenu(_ menu: (@MainActor () -> MenuItems)?) -> EitherGroup<ContextualModifier<Self>, Self> {
+        guard let menu else { return .second(self) }
+        return .first(ContextualModifier(content: self, attachment: ContextualAttachment(menu: menu, help: nil)))
     }
 }
 
