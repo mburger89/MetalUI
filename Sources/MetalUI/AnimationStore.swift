@@ -43,6 +43,10 @@ final class AnimationStore {
     /// stub the frame calls at three points; lane 3 fills it.
     let transitions = TransitionStore()
 
+    /// A content `List`'s expand/collapse splice animation (outline lane 7, `OG-P`): the last painted frame's rows and the
+    /// splice in flight, per list. Like `transitions`, never a `StateTable` entry.
+    let splices = SpliceStore()
+
     /// `matchedGeometryEffect`'s records and flights (round 3 item R3-2, `MG-A`), beside the transitions.
     let matched = MatchedGeometryStore()
 

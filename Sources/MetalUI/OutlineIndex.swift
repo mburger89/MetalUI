@@ -322,10 +322,14 @@ struct OutlineGroupSource<Data: RandomAccessCollection, ID: Hashable, Leaf: Elem
             isExpanded: { table.peek(slot, as: Bool.self) ?? false },
             set: { want in
                 guard (table.peek(slot, as: Bool.self) ?? false) != want else { return }
+                OutlineSplice.noteInput(group)   // `OG-P`
                 table.write(slot, want)
                 index.expansionGeneration &+= 1
             },
-            cascade: { want in source.cascade(from: unit, group: group, expand: want) })
+            cascade: { want in
+                OutlineSplice.noteInput(group)   // `OG-P`
+                source.cascade(from: unit, group: group, expand: want)
+            })
     }
 
     /// ⌥→ and ⌥← over the data (`P-K4`, `P-K5`): the group's slot, then every group below it. An outline's expansion is
@@ -407,6 +411,7 @@ struct OutlineGroupSource<Data: RandomAccessCollection, ID: Hashable, Leaf: Elem
                 expansion: nil, label: spec.content(element), makeContent: { OutlineSubgroupChildren() })
             body.keepsHiddenState = true
             body.onToggle = { index.expansionGeneration &+= 1 }
+            body.inputMark = OutlineScopes.group(of: node)   // `OG-P`
             var cursor = 0
             let group = body.enterComponent(under: groupBranch, at: &cursor, pass: &pass)
             if body.isExpanded != entry.isExpanded {

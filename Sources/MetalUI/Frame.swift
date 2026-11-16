@@ -4579,6 +4579,7 @@ public final class Frame {
         textSystem.endFrame()
         applyScrollResolutions()
         animationStore.transitions.endFrame(scene: scene)
+        animationStore.splices.endFrame(scene: scene, timestamp: timestamp)   // outline lane 7, `OG-P`
         animationStore.matched.endFrame()
         animationStore.endFrame()  // drops every entry this frame did not touch (AN-AB)
         animationStore.rasters.endFrame()  // drops every raster this frame did not draw (GX-K)

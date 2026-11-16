@@ -133,6 +133,7 @@ public final class Window {
         // be re-rasterized (they hold no key): they are forgotten, once, on the
         // frame the atlas was emptied (`GL-D` item 3).
         animationStore.transitions.forgetCapturedPrimitives()
+        animationStore.splices.forgetCapturedPrimitives()   // outline lane 7
         dragSession?.snapshot = []
     }
 
