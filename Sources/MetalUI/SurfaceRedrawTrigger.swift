@@ -92,6 +92,13 @@ public final class SurfaceRedrawTrigger: @unchecked Sendable {
         return wake != nil
     }
 
+    /// Whether a request was made that the window has not drained yet — its hop to the main actor is outstanding
+    /// (off Darwin a caller that is not the main thread, such as a test, hops through a `Task`).
+    package var hasUndrained: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return pending != nil
+    }
+
     /// Takes what was requested and re-arms the wake.
     package func drain() -> Pending? {
         lock.lock(); defer { lock.unlock() }

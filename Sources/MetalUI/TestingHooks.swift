@@ -372,6 +372,9 @@ extension Window {
     /// Whether a ``SurfaceRedrawTrigger`` invalidated a surface no frame has drawn yet (`TRM-P`): a test window's
     /// idle check counts it as work.
     package var testingHasPendingSurfaceRedraw: Bool { surfaceRedraw.hasPending }
+    /// Whether a trigger's request is still on its way to the main actor (`TRM-Q`): off Darwin a call from a
+    /// non-main thread hops through a `Task`, which a test must await before it ticks.
+    package var testingHasUndrainedSurfaceRequest: Bool { surfaceRedraw.hasUndrainedRequest }
     /// Surface-only frames this window presented (`TRM-P`).
     package var testingSurfaceOnlyFrames: Int { surfaceRedraw.surfaceOnlyFrames }
     /// Whether the frame the renderer is presenting (or last presented) is a surface-only one.

@@ -44,15 +44,22 @@ private let side = sz(200, 100)
     w.resetFrameWork()
 }
 
+/// Lets a trigger's hop to the main actor arrive without ticking: off Darwin the test's "main actor" is a pool
+/// thread, so `requestRedraw` hops through a `Task` that a bare `tick()` would outrun.
+@MainActor private func hopped(_ w: TestWindow) async {
+    for _ in 0..<1000 where w.window.testingHasUndrainedSurfaceRequest { await Task.yield() }
+}
+
 /// **1** A trigger's frame builds nothing: 0 builds, 0 element requests, one surface-only frame, the tree's content
 /// closure not called again, the surface drawn once. Mutation: routed through `setNeedsRedraw` (builds 1, requests > 0,
 /// no surface-only frame, the body read again).
-@MainActor @Test func aTriggerDrawsItsSurfaceInAFrameWithNoBuild() throws {
+@MainActor @Test func aTriggerDrawsItsSurfaceInAFrameWithNoBuild() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try surfaceWindow(probe, trigger: trigger)
     settle(w)
     let bodies = probe.bodies, draws = probe.count("a"), frames = w.framesDrawn
     trigger.requestRedraw()
+    await hopped(w)
     w.advance(by: 0.05)
     let work = w.lastFrameWork
     #expect(work.builds == 0 && work.elementRequests == 0 && work.surfaceOnlyFrames == 1, "\(work)")
@@ -63,12 +70,13 @@ private let side = sz(200, 100)
 
 /// **2** A hundred requests before one tick are one frame and one draw, and the frame after has nothing to do.
 /// Mutation: the request is not consumed by the frame that drew it (a second frame, a second draw).
-@MainActor @Test func aHundredRequestsMakeOneDrawAndTheNextTickNone() throws {
+@MainActor @Test func aHundredRequestsMakeOneDrawAndTheNextTickNone() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try surfaceWindow(probe, trigger: trigger)
     settle(w)
     let draws = probe.count("a"), frames = w.framesDrawn
     for _ in 0..<100 { trigger.requestRedraw() }
+    await hopped(w)
     w.advance(by: 0.05)
     #expect(probe.count("a") == draws + 1 && w.framesDrawn == frames + 1)
     w.advance(by: 0.05)
@@ -78,7 +86,7 @@ private let side = sz(200, 100)
 
 /// **3** Only the invalidated surface draws; its sibling is composited as it was. Mutation: a surface-only frame
 /// forces every surface of the last frame.
-@MainActor @Test func aSurfaceOnlyFrameDrawsOnlyTheInvalidatedSurface() throws {
+@MainActor @Test func aSurfaceOnlyFrameDrawsOnlyTheInvalidatedSurface() async throws {
     let probe = Probe(), first = SurfaceRedrawTrigger(), second = SurfaceRedrawTrigger()
     let w = try harnessWindow(size: side) {
         probe.bodies += 1
@@ -91,6 +99,7 @@ private let side = sz(200, 100)
     settle(w)
     let a = probe.count("a"), b = probe.count("b")
     second.requestRedraw()
+    await hopped(w)
     w.advance(by: 0.05)
     #expect(w.lastFrameWork.surfaceOnlyFrames == 1)
     #expect(probe.count("a") == a && probe.count("b") == b + 1, "a \(probe.count("a")) b \(probe.count("b"))")
@@ -99,12 +108,13 @@ private let side = sz(200, 100)
 
 /// **4** A timed request fires once, at its deadline on the simulated clock. Mutation: fire at the first tick
 /// (ignoring the delay) — draws at 0.5 s; or never clear the deadline — a draw on every later tick.
-@MainActor @Test func aTimedRequestFiresOnceAtItsDeadline() throws {
+@MainActor @Test func aTimedRequestFiresOnceAtItsDeadline() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try surfaceWindow(probe, trigger: trigger)
     settle(w)
     let draws = probe.count("a")
     trigger.requestRedraw(after: .seconds(1))
+    await hopped(w)
     #expect(w.window.testingSurfaceDeadlineCount == 1)
     w.advance(by: 0.5)
     #expect(probe.count("a") == draws, "not yet")
@@ -136,6 +146,7 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
     trigger.requestRedraw(after: .seconds(3))
     trigger.requestRedraw(after: .seconds(1))
     trigger.requestRedraw(after: .seconds(2))
+    await hopped(w)
     w.advance(by: 1)
     #expect(probe.count("a") == draws + 1, "the 1 s request, not the last")
     w.advance(by: 5)
@@ -185,7 +196,7 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
 
 /// **7** A surface that leaves the tree drops its timed request: it does not fire when the surface returns.
 /// Mutation: keep deadlines of surfaces the frame did not paint.
-@MainActor @Test func aDeadlineStopsWithItsSurface() throws {
+@MainActor @Test func aDeadlineStopsWithItsSurface() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try harnessWindow(size: side) {
         probe.bodies += 1
@@ -197,6 +208,7 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
     w.runsSurfaceDraws = true
     settle(w)
     trigger.requestRedraw(after: .seconds(1))
+    await hopped(w)
     probe.showsSecond = false
     w.window.setNeedsRedraw(); w.advance(by: 0.05)
     #expect(w.window.testingSurfaceDeadlineCount == 0)
@@ -205,12 +217,13 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
 /// **8** A full frame owed for another reason draws the invalidated surface too, once: the force survives the
 /// table's keep rule, here for a resize (the surface's value and size are unchanged). Mutation: a full frame does
 /// not force pending surfaces (no draw).
-@MainActor @Test func aResizeWhilePendingIsAFullFrameThatStillDrawsTheSurface() throws {
+@MainActor @Test func aResizeWhilePendingIsAFullFrameThatStillDrawsTheSurface() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try surfaceWindow(probe, trigger: trigger)
     settle(w)
     let draws = probe.count("a")
     trigger.requestRedraw()
+    await hopped(w)
     w.resize(to: sz(220, 100))
     let work = w.lastFrameWork
     #expect(work.builds >= 1 && work.surfaceOnlyFrames == 0, "\(work)")
@@ -222,11 +235,12 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
 /// **9** Same for a scale change (the table also redraws a rescaled target, so the draw count is one either way;
 /// the frame must be a build). Mutation: route the scale change into a surface-only frame — reachable only through
 /// the guard, pinned by test 10.
-@MainActor @Test func aScaleChangeWhilePendingIsAFullFrame() throws {
+@MainActor @Test func aScaleChangeWhilePendingIsAFullFrame() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try surfaceWindow(probe, trigger: trigger)
     settle(w)
     trigger.requestRedraw()
+    await hopped(w)
     w.setScaleFactor(2)
     let work = w.lastFrameWork
     #expect(work.builds >= 1 && work.surfaceOnlyFrames == 0, "\(work)")
@@ -235,24 +249,26 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
 /// **10** The atlas was rebuilt since the last frame, with nothing dirty: the scene's glyph slots are stale, so the
 /// scene cannot be encoded again and a build runs. Mutation: drop the `layoutGeneration` comparison from
 /// `SurfaceRedrawState.canReuseScene` (a surface-only frame over a stale scene).
-@MainActor @Test func aRebuiltAtlasMakesTheNextTriggerFrameAFullOne() throws {
+@MainActor @Test func aRebuiltAtlasMakesTheNextTriggerFrameAFullOne() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try surfaceWindow(probe, trigger: trigger)
     settle(w)
     w.window.glyphAtlas.reclaim()
     trigger.requestRedraw()
+    await hopped(w)
     w.advance(by: 0.05)
     let work = w.lastFrameWork
     #expect(work.builds >= 1 && work.surfaceOnlyFrames == 0, "\(work)")
     // The frame after it is surface-only again.
     trigger.requestRedraw()
+    await hopped(w)
     w.advance(by: 0.05)
     #expect(w.lastFrameWork.surfaceOnlyFrames == 1 && w.lastFrameWork.builds == 0)
 }
 
 /// **11** Animation or a timer in the window makes it a full frame (`TRM-P` item 2): the trigger's draw rides the
 /// build. Mutation: take the surface-only branch whenever a surface is pending.
-@MainActor @Test func aRunningAnimationMakesTheTriggerFrameAFullOne() throws {
+@MainActor @Test func aRunningAnimationMakesTheTriggerFrameAFullOne() async throws {
     let probe = Probe(), trigger = SurfaceRedrawTrigger()
     let w = try harnessWindow(size: side) {
         probe.bodies += 1
@@ -265,6 +281,7 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
     for _ in 0..<3 { w.advance(by: 0.05) }
     let draws = probe.count("a")
     trigger.requestRedraw()
+    await hopped(w)
     w.advance(by: 0.05)
     #expect(w.lastFrameWork.builds >= 1 && w.lastFrameWork.surfaceOnlyFrames == 0)
     #expect(probe.count("a") == draws + 1)

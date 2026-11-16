@@ -233,7 +233,7 @@ public final class TestWindow {
     /// Whether a tick would draw something a test waits for: the window is
     /// dirty and still open (`HT-Y` item 1).
     private var isDirtyAndOpen: Bool {
-        (window.needsRedraw || window.testingHasPendingSurfaceRedraw) && !platformWindow.isClosed
+        (window.needsRedraw || window.testingHasPendingSurfaceRedraw || window.testingHasUndrainedSurfaceRequest) && !platformWindow.isClosed
     }
 
     /// Lets main-actor work run, drawing a frame whenever the window is dirty,

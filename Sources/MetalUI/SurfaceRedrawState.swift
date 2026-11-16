@@ -46,6 +46,9 @@ final class SurfaceRedrawState {
 
     /// Whether a surface-only frame is owed.
     var hasPending: Bool { !pending.isEmpty }
+    /// Whether a bound trigger holds a request whose hop to the main actor has not run yet. Safe to read on the
+    /// calling thread the moment the request was made, so an idle check sees work the hop has yet to deliver.
+    var hasUndrainedRequest: Bool { bound.contains { $0.trigger.hasUndrained } }
     /// The timed requests outstanding — test observability.
     var deadlineCount: Int { deadlines.count }
     /// The date the next timed request fires at — test observability.
