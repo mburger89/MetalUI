@@ -151,15 +151,14 @@ final class CodeEditSession {
         }
         // An edit made through another state ends this composition, committing the composed text through this view's
         // state (`CV-AZ`, from the AppKit probe). Registered with the state, run by the buffer after the edit.
-        let owner = selectionState, table = table, id = id
-        selectionState.foreignEditHandlers[id] = { [weak owner, weak table] in
-            guard let owner, let table else { return }
-            owner.foreignEditHandlers[id] = nil
-            let composition = table.readState(id, initial: CodeViewState()).composition
+        let id = id
+        selectionState.foreignEditHandlers[id] = { [self] in   // this session's table and id outlive the frame; removed when it ends
+            selectionState.foreignEditHandlers[id] = nil
+            let composition = state().composition
             guard !composition.text.isEmpty else { return }
-            table.withState(id, initial: CodeViewState()) { $0.composition = .none; $0.goalX = nil }
-            let text = CodeEditing.normalizingLineBreaks(composition.text, to: owner.buffer.lineEnding.text)
-            owner.replaceSelections(with: text, origin: composition.text.count == 1 ? .typing : .paste)
+            update { $0.composition = .none; $0.goalX = nil }
+            let text = CodeEditing.normalizingLineBreaks(composition.text, to: buffer.lineEnding.text)
+            selectionState.replaceSelections(with: text, origin: composition.text.count == 1 ? .typing : .paste)
         }
     }
 
@@ -200,6 +199,7 @@ final class CodeEditSession {
         } else {
             selectionState.selections = [CodeSelection(anchor: origin.lowerBound, head: origin.upperBound)]
         }
+        selectionState.foreignEditHandlers[id] = nil
         update {
             $0.dragOriginLower = origin.lowerBound
             $0.dragOriginUpper = origin.upperBound
