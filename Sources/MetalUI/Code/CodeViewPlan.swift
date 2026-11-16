@@ -28,6 +28,8 @@ struct CodeViewState: Equatable {
     var lastScrollTime = -Double.infinity
     /// The `revealSerial` last honoured; `nil` before the first frame, which honours none.
     var revealSeen: UInt64?
+    /// The state `revealSeen` is a serial of (`CV-AY`): a view given another state reveals nothing for the change of serial.
+    var revealSource: ObjectIdentifier?
     /// The scroll position last reported to the `CodeScrollState` / `onScroll` (device pixels); `nil` before
     /// the first frame. A frame whose position differs reports it after the build (`CV-T`).
     var reportedTopPx: Int?
@@ -458,7 +460,8 @@ extension CodeView {
         plan.markersReplaceNumbers = markerLane == false
         let numbersPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
         plan.gutterPx = numbersPx + plan.laneWidthPx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
-        let primary = buffer.primarySelection   // one read: each is an observed access
+        let source = selectionSource
+        let primary = source.primarySelection   // one read: each is an observed access
         plan.selection = primary.range
         plan.head = primary.head
         let textViewPx = max(1, plan.widthPx - plan.gutterPx - plan.padPx)
@@ -543,12 +546,14 @@ extension CodeView {
         }
 
         // `select(_:reveal: true)` centres the head's row (`CV-P`).
-        let serial = buffer.revealSerial
-        if let seen = state.revealSeen, seen != serial {
+        let serial = source.revealSerial
+        let sourceID = ObjectIdentifier(source)
+        if let seen = state.revealSeen, seen != serial, state.revealSource == sourceID {
             let head = snap.point(at: min(primary.head, snap.utf8Count)).row
             topPx = map.displayRow(ofBufferRow: head) * pitchPx - (plan.visibleHeightPx - pitchPx) / 2   // `CV-AU`: centred between the margins
         }
         state.revealSeen = serial
+        state.revealSource = sourceID
         // A key or an edit asked for the caret to be in view (`CV-X`): the least scroll that shows its row.
         let revealsCaret = state.revealsCaret
         let headRow = snap.point(at: min(primary.head, snap.utf8Count)).row

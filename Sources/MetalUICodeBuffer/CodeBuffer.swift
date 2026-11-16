@@ -191,9 +191,22 @@ public final class CodeBuffer {
     /// coalesces by), restoring the previous one after.
     func asActing<T>(_ state: CodeSelectionState, _ body: () -> T) -> T {
         let previous = acting
+        let before = version
         acting = state
-        defer { acting = previous }
-        return body()
+        let result = body()
+        acting = previous
+        // After the outermost edit, every other state with a composing view commits it (`CV-AZ`).
+        if previous == nil, version != before { notifyForeignEdit(by: state) }
+        return result
+    }
+
+    private func notifyForeignEdit(by state: CodeSelectionState) {
+        var due: [@MainActor () -> Void] = []
+        for entry in selectionStates {
+            guard let other = entry.state, other !== state, !other.foreignEditHandlers.isEmpty else { continue }
+            due.append(contentsOf: other.foreignEditHandlers.values)
+        }
+        for handler in due { handler() }
     }
 
     private var actor: CodeSelectionState { acting ?? selectionState }

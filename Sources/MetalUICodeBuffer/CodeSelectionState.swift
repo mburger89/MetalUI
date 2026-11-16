@@ -15,6 +15,11 @@ public final class CodeSelectionState {
     @ObservationIgnored private var retainedBuffer: CodeBuffer?
     @ObservationIgnored var stored = [CodeSelection(caret: 0)]
 
+    /// What runs, once, after an edit made through another state completes (`CV-AZ`): a view with marked text
+    /// registers one to commit it. Keyed by the view; empty unless an input method is composing, so a frame never
+    /// reads it.
+    @ObservationIgnored package var foreignEditHandlers: [AnyHashable: @MainActor () -> Void] = [:]
+
     /// Rises each time `select(_:reveal:)` asks views to scroll this selection into view.
     public private(set) var revealSerial: UInt64 = 0
 
