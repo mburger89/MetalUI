@@ -66,17 +66,20 @@ final class CodeTextHoverRuntime {
     let origin: Point<Pixels>
     let buffer: CodeBuffer
     let perform: @MainActor (CodeHoverPhase) -> Void
-    weak var box: CodeTextAnchorBox?
+    /// The view's popover-kind boxes, weakly (`CV-BD`: a suggestion overlay holds no grace).
+    let boxes: [WeakBox]
+
+    struct WeakBox { weak var box: CodeTextAnchorBox? }
 
     init(id: GlobalElementID, table: StateTable, plan: CodeViewPlan, origin: Point<Pixels>, buffer: CodeBuffer,
-         perform: @escaping @MainActor (CodeHoverPhase) -> Void, box: CodeTextAnchorBox?) {
+         perform: @escaping @MainActor (CodeHoverPhase) -> Void, boxes: [CodeTextAnchorBox]) {
         self.id = id
         self.table = table
         self.plan = plan
         self.origin = origin
         self.buffer = buffer
         self.perform = perform
-        self.box = box
+        self.boxes = boxes.map { WeakBox(box: $0) }
     }
 
     private func track() -> CodeHoverTrack {
@@ -142,7 +145,7 @@ final class CodeTextHoverRuntime {
         case .pending:
             update { $0 = CodeHoverTrack() }
         case .active:
-            if box?.isPresented == true {
+            if boxes.contains(where: { $0.box?.isPresented == true }) {
                 update { $0.phase = .holding; $0.timerStart = nil }
             } else {
                 update { $0 = CodeHoverTrack() }
