@@ -535,3 +535,21 @@ private let appName = ProcessInfo.processInfo.processName
     #expect(built[4].image == nil)
     #expect(built[5].image != nil, "a submenu item's symbol")
 }
+
+/// **MN-AQ 3** (`MenuItemAccessibilityLabelTests`). The `NSMenuItem` carries the label as its accessibility label, a submenu item's too; the title is
+/// unchanged; an item with none reads its title. Mutation: drop the `setAccessibilityLabel` line in the action case (the
+/// first expectation reddens) or in the submenu case (the second).
+@MainActor
+@Test func anAppKitMenuItemCarriesItsAccessibilityLabelAndKeepsItsTitle() throws {
+    let menu = AppKitMenuBuilder.menu(from: PlatformMenu(token: 1, items: [
+        PlatformMenuItem(id: 1, kind: .action, title: "Fix login", accessibilityLabel: "Fix login, running"),
+        PlatformMenuItem(id: 2, kind: .submenu([PlatformMenuItem(id: 3, kind: .action, title: "Inner")]), title: "More",
+                         accessibilityLabel: "More, submenu"),
+        PlatformMenuItem(id: 4, kind: .action, title: "Plain"),
+    ]), target: AppKitMenuTarget())
+    try #require(menu.items.count == 3)
+    #expect(menu.items[0].accessibilityLabel() == "Fix login, running")
+    #expect(menu.items[0].title == "Fix login", "the visible title is unchanged")
+    #expect(menu.items[1].accessibilityLabel() == "More, submenu" && menu.items[1].title == "More")
+    #expect(menu.items[2].accessibilityLabel() == "Plain", "no label: AppKit reads the title")
+}

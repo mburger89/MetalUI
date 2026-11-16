@@ -202,7 +202,8 @@ struct MenuSession {
                 let items = number(children, declaringID: declaringID, enabled: isEnabled, next: &next,
                                    actions: &actions, toggles: &toggles, resolveTint: resolveTint)
                 return PlatformMenuItem(id: id, kind: .submenu(items), title: node.title, isEnabled: isEnabled,
-                                        image: node.image?.platform(resolveTint))
+                                        image: node.image?.platform(resolveTint),
+                                        accessibilityLabel: node.accessibilityLabel)
             case .text:
                 return PlatformMenuItem(id: id, kind: .action, title: node.title, isEnabled: false)
             case .action, .toggle:
@@ -213,7 +214,8 @@ struct MenuSession {
                 return PlatformMenuItem(id: id, kind: .action, title: node.title, isEnabled: isEnabled,
                                         isOn: node.isOn, shortcut: shortcut,
                                         accessibilityIdentifier: node.accessibilityIdentifier, help: node.help,
-                                        image: node.image?.platform(resolveTint))
+                                        image: node.image?.platform(resolveTint),
+                                        accessibilityLabel: node.accessibilityLabel)
             }
         }
     }
@@ -668,7 +670,7 @@ extension Window {
                     children = [AccessibilityNodeID(Self.menuPanelID(level: levelIndex + 1))]
                 }
                 tree.nodes[rowID] = AccessibilityNode(
-                    role: isToggle ? .menuItemCheckBox : .menuItem, label: item.title,
+                    role: isToggle ? .menuItemCheckBox : .menuItem, label: item.accessibilityLabel ?? item.title,   // MN-AQ
                     value: isToggle ? (item.isOn ? "1" : "0") : nil, isEnabled: item.isEnabled,
                     actions: item.isEnabled ? .press : [], children: children)
                 tree.nodes[rowID]?.identifier = item.accessibilityIdentifier   // MN-AL
