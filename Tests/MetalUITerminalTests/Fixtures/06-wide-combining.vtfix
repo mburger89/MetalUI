@@ -1,0 +1,8 @@
+# Wide characters take two cells and wrap whole; a combining mark joins the previous cell.
+size 5 3
+input "ab\u{4E2D}\u{6587}e\u{301}"
+text
+|ab\u{4E2D}|
+|\u{6587}e\u{301}|
+||
+cursor 1 3

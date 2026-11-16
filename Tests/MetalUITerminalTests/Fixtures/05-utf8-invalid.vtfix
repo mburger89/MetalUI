@@ -1,0 +1,6 @@
+# Invalid UTF-8 prints U+FFFD and never eats the next valid byte.
+size 12 1
+input "a\xe2\x82b\xffc\xc0\x80d\xf0\x9f\x98e"
+text
+|a\u{FFFD}b\u{FFFD}c\u{FFFD}\u{FFFD}d\u{FFFD}e|
+cursor 0 10
