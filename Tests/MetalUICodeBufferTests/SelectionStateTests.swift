@@ -123,6 +123,17 @@ struct SelectionStateTests {
         #expect(a.selections == caret(4))
     }
 
+    @Test func typedAndPastedTextLeavesTheActingCaretAfterIt() {
+        for origin in [CodeEditOrigin.typing, .paste] {
+            let buffer = CodeBuffer("ab")
+            let a = CodeSelectionState(buffer: buffer, selections: caret(1))
+            let b = CodeSelectionState(buffer: buffer, selections: caret(1))
+            a.replace(1..<1, with: "XY", origin: origin)
+            #expect(a.selections == caret(3), "\(origin)")      // sticky: the insertion pushes the actor's caret
+            #expect(b.selections == caret(3), "\(origin)")
+        }
+    }
+
     @Test func aProgrammaticInsertAtTheActingCaretDoesNotMoveTheActingCaret() {
         let buffer = CodeBuffer("ab")
         let a = CodeSelectionState(buffer: buffer, selections: caret(1))
@@ -293,6 +304,7 @@ struct SelectionStateTests {
         buffer.replace(0..<0, with: "y")
         #expect(buffer.stateMoveCount - before == 1)       // back to the default state only
         #expect(buffer.liveStateCount == 1)
+        #expect(buffer.registeredStateCount == 1)         // swept from the registry, not just skipped
     }
 
     @Test func anEditWithNoExtraStatesMapsExactlyOneState() {

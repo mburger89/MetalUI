@@ -79,6 +79,7 @@ public final class CodeBuffer {
     /// How many states edit events have moved so far, summed over events (one per live state per event).
     @ObservationIgnored package private(set) var stateMoveCount = 0
     /// How many states are alive and registered (the default state included).
+    @ObservationIgnored package var registeredStateCount: Int { selectionStates.count }
     @ObservationIgnored package var liveStateCount: Int { selectionStates.reduce(0) { $0 + ($1.state == nil ? 0 : 1) } }
     @ObservationIgnored private var nextTransaction: UInt64 = 0
     @ObservationIgnored private var transactionDepth = 0
