@@ -26,7 +26,11 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         case progressIndicator, colorWell
         /// An outline `List` (`TREE`), its rows (`TREE_ITEM`) and a cell (ruling `OG-F`).
         case tree, treeItem, cell
+        /// A split view's divider (ruling `HS-K`): `SPLITTER`.
+        case splitter
     }
+    /// Which way a node lies: AccessKit's `orientation` (ruling `HS-K`).
+    public enum Orientation: Equatable, Sendable { case horizontal, vertical }
     public enum Action: Equatable, Hashable, Sendable {
         case click, focus, increment, decrement
         /// Advertised when the node has custom actions (plan task 12 part 2,
@@ -38,6 +42,9 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         case showContextMenu
         /// `EXPAND` and `COLLAPSE` — an outline group row (`OG-F`).
         case expand, collapse
+        /// `SET_VALUE` with a numeric value — a split view's divider (`HS-K`); an incoming one carries the number as
+        /// action data, so it is queued as `AccessKitAdapter.Queued.setValue`, never through `request(_:number:ids:)`.
+        case setValue
     }
 
     public struct Node: Equatable, Sendable {
@@ -78,6 +85,10 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// A determinate progress indicator's range, AccessKit's
         /// `min_numeric_value` 0 and `max_numeric_value` 1 (ruling `LK-G`).
         public var numericRange: Bool = false
+        /// A split divider's range, AccessKit's `min_numeric_value` and `max_numeric_value`, and its `orientation`
+        /// (`HS-K`); `nil` for every other node.
+        public var range: ClosedRange<Double>? = nil
+        public var orientation: Orientation? = nil
         /// A tree item's level, AccessKit's `level` (ARIA's `aria-level`: 1 for a root, so the disclosure level plus one),
         /// and whether a group row is expanded, AccessKit's `expanded`; `nil` for a node outside an outline or a leaf
         /// (`OG-F`).
@@ -95,6 +106,7 @@ public struct AccessKitSnapshot: Equatable, Sendable {
                 && a.customActions == b.customActions && a.isSelectable == b.isSelectable
                 && a.hasPopupMenu == b.hasPopupMenu && a.numericRange == b.numericRange
                 && a.level == b.level && a.expanded == b.expanded
+                && a.range == b.range && a.orientation == b.orientation
         }
 
         /// What AccessKit's `selected` is set to: the selection when it is
@@ -170,6 +182,7 @@ extension AccessKitSnapshot {
             if node.actions.contains(.showMenu) { actions.insert(.showContextMenu) }
             if node.actions.contains(.expand) { actions.insert(.expand) }
             if node.actions.contains(.collapse) { actions.insert(.collapse) }
+            if node.actions.contains(.setValue) { actions.insert(.setValue) }
             let frame = tree.geometry[id]?.frame
             nodes.append(Node(
                 id: ids.number(for: id), role: role(of: node), label: node.label, value: node.value,
@@ -184,7 +197,8 @@ extension AccessKitSnapshot {
                 authorID: node.identifier, customActions: node.customActions,
                 isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton,
                 numericRange: node.role == .progressIndicator,
-                level: node.outlineLevel.map { $0 + 1 }, expanded: node.isExpanded))
+                level: node.outlineLevel.map { $0 + 1 }, expanded: node.isExpanded,
+                range: node.numericRange, orientation: node.orientation.map { $0 == .vertical ? .vertical : .horizontal }))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -268,6 +282,7 @@ extension AccessKitSnapshot {
         // state needs `accesskit_node_set_expanded`, whose name lane 5 verifies against the fetched header.
         case .disclosureTriangle: .button
         case .cell: .cell
+        case .splitter: .splitter
         }
     }
 
@@ -287,7 +302,8 @@ extension AccessKitSnapshot {
     /// number when it parses (`DD-U` item 1, `LK-G`); `nil` for any other role
     /// — a busy indicator's included.
     static func numericValue(_ node: AccessibilityNode) -> Double? {
-        guard node.role == .slider || node.role == .incrementor || node.role == .progressIndicator else { return nil }
+        guard node.role == .slider || node.role == .incrementor || node.role == .progressIndicator
+            || node.role == .splitter else { return nil }
         return node.value.flatMap(Double.init)
     }
 
@@ -303,6 +319,7 @@ extension AccessKitSnapshot {
         case .showContextMenu: return .showMenu(id)
         case .expand: return .expand(id)
         case .collapse: return .collapse(id)
+        case .setValue: return nil
         }
     }
 
@@ -314,6 +331,9 @@ extension AccessKitSnapshot {
         case let .customAction(number, index):
             guard let id = ids.node(for: number) else { return nil }
             return .customAction(id, index)
+        case let .setValue(number, value):
+            guard let id = ids.node(for: number) else { return nil }
+            return .setValue(id, value)
         }
     }
 }
