@@ -10,6 +10,8 @@ Rulings: `docs/superpowers/2026-11-16-terminal-decisions.md`; frozen and draft s
 
 **Key capture** (`TRM-D`). A capture layer hears a key before every other stage, `except` shortcuts skip it, and a key answered `.ignored` (including every key that encodes to nothing) goes through the unchanged pipeline from its first stage. Option-as-meta covers both Option keys and bypasses dead keys while on; nothing is captured while marked text composes.
 
+**Key capture, built** (`TRM-U`..`TRM-Y`, record 338). `keyCapture(except:optionAsMeta:)` marks the keyboard layer of the `onKeyPress` handlers it sits with (a marker handler on `KeyboardAttachment.capture`, not a `Handlers` member); `Window.dispatchKeyCapture` is the first key stage and offers the key once, outermost layer first; `except` and marked text skip it; `PlatformWindow.setRawOptionKeys(_:)` follows focus and bypasses `inputContext` for Option on AppKit (Alt on SDL).
+
 **Platforms** (`TRM-E`). Windows 10 1809+ and Linux 5.3+ (pidfd); the Windows default shell is `pwsh` else `powershell`; on Windows `.interrupt` writes 0x03 and the other signals terminate the job object, and there is no foreground group.
 
 **Cost.** A terminal output, blink or selection frame costs 0 builds and 0 element requests, and a hidden or idle terminal schedules nothing; every shared-view change pins the steady-frame request counts for apps that do not use it.
