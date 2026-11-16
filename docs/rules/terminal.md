@@ -12,6 +12,12 @@ Rulings: `docs/superpowers/2026-11-16-terminal-decisions.md`; frozen and draft s
 
 **Platforms** (`TRM-E`). Windows 10 1809+ and Linux 5.3+ (pidfd); the Windows default shell is `pwsh` else `powershell`; on Windows `.interrupt` writes 0x03 and the other signals terminate the job object, and there is no foreground group.
 
+**POSIX pty** (`TRM-K`..`TRM-O`). `PseudoTerminal` starts its child with `posix_spawn` and `POSIX_SPAWN_SETSID` (the child's own first open of the slave gives it the controlling tty; the C `fork` path stays for glibc below 2.34 and tests run both), with exactly fds 0-2, every signal at default, and the size set before the child exists through a slave the parent holds open (Darwin forgets a size set on an unopened pty).
+
+**Pty I/O** (`TRM-M`, `TRM-N`). `read` is >0, 0 would block or -1 end of file (a 0-byte read, EIO, or after `close`), latched so the level-triggered source stops firing; `write` queues on an internal queue, never blocks, never drops, never reorders.
+
+**Pty lifetime** (`TRM-O`). No SIGCHLD handler: macOS process source, Linux pidfd (shared poll fallback); one reap under the lock that `signalGroup` takes, so a reaped pid is never signalled; `close()` stops callbacks, not reaping; Windows has no `PseudoTerminal` yet.
+
 **Cost.** A terminal output, blink or selection frame costs 0 builds and 0 element requests, and a hidden or idle terminal schedules nothing; every shared-view change pins the steady-frame request counts for apps that do not use it.
 
 **Tests.** Pty and parser tests bound every wait and never sleep for timing; each guard is shown red against the wrong routing first (`docs/practices/verifying-tests-can-fail.md`).

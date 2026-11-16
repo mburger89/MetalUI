@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-F`.
+Next unused id: `TRM-P`. `TRM-F`..`TRM-J` are reserved by the parallel emulator and key-capture branches; `TRM-K`..`TRM-O` (the POSIX `PseudoTerminal`, record 336) are used.
 
 ## TRM-A: module split
 
@@ -55,3 +55,28 @@ Why: Alloy's answers 3 and 4 (2026-11-16): keys that encode to nothing fall thro
 - Windows has no process groups to signal and no foreground group: `.interrupt` writes 0x03 to the console input; `.hangup`, `.terminate` and `.kill` call `TerminateJobObject` on the job the child runs in (kill-on-close, so no orphans); `foregroundProcessGroup()` returns `nil`.
 
 Why: Alloy's answers 7 and 9 (2026-11-16): `pwsh` if present else `powershell`; Win10 1809+ OK; signal mapping accepted; Linux 5.3+ OK.
+
+## TRM-K: spawn mechanism (POSIX, Phase 2.1 spike)
+
+`PseudoTerminal.spawn` opens the pty in C (`CPseudoTerminal`: `posix_openpt`, `grantpt`, `unlockpt`, `ptsname_r` or `TIOCPTYGNAME`) and starts the child with `posix_spawn` and `POSIX_SPAWN_SETSID` on both macOS and Linux. The slave is opened by the child itself as its first file action (`addopen` on fd 0, then `adddup2` onto 1 and 2): a session leader without a controlling terminal acquires the tty it opens, so no `TIOCSCTTY` is needed. **Spike result: macOS accepts this** (the child is its own session leader, `/dev/tty` opens, `tcgetpgrp` on the master answers the leader's group), so the macOS fork fallback is not needed there. The async-signal-safe `fork` path (`setsid`, `open`, `ioctl(TIOCSCTTY)`, `dup2`, `close_range` or a descriptor loop, `sigaction`, `chdir`, `execve`; argv, env and the descriptor limit built before the fork; an exec failure reported through a close-on-exec pipe) stays as the mechanism on a glibc older than 2.34 or musl, where `posix_spawn_file_actions_addclosefrom_np` is missing. A `package` `PseudoTerminal.Mechanism` (`.automatic`, `.posixSpawn`, `.fork`) lets the test suite run every behaviour under both. The parent holds the slave open across the spawn and sets `TIOCSWINSZ` on it: Darwin discards a size set on a pty nobody has opened (measured: `stty size` printed `0 0`), and this way the child's first `stty size` is right.
+
+Why: spec 4.2 and plan 2.1 ("fork fallback only if macOS refuses the controlling tty").
+
+## TRM-L: what the child inherits
+
+Exactly fds 0-2 (the slave), nothing else: Darwin `POSIX_SPAWN_CLOEXEC_DEFAULT` with `addinherit_np` for 0-2; Linux `addclosefrom_np(3)`; the fork path `close_range` (else a loop to `_SC_OPEN_MAX`). Every signal is reset to its default and the mask is emptied (a host that ignores `SIGPIPE` does not pass that on). The master is close-on-exec and non-blocking. `env` is the whole environment and `argv` the whole argument vector; a missing executable or working directory is `spawnFailed(code: ENOENT)`.
+
+Why: spec 4.1; the pinning tests probe fds 3-60 and the environment under both mechanisms.
+
+## TRM-M: reading and end of file
+
+`read(into:)` returns n > 0, 0 for `EAGAIN`, and -1 at end of file: a 0-byte read (macOS), `EIO` (Linux; spec 4.1) or any other error, and always after `close()`. It runs under the object's lock so a concurrent `close()` cannot close and reuse the descriptor mid-read. A `DispatchSourceRead` is level-triggered and fires forever at end of file, so the first `-1` latches end of file and the next event suspends the source instead of calling the handler again; `close()` and a replacing `onReadable` resume a suspended source before cancelling it so its cancel handler runs. The handler checks the closed flag under the lock, so none runs after `close()` returns on the handler's own queue and none starts after it from another.
+
+## TRM-N: writing
+
+`write(_:)` appends to a queue on an internal serial queue and returns; the queue is drained with non-blocking `write(2)` until `EAGAIN`, and a `DispatchSourceWrite` is resumed only while bytes are pending (a suspended or idle source costs nothing). Chunks keep their order, nothing is dropped and the queue has no cap (a child that never reads costs memory, not a stalled caller). `close()` discards what is still unsent. The master descriptor closes when its last source's cancel handler has run, because dispatch requires it.
+
+## TRM-O: reaping, signals, lifetime, Windows
+
+Nothing installs a `SIGCHLD` handler. macOS reaps from a `DispatchSource` process source plus one `waitpid(WNOHANG)` right after it is armed (the child may have gone first); Linux reads a `pidfd_open` descriptor (kernel 5.3+, `TRM-E`) and, where that is missing, one shared 20 ms timer polls `waitpid(WNOHANG)` for every unreaped child (a `package` flag forces it for its test). The reap and the `exitStatus` result happen once, under the object's lock, and the same lock guards `signalGroup` (`killpg`, a no-op after the reap, so a reused pid is never signalled). `close()` does not stop reaping: the hangup from a closed master ends the child and it is still reaped, `exitStatus` still resolves, and an unclosed object is closed by `deinit`. On Windows the target compiles but `PseudoTerminal` and `PseudoTerminalError` are absent (`#if !os(Windows)`, and `CPseudoTerminal` is empty there); Phase 2.3 supplies them. `TerminalSize` is the one file the emulator branch shares (`Sources/MetalUITerminal/TerminalSize.swift`, spec shape).
+

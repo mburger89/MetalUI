@@ -61,6 +61,8 @@ var products: [Product] = [
         // Run-time HLSL compute compile with no SDL (item XP-G27, rulings HX-A, HX-C): optional;
         // `MetalUI` does not depend on it, so an app that never compiles links none of it.
         .library(name: "MetalUIShaderRuntime", targets: ["MetalUIShaderRuntime"]),
+        // The terminal core (rulings TRM-A, TRM-K): PseudoTerminal now; the emulator joins it.
+        .library(name: "MetalUITerminal", targets: ["MetalUITerminal"]),
 
 ]
 
@@ -225,6 +227,12 @@ var targets: [Target] = [
         // portable. Inline content stays a String for MetalUI's inline parser.
         .target(name: "MetalUIMarkdown"),
         .testTarget(name: "MetalUIMarkdownTests", dependencies: ["MetalUIMarkdown"]),
+
+        // --- Terminal (TRM-A, TRM-K): a pty shim and the UI-free terminal core; every platform.
+        .target(name: "CPseudoTerminal"),
+        .target(name: "MetalUITerminal", dependencies: ["CPseudoTerminal"]),
+        .testTarget(name: "MetalUITerminalTests", dependencies: ["MetalUITerminal"]),
+        // --- end Terminal
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),
