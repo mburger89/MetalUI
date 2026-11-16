@@ -26,7 +26,7 @@ struct CodeViewState: Equatable {
     var measuredWidthPx = 0
     /// When the wheel last moved the view: the scroll indicators fade from it.
     var lastScrollTime = -Double.infinity
-    /// The `revealSerial` last honoured; `nil` before the first frame, which honours none.
+    /// The `revealSerial` last honoured; `nil` before the first laid-out frame, which honours only a pending reveal (`CV-BA`).
     var revealSeen: UInt64?
     /// The state `revealSeen` is a serial of (`CV-AY`): a view given another state reveals nothing for the change of serial.
     var revealSource: ObjectIdentifier?
@@ -545,15 +545,31 @@ extension CodeView {
             state.pendingY = 0
         }
 
-        // `select(_:reveal: true)` centres the head's row (`CV-P`).
+        // `select(_:reveal: true)` centres the head's row (`CV-P`). A view mounting honours a reveal no view has taken
+        // in yet (pending), at its first frame with a viewport (`CV-BA`); a mounted view honours a serial that moved
+        // under the same state, and a swapped state reveals nothing (`CV-AY`).
         let serial = source.revealSerial
         let sourceID = ObjectIdentifier(source)
-        if let seen = state.revealSeen, seen != serial, state.revealSource == sourceID {
-            let head = snap.point(at: min(primary.head, snap.utf8Count)).row
-            topPx = map.displayRow(ofBufferRow: head) * pitchPx - (plan.visibleHeightPx - pitchPx) / 2   // `CV-AU`: centred between the margins
+        if state.revealSeen == nil && (plan.widthPx <= 0 || plan.heightPx <= 0) {
+            // not laid out with a real viewport yet: leave the reveal pending for the first frame that has one
+        } else {
+            let reveals: Bool
+            if let seen = state.revealSeen {
+                reveals = seen != serial && state.revealSource == sourceID
+            } else {
+                reveals = serial != source.revealHandledSerial || (source.revealHandledFrame === frame && serial != 0)
+            }
+            if reveals {
+                let head = snap.point(at: min(primary.head, snap.utf8Count)).row
+                topPx = map.displayRow(ofBufferRow: head) * pitchPx - (plan.visibleHeightPx - pitchPx) / 2   // `CV-AU`: centred between the margins
+            }
+            if source.revealHandledSerial != serial {
+                source.revealHandledSerial = serial
+                source.revealHandledFrame = frame
+            }
+            state.revealSeen = serial
+            state.revealSource = sourceID
         }
-        state.revealSeen = serial
-        state.revealSource = sourceID
         // A key or an edit asked for the caret to be in view (`CV-X`): the least scroll that shows its row.
         let revealsCaret = state.revealsCaret
         let headRow = snap.point(at: min(primary.head, snap.utf8Count)).row

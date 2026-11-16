@@ -23,6 +23,12 @@ public final class CodeSelectionState {
     /// Rises each time `select(_:reveal:)` asks views to scroll this selection into view.
     public private(set) var revealSerial: UInt64 = 0
 
+    /// The `revealSerial` a view has last taken in, and the frame it did so in (`CV-BA`): a view mounting with
+    /// `revealSerial` ahead of this, or in that same frame, honours the reveal on its first laid-out frame; any
+    /// later mount finds it handled and starts at the top. Never observed: writing it wakes nothing.
+    @ObservationIgnored package var revealHandledSerial: UInt64 = 0
+    @ObservationIgnored package weak var revealHandledFrame: AnyObject?
+
     /// A state over `buffer`, selecting `selections` (clamped, sorted and merged; at least one). The buffer
     /// holds it weakly: keep the state alive as long as the view uses it.
     public init(buffer: CodeBuffer, selections: [CodeSelection] = [CodeSelection(caret: 0)]) {
