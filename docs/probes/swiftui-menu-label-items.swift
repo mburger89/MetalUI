@@ -22,7 +22,8 @@
 // L1 against L2: the `systemImage:` spelling against the `Label` spelling.
 // L3/L4/L5 against L2: each tint spelling against the untinted label.
 //
-// RECORDED 2026-11-15, macOS 27.0, Apple Swift 6.4.
+// RECORDED 2026-11-15, macOS 27.0, Apple Swift 6.4; compiled form, run twice,
+// stdout byte-identical, exit 0.
 //
 // FINDINGS (read before resting a ruling on them):
 // - An image reaches the NSMenuItem from `Button(_:systemImage:)`, from a
