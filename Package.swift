@@ -32,6 +32,9 @@ var products: [Product] = [
         // block structure plus GFM tables, with a streaming append (ruling
         // BM-A). Imports nothing, so an app can parse without any UI.
         .library(name: "MetalUIMarkdown", targets: ["MetalUIMarkdown"]),
+        // The terminal emulator (ruling TRM-A): parser, compact grid and snapshots. Imports only Foundation
+        // and Dispatch, so an app can host a terminal without any UI.
+        .library(name: "MetalUITerminal", targets: ["MetalUITerminal"]),
         // The framework itself, on every platform (ruling XP-A), and the
         // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
         .library(name: "MetalUI", targets: ["MetalUI"]),
@@ -225,6 +228,12 @@ var targets: [Target] = [
         // portable. Inline content stays a String for MetalUI's inline parser.
         .target(name: "MetalUIMarkdown"),
         .testTarget(name: "MetalUIMarkdownTests", dependencies: ["MetalUIMarkdown"]),
+
+        // The terminal emulator core (ruling TRM-A): in-house VT parser, compact rows and scrollback ring.
+        // Foundation and Dispatch only; portable, outside the `SDL` trait (PC-A). No MetalUI product
+        // depends on it.
+        .target(name: "MetalUITerminal"),
+        .testTarget(name: "MetalUITerminalTests", dependencies: ["MetalUITerminal"]),
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),

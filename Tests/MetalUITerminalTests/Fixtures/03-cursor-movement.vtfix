@@ -1,0 +1,9 @@
+# CUP, CUU, CUD, CUF, CUB with defaults, and clamping at every edge.
+size 8 4
+input "\e[2;3HX\e[A\e[2CY\e[3B\e[99DZ\e[99C\e[99AW"
+text
+|     Y W|
+|  X|
+||
+|Z|
+cursor 0 7 pending

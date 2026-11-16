@@ -1,0 +1,8 @@
+# Mode flags a snapshot carries; autowrap off clamps at the last column.
+size 4 2
+input "\e[?7l\e[?25l\e[?2004h\e[?1h\e[?1000h\e[?1006habcdef"
+text
+|abcf|
+||
+cursor 0 3
+modes autowrap=off cursorVisible=off bracketedPaste=on applicationCursorKeys=on mouseTracking=normal mouseEncoding=sgr

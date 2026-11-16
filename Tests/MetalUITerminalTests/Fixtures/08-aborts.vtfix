@@ -1,0 +1,6 @@
+# CAN and SUB abort a sequence or string; the bytes after them are text.
+size 10 1
+input "a\e[12\x18b\e]0;t\x1ac\e[9\e[1Gd"
+text
+|dbc|
+cursor 0 1
