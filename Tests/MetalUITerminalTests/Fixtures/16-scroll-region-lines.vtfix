@@ -1,0 +1,11 @@
+# DECSTBM, IL, DL, SU, SD and LF at the bottom margin: rows outside the region never move.
+size 5 5
+input "1\r\n2\r\n3\r\n4\r\n5\e[2;4r\e[3;1H\e[L\e[M\e[S\e[4;1Hx\n\e[T"
+text
+|1|
+||
+||
+|x|
+|5|
+history
+cursor 3 1

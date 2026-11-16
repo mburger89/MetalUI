@@ -1,0 +1,6 @@
+# G1 holds the graphics set; SO selects it and SI goes back to G0.
+size 6 1
+input "\e)0\x0eq\x0fq\x0eq"
+text
+|─q─|
+cursor 0 3

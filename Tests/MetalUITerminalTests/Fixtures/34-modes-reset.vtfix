@@ -1,0 +1,4 @@
+# Resetting the mouse modes and DECSCUSR 0 return to the power-on state.
+size 10 2
+input "\e[?1003h\e[?1005h\e[4 q\e[?1003l\e[?1005l\e[0 q"
+modes mouseTracking=off mouseEncoding=legacy cursorStyle=block

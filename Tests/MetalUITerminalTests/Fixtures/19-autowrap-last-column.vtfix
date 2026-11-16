@@ -1,0 +1,11 @@
+# Autowrap: the pending wrap, a wrap that scrolls, and autowrap off overwriting the last column.
+size 4 3
+input "abcde\e[3;4Hxy\e[?7lzzzz"
+text
+|e|
+|   x|
+|yzzz|
+history
+|abcd|
+cursor 2 3
+modes autowrap=off

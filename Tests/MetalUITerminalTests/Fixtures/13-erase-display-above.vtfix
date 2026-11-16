@@ -1,0 +1,8 @@
+# ED 1: from the start of the screen to the cursor, inclusive.
+size 6 3
+input "aaaaaa\r\nbbbbbb\r\ncccccc\e[2;3H\e[1J"
+text
+||
+|   bbb|
+|cccccc|
+cursor 1 2

@@ -1,0 +1,9 @@
+# DECSET: app cursor, app keypad, bracketed paste, focus, button-event mouse in SGR encoding, hidden cursor, autowrap off, a steady bar.
+size 10 3
+input "\e[?1h\e=\e[?2004h\e[?1004h\e[?1002h\e[?1006h\e[?25l\e[?7l\e[?12h\e[6 q"
+text
+||
+||
+||
+cursor 0 0
+modes applicationCursorKeys=on applicationKeypad=on bracketedPaste=on focusEvents=on mouseTracking=buttonEvent mouseEncoding=sgr cursorVisible=off autowrap=off cursorStyle=bar

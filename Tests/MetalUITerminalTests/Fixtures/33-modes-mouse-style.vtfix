@@ -1,0 +1,4 @@
+# Any-event tracking with UTF-8 coordinates and a blinking underline, then everything back off.
+size 10 2
+input "\e[?9h\e[?1003h\e[?1005h\e[3 q"
+modes mouseTracking=anyEvent mouseEncoding=utf8 cursorStyle=underline-blinking

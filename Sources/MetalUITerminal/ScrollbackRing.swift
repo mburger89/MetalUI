@@ -32,3 +32,10 @@ struct ScrollbackRing {
         return ring + storage.reduce(0) { $0 + $1.heapByteCount }
     }
 }
+
+extension ScrollbackRing {
+    /// Drops every retained row (ED 3).
+    mutating func removeAll() {
+        self = ScrollbackRing(capacity: capacity)
+    }
+}

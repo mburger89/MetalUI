@@ -61,7 +61,10 @@ enum FuzzSupport {
     static func bytes(count: Int, using rng: inout SeededRandom) -> [UInt8] {
         let hot: [UInt8] = [0x1B, 0x5B, 0x5D, 0x50, 0x5F, 0x58, 0x5E, 0x5C, 0x3B, 0x3A, 0x3F, 0x30, 0x31, 0x39, 0x48,
                             0x6D, 0x07, 0x18, 0x1A, 0x0A, 0x0D, 0x08, 0x09, 0xC2, 0x9B, 0x9C, 0x9D, 0x90, 0xE2, 0x82,
-                            0xAC, 0xF0, 0x9F, 0xFF, 0x20, 0x41, 0x7F, 0x68, 0x6C]
+                            0xAC, 0xF0, 0x9F, 0xFF, 0x20, 0x41, 0x7F, 0x68, 0x6C,
+                            0x72, 0x4A, 0x4B, 0x40, 0x50, 0x4C, 0x4D, 0x53, 0x54, 0x58, 0x62, 0x28, 0x29, 0x23,
+                            0x24, 0x70, 0x71, 0x21, 0x37, 0x38, 0x63, 0x6E, 0x3E, 0x0E, 0x0F, 0x67, 0x49, 0x5A,
+                            0x34, 0x36, 0x37, 0x31, 0x30, 0x32, 0x33, 0x35]
         return (0..<count).map { _ in
             Int.random(in: 0..<4, using: &rng) == 0 ? UInt8.random(in: 0...255, using: &rng) : hot.randomElement(using: &rng)!
         }
@@ -85,6 +88,21 @@ enum FuzzSupport {
                 #expect(emulator.screen.count == emulator.rowCount)
                 #expect(emulator.screen.allSatisfy { $0.usedColumns <= emulator.columnCount })
                 #expect(emulator.scrollbackCount <= emulator.scrollback.capacity)
+                #expect(emulator.offscreen.count == emulator.rowCount)
+                #expect(emulator.offscreen.allSatisfy { $0.usedColumns <= emulator.columnCount })
+                #expect(emulator.regionTop >= 0 && emulator.regionBottom < emulator.rowCount
+                        && (emulator.regionTop < emulator.regionBottom || emulator.rowCount == 1),
+                        "round \(round): region \(emulator.regionTop)...\(emulator.regionBottom)")
+                #expect(emulator.tabStops.count == emulator.columnCount)
+                #expect(emulator.events.count <= 1024)
+                #expect(emulator.screen.allSatisfy { row in
+                    row.runs.reduce(0) { $0 + Int($1.count) } == (row.runs.isEmpty ? 0 : row.usedColumns)
+                })
+                #expect(emulator.screen.allSatisfy { row in
+                    (0..<row.usedColumns).allSatisfy { row.cell(at: $0).width <= 2 }
+                        && row.graphemes.reduce(0) { $0 + $1.width } == row.usedColumns
+                })
+                #expect(emulator.modes.alternateScreen == emulator.onAlternate)
                 #expect((emulator.firstRow..<(emulator.firstRow + emulator.scrollbackCount + emulator.rowCount))
                     .allSatisfy { emulator.rowText($0) != nil })
             }

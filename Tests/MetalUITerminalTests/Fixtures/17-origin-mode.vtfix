@@ -1,0 +1,11 @@
+# Origin mode: CUP is relative to the region and cannot leave it; resetting it homes the cursor.
+size 6 5
+input "\e[2;4r\e[?6h\e[1;1HA\e[99;99HB\e[?6l\e[1;1HC"
+text
+|C|
+|A|
+||
+|     B|
+||
+cursor 0 1
+modes originMode=off

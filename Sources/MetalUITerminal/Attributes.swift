@@ -8,6 +8,22 @@ public enum TerminalColor: Hashable, Sendable {
     case rgb(UInt8, UInt8, UInt8)
 }
 
+/// How a cell's underline is drawn (SGR 4, with `4:n` sub-parameters, and 21).
+public enum TerminalUnderlineStyle: Hashable, Sendable {
+    /// No underline.
+    case none
+    /// A single line (SGR 4, `4:1`).
+    case single
+    /// A double line (SGR 21, `4:2`).
+    case double
+    /// A wavy line (`4:3`).
+    case curly
+    /// A dotted line (`4:4`).
+    case dotted
+    /// A dashed line (`4:5`).
+    case dashed
+}
+
 /// The rendition of a run of cells (SGR state plus the OSC 8 hyperlink id).
 public struct TerminalAttributes: Hashable, Sendable {
     /// The foreground colour.
@@ -20,8 +36,17 @@ public struct TerminalAttributes: Hashable, Sendable {
     public var dim: Bool
     /// Italic.
     public var italic: Bool
-    /// Underline.
-    public var underline: Bool
+    /// The underline style; `.none` for no underline.
+    public var underlineStyle: TerminalUnderlineStyle
+    /// The underline colour (SGR 58/59); `.default` draws it in the foreground colour.
+    public var underlineColor: TerminalColor
+    /// Underline of any style: reading is true for every style but `.none`, writing sets `.single` or `.none`.
+    public var underline: Bool {
+        get { underlineStyle != .none }
+        set { underlineStyle = newValue ? .single : .none }
+    }
+    /// Blink (SGR 5 and 6).
+    public var blink: Bool
     /// Strikethrough.
     public var strikethrough: Bool
     /// Inverse video.
@@ -38,7 +63,9 @@ public struct TerminalAttributes: Hashable, Sendable {
         bold = false
         dim = false
         italic = false
-        underline = false
+        underlineStyle = .none
+        underlineColor = .default
+        blink = false
         strikethrough = false
         inverse = false
         hidden = false

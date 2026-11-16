@@ -1,0 +1,9 @@
+# Authored here (TRM-Z): DECALN fills the screen, then ECH, EL 0, EL 1 and DCH cut holes in the E field.
+size 8 4
+input "\e#8\e[2;2H\e[2X\e[3;3H\e[K\e[4;5H\e[1K\e[1;8H\e[P"
+text
+|EEEEEEE|
+|E  EEEEE|
+|EE|
+|     EEE|
+cursor 0 7
