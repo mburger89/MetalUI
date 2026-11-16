@@ -70,6 +70,19 @@ public struct SurfaceDrawRequest {
     public let value: AnyHashable?
     /// The app's drawing, run by the renderer on the main actor.
     public let draw: @MainActor (any GPUSurfaceContext) -> Void
+    /// Whether ``SurfaceTargetTable/update(references:requests:create:release:)`` draws this request whatever
+    /// its policy and `value:` say (`TRM-P` item 3): a `SurfaceRedrawTrigger`'s request. `package`: a renderer in
+    /// another package only passes the request on.
+    package var isForced = false
+
+    /// This request drawn at `time` and past the table's keep rule (`TRM-P` item 3): what a surface-only frame
+    /// hands the renderer for a surface a trigger invalidated.
+    package func forced(at time: Double) -> SurfaceDrawRequest {
+        var request = SurfaceDrawRequest(target: target, scaleFactor: scaleFactor, time: time, policy: policy,
+                                         value: value, draw: draw)
+        request.isForced = true
+        return request
+    }
 
     /// A request for `target`.
     public init(target: SurfaceTarget, scaleFactor: Float, time: Double, policy: RedrawPolicy,
@@ -101,8 +114,8 @@ public struct SurfaceDrawRequest {
 /// - creates nothing for a reference with no entry and no request (its run
 ///   draws nothing);
 /// - returns the requests to draw this frame, in request (= paint) order:
-///   new → draw; `.continuous` → draw; otherwise a `value:` or scale differing
-///   from the last ``didDraw(_:)`` → draw.
+///   new → draw; `.continuous` → draw; a request a `SurfaceRedrawTrigger` forced → draw
+///   (`TRM-P`); otherwise a `value:` or scale differing from the last ``didDraw(_:)`` → draw.
 ///
 /// A `create` returning `nil` drops that request this frame. Two requests
 /// naming one id in one frame **trap** (one element, one paint — `Frame`
@@ -171,7 +184,7 @@ public struct SurfaceTargetTable<Handle> {
             }
             guard let entry = entries[target.id] else { continue }
             let draws: Bool
-            if isNew || request.policy == .continuous {
+            if isNew || request.policy == .continuous || request.isForced {
                 draws = true
             } else if let last = entry.lastDrawn {
                 draws = last.value != request.value || last.scale != request.scaleFactor

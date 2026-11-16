@@ -360,9 +360,24 @@ extension Window {
             return { store?.recordedWake = nil }
         }
         store.clockOffset = nil
+        store.markOffSimulatedClock()
         store.resetCursors()
     }
 
     /// The date the one timeline wake is set for, or `nil` (see ``testingAnchorTimelineOnWallClock()``).
     package var testingTimelineWakeDate: Date? { animationStore.timeline.recordedWake }
+}
+
+extension Window {
+    /// Whether a ``SurfaceRedrawTrigger`` invalidated a surface no frame has drawn yet (`TRM-P`): a test window's
+    /// idle check counts it as work.
+    package var testingHasPendingSurfaceRedraw: Bool { surfaceRedraw.hasPending }
+    /// Surface-only frames this window presented (`TRM-P`).
+    package var testingSurfaceOnlyFrames: Int { surfaceRedraw.surfaceOnlyFrames }
+    /// Whether the frame the renderer is presenting (or last presented) is a surface-only one.
+    package var testingPresentingSurfaceOnly: Bool { surfaceRedraw.isPresentingSurfaceOnly }
+    /// Timed surface requests outstanding (`TRM-R`).
+    package var testingSurfaceDeadlineCount: Int { surfaceRedraw.deadlineCount }
+    /// The date the earliest timed surface request fires at (`TRM-R`).
+    package var testingNextSurfaceDeadline: Date? { surfaceRedraw.nextDeadline }
 }

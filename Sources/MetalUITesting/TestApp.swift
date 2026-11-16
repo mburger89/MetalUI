@@ -147,6 +147,7 @@ private struct WeakTestWindow {
 final class FrameWorkRecorder {
     let recordsLayout: Bool
     private(set) var isAttached = false
+    private weak var window: Window?
     private var pending = FrameWork()
     var history: [FrameWork] = []
     private(set) var last = FrameWork()
@@ -156,6 +157,7 @@ final class FrameWorkRecorder {
     /// Turns on element-bounds recording and the build observer for `window`.
     func attach(to window: Window) {
         isAttached = true
+        self.window = window
         window.testingRecordsElementBounds = recordsLayout
         window.testingOnFrameAdopted { [weak self] work in self?.noteBuild(work) }
     }
@@ -221,6 +223,7 @@ final class FrameWorkRecorder {
         pending.rects = renderer.lastScene.rects.count
         pending.glyphs = renderer.lastScene.glyphs.count
         pending.images = renderer.lastScene.images.count
+        pending.surfaceOnlyFrames = window?.testingPresentingSurfaceOnly == true ? 1 : 0
         history.append(pending)
         last = pending
         pending = FrameWork()

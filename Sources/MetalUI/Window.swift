@@ -800,6 +800,37 @@ public final class Window {
         }
     }
 
+    /// Surface-scoped redraws (`TRM-P`…`TRM-R`): the last frame's surface requests, what a
+    /// ``SurfaceRedrawTrigger`` invalidated, timed requests.
+    let surfaceRedraw = SurfaceRedrawState()
+
+    /// Wires ``surfaceRedraw`` to this window's clock and display link (`TRM-R`); runs once from `init`.
+    private func installSurfaceRedraw() {
+        surfaceRedraw.now = { [weak self] in
+            guard let self else { return Date() }
+            let timeline = self.animationStore.timeline
+            // The harness's clock is the frame's timestamp (`TW-A`); an app's is the wall clock, which the
+            // timeline's anchored dates track.
+            return timeline.isSimulated ? timeline.date(at: self.lastTick) : Date()
+        }
+        surfaceRedraw.wakeLink = { [weak self] in self?.platformWindow.setDisplayLinkPaused(false) }
+    }
+
+    /// What a bound ``SurfaceRedrawTrigger`` calls, on any thread: hops to the main actor once per drain and
+    /// hands the window what the trigger collected.
+    nonisolated private static func hop(_ window: WeakWindow, _ trigger: SurfaceRedrawTrigger, _ id: SurfaceID) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { window.window?.drainSurfaceTrigger(trigger, id) }
+        } else {
+            Task { @MainActor in window.window?.drainSurfaceTrigger(trigger, id) }
+        }
+    }
+
+    private func drainSurfaceTrigger(_ trigger: SurfaceRedrawTrigger, _ id: SurfaceID) {
+        guard !shell.isClosed, let request = trigger.drain() else { return }
+        surfaceRedraw.note(request, for: id)
+    }
+
     /// The most recent display-link tick, in seconds — `0` until the first
     /// tick arrives. Carried into every `Frame` as its `timestamp` (spec §8 of
     /// the clipping/scroll design): a borrowed M4 primitive, read once here so
@@ -1034,6 +1065,7 @@ public final class Window {
         // move between displays through `onResize`, and the next frame's
         // `displayScale` is the drawable's scale that `beginFrame()` returns.
         // Pinned by `aBackingScaleChangeReachesTheDisplayScaleOnTheNextFrame`.
+        installSurfaceRedraw()
         platformWindow.onResize = { [weak self] _, _ in
             self?.resizeCount &+= 1   // `SV-AG` item 3
             self?.dismissInWindowMenu()   // `MN-F` item 3
@@ -1393,6 +1425,7 @@ public final class Window {
             platformWindow.startDisplayLink { [weak self] t in
                 self?.noteDisplayLinkTick(t)
                 self?.lastTick = t
+                self?.fireDueSurfaceDeadlines(at: t)   // `TRM-R`: before the frame it may draw
                 self?.frameTiming?.noteTick(target: t)   // latency trace: when the tick ran
                 // Ahead of the frame build (plan task 12 part 1, `IX-C` item 4):
                 // a long press or a deferred tap that matures at this tick runs
@@ -1708,13 +1741,16 @@ public final class Window {
         // and it goes false on the frame a duration curve lands exactly on its
         // target, so the pause happens on the frame AFTER the last animation
         // ends rather than one frame later or never.
-        guard needsRedraw || hasActiveAnimations || awaitsATimer else {
+        guard needsRedraw || hasActiveAnimations || awaitsATimer || surfaceRedraw.hasPending else {
             // Nothing to do: let the display idle rather than spinning.
             platformWindow.setDisplayLinkPaused(true)
             pausesEntered += 1
             frameTiming?.discardTick()   // `FP-L`: an idle tick must not become a later, tickless frame's tick
             return
         }
+        // A trigger's frame (`TRM-P`): nothing but surfaces is owed, so the last scene is encoded again and only
+        // the invalidated surfaces draw. Anything else, or a scene that cannot stand, is a full frame below.
+        if !needsRedraw, !hasActiveAnimations, !awaitsATimer, drawSurfaceOnlyFrame() { return }
         isDrawingFrame = true
         defer { isDrawingFrame = false }
 
@@ -1947,17 +1983,75 @@ public final class Window {
         // The frame's app-owned surfaces' requests ride along (MetalView,
         // `MV-F`): the renderer runs them into this frame's command buffer
         // after its atlas upload and before it encodes `scene`.
+        surfaceRedraw.presenting(surfaceOnly: false)
         guard platformWindow.renderer.finishFrame(scene: scene, atlas: glyphAtlas,
-                                                  surfaces: frame.surfaceRequests) else {
+                                                  surfaces: surfaceRedraw.forcing(frame.surfaceRequests, at: lastTick)) else {
             timing?.abandonFrame()
             setNeedsRedraw(from: .platform)
             return
         }
+        adoptSurfaceRedraw(of: frame, scale: drawScaleFactor)
         timing?.commitFrame()   // `FP-B`: stamped the moment `finishFrame` returned
         framesDrawn += 1
         if drawsImmediatelyOnInput { lastCommitForPacing = immediateInputClock() }   // `FP-M` pacing
         noteAtlasPressureAfterFrame()
         timing?.deliverFrame()   // `FP-D`: after the frame, outside every phase
+    }
+
+    /// What a full frame leaves for the next surface-only one (`TRM-P` item 5).
+    private func adoptSurfaceRedraw(of frame: Frame, scale: Float) {
+        let windowRef = WeakWindow(window: self)
+        surfaceRedraw.didPresentFullFrame(
+            requests: frame.surfaceRequests, triggers: frame.surfaceTriggers, scale: scale,
+            contentSize: platformWindow.contentSize, resizes: resizeCount, atlas: glyphAtlas,
+            hop: { trigger, id in Window.hop(windowRef, trigger, id) })
+    }
+
+    /// Fires the timed surface requests the display-link tick at `timestamp` has reached (`TRM-R`).
+    private func fireDueSurfaceDeadlines(at timestamp: Double) {
+        guard surfaceRedraw.deadlineCount > 0 else { return }
+        let timeline = animationStore.timeline
+        surfaceRedraw.fireDue(at: timeline.isSimulated ? timeline.date(at: timestamp) : Date())
+    }
+
+    /// One surface-only frame (`TRM-P`): `lastScene` encoded again, with only the invalidated surfaces' draws
+    /// run — no build, no element request, no `@State` or observation read. `false` (nothing drawn) when the
+    /// last scene cannot stand: none was presented, the scale, the size or the atlas layout moved since. The
+    /// full frame that follows draws the same surfaces.
+    private func drawSurfaceOnlyFrame() -> Bool {
+        guard surfaceRedraw.canReuseScene(scale: platformWindow.scaleFactor, contentSize: platformWindow.contentSize,
+                                          resizes: resizeCount, atlas: glyphAtlas) else { return false }
+        let requests = surfaceRedraw.surfaceOnlyRequests(at: lastTick)
+        guard !requests.isEmpty else {
+            // Every invalidated surface left the last frame: nothing to draw, nothing to wait for.
+            platformWindow.setDisplayLinkPaused(true)
+            pausesEntered += 1
+            return true
+        }
+        isDrawingFrame = true
+        defer { isDrawingFrame = false }
+        let timing = frameTiming
+        if timing !== observedFrameTiming || (timing != nil && !frameTimingObserverInstalled) {
+            bindFrameTimingObserver(timing)
+        }
+        timing?.beginFrame()
+        guard platformWindow.renderer.beginFrame() != nil else {
+            timing?.abandonFrame()   // no drawable: the surfaces stay pending and the link keeps ticking
+            return true
+        }
+        timing?.stampDrawableAcquired()
+        surfaceRedraw.presenting(surfaceOnly: true)
+        guard platformWindow.renderer.finishFrame(scene: lastScene, atlas: glyphAtlas, surfaces: requests) else {
+            timing?.abandonFrame()
+            surfaceRedraw.presenting(surfaceOnly: false)
+            return true
+        }
+        surfaceRedraw.didPresentSurfaceOnly(requests)
+        timing?.commitFrame()
+        framesDrawn += 1
+        if drawsImmediatelyOnInput { lastCommitForPacing = immediateInputClock() }
+        timing?.deliverFrame()
+        return true
     }
 
     /// Points the renderer's presentation observer at `timing` (`FP-F`), or removes it. Frames the timing records
@@ -3905,4 +3999,10 @@ private final class FlushingThread: @unchecked Sendable {
         defer { lock.unlock() }
         return thread === Thread.current
     }
+}
+
+/// A window a ``SurfaceRedrawTrigger``'s wake may name from any thread: it only ever dereferences it on the main
+/// actor (`Window.hop`).
+private struct WeakWindow: @unchecked Sendable {
+    weak var window: Window?
 }

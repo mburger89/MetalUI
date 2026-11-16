@@ -37,6 +37,10 @@ final class TimelineStore {
     /// `timeIntervalSinceReferenceDate` is the timestamp).
     var clockOffset: TimeInterval?
 
+    /// Whether ``useSimulatedClock(anchor:)`` put this store on the harness's clock (`DX-A`); the window's
+    /// surface deadlines (`TRM-R`) follow it.
+    private(set) var isSimulated = false
+
     /// The one wake's scheduler; by default a main-actor `Task` that sleeps
     /// until the date and fires.
     var scheduler: Scheduler = TimelineStore.taskScheduler
@@ -82,9 +86,13 @@ final class TimelineStore {
             return { [weak self] in self?.simulatedWake = nil }
         }
         clockOffset = anchor.timeIntervalSinceReferenceDate
+        isSimulated = true
         resetCursors()
         simulatedWake = nil
     }
+
+    /// The store left the simulated clock (`testingAnchorTimelineOnWallClock()`).
+    func markOffSimulatedClock() { isSimulated = false }
 
     /// Fires the held simulated wake if its date is not after `timestamp`'s date: the window's `@State`
     /// write path, from outside every phase. Answers whether it fired.

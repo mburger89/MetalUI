@@ -138,6 +138,9 @@ public struct FrameWork: Sendable, Equatable {
     public var newTextures: Int
     /// The texels of ``newTextures``.
     public var newTexturePixels: Int
+    /// 1 when the frame was a surface-only frame (`TRM-P`): the last scene encoded again, only the surfaces a
+    /// `SurfaceRedrawTrigger` invalidated drawn, no build — ``builds`` and ``elementRequests`` are 0.
+    public var surfaceOnlyFrames: Int
     /// Rects in the presented scene.
     public var rects: Int
     /// Glyphs in the presented scene.
@@ -166,7 +169,8 @@ public struct FrameWork: Sendable, Equatable {
                 outlineContentEvaluations: Int = 0, outlineContentRebuilds: Int = 0, outlineContentHits: Int = 0,
                 outlineContentChecks: Int = 0,
                 codeLinesShaped: Int = 0, codeLinesPainted: Int = 0, codeGlyphsEmitted: Int = 0,
-                codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0) {
+                codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0, surfaceOnlyFrames: Int = 0) {
+        self.surfaceOnlyFrames = surfaceOnlyFrames
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
         self.layoutCacheHits = layoutCacheHits
@@ -282,6 +286,7 @@ public struct FrameWork: Sendable, Equatable {
                   codeLinesPainted: l.codeLinesPainted + r.codeLinesPainted,
                   codeGlyphsEmitted: l.codeGlyphsEmitted + r.codeGlyphsEmitted,
                   codeHighlightRunsVisited: l.codeHighlightRunsVisited + r.codeHighlightRunsVisited,
-                  codeFindMatchesVisited: l.codeFindMatchesVisited + r.codeFindMatchesVisited)
+                  codeFindMatchesVisited: l.codeFindMatchesVisited + r.codeFindMatchesVisited,
+                  surfaceOnlyFrames: l.surfaceOnlyFrames + r.surfaceOnlyFrames)
     }
 }

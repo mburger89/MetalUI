@@ -3508,6 +3508,10 @@ public final class Frame {
     /// (`MV-F`). A headless `renderFrame` drops them.
     private(set) var surfaceRequests: [SurfaceDrawRequest] = []
 
+    /// The ``SurfaceRedrawTrigger`` of each painted surface that has one, with its id (`TRM-P`): what `Window`
+    /// binds after the frame is presented and unbinds when a later frame does not paint the surface.
+    private(set) var surfaceTriggers: [(SurfaceID, SurfaceRedrawTrigger)] = []
+
     /// Emits one app-owned surface's quad and its draw request (MetalView,
     /// rulings `MV-D`, `MV-E` item 2, `MV-G`) — ``drawImage(_:in:filter:)``'s
     /// arithmetic line for line: `bounds` in points, translated by
@@ -3525,7 +3529,8 @@ public final class Frame {
     /// active animation, keeping the display link awake — never
     /// `requestAnotherFrame()` (CLAUDE.md "Animation": never raise both).
     func drawSurface(id: GlobalElementID, bounds: Bounds<Pixels>, policy: RedrawPolicy,
-                     value: AnyHashable?, draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
+                     value: AnyHashable?, trigger: SurfaceRedrawTrigger? = nil,
+                     draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
         retainLog?.taint("surface")
         // Counted before the guards, so a skipped sibling sharing one `.id`
         // keeps its place (`MV-M` item 5).
@@ -3555,6 +3560,7 @@ public final class Frame {
         insertThroughScopes(.surface(quad, target: target, layer: activeLayer, innerMask: false))
         surfaceRequests.append(SurfaceDrawRequest(target: target, scaleFactor: scaleFactor, time: timestamp,
                                                   policy: policy, value: value, draw: draw))
+        if let trigger { surfaceTriggers.append((target.id, trigger)) }
         if policy == .continuous { noteActiveAnimation() }
     }
 

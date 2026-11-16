@@ -801,6 +801,16 @@ and the defaultless `WindowRenderer.finishFrame(scene:atlas:surfaces:)`
 attachment, EDR targets, `NSViewRepresentable` (see
 [`divergences.md`](divergences.md#not-offered)).
 
+
+**`SurfaceRedrawTrigger`** (M; `TRM-P`…`TRM-T`, record 337; draft until the terminal's Phase 5): `GPUSurface(redraw:value:trigger:draw:)`
+and `GPUSurface(redraw:trigger:draw:)`. `trigger.requestRedraw()` (any thread, coalesced) redraws that surface in a
+**surface-only frame** — the window re-encodes its last scene and runs only the invalidated surfaces' `draw`s, with
+0 builds and 0 element requests (`FrameWork.surfaceOnlyFrames`); a full frame does the same draws when anything else
+dirtied the window, an animation or timer runs, or the scale, size or glyph-atlas layout changed.
+`requestRedraw(after:)` keeps the earliest deadline per surface on the window's frame clock (the simulated one in a
+`TestWindow`). A trigger whose surface the last frame did not paint does nothing and starts no timer.
+`TestWindow.runsSurfaceDraws` makes a headless frame call the draws it would run; `surfaceDrawCount` counts them.
+
 ## Application icon — M
 
 `App.icon: [ImageBitmap]` (M; `AI-A`): the application's icon, settable

@@ -104,6 +104,16 @@ public final class TestWindow {
     /// Every window action the platform was asked for, in order (`CW-F`).
     public var windowActions: [PlatformWindowAction] { platformWindow.windowActions }
 
+    /// Whether presented frames run their surfaces' `draw` closures (`TRM-P` item 6), as a GPU renderer's table
+    /// would; off, they are recorded and never run (``HeadlessWindowRenderer/runsSurfaceDraws``).
+    public var runsSurfaceDraws: Bool {
+        get { platformWindow.headlessRenderer.runsSurfaceDraws }
+        set { platformWindow.headlessRenderer.runsSurfaceDraws = newValue }
+    }
+
+    /// The surface draws run since ``runsSurfaceDraws`` was turned on.
+    public var surfaceDrawCount: Int { platformWindow.headlessRenderer.surfaceDrawCount }
+
     /// The last presented frame's scene, in device pixels.
     public var scene: Scene { platformWindow.headlessRenderer.lastScene }
 
@@ -222,7 +232,9 @@ public final class TestWindow {
 
     /// Whether a tick would draw something a test waits for: the window is
     /// dirty and still open (`HT-Y` item 1).
-    private var isDirtyAndOpen: Bool { window.needsRedraw && !platformWindow.isClosed }
+    private var isDirtyAndOpen: Bool {
+        (window.needsRedraw || window.testingHasPendingSurfaceRedraw) && !platformWindow.isClosed
+    }
 
     /// Lets main-actor work run, drawing a frame whenever the window is dirty,
     /// **until `condition` holds**, then settles with ``runUntilIdle()`` — for
