@@ -68,6 +68,6 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor100kPathsAsFor500
 ```
 
-- **Counts (2026-11-15, `feat/outline-splice-animation` on master 2275d2a0 + record 320): root 6176 tests in 32 suites (full run green, `--build-system native`, `--no-parallel`); the rest of this line is lane 8's and not re-counted: root 6155 tests in 32 suites (`--build-system native`, unfiltered, `--no-parallel`), all green; the gated 100k outline test run once and green; guards not re-counted; the portable image not re-run; divergences 224 live, next label 242.**
+- **Counts (2026-11-15, `feat/menu-item-labels` on master ccd6cc3a + record 322): root 6192 tests in 32 suites (full run green, `--build-system native`, `--no-parallel`); the rest of this line is lane 8's and not re-counted: root 6155 tests in 32 suites (`--build-system native`, unfiltered, `--no-parallel`), all green; the gated 100k outline test run once and green; guards not re-counted; the portable image not re-run; divergences 224 live, next label 242.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.
