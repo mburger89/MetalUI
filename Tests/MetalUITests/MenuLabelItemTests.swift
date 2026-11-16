@@ -52,8 +52,9 @@ private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
         Button("D", systemImage: "circle.fill") {}.foregroundStyle(.green),
         Button("E", systemImage: "circle.fill") {}.tint(.red).tint(.green),   // the nearer write wins
         Button("F", systemImage: "circle.fill") {}.tint(.green).foregroundStyle(.red),
+        Button("G", systemImage: "circle.fill") {}.disabled(false).tint(.green),   // through an inner scope
     ]))
-    #expect(items.map { $0.image?.tint } == [green, nil, nil, nil, red, green])
+    #expect(items.map { $0.image?.tint } == [green, nil, nil, nil, red, green, green])
 }
 
 /// **MN-AP 2b.** A tint on a `Menu` item reaches the item and each item inside it (the context a scope passes
