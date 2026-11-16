@@ -42,6 +42,10 @@ private struct WeakCursor {
     weak var cursor: CodeEditCursor?
 }
 
+private struct WeakSelectionState {
+    weak var state: CodeSelectionState?
+}
+
 /// A text buffer for code: a copy-on-write rope of UTF-8 chunks with snapshots, an edit stream, undo,
 /// selections, external edits and a find engine (`CV-A`..`CV-H`).
 ///
@@ -52,8 +56,9 @@ private struct WeakCursor {
 public final class CodeBuffer {
     /// The number of edit events so far. It rises by exactly 1 per event and is observable.
     public private(set) var version: UInt64 = 0
-    /// Rises each time `select(_:reveal:)` asks views to scroll the selection into view.
-    public private(set) var revealSerial: UInt64 = 0
+    /// Rises each time `select(_:reveal:)` asks views to scroll the selection into view. This is the
+    /// default state's serial (`selectionState`).
+    public var revealSerial: UInt64 { selectionState.revealSerial }
     /// The line ending Return inserts; detected from the text at creation.
     public var lineEnding: CodeLineEnding = .lf
     /// Whether the buffer refuses edits. A read-only buffer still selects and snapshots.
@@ -65,7 +70,17 @@ public final class CodeBuffer {
     @ObservationIgnored public var undoByteLimit = 8 << 20
 
     @ObservationIgnored var rope: Rope
-    @ObservationIgnored private var storedSelections = [CodeSelection(caret: 0)]
+    /// The built-in selection state; the buffer's own selection API forwards to it (`CV-AV`).
+    @ObservationIgnored public lazy var selectionState = CodeSelectionState(defaultFor: self)
+    @ObservationIgnored private var selectionStates: [WeakSelectionState] = []
+    /// The state whose API call is running an edit (`nil` outside one and during external edits).
+    @ObservationIgnored private weak var acting: CodeSelectionState?
+    @ObservationIgnored private weak var openState: CodeSelectionState?
+    /// How many states edit events have moved so far, summed over events (one per live state per event).
+    @ObservationIgnored package private(set) var stateMoveCount = 0
+    /// How many states are alive and registered (the default state included).
+    @ObservationIgnored package var registeredStateCount: Int { selectionStates.count }
+    @ObservationIgnored package var liveStateCount: Int { selectionStates.reduce(0) { $0 + ($1.state == nil ? 0 : 1) } }
     @ObservationIgnored private var nextTransaction: UInt64 = 0
     @ObservationIgnored private var transactionDepth = 0
     @ObservationIgnored private var currentTransaction = CodeTransactionID(rawValue: 0)
@@ -151,31 +166,37 @@ public final class CodeBuffer {
     // MARK: Selections
 
     /// The selections, sorted and merged: no two overlap and no two carets coincide. An edit moves them
-    /// (`CV-D`); assigning replaces them and ends undo coalescing. A buffer always has at least one.
+    /// (`CV-D`); assigning replaces them and ends undo coalescing. A buffer always has at least one. These
+    /// are the default state's (`selectionState`, `CV-AV`).
     public var selections: [CodeSelection] {
-        get { access(keyPath: \.selections); return storedSelections }
-        set {
-            withMutation(keyPath: \.selections) { storedSelections = Self.normalize(newValue, limit: rope.summary.utf8) }
-            openKind = nil
-        }
+        get { selectionState.selections }
+        set { selectionState.selections = newValue }
     }
 
     /// The first selection, which views reveal and move.
-    public var primarySelection: CodeSelection { selections[0] }
+    public var primarySelection: CodeSelection { selectionState.primarySelection }
 
     /// Selects `range` (anchor at its start, head at its end), ending undo coalescing. With `reveal`, views
     /// scroll the selection into view: they observe `revealSerial`.
     public func select(_ range: Range<Int>, reveal: Bool = true) {
-        selections = [CodeSelection(anchor: range.lowerBound, head: range.upperBound)]
-        if reveal { revealSerial &+= 1 }
+        selectionState.select(range, reveal: reveal)
     }
 
     /// Ends the current run of coalesced typing or deletion, so the next edit is its own undo step.
-    public func breakUndoCoalescing() { openKind = nil }
+    public func breakUndoCoalescing() { openKind = nil; openState = nil }
 
-    private func setSelectionsInternal(_ new: [CodeSelection]) {
-        withMutation(keyPath: \.selections) { storedSelections = Self.normalize(new, limit: rope.summary.utf8) }
+    func register(_ state: CodeSelectionState) { selectionStates.append(WeakSelectionState(state: state)) }
+
+    /// Runs `body` with `state` as the acting state (the one whose selections an edit records, sticks and
+    /// coalesces by), restoring the previous one after.
+    func asActing<T>(_ state: CodeSelectionState, _ body: () -> T) -> T {
+        let previous = acting
+        acting = state
+        defer { acting = previous }
+        return body()
     }
+
+    private var actor: CodeSelectionState { acting ?? selectionState }
 
     nonisolated static func normalize(_ input: [CodeSelection], limit: Int) -> [CodeSelection] {
         var xs = input.map { CodeSelection(anchor: max(0, min($0.anchor, limit)), head: max(0, min($0.head, limit))) }
@@ -204,6 +225,25 @@ public final class CodeBuffer {
         return o + newLength - (end - start)
     }
 
+    /// Where a selection of a state that did NOT make the edit goes when `start..<end` is replaced by
+    /// `newLength` bytes (`CV-AW`, from the AppKit probe). A caret or range start at an insertion point moves
+    /// after the insertion; an insertion at a range's end or later, or an edit wholly after it, changes
+    /// nothing; an edit wholly before shifts it; any edit that overlaps a range's interior (inside it, over
+    /// it or across one end) collapses it to a caret at the deletion's start or the replacement's/insertion's
+    /// end. Ranges go one by one (AppKit collapses a whole multi-selection; this does not).
+    nonisolated static func mapOtherSelection(_ s: CodeSelection, start: Int, end: Int, newLength: Int) -> CodeSelection {
+        let lo = s.range.lowerBound, hi = s.range.upperBound
+        func shifted(_ d: Int) -> CodeSelection { CodeSelection(anchor: s.anchor + d, head: s.head + d) }
+        if start == end {
+            if start <= lo { return shifted(newLength) }
+            if start >= hi { return s }
+            return CodeSelection(caret: start + newLength)
+        }
+        if end <= lo { return shifted(newLength - (end - start)) }
+        if start >= hi { return s }
+        return CodeSelection(caret: start + newLength)
+    }
+
     // MARK: Editing
 
     private func newTransaction() -> CodeTransactionID {
@@ -224,6 +264,10 @@ public final class CodeBuffer {
     /// `range` must lie in the text and on scalar boundaries.
     @discardableResult
     public func replace(_ range: Range<Int>, with text: String, origin: CodeEditOrigin = .programmatic) -> CodeTransactionID {
+        asActing(actor) { performReplace(range, with: text, origin: origin) }
+    }
+
+    func performReplace(_ range: Range<Int>, with text: String, origin: CodeEditOrigin) -> CodeTransactionID {
         precondition(validate(range), "CodeBuffer.replace: range \(range) is out of bounds or inside a scalar")
         if transactionDepth > 0 {
             if isReadOnly || (range.isEmpty && text.isEmpty) { return currentTransaction }
@@ -233,7 +277,7 @@ public final class CodeBuffer {
         }
         let tx = newTransaction()
         if isReadOnly || (range.isEmpty && text.isEmpty) { return tx }
-        let before = storedSelections
+        let before = actor.stored
         let inverse = applyEvent(range, text, origin: origin, transaction: tx)
         recordUndo(inverse, origin: origin, transaction: tx, before: before)
         return tx
@@ -243,16 +287,21 @@ public final class CodeBuffer {
     /// A transaction inside a transaction joins the outer one.
     @discardableResult
     public func transaction(_ body: (CodeBuffer) -> Void) -> CodeTransactionID {
+        asActing(actor) { performTransaction(body) }
+    }
+
+    func performTransaction(_ body: (CodeBuffer) -> Void) -> CodeTransactionID {
         if transactionDepth > 0 { body(self); return currentTransaction }
         let tx = newTransaction()
         transactionDepth = 1
         currentTransaction = tx
-        building = CodeUndoGroup(id: tx, inverse: [], undoSelections: storedSelections, redoSelections: storedSelections)
+        building = CodeUndoGroup(id: tx, inverse: [], undoSelections: actor.stored, redoSelections: actor.stored)
         body(self)
         transactionDepth = 0
         if var group = building, !group.inverse.isEmpty {
-            group.redoSelections = storedSelections
+            group.redoSelections = actor.stored
             openKind = nil
+            openState = nil
             pushUndo(group)
         }
         building = nil
@@ -263,7 +312,12 @@ public final class CodeBuffer {
     /// what typing and pasting do; consecutive `.typing` calls at a caret coalesce into one undo step.
     @discardableResult
     public func replaceSelections(with text: String, origin: CodeEditOrigin = .typing) -> CodeTransactionID {
-        let sels = storedSelections
+        asActing(actor) { performReplaceSelections(with: text, origin: origin) }
+    }
+
+    func performReplaceSelections(with text: String, origin: CodeEditOrigin) -> CodeTransactionID {
+        let state = actor
+        let sels = state.stored
         let length = text.utf8.count
         var carets: [CodeSelection] = []
         var shift = 0
@@ -273,16 +327,16 @@ public final class CodeBuffer {
         }
         if sels.count == 1 {
             let before = version
-            let tx = replace(sels[0].range, with: text, origin: origin)
+            let tx = performReplace(sels[0].range, with: text, origin: origin)
             if version != before {
-                setSelectionsInternal(carets)
-                if Self.isUndoable(origin), !undoStack.isEmpty { undoStack[undoStack.count - 1].redoSelections = storedSelections }
+                state.setInternal(carets)
+                if Self.isUndoable(origin), !undoStack.isEmpty { undoStack[undoStack.count - 1].redoSelections = state.stored }
             }
             return tx
         }
-        return transaction { buffer in
+        return performTransaction { buffer in
             for s in sels.reversed() { buffer.replace(s.range, with: text, origin: origin) }
-            if !buffer.isReadOnly { buffer.setSelectionsInternal(carets) }
+            if !buffer.isReadOnly { state.setInternal(carets) }
         }
     }
 
@@ -296,15 +350,17 @@ public final class CodeBuffer {
     private func recordUndo(_ inverse: CodeInverse, origin: CodeEditOrigin, transaction tx: CodeTransactionID, before: [CodeSelection]) {
         guard Self.isUndoable(origin) else { return }
         let kind: CodeCoalesceKind? = switch origin { case .typing: .typing; case .deletion: .deletion; default: nil }
-        if let kind, openKind == kind, var top = undoStack.last, let last = top.inverse.last,
+        let state = actor
+        if let kind, openKind == kind, openState === state, var top = undoStack.last, let last = top.inverse.last,
            let merged = CodeInverse.merged(last, inverse, kind: kind) {
             top.inverse[top.inverse.count - 1] = merged
-            top.redoSelections = storedSelections
+            top.redoSelections = state.stored
             undoStack[undoStack.count - 1] = top
             return
         }
-        pushUndo(CodeUndoGroup(id: tx, inverse: [inverse], undoSelections: before, redoSelections: storedSelections))
+        pushUndo(CodeUndoGroup(id: tx, inverse: [inverse], undoSelections: before, redoSelections: state.stored))
         openKind = kind
+        openState = kind == nil ? nil : state
     }
 
     private func pushUndo(_ group: CodeUndoGroup) {
@@ -350,12 +406,30 @@ public final class CodeBuffer {
         log.append(edit)
         logBytes += length + 96
         trimLog()
-        let sticky: Bool = switch origin { case .typing, .paste: true; default: false }
-        setSelectionsInternal(storedSelections.map {
-            CodeSelection(anchor: Self.mapSelectionOffset($0.anchor, start: lo, end: hi, newLength: length, sticky: sticky),
-                          head: Self.mapSelectionOffset($0.head, start: lo, end: hi, newLength: length, sticky: sticky))
-        })
+        moveStates(start: lo, end: hi, newLength: length, origin: origin)
         return CodeInverse(range: lo..<lo + length, text: old)
+    }
+
+    /// Moves every live state over one edit: the acting state by the typing/paste rule (`CV-D`), every other
+    /// state by `mapOtherSelection` (`CV-AW`). An external edit has no acting state and moves all of them
+    /// by the `CV-D` rule without stickiness, so a buffer used through its default state alone moves exactly
+    /// as before states existed.
+    private func moveStates(start: Int, end: Int, newLength: Int, origin: CodeEditOrigin) {
+        let sticky: Bool = switch origin { case .typing, .paste: true; default: false }
+        let isExternal: Bool = if case .external = origin { true } else { false }
+        let current = actor
+        for entry in selectionStates {
+            guard let state = entry.state else { continue }
+            stateMoveCount += 1
+            if isExternal || state === current {
+                state.setInternal(state.stored.map {
+                    CodeSelection(anchor: Self.mapSelectionOffset($0.anchor, start: start, end: end, newLength: newLength, sticky: sticky && !isExternal),
+                                  head: Self.mapSelectionOffset($0.head, start: start, end: end, newLength: newLength, sticky: sticky && !isExternal))
+                })
+            } else {
+                state.setInternal(state.stored.map { Self.mapOtherSelection($0, start: start, end: end, newLength: newLength) })
+            }
+        }
     }
 
     // MARK: Undo and redo
@@ -370,23 +444,33 @@ public final class CodeBuffer {
     /// anything was reverted.
     @discardableResult
     public func undo() -> Bool {
+        asActing(actor) { performUndo() }
+    }
+
+    func performUndo() -> Bool {
         guard !isReadOnly, let group = undoStack.popLast() else { return false }
         openKind = nil
+        openState = nil
         let counterpart = replay(group, origin: .undo(group.id))
         redoStack.append(counterpart)
-        setSelectionsInternal(group.undoSelections)
+        actor.setInternal(group.undoSelections)
         return true
     }
 
     /// Reapplies the step `undo()` reverted and restores the selections from after it (origin `.redo(id)`).
     @discardableResult
     public func redo() -> Bool {
+        asActing(actor) { performRedo() }
+    }
+
+    func performRedo() -> Bool {
         guard !isReadOnly, let group = redoStack.popLast() else { return false }
         openKind = nil
+        openState = nil
         let counterpart = replay(group, origin: .redo(group.id))
         undoStack.append(counterpart)
         trimUndo()
-        setSelectionsInternal(group.redoSelections)
+        actor.setInternal(group.redoSelections)
         return true
     }
 
@@ -444,6 +528,7 @@ public final class CodeBuffer {
         let live = sorted.filter { !($0.range.isEmpty && $0.text.isEmpty) }
         if live.isEmpty { return tx }
         openKind = nil
+        openState = nil
         let shape = live.map { ExternalShape(range: $0.range, newLength: $0.text.utf8.count) }
         Self.rebase(&undoStack, over: shape)
         Self.rebase(&redoStack, over: shape)
@@ -523,6 +608,7 @@ public final class CodeBuffer {
 
     private func trimLog() {
         cursors.removeAll { $0.cursor == nil }
+        selectionStates.removeAll { $0.state == nil }
         var keepAfter = version > UInt64(editLogMinimumEvents) ? version - UInt64(editLogMinimumEvents) : 0
         if let slowest = cursors.compactMap({ $0.cursor?.version }).min() { keepAfter = min(keepAfter, slowest) }
         let available = log.count - logHead
