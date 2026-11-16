@@ -75,8 +75,9 @@ import MetalUIPlatform
     #expect(try splitRequests(identifier: true) == splitRequests())
 }
 
-/// **4** A strip WITH a menu: the cost of the menu's wrapper, pinned so a change is seen (a menu is an opt-in feature).
-@MainActor @Test func aTabStripWithAMenuCostsOneWrapperPerTab() throws {
+/// **4** A strip WITH a menu costs the same as without (`TBS-Q`: the menu rides the middle-button gesture wrapper's and the
+/// label's accessibility wrapper's registrations). Mutation: wrap the cell in a `ContextualModifier` when there is a menu (73).
+@MainActor @Test func aTabStripWithAMenuCostsNoExtraRequest() throws {
     let without = try stripRequests(), with = try stripRequests(menu: true)
-    #expect(with - without == 3, "without \(without), with \(with)")
+    #expect(with - without == 0, "without \(without), with \(with)")
 }

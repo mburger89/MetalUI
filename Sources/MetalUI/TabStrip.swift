@@ -424,12 +424,12 @@ struct TabStripTab<ID: Hashable>: Component {
                 let inside = value.location.x.value >= 0 && value.location.x.value <= tabWidth
                     && value.location.y.value >= 0 && value.location.y.value <= TabStripMetrics.barHeight
                 if item.isClosable && inside { close() }
-            })
+            }).tabContextMenu(menu)   // the menu rides this wrapper's registration: no element of its own (`TBS-Q`)
         .onGeometryChange(for: Float.self, of: { $0.size.width.value }, action: { measured in
             size.wrappedValue = measured
             width(measured)
         })
-        return interactive.tabContextMenu(menu)
+        return interactive
     }
 }
 
@@ -532,13 +532,23 @@ struct TabStripFill: Component {
 }
 
 
-extension ProposalElementGroup {
-    /// A tab's context menu on the proposal path (`TBS-O`, `TBS-P`): a `ContextualModifier` when there is a menu, the receiver
-    /// itself (no wrapper element, so no element request per frame) when there is none. A menu-less tab registers no
-    /// contextual region, so an outer `contextMenu` is not shadowed either.
-    func tabContextMenu(_ menu: (@MainActor () -> MenuItems)?) -> EitherGroup<ContextualModifier<Self>, Self> {
-        guard let menu else { return .second(self) }
-        return .first(ContextualModifier(content: self, attachment: ContextualAttachment(menu: menu, help: nil)))
+extension GestureModifier {
+    /// This gesture wrapper with a tab's context menu in its own registration (`TBS-Q`): no `ContextualModifier`, so no element
+    /// request per frame. With no menu, the wrapper is unchanged and registers no contextual region (an outer
+    /// `contextMenu` is not shadowed).
+    func tabContextMenu(_ menu: (@MainActor () -> MenuItems)?) -> Self {
+        guard let menu else { return self }
+        var copy = self
+        copy.contextual = ContextualAttachment(menu: menu, help: nil)
+        return copy
+    }
+}
+
+extension AccessibilityModifier {
+    /// As `GestureModifier.tabContextMenu(_:)`, on the label's accessibility wrapper (so a client's show-menu finds it).
+    func tabContextMenu(_ menu: (@MainActor () -> MenuItems)?) -> Self {
+        guard let menu else { return self }
+        return declaring { $0.contextual = ContextualAttachment(menu: menu, help: nil) }
     }
 }
 
