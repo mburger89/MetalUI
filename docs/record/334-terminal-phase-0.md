@@ -1,0 +1,11 @@
+# 334 - Terminal Phase 0: the API freeze (`TRM-A`..`TRM-E`)
+
+Branch `docs/terminal-phase0` from master `c625d565`. Docs only: no Swift source, no public declaration, no divergence label used (1095-1104 reserved for `TRM-`). Records 331-333 belong to in-flight branches.
+
+**What it is.** Alloy's integrated-terminal request (gaps 1-5) after a plan that read the repository first: a surface "redraw" is a full window build today, so gap 5 is a new surface-only frame path; glyphs already draw into a surface on both backends (`DT-`), so the terminal grid needs no shader change; key order is Keymap, `onKeyPress`, field keys and the rest, so capture needs a new first stage. Alloy answered the plan's ten questions on 2026-11-16; the answers are binding and override the plan where they differ (`boldIsBright` flag, both Option keys as meta, `pwsh` then `powershell`, the blink stop as a view flag).
+
+**What landed.** `docs/superpowers/specs/2026-11-16-terminal-design.md` (module shape, FROZEN signatures for gaps 1, 3, 4, DRAFT for 2 and 5, behaviour rules, budgets, tests, risks), `docs/superpowers/2026-11-16-terminal-decisions.md` (`TRM-A`..`TRM-E`, next `TRM-F`), `docs/superpowers/plans/2026-11-16-terminal.md` (phases 0-6), `docs/rules/terminal.md`, a `TRM-` row in `docs/rules/decision-prefixes.md`, the 1095-1104 reservation in `CLAUDE.md` (and `AGENTS.md`) and `docs/divergences.md`.
+
+**Resolutions of the plan's loose ends** (`TRM-B`, `TRM-C`, `TRM-E`): the plan named types it never defined (`TerminalSelection`, `TerminalCursor`, `TerminalDamagedRow`, `TerminalCell`, `TerminalAttributes`, `TerminalColor`, `TerminalMouseEvent`, `TerminalModifiers`, `PseudoTerminalError`, the mode enums); the spec pins their shape so Alloy can build fakes. The plan's "Windows default shell" and Alloy's answer left the case with neither PowerShell open; `%ComSpec%` is the last resort and the resolver is `package`. The plan's "bold-as-bright" palette member became the optional `boldIsBright`. The plan's record numbering (332 onward) became 334, since 331-333 are taken.
+
+**Verification.** `zsh docs/probes/closeout-inventory-check.sh`, `zsh docs/probes/closeout-undocumented.sh` and `zsh docs/probes/record-05-check.sh` print nothing; `cmp CLAUDE.md AGENTS.md` equal. No build, no test: nothing to run.
