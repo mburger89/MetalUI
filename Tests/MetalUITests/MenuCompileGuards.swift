@@ -134,6 +134,38 @@ func aPickerIsNotAMenuItem() throws {
     #expect(picker.messages.contains("MenuContent"), "refused FOR MenuContent:\n\(picker.output)")
 }
 
+/// **MN-AP 8.** `Button { } label: { Label("T", systemImage:) }` and `Button("T", systemImage:)` are menu items
+/// (`MN-D` item 5 amended); a `Button` whose label is neither a `Text` nor such a `Label` still is not, and an
+/// outside type cannot conform to `MenuItemLabel` (its requirement is SPI, as `MenuContent`'s). Mutation:
+/// `Label` conforming to `MenuItemLabel` for every `Icon` (no effect here); `Button: MenuContent` for every
+/// label (the bare-`Image` negative compiles and reddens).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), metalUISkipReason))
+func aLabelIsAMenuItemButABareImageButtonIsNot() throws {
+    let label = try typecheckFile("""
+        @MainActor func menu() -> some ElementGroup {
+            Box().contextMenu {
+                Button("A", systemImage: "star") {}
+                Button { } label: { Label("B", systemImage: "circle.fill") }
+                Toggle("C", systemImage: "flag", isOn: .constant(true))
+                Menu("D", systemImage: "folder") { Button("E") {} }
+            }
+        }
+        """, importing: "MetalUI")
+    let image = try typecheckFile("""
+        @MainActor func menu() -> some ElementGroup {
+            Box().contextMenu { Button { } label: { Image(systemName: "star") } }
+        }
+        """, importing: "MetalUI")
+    let outside = try typecheckFile("""
+        struct Mine: MenuItemLabel {}
+        """, importing: "MetalUI")
+    print("MN-AP label: succeeded=\(label.succeeded) \(label.messages); bare image succeeded=\(image.succeeded); outside succeeded=\(outside.succeeded)")
+    try #require(label.succeeded, "the Label spellings compile:\n\(label.output)")
+    #expect(!image.succeeded, "a bare Image label is not a menu item")
+    #expect(image.messages.contains("MenuContent") || image.messages.contains("MenuItemLabel"))
+    #expect(!outside.succeeded, "an outside type cannot conform to MenuItemLabel")
+}
+
 /// A `PlatformWindow` conformer with every requirement except `presentMenu`,
 /// which the caller splices in (or not).
 private func conformer(member: String) -> String {

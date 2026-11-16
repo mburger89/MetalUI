@@ -38,6 +38,24 @@ public enum StandardMenuAction: Sendable, Equatable, CaseIterable {
     case services
 }
 
+/// The image a menu item shows beside its title (ruling `MN-AP`): a symbol by
+/// its SF name — the platform draws its own (AppKit's `NSImage(systemSymbolName:)`)
+/// or MetalUI's bundled one — and, when the item was written under a tint, the
+/// colour it is drawn in.
+public struct PlatformMenuImage: Sendable, Equatable {
+    /// The SF Symbols name, as `Image(systemName:)` takes it.
+    public var symbol: String
+    /// The colour the image is baked in, or `nil` for the menu's own text colour
+    /// (a template image: AppKit recolours it with the highlight).
+    public var tint: Rgba?
+
+    /// An image of the symbol `symbol`, untinted unless `tint` is given.
+    public init(symbol: String, tint: Rgba? = nil) {
+        self.symbol = symbol
+        self.tint = tint
+    }
+}
+
 /// One item of a `PlatformMenu` (ruling `MN-D`).
 public struct PlatformMenuItem: Sendable, Equatable {
     /// What the item is.
@@ -71,12 +89,14 @@ public struct PlatformMenuItem: Sendable, Equatable {
     /// The `.help` text the item's `Button` declared (`MN-AL`): a tooltip,
     /// kept when the item is disabled; `nil` when none.
     public var help: String?
+    /// The symbol shown beside the title (`MN-AP`); `nil` when none.
+    public var image: PlatformMenuImage?
 
-    /// An item; enabled, off, with no shortcut, standard action, identifier or
-    /// help unless given.
+    /// An item; enabled, off, with no shortcut, standard action, identifier, help or
+    /// image unless given.
     public init(id: Int, kind: Kind, title: String, isEnabled: Bool = true, isOn: Bool = false,
                 shortcut: PlatformKeyEquivalent? = nil, standardAction: StandardMenuAction? = nil,
-                accessibilityIdentifier: String? = nil, help: String? = nil) {
+                accessibilityIdentifier: String? = nil, help: String? = nil, image: PlatformMenuImage? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -86,6 +106,7 @@ public struct PlatformMenuItem: Sendable, Equatable {
         self.standardAction = standardAction
         self.accessibilityIdentifier = accessibilityIdentifier
         self.help = help
+        self.image = image
     }
 }
 

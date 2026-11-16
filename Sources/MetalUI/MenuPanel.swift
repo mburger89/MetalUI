@@ -26,6 +26,8 @@ enum MenuPanel {
     static let trailingPadding: Float = 12
     /// No panel is narrower.
     static let minimumWidth: Float = 120
+    /// Between a row's image and its title (`MN-AP`).
+    static let imageGap: Float = 6
     /// The panel's corner radius.
     static let cornerRadius: Float = 6
     /// The margin a panel keeps from the window's edges (`MN-F` item 1).
@@ -51,6 +53,19 @@ enum MenuPanel {
     struct Layout: Equatable {
         var rows: [Bounds<Pixels>]
         var size: Size<Pixels>
+        /// The column the images take, after the check column and before the titles: 0 when no row draws an image
+        /// (`MN-AP`), so a menu without images is laid out as before.
+        var imageColumn: Float = 0
+    }
+
+    /// The box an item's symbol is drawn in, a square (`MN-AP`): the menu font's size at SwiftUI's medium image
+    /// scale (`SYM-J`'s box).
+    static var imageSide: Float { Float(fontDescriptor.size * PortableSymbolMetrics.sideFactor(.medium)) }
+
+    /// The bundled symbol `image` draws as, or `nil` when no icon is mapped to its name (`SYM-G`: silent).
+    static func resolvedSymbol(_ image: PlatformMenuImage?) -> String? {
+        guard let image else { return nil }
+        return resolveSymbolName(image.symbol, variants: .none, exists: { BundledSymbols.exists($0) })
     }
 
     /// The default control font's descriptor, for every panel.
@@ -105,13 +120,19 @@ enum MenuPanel {
         var rows: [Bounds<Pixels>] = []
         rows.reserveCapacity(items.count)
         let hasSubmenu = items.contains { if case .submenu = $0.kind { true } else { false } }
+        var anyImage = false
+        for item in items {
+            guard let image = item.image else { continue }
+            if resolvedSymbol(image) != nil { anyImage = true } else { SymbolDiagnostics.noteMiss(image.symbol) }
+        }
+        let imageColumn = anyImage ? imageSide + imageGap : 0
         for item in items {
             let height: Float
             if case .separator = item.kind {
                 height = separatorHeight
             } else {
                 height = rowHeight
-                var w = checkColumn + Float(textSystem.measure(item.title, font: font, wrappingAt: nil).widestLine)
+                var w = checkColumn + imageColumn + Float(textSystem.measure(item.title, font: font, wrappingAt: nil).widestLine)
                 if let shortcut = shortcutText(item.shortcut, platform: platform) {
                     w += shortcutGap + Float(textSystem.measure(shortcut, font: font, wrappingAt: nil).widestLine)
                 }
@@ -123,7 +144,8 @@ enum MenuPanel {
             y += height
         }
         for index in rows.indices { rows[index].size.width = Pixels(width) }
-        return Layout(rows: rows, size: Size(width: Pixels(width), height: Pixels(y + verticalPadding)))
+        return Layout(rows: rows, size: Size(width: Pixels(width), height: Pixels(y + verticalPadding)),
+                      imageColumn: imageColumn)
     }
 
     /// A root panel's origin for a press at `point` (`MN-F` item 1): its
@@ -218,6 +240,41 @@ extension Frame {
         }
     }
 
+    /// Draws `image`'s bundled icon in the image column of `row` (`MN-AP`): in the item's tint when it has one (a
+    /// highlighted row keeps it, as a non-template `NSImage` does), else in the row's text colour. The icon is
+    /// `MenuPanel.imageSide` square, centred on the row, drawn as `paintIcon` draws one, through `drawPath`.
+    private func paintMenuImage(_ image: PlatformMenuImage?, row: Bounds<Pixels>, color: Hsla) {
+        guard let image else { return }
+        guard let name = MenuPanel.resolvedSymbol(image), let icon = BundledSymbols.icon(forExactName: name) else {
+            SymbolDiagnostics.noteMiss(image.symbol)
+            return
+        }
+        let side = MenuPanel.imageSide
+        let box = Bounds(origin: Point(x: Pixels(row.origin.x.value + MenuPanel.checkColumn),
+                                       y: Pixels(row.origin.y.value + (row.size.height.value - side) / 2)),
+                         size: Size(width: Pixels(side), height: Pixels(side)))
+        let tint = image.tint?.toHsla() ?? color
+        let viewWidth = Double(icon.viewBox.width.value), viewHeight = Double(icon.viewBox.height.value)
+        let scale = Double(side) / max(viewWidth, viewHeight)
+        let transform = Transform2D(a: scale, b: 0, c: 0, d: scale,
+                                    tx: Double(box.origin.x.value) + (Double(side) - viewWidth * scale) / 2,
+                                    ty: Double(box.origin.y.value) + (Double(side) - viewHeight * scale) / 2)
+        let strokeFactor = PortableSymbolMetrics.strokeFactor(weight: MenuPanel.fontDescriptor.weight ?? 0)
+        for layer in icon.layers {
+            let path = layer.path.applying(transform)
+            switch layer.paint {
+            case .stroke(let width, let cap, let join):
+                let device = Double(width.value) * scale * strokeFactor
+                let style = StrokeStyle(lineWidth: Pixels(Float(device)), lineCap: cap, lineJoin: join)
+                guard style.lineWidth.value > 0 else { continue }
+                drawPath(path, mode: .stroke(style.parameters), color: tint)
+            case .fill(let style):
+                drawPath(path, mode: .fill(style.rule, antialiased: style.isAntialiased), color: tint)
+            }
+        }
+        menuIconsPainted.append(MenuIconPaint(symbol: name, bounds: box, color: tint))
+    }
+
     private func paintMenuRow(_ level: MenuSession.Level, _ index: Int, font: FontKey, lineHeight: Float) {
         let item = level.items[index]
         let row = level.rowFrame(index)
@@ -244,7 +301,8 @@ extension Frame {
         func width(_ string: String) -> Float { Float(textSystem.measure(string, font: font, wrappingAt: nil).widestLine) }
         if !item.isEnabled { pushOpacity(MenuPanel.disabledOpacity) }
         if item.isOn { text("✓", x: row.origin.x.value + 6) }
-        text(item.title, x: row.origin.x.value + MenuPanel.checkColumn)
+        text(item.title, x: row.origin.x.value + MenuPanel.checkColumn + level.layout.imageColumn)
+        if level.layout.imageColumn > 0 { paintMenuImage(item.image, row: row, color: color) }
         let trailing = row.origin.x.value + row.size.width.value
         if case .submenu = item.kind {
             text("▸", x: trailing - MenuPanel.arrowColumn + 4)
@@ -253,4 +311,12 @@ extension Frame {
         }
         if !item.isEnabled { popOpacity() }
     }
+}
+
+/// One icon the in-window menu drew (`MN-AP`): the bundled symbol's resolved name, its box in window points and the
+/// colour it was drawn in.
+struct MenuIconPaint: Equatable {
+    var symbol: String
+    var bounds: Bounds<Pixels>
+    var color: Hsla
 }

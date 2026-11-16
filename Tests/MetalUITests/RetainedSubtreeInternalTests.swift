@@ -119,7 +119,7 @@ private let frameChannels: [String: Channel] = [
     // `AS-S`: a disabled control's chrome-only rect, journalled into the ledger and replayed with it.
     "inertChromeBlockers": .ledger,
     // The drawn overlays and the drag preview: owned by the window, painted at the root.
-    "dragSourceID": .frameLocal, "menuPanelLevels": .frameLocal, "menuRowsPainted": .frameLocal,
+    "dragSourceID": .frameLocal, "menuPanelLevels": .frameLocal, "menuRowsPainted": .frameLocal, "menuIconsPainted": .frameLocal,
     "pickerTitleWidths": .frameLocal, "alertPanel": .frameLocal, "dragPreviewTranslation": .frameLocal,
     "dragPreviewOrigin": .frameLocal, "previousDragSnapshot": .frameLocal, "dragSnapshot": .frameLocal,
     "dragCapturedPrimitives": .frameLocal,

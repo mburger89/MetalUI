@@ -496,3 +496,42 @@ private let appName = ProcessInfo.processInfo.processName
     #expect(tip("") == nil, "x changed to empty clears the tip")
     #expect(tip(nil) == nil)
 }
+
+// MARK: - Image and `Label` items (`MN-AP`; probe `swiftui-menu-label-items`, L1, L4, L11, L12)
+
+/// **MN-AP 7.** The `NSMenu` built from items with symbols: an untinted image is a **template** (AppKit recolours it
+/// with the menu's text and highlight colours, probe L1); a tinted one is a **non-template** with the colour baked in
+/// (probe L4 read system green, template false) — its pixels are the tint, not black; a disabled item keeps its
+/// image (L11); an unknown name has none (L12); a submenu item's symbol is set. Mutation: leave `isTemplate` unset
+/// on the untinted (its expectation reddens); skip the palette configuration (the tinted image is black); drop
+/// `built.image` in the `.submenu` case.
+@Test @MainActor func anNSMenuItemsImageIsATemplateUntintedAndTheTintWhenTinted() throws {
+    let red = Rgba(r: 1, g: 0, b: 0, a: 1)
+    let items = [
+        PlatformMenuItem(id: 1, kind: .action, title: "Plain", image: PlatformMenuImage(symbol: "star")),
+        PlatformMenuItem(id: 2, kind: .action, title: "Dot", image: PlatformMenuImage(symbol: "circle.fill", tint: red)),
+        PlatformMenuItem(id: 3, kind: .action, title: "Off", isEnabled: false, image: PlatformMenuImage(symbol: "star")),
+        PlatformMenuItem(id: 4, kind: .action, title: "Unknown", image: PlatformMenuImage(symbol: "no.such.symbol.xyz")),
+        PlatformMenuItem(id: 5, kind: .action, title: "None"),
+        PlatformMenuItem(id: 6, kind: .submenu([PlatformMenuItem(id: 7, kind: .action, title: "Inner")]), title: "More",
+                         image: PlatformMenuImage(symbol: "folder")),
+    ]
+    let menu = AppKitMenuBuilder.menu(from: PlatformMenu(token: 1, items: items), target: AppKitMenuTarget())
+    let built = menu.items
+    #expect(built[0].image?.isTemplate == true, "an untinted symbol is a template")
+    let dot = try #require(built[1].image)
+    #expect(dot.isTemplate == false, "a tinted symbol has its colour baked in")
+    let tiff = try #require(dot.tiffRepresentation)
+    let rep = try #require(NSBitmapImageRep(data: tiff))
+    var reddest: NSColor?
+    for y in 0..<rep.pixelsHigh { for x in 0..<rep.pixelsWide {
+        if let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB), c.alphaComponent > 0.9 { reddest = c }
+    } }
+    let colour = try #require(reddest, "the dot has opaque pixels")
+    #expect(colour.redComponent > 0.9 && colour.greenComponent < 0.25 && colour.blueComponent < 0.1,
+            "the pixels are the tint: \(colour)")
+    #expect(built[2].image != nil && built[2].isEnabled == false, "a disabled item keeps its image")
+    #expect(built[3].image == nil, "an unknown name draws nothing")
+    #expect(built[4].image == nil)
+    #expect(built[5].image != nil, "a submenu item's symbol")
+}

@@ -186,7 +186,8 @@ struct MenuSession {
     /// every item disabled when `enabled` is false (C9), each action recorded
     /// against `declaringID`.
     static func number(_ nodes: [MenuNode], declaringID: GlobalElementID, enabled: Bool, next: inout Int,
-                       actions: inout [Int: MenuItemAction], toggles: inout Set<Int>) -> [PlatformMenuItem] {
+                       actions: inout [Int: MenuItemAction], toggles: inout Set<Int>,
+                       resolveTint: (Color) -> Rgba = MenuNodeImage.defaultTintResolver) -> [PlatformMenuItem] {
         nodes.map { node in
             let id = next
             next += 1
@@ -199,8 +200,9 @@ struct MenuSession {
                 return PlatformMenuItem(id: id, kind: .separator, title: "", isEnabled: false)
             case .submenu(let children):
                 let items = number(children, declaringID: declaringID, enabled: isEnabled, next: &next,
-                                   actions: &actions, toggles: &toggles)
-                return PlatformMenuItem(id: id, kind: .submenu(items), title: node.title, isEnabled: isEnabled)
+                                   actions: &actions, toggles: &toggles, resolveTint: resolveTint)
+                return PlatformMenuItem(id: id, kind: .submenu(items), title: node.title, isEnabled: isEnabled,
+                                        image: node.image?.platform(resolveTint))
             case .text:
                 return PlatformMenuItem(id: id, kind: .action, title: node.title, isEnabled: false)
             case .action, .toggle:
@@ -210,7 +212,8 @@ struct MenuSession {
                 }
                 return PlatformMenuItem(id: id, kind: .action, title: node.title, isEnabled: isEnabled,
                                         isOn: node.isOn, shortcut: shortcut,
-                                        accessibilityIdentifier: node.accessibilityIdentifier, help: node.help)
+                                        accessibilityIdentifier: node.accessibilityIdentifier, help: node.help,
+                                        image: node.image?.platform(resolveTint))
             }
         }
     }
@@ -312,7 +315,8 @@ extension Window {
         var actions: [Int: MenuItemAction] = [:]
         var toggles = Set<Int>()
         let items = MenuSession.number(nodes, declaringID: declaringID, enabled: isEnabled, next: &next,
-                                       actions: &actions, toggles: &toggles)
+                                       actions: &actions, toggles: &toggles,
+                                       resolveTint: { $0.resolved(theme: theme, scheme: colorScheme).toRgba() })
         lastMenuToken += 1
         let menu = PlatformMenu(token: lastMenuToken, items: items)
         menuSession = nil

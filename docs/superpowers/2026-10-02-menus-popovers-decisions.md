@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AO`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AQ`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -218,8 +218,9 @@ portable menu — a one-line change, no API move.
    closure.
 5. Not offered (absence guard for `Picker`): `Picker` (C1 shows SwiftUI
    renders it as a submenu of state items), `Section` (a header plus
-   separators, C1), image/`Label` items (C1's "Labelled … image"), a
-   `Button` with a non-`Text` label. Owner none.
+   separators, C1), a `Button` with a label that is neither a `Text` nor a
+   `Label` of a `Text` and an `Image`. Owner none. (**Image and `Label` items
+   are offered since `MN-AP`**, which amends this item.)
 
 **Reasoning.** A context menu's items are data, not views: SwiftUI turns them
 into `NSMenuItem`s, and MetalUI's in-window menu draws them from the same data,
@@ -1424,4 +1425,48 @@ after `.appVisibility` reddens the first; dropping it from the drawn File menu r
 `theApplicationMenuHasTheServicesSubmenuAssignedToNSApp`; the drawn arm of `theDrawnBarFollowsTheDesktopArrangement` pins the
 File additions.
 
-Next unused: `MN-AP`.
+## MN-AP — Image and `Label` menu items (Alloy request; record 322; class `A`, divergence 242)
+
+Probe `docs/probes/swiftui-menu-label-items.swift` (macOS 27.0, the `NSMenu` SwiftUI builds from a `.contextMenu`).
+
+**Measured** (L-arms): `Button(_:systemImage:)`, `Button { } label: { Label(…) }`, a bare `Image` beside a `Text` in the label,
+`Toggle(_:systemImage:isOn:)` (still `state=on`) and `Menu(_:systemImage:)` and the items inside it each give the `NSMenuItem` an
+`image` (L1, L2, L8-L10); a disabled item keeps it (L11); `role: .destructive` adds no tint (L14). An untinted image is a
+**template** `NSImage` (15x15 at 14 pt: the glyph's own size), which AppKit paints in the menu's text colour. **`.foregroundStyle`
+on the `Label`, the `Button`, the label's `Image` or the `systemImage:` button changes nothing** (L3, L3b, L3c, L5, L5b, L5c).
+**`.tint(.green)` on the `Button` gives a non-template image with the colour baked in** (L4: system green, template false), and so does
+`.symbolRenderingMode(.palette)` with `.foregroundStyle` on the `Image` (L6b); `.multicolor` on a one-layer symbol stays a template
+(L6). A bitmap in a `Label` is a non-template image at its own size (L7, L7b). An unknown symbol or asset name draws no image,
+silently (L12, L15). `.labelStyle(.titleOnly)` drops the image (L13), `.iconOnly` leaves an empty title (L13b). `Text.foregroundStyle` gives an
+attributed title (L16, not built).
+
+**Ruling.**
+
+1. **Spellings.** `Button(_:systemImage:action:)` and with `role:`, `Toggle(_:systemImage:isOn:)`, `Menu(_:systemImage:content:)`
+   (each in the `LocalizedStringKey` and `StringProtocol` forms), and `Button { } label: { Label(…) }` (and `Toggle`, `Menu`) are menu
+   items. **`Label<Title, Icon>`** is a new public view (a `Component`: the icon, the default 8-point gap, the title; probe `S11`'s
+   numbers, not re-measured standalone) with `Label(_:systemImage:)`, the `StringProtocol` form and `Label(title:icon:)`.
+   `Button`/`Toggle`/`Menu` conform to `MenuContent` where `Label: MenuItemLabel`, a **closed** protocol (its requirement is SPI, as
+   `MenuContent`'s): `Text`, `Label<Text, Image>`, and an `EnvironmentScope` over either (so `Label(…).foregroundStyle(.green)` compiles
+   as in SwiftUI). `MenuContent` stays closed (`MN-D` item 1); `MN-D` item 5's absence narrows (see it).
+2. **Model.** `MenuNode.image: MenuNodeImage?` (symbol, `Color?` tint) becomes `PlatformMenuItem.image: PlatformMenuImage?` (symbol,
+   `Rgba?` tint, resolved at the open against the window's theme and scheme; the menu bar's items resolve in the light theme).
+3. **Tint.** `_MenuContext` carries `tint`, written by `.tint` on the item or any scope above it (the nearest wins, through inner
+   scopes); **`.foregroundStyle` is not read** — SwiftUI's menu ignores it (L3-L5). The palette route (L6b) is not offered
+   (no multi-style `foregroundStyle`, `SYM-M`). A bitmap image is not offered (MetalUI has no `Image(nsImage:)`); an icon that is not a symbol shows none.
+4. **AppKit.** `NSMenuItem.image = NSImage(systemSymbolName:)`: a template when untinted, `withSymbolConfiguration(paletteColors: [tint])`
+   (non-template, colour baked in) when tinted; an unknown name has no image (`SYM-G`'s silence). Submenu items too.
+5. **Drawn menu (SDL and any platform that declines native menus).** A panel with an image on any row reserves a column after the check column
+   (`imageSide + 6`, the side the menu font's size at the medium image scale, `SYM-J`); each icon is the bundled Lucide art drawn
+   through `Frame.drawPath` in its box at the row's leading edge, centred on the row, in the tint (kept on a highlighted row, as a
+   non-template image is) or the row's text colour, at half opacity when disabled. An unknown name draws nothing, reserves no column and is
+   counted once in `SymbolDiagnostics` (`SYM-G`). The drawn menu uses the bundled icons even on macOS (where only tests and the in-window menu bar reach it).
+6. **Divergence 242**: no `labelStyle`.
+
+**Mutation** (`MenuLabelItemTests`, `AppKitMenuTests`): dropping `image:` from `Button._menuNodes`/`Toggle`/`Menu` reddens
+`everySystemImageSpellingReachesThePlatformMenuItem`; not forwarding `context.tint` through `EnvironmentScope` reddens
+`aTintColoursTheImageAndAForegroundStyleDoesNot`; not painting (or painting the tint as the text colour, or reserving the column for
+an unknown name) reddens `theDrawnMenuDrawsTheIconInItsColumnInTheTint`, `theImageColumnWidensAPanelWhoseTitleFillsIt`;
+an untinted image not a template, or a tinted one with no palette, reddens `anNSMenuItemsImageIsATemplateUntintedAndTheTintWhenTinted`.
+
+Next unused: `MN-AQ`.
