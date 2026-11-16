@@ -237,7 +237,9 @@ extension DisclosureGroupBody {
         let id = enterComponent(under: parent, at: &cursor, pass: &pass)
         let stack = GlobalElementID.child(of: id, at: 0, name: nil)   // the body's `VStack` (no name)
         // `OG-J`: inside a content `List` the label row is the list's (chevron cell in the lead slot, no standalone look).
-        let body = self
+        var marked = self
+        if ListRowChrome.isActive { marked.inputMark = id }   // `OG-P`
+        let body = marked
         var disclosure: LazyDisclosure?
         if ListRowChrome.isActive {
             let request = OutlineCascade.context?.request
@@ -249,7 +251,7 @@ extension DisclosureGroupBody {
                 })
         }
         var level: [any LazyUnitSource] = [ListRowChrome.isActive
-            ? LazyLegacyStaticSource(group: listHeader(cascade: disclosure?.cascade), marksHeader: true,
+            ? LazyLegacyStaticSource(group: marked.listHeader(cascade: disclosure?.cascade), marksHeader: true,
                                      disclosure: disclosure)
             : LazyLegacyStaticSource(group: header)]
         let slot = GlobalElementID(component: .positional(1), parent: stack)

@@ -150,6 +150,8 @@ struct LazyStackState<Content: ProposalElementGroup> {
 /// What prepaint hands to paint.
 struct LazyStackPrepaint<Content: ProposalElementGroup> {
     var eager: Content.GroupPrepaint?
+    /// The splice animation this frame paints with (`OG-P`), `nil` for a container that does not animate.
+    var splice: SplicePlan?
 }
 
 /// The one implementation behind `LazyVStack` and `LazyHStack`.
@@ -165,6 +167,8 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
     var unitWrapper: (@MainActor (LazyUnitBox, LazyUnitWrapContext, inout LayoutPass) -> LazyUnitBox)?
     /// Whether the content's tree is flattened behind the content-form cache (a content `List`, `OG-O`).
     var cachesFlatten = false
+    /// Whether an expansion or collapse slides the rows after it (a content `List`, `OG-P`).
+    var animatesSplices = false
 
     private var scrollAxis: ScrollAxis { axis == .vertical ? .vertical : .horizontal }
 
@@ -316,6 +320,22 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
                     return pass.bounds(of: node.layoutNodeID)
                 }, pass: pass)
         }
+        // `OG-P`: the rows' places against the last painted frame's; a splice by input or an animated write starts here.
+        var splice: SplicePlan?
+        if animatesSplices {
+            let frame = pass.frame
+            var rows: [(unit: Int, key: AnyHashable, y: Double)] = []
+            rows.reserveCapacity(layout.boxes.count)
+            for box in layout.boxes where !layout.pinnedUnits.contains(box.unit) {
+                guard let first = box.nodes.first else { continue }
+                let rect = Self.unitBounds(box, first: first, pass: pass)
+                rows.append((box.unit, table.key(box.unit), Double(rect.origin.y.value - bounds.origin.y.value)))
+            }
+            let origin = frame.scrolled(bounds).origin
+            splice = frame.animationStore.splices.plan(
+                for: id, rows: rows, count: table.count,
+                origin: (Double(origin.x.value * frame.scaleFactor), Double(origin.y.value * frame.scaleFactor)), frame: frame)
+        }
         // Pinned section views last: they were placed over rows that come after them (`SP-G`).
         let ordered = layout.boxes.filter { !layout.pinnedUnits.contains($0.unit) }
             + layout.boxes.filter { layout.pinnedUnits.contains($0.unit) }
@@ -325,7 +345,7 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
             }
             box.prepaint(&pass)
         }
-        return LazyStackPrepaint(eager: nil)
+        return LazyStackPrepaint(eager: nil, splice: splice)
     }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout LazyStackState<Content>,
@@ -337,7 +357,44 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
             prepaint.eager = held
             return
         }
+        if let splice = prepaint.splice { paintSplicing(splice, bounds: bounds, layout: layout, pass: &pass); return }
         for box in layout.boxes where !layout.pinnedUnits.contains(box.unit) { box.paint(&pass) }
+        for box in layout.boxes where layout.pinnedUnits.contains(box.unit) { box.paint(&pass) }
+    }
+
+    /// The rows painted under the splice animation (`OG-P`): the removed rows' ghosts first, each kept row displaced, each
+    /// inserted row faded, and the scene range each painted noted for the next splice's ghosts.
+    private func paintSplicing(_ splice: SplicePlan, bounds: Bounds<Pixels>, layout: LazyStackState<Content>,
+                               pass: inout PaintPass) {
+        guard let table = layout.table else { return }
+        let frame = pass.frame
+        let scale = Double(frame.scaleFactor)
+        splice.list.painted = true
+        if splice.isRunning {
+            frame.noteActiveAnimation()
+            let origin = frame.scrolled(bounds).origin
+            splice.paintGhosts(frame: frame, origin: (Double(origin.x.value) * scale, Double(origin.y.value) * scale))
+        }
+        func paint(_ box: LazyUnitBox) {
+            let key = table.key(box.unit)
+            let start = frame.scene.nextEmissionSequence
+            let offset = splice.offset(of: key)
+            if offset != 0 {
+                frame.paintWithDeviceMap(Affine2D(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: offset * scale)) { box.paint(&pass) }
+            } else if let alpha = splice.insertionAlpha(of: key) {
+                let effect = RenderEffect(atoms: [.opacity], activeness: 1 - Double(alpha),
+                                          rect: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+                                          scaleFactor: frame.scaleFactor)
+                let scope = PaintScope(kind: .fade, effect: effect, entryClipDepth: frame.clipDepth)
+                frame.paintScopes.append(scope)
+                box.paint(&pass)
+                frame.paintScopes.removeLast()
+            } else {
+                box.paint(&pass)
+            }
+            splice.noteRange(key, start..<frame.scene.nextEmissionSequence)
+        }
+        for box in layout.boxes where !layout.pinnedUnits.contains(box.unit) { paint(box) }
         for box in layout.boxes where layout.pinnedUnits.contains(box.unit) { box.paint(&pass) }
     }
 }

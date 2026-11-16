@@ -189,7 +189,7 @@ private let stateTableChannels: [String: Channel] = [
 ]
 
 private let animationStoreChannels: [String: Channel] = [
-    "entries": .recorded, "touched": .recorded, "interpolationsThisFrame": .ledger, "transitions": .ledger, "matched": .ledger,
+    "entries": .recorded, "touched": .recorded, "interpolationsThisFrame": .ledger, "transitions": .ledger, "matched": .ledger, "splices": .frameLocal,
     "rasters": .recorded, "layoutMemo": .buildOnly, "lifecycle": .buildOnly, "timeline": .buildOnly,
     "keyframeDepth": .buildOnly, "lastFrameInterpolations": .frameLocal, "retainLog": .frameLocal,
     "buildJournal": .buildOnly,
