@@ -851,3 +851,7 @@ dependents with `swift package clean` (a stored property on the public `LayoutTr
 ## Record 321 (`onKeyPress` in generic code, `KF-AE`)
 
 **API change.** `ElementGroup` gains `associatedtype KeyPressed` (default `ModifiedElement<LayerBase>`) and `_addingKeyPress(_:)` (default provided; not for conformers to implement). The `ElementGroup` spellings of `onKeyPress` return `KeyPressed` instead of `ModifiedElement<LayerBase>`: generic code that named that type writes `G.KeyPressed` (or `some ElementGroup`). Concrete code is unchanged except where a receiver gained a layer to join: an `AccessibilityModifier` or an `OverlayModifier` (both sides proposal content) now returns itself from `onKeyPress` instead of `KeyboardModifier<…>`, and a `LifecycleScope` returns a `LifecycleScope`. Behaviour (order, not focusable, `.focusable()` absorbing) is unchanged.
+
+## Record 330 (a `CodeView` reveal pending at mount, `CV-BA`)
+
+**Behaviour change.** A `CodeView` that mounts while its state has a `select(_:reveal: true)` no view has shown yet now opens scrolled to centre that selection's line, where before it opened at the top and ignored the request. Code that called `select(range, reveal: true)` before showing a view and relied on it starting at the top should pass `reveal: false`, or assign the scroll state afterwards. A reveal a view has already taken in is never replayed, and swapping a mounted view's state still reveals nothing.
