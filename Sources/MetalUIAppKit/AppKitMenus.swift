@@ -55,6 +55,7 @@ enum AppKitMenuBuilder {
                 fill(submenu, with: children, configure: configure)
                 built.submenu = submenu
                 built.isEnabled = item.isEnabled
+                built.image = image(for: item.image)
                 menu.addItem(built)
             case .action:
                 let built = NSMenuItem(title: item.title, action: nil, keyEquivalent: item.shortcut?.key ?? "")
@@ -62,6 +63,7 @@ enum AppKitMenuBuilder {
                 built.tag = item.id
                 built.isEnabled = item.isEnabled
                 built.state = item.isOn ? .on : .off
+                built.image = image(for: item.image)
                 built.toolTip = item.help?.isEmpty == false ? item.help : nil   // MN-AL: AppKit shows it on hover, a disabled item's too
                 if let identifier = item.accessibilityIdentifier {
                     built.identifier = NSUserInterfaceItemIdentifier(identifier)
@@ -71,6 +73,23 @@ enum AppKitMenuBuilder {
                 menu.addItem(built)
             }
         }
+    }
+
+    /// The item image for `image` (`MN-AP`): the platform's own symbol, a **template** AppKit recolours with the
+    /// menu's text and highlight colours when untinted, and the symbol drawn in the tint (a non-template, the
+    /// colour baked in) when tinted — what SwiftUI's menu does for `.tint` (probe `swiftui-menu-label-items`, L4).
+    /// An unknown symbol name has no image (`SYM-G`'s silence; probe L12).
+    static func image(for image: PlatformMenuImage?) -> NSImage? {
+        guard let image, let symbol = NSImage(systemSymbolName: image.symbol, accessibilityDescription: nil) else {
+            return nil
+        }
+        guard let tint = image.tint else {
+            symbol.isTemplate = true
+            return symbol
+        }
+        let color = NSColor(srgbRed: CGFloat(tint.r), green: CGFloat(tint.g), blue: CGFloat(tint.b),
+                            alpha: CGFloat(tint.a))
+        return symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [color])) ?? symbol
     }
 
     /// AppKit's modifier mask for `modifiers`.

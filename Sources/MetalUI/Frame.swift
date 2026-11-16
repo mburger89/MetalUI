@@ -3695,6 +3695,8 @@ public final class Frame {
     /// before it renders (menus, `MN-F` item 2); empty with none open, so a
     /// frame without a menu paints nothing more.
     var menuPanelLevels: [MenuSession.Level] = []
+    /// The icons the open in-window menu drew this frame (`MN-AP`), for a test to read.
+    var menuIconsPainted: [MenuIconPaint] = []
 
     /// How many menu rows this frame painted — O(visible) per level (`SV-Q`),
     /// read back through `Window.lastMenuRowsPainted`.

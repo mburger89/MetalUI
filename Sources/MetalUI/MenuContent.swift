@@ -35,13 +35,35 @@ struct MenuNode {
     var accessibilityIdentifier: String?
     /// The item's declared `.help` text (`MN-AL`).
     var help: String?
+    /// The symbol shown beside the title (`MN-AP`), from a `Label` or a `systemImage:` item.
+    var image: MenuNodeImage?
+}
+
+/// A menu item's symbol and the tint it was evaluated under (`MN-AP`): `.tint` on the item or a scope above it
+/// colours the image; `.foregroundStyle` does not, as SwiftUI's menu (probe `swiftui-menu-label-items`, L3–L5).
+struct MenuNodeImage {
+    var symbol: String
+    var tint: Color?
+
+    /// Resolves a tint with no window to ask: the light theme and scheme (a menu bar's items, a test's evaluation).
+    static func defaultTintResolver(_ color: Color) -> Rgba { color.resolved(theme: .light, scheme: .light).toRgba() }
+
+    /// The image at the platform seam, its tint resolved by `resolve`.
+    func platform(_ resolve: (Color) -> Rgba) -> PlatformMenuImage {
+        PlatformMenuImage(symbol: symbol, tint: tint.map(resolve))
+    }
 }
 
 /// What a menu item is evaluated in: the menu's environment, of which only
 /// `isEnabled` is read (`MN-D` item 2). SPI, with an internal initialiser.
 @_spi(MenuInternals) public struct _MenuContext {
     var isEnabled: Bool
-    init(isEnabled: Bool) { self.isEnabled = isEnabled }
+    /// The `.tint` in force at the item (`MN-AP`), which colours an item's image.
+    var tint: Color?
+    init(isEnabled: Bool, tint: Color? = nil) {
+        self.isEnabled = isEnabled
+        self.tint = tint
+    }
 }
 
 /// What a `MenuContent` evaluates to. SPI, with an internal initialiser, so
@@ -51,7 +73,8 @@ struct MenuNode {
     init(_ nodes: [MenuNode]) { self.nodes = nodes }
 }
 
-/// Content a menu can show: `Button` and `Toggle` with a `Text` label,
+/// Content a menu can show: `Button` and `Toggle` with a `Text` label or a `Label(_:systemImage:)` (an image
+/// item, `MN-AP`),
 /// `Menu("…") { … }` (a submenu), `Divider`, `Text` (a disabled item), any of
 /// them under `.disabled(_:)`, and `if`/`switch`/`for` through
 /// `@MenuContentBuilder` — SwiftUI's menu content (ruling `MN-D`; probe arm
@@ -60,16 +83,16 @@ struct MenuNode {
 /// **Closed**: its one requirement is SPI, so a type outside MetalUI cannot
 /// conform (`MN-D` item 1; guard `anOutsideTypeCannotConformToMenuContent`) —
 /// an item the platform cannot draw cannot be declared. Not offered, owner
-/// none: `Picker`, `Section`, image and `Label` items, a `Button` whose label
-/// is not a `Text` (`MN-D` item 5; guard `aPickerIsNotAMenuItem`).
+/// none: `Picker`, `Section`, a `Button` whose label is neither a `Text` nor a
+/// `Label` of a `Text` and an `Image` (`MN-D` item 5, amended by `MN-AP`; guard `aPickerIsNotAMenuItem`).
 public protocol MenuContent {
     /// The items this content evaluates to. SPI: see the protocol's doc.
     @_spi(MenuInternals) @MainActor func _menuNodes(in context: _MenuContext) -> _MenuNodes
 }
 
 extension MenuContent {
-    @MainActor func menuNodes(isEnabled: Bool) -> [MenuNode] {
-        _menuNodes(in: _MenuContext(isEnabled: isEnabled)).nodes
+    @MainActor func menuNodes(isEnabled: Bool, tint: Color? = nil) -> [MenuNode] {
+        _menuNodes(in: _MenuContext(isEnabled: isEnabled, tint: tint)).nodes
     }
 }
 
@@ -122,27 +145,31 @@ public struct Divider: MenuContent {
 /// `onClick`, which replaces it, as on the button itself) run when chosen, its
 /// `.keyboardShortcut` shown — and **inactive while the menu is closed** (C12,
 /// `MN-D` item 3). `role:` is accepted and drawn the same (C1).
-extension Button: MenuContent where Label == Text {
+extension Button: MenuContent where Label: MenuItemLabel {
     /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
-        _MenuNodes([MenuNode(kind: .action, title: box.content.first.string, isEnabled: context.isEnabled,
-                             shortcut: shortcut, run: handlers.onClick ?? action,
-                             accessibilityIdentifier: handlers.axNode.declarations.identifier,
-                             help: handlers.contextual?.help)])
+        let parts = box.content.first._menuItemLabel()
+        return _MenuNodes([MenuNode(kind: .action, title: parts.title, isEnabled: context.isEnabled,
+                                    shortcut: shortcut, run: handlers.onClick ?? action,
+                                    accessibilityIdentifier: handlers.axNode.declarations.identifier,
+                                    help: handlers.contextual?.help,
+                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) })])
     }
 }
 
 /// A toggle item: an on/off state that choosing flips by writing `!isOn`
 /// through its binding (C1, C4).
-extension Toggle: MenuContent where Label == Text {
+extension Toggle: MenuContent where Label: MenuItemLabel {
     /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         let binding = isOn
         let on = binding.wrappedValue
-        return _MenuNodes([MenuNode(kind: .toggle, title: label.string, isEnabled: context.isEnabled,
+        let parts = label._menuItemLabel()
+        return _MenuNodes([MenuNode(kind: .toggle, title: parts.title, isEnabled: context.isEnabled,
                                     isOn: on, run: { binding.wrappedValue = !on },
                                     accessibilityIdentifier: handlers.axNode.declarations.identifier,
-                                    help: handlers.contextual?.help)])
+                                    help: handlers.contextual?.help,
+                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) })])
     }
 }
 
@@ -163,17 +190,20 @@ extension EnvironmentScope: MenuContent where Content: MenuContent {
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         var values = EnvironmentValues()
         values.isEnabled = context.isEnabled
+        values.tint = context.tint
         if case .transform(let transform) = write { transform(&values) }
-        return content._menuNodes(in: _MenuContext(isEnabled: values.isEnabled))
+        return content._menuNodes(in: _MenuContext(isEnabled: values.isEnabled, tint: values.tint))
     }
 }
 
-/// A submenu item: its title and its items, evaluated with it (C1, C3).
-extension Menu: MenuContent where Label == Text {
+/// A submenu item: its title (and symbol, `MN-AP`) and its items, evaluated with it (C1, C3).
+extension Menu: MenuContent where Label: MenuItemLabel {
     /// This content\'s items. SPI: see `MenuContent`.
     @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         let items = content()._menuNodes(in: context).nodes
-        return _MenuNodes([MenuNode(kind: .submenu(items), title: label.string, isEnabled: context.isEnabled)])
+        let parts = label._menuItemLabel()
+        return _MenuNodes([MenuNode(kind: .submenu(items), title: parts.title, isEnabled: context.isEnabled,
+                                    image: parts.symbol.map { MenuNodeImage(symbol: $0, tint: context.tint) })])
     }
 }
 

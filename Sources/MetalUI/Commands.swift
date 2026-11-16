@@ -362,7 +362,8 @@ struct MenuBarModel {
                 return PlatformMenuItem(id: id, kind: .separator, title: "", isEnabled: false)
             case .submenu(let children):
                 return PlatformMenuItem(id: id, kind: .submenu(number(children, enabled: isEnabled)),
-                                        title: node.title, isEnabled: isEnabled)
+                                        title: node.title, isEnabled: isEnabled,
+                                        image: node.image?.platform(MenuNodeImage.defaultTintResolver))
             case .text:
                 return PlatformMenuItem(id: id, kind: .action, title: node.title, isEnabled: false)
             case .action, .toggle:
@@ -377,7 +378,8 @@ struct MenuBarModel {
                                             PlatformKeyEquivalent(key: String($0.key.character).lowercased(),
                                                                   modifiers: $0.modifiers)
                                         },
-                                        accessibilityIdentifier: node.accessibilityIdentifier, help: node.help)
+                                        accessibilityIdentifier: node.accessibilityIdentifier, help: node.help,
+                                        image: node.image?.platform(MenuNodeImage.defaultTintResolver))
             }
         }
     }

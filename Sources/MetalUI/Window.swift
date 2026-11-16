@@ -2226,6 +2226,7 @@ public final class Window {
         lastResignRegionCount = frame.resignRegionCount   // RF-C item 2
         lastPasteButtonCount = frame.pasteButtonCount   // CP-G
         lastMenuRowsPainted = frame.menuRowsPainted   // SV-Q
+        lastMenuIconsPainted = frame.menuIconsPainted   // MN-AP
         pickerTitleWidths.sweep()   // only the pickers this build laid out keep an entry (SV-AA)
         presentations.records = frame.presentationRecords   // SV-K item 2
         adoptShellPreferences(of: frame)   // title, document, open-URL handlers (AS-D, AS-G)
@@ -2877,6 +2878,8 @@ public final class Window {
     /// How many in-window menu rows the last adopted frame painted (`SV-Q`):
     /// at most the visible band's rows plus one per level.
     var lastMenuRowsPainted = 0
+    /// The icons the open in-window menu drew in the last frame (`MN-AP`).
+    var lastMenuIconsPainted: [MenuIconPaint] = []
 
     /// Each menu picker's widest option title, across builds (`SV-AA`).
     let pickerTitleWidths = PickerTitleWidths()
