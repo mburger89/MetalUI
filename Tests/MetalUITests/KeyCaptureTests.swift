@@ -194,19 +194,21 @@ private let f10 = "\u{f70d}"
     }
 }
 
-/// **K4** ⌃Tab (the key-view loop's key on AppKit) reaches the capture handler first, and ignored it goes on to
-/// `onKey` as any ⌃ key does. Mutation: offer ⌃Tab to no capture (a Tab-like key skipped).
+/// **K4** ⌃Tab (the key-view loop's key on AppKit) reaches the capture handler before a keymap binding of its own, and
+/// ignored it goes on to that binding. Mutation: skip Tab keys in `dispatchKeyCapture` (the binding runs first, and
+/// the layer's own `onKeyPress` hears the key later, so only the keymap tells the two orders apart).
 @MainActor @Test func controlTabReachesCaptureFirst() throws {
     let m = CapLog()
     let w = try capWindow(m)
     defer { withExtendedLifetime(w) {} }
+    w.window.keymap = Keymap([KeyBinding("ctrl-tab", CapBump())])
     try w.focus(0)
     #expect(w.platform.simulateInput(key("\t", .control)))
     #expect(m.log == ["cap \t"], "handled: \(m.log)")
     m.log = []
     m.claims = false
     w.platform.simulateInput(key("\t", .control))
-    #expect(m.log == ["cap \t", "onKey control"], "ignored: capture, then the unchanged pipeline: \(m.log)")
+    #expect(m.log == ["cap \t", "action"], "ignored: capture, then the unchanged pipeline: \(m.log)")
 }
 
 // MARK: - except, marked text, scope
