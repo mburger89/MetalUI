@@ -92,6 +92,9 @@ struct KeyPressHandler {
     let phases: KeyPress.Phases
     let filter: Filter
     let action: @MainActor (KeyPress) -> KeyPress.Result
+    /// Set only on the marker `keyCapture(except:optionAsMeta:)` adds (ruling `TRM-U`): a handler that hears
+    /// nothing (no phase), whose presence marks its layer a capture layer.
+    var capture: KeyCapture?
 
     /// Whether `press` reaches this handler (`KF-B` items 2 and 3): its phase
     /// is one of `phases`, and the filter matches — a key or a set of keys
@@ -106,6 +109,19 @@ struct KeyPressHandler {
             return !press.characters.isEmpty && press.characters.unicodeScalars.allSatisfy { set.contains($0) }
         case .any: return true
         }
+    }
+}
+
+/// What `keyCapture(except:optionAsMeta:)` records on a layer (ruling `TRM-U`): the shortcuts that skip capture and
+/// whether both Option keys act as meta while the layer is focused.
+struct KeyCapture {
+    var exceptions: [KeyboardShortcut]
+    var optionAsMeta: Bool
+
+    /// The handler that carries this capture through every `onKeyPress` conformer (`KF-AC`, `KF-AD`, `KF-AE`):
+    /// it joins the layer's handler list like any other and never hears a key.
+    var marker: KeyPressHandler {
+        KeyPressHandler(phases: [], filter: .any, action: { _ in .ignored }, capture: self)
     }
 }
 
@@ -125,6 +141,9 @@ final class KeyboardAttachment {
     /// attached (ruling `CB-M`): a fifth field, so `Handlers` keeps its
     /// nineteen members. Every factory below carries it (spec test 1.10).
     let clipboard: ClipboardAttachment?
+    /// The layer's key capture (`TRM-U`), read from the marker `keyCapture` added to `keyPresses` (the last one
+    /// wins): a field of the box, so `Handlers` keeps its member count.
+    let capture: KeyCapture?
 
     init(keyPresses: [KeyPressHandler] = [], focusInteractions: FocusInteractions? = nil,
          isKeyRegion: Bool = false, resignsOnPress: Bool = false, clipboard: ClipboardAttachment? = nil) {
@@ -133,6 +152,7 @@ final class KeyboardAttachment {
         self.isKeyRegion = isKeyRegion
         self.resignsOnPress = resignsOnPress
         self.clipboard = clipboard
+        self.capture = keyPresses.last(where: { $0.capture != nil })?.capture
     }
 
     /// The box with these fields, or `nil` when every one is the default —
@@ -187,10 +207,12 @@ final class KeyboardAttachment {
 extension StyledElement {
     func addingKeyPress(_ phases: KeyPress.Phases, _ filter: KeyPressHandler.Filter,
                         _ action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> Self {
-        handling {
-            $0.keyboard = KeyboardAttachment.adding(KeyPressHandler(phases: phases, filter: filter, action: action),
-                                                    to: $0.keyboard)
-        }
+        addingKeyPress(KeyPressHandler(phases: phases, filter: filter, action: action))
+    }
+
+    /// `handler` joined to the element's keyboard handlers, a `keyCapture` marker included (`TRM-U`).
+    func addingKeyPress(_ handler: KeyPressHandler) -> Self {
+        handling { $0.keyboard = KeyboardAttachment.adding(handler, to: $0.keyboard) }
     }
 
     /// Runs `action` when `key` goes down or repeats while this element holds
@@ -263,6 +285,22 @@ extension StyledElement {
         addingKeyPress(phases, .any, action)
     }
 
+    /// Makes this element a key capture layer (ruling `TRM-U`, `TRM-D`): while the focus chain holds it, **this
+    /// layer's `onKeyPress` handlers hear every key first** — before the keymap, the command decline of
+    /// `onKeyPress`, a field's editing keys, `onKey`, the clipboard, the context-menu key, `Button` shortcuts,
+    /// commands, F10, Tab and `onInput`, and on AppKit before the main menu sees a ⌘ or ⌃ key. A key that
+    /// matches one of `shortcuts` (`.primary` per platform) skips capture, as does every key while an input
+    /// method's marked text composes. A handler answering `.ignored` hands the key to the unchanged pipeline.
+    /// `optionAsMeta` hints the platform to bypass the input context for Option combinations while the layer is
+    /// focused. Joins the keyboard layer as `onKeyPress` does (`KF-AC`, `KF-AD`, `KF-AE`); it does not make the
+    /// element focusable.
+    public func keyCapture(except shortcuts: [KeyboardShortcut] = [], optionAsMeta: Bool = false) -> Self {
+        handling {
+            $0.keyboard = KeyboardAttachment.adding(
+                KeyCapture(exceptions: shortcuts, optionAsMeta: optionAsMeta).marker, to: $0.keyboard)
+        }
+    }
+
     /// Lets this element hold keyboard focus when `isFocusable`, and says how it
     /// takes it — SwiftUI's `focusable(_:interactions:)` (ruling `KF-F`).
     ///
@@ -297,9 +335,10 @@ extension StyledElement {
 /// function over an explicit chain and registry, for `dispatchKey(_:along:in:)`'s
 /// reason; a registry with no handler costs one comparison.
 @MainActor
-func dispatchKeyPress(_ press: KeyPress, along chain: [GlobalElementID], in registry: FocusRegistry) -> Bool {
+func dispatchKeyPress(_ press: KeyPress, along chain: [GlobalElementID], in registry: FocusRegistry,
+                      skipping offered: Set<GlobalElementID> = []) -> Bool {
     guard registry.keyPressCount > 0 else { return false }
-    for id in chain.reversed() {
+    for id in chain.reversed() where !offered.contains(id) {
         for handler in registry.keyPresses(for: id).reversed() where handler.accepts(press) {
             if StateDispatch.dispatching(to: id, { handler.action(press) }) == .handled { return true }
         }

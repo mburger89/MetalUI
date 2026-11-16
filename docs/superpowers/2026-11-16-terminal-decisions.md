@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-AE` (this branch took `TRM-Z`, `TRM-AA`..`TRM-AD`; `TRM-K`..`TRM-Y` belong to parallel branches, so this line conflicts when they merge).
+Next unused id: `TRM-AE` (`TRM-K`..`TRM-T` are reserved by parallel branches).
 
 ## TRM-A: module split
 
@@ -91,6 +91,34 @@ Line-oriented, `#` comments: `size`, `scrollback`, `input "<escaped>"` (`\e \r \
 Chunk-split invariance (every two-way cut, byte at a time, seeded partitions, over the parser event log and the whole emulator state), seeded fuzz (random bytes never trap, the cursor stays in the grid, ring and screen sizes hold), the counted census (4 MB) and the gated bench `METALUI_RUN_TERMINAL_BENCH=1` (release, plain ASCII, proposal 300 MB/s). The bench measures through the public API only, so it needs no `-enable-testing`.
 
 Why: spec sections 7 and 8.
+## TRM-U: the capture stage - where it sits and what it offers (Phase 4.1, record 338)
+
+1. `keyCapture(except:optionAsMeta:)` marks the keyboard layer it joins (the layer of the `onKeyPress` it is written beside, in either order). While the focus chain holds a marked layer, `Window.dispatchKeyCapture` runs as the first key stage, ahead of `dispatchAction` (the Keymap), and offers the key to that layer's `onKeyPress` handlers: outermost capture layer first, each layer's handlers last-written first (`KF-C`), under `StateDispatch.dispatching(to:)` the layer's element (`ID-F`).
+2. Key-downs and key-ups are offered (a handler's `phases` still filters). Only the focus chain counts, not a hovered key region: capture is a focus feature.
+3. A layer offered a key is not offered it again by `onKeyPress`'s own stage (`Window.keyCaptureOffered`, `dispatchKeyPress(_:along:in:skipping:)`): a handler answering `.ignored` is called once per key. A layer capture skipped (`except`, composing) is offered by `onKeyPress`'s stage as before, so the unchanged pipeline stays unchanged.
+
+Why: spec §3 order; a double call would double a handler's side effects and break a terminal's encoder (a key written twice to the pty).
+
+## TRM-V: what skips capture
+
+1. A layer whose `except` holds a shortcut matching the event (`KeyboardShortcut.matches`: exact modifiers, key case-folded; `.primary` per platform) is skipped for that event, and only that layer: an outer layer without the exception still captures.
+2. Nothing is captured while the focused text target composes marked text (a field's stored composition, a code view's session): the key belongs to the input method and goes through the pipeline as today (`isComposingMarkedText`).
+3. A key event with no `charactersIgnoringModifiers` is not offered (as `onKeyPress`); a `textInput` commit is not a key and is not captured.
+
+## TRM-W: the carrier - a marker handler, not a new `Handlers` member
+
+`keyCapture` appends a marker `KeyPressHandler` (no phases, so it hears nothing; its `capture` field holds the exceptions and the Option flag) to the layer's handler list. `KeyboardAttachment` reads it into a stored `capture` field and `FocusRegistry` keeps one entry per capturing id (`keyCapture(for:)`, `keyCaptureCount`); `Handlers` gains nothing (its size is pinned). Because the marker rides `KeyPressRegistration` like any handler, `keyCapture` joins on every conformer family exactly as `onKeyPress` does: `StyledElement`/`KeyboardModifier`/a proposal chain (`Self`, `KF-AD`) and any `ElementGroup` (`KeyPressed`, `KF-AC`, `KF-AE`), at no element request.
+
+Why: Alloy's answer 3 (state on `KeyboardAttachment`) and the steady-frame cost rule; the alternative (a `FocusInteractions` payload) cannot carry exceptions.
+
+## TRM-X: the Option hint
+
+`PlatformWindow.setRawOptionKeys(_:)` is a defaulted no-op requirement. `Window.syncRawOptionKeys` sends `true` when the focus chain holds a layer with `optionAsMeta` and `false` when it stops doing so, on each focus change and each frame's registry swap; it sends only changes (the last value is kept), so a steady frame sends nothing. AppKit (`MetalHostView.rawOptionKeys`): a key with Option held skips `inputContext` (dead keys, the character palette, Option-letter symbols) unless marked text is composing; ⌘ keys and every other key are routed as before. SDL: an Alt combination is a plain key (`producesText` false) and the `TEXT_INPUT` an Alt combination produces is dropped. IME and marked text are otherwise untouched.
+
+## TRM-Y: AppKit routing and cost
+
+1. The pre-menu path needs no new AppKit code: `performKeyEquivalent` already offers ⌘ and ⌃ keys to `Window.onInput`, whose first key stage is now capture, so a captured ⌘ or ⌃ key never reaches the main menu (`.handled` is the claim `performKeyEquivalent` returns) and an `.ignored` one does, as before. **⌃Tab** is such a ⌃ key: capture hears it before AppKit's key-view loop sees it; `.ignored` returns the window's answer and the loop proceeds. (Whether AppKit offers ⌃Tab to `performKeyEquivalent` on every macOS version is a human check, `TRM1`.)
+2. Cost: an app not using `keyCapture` pays one dictionary-count comparison per key event and per frame (`keyCaptureCount > 0`); an app using it pays no element request, no layout node and no further retention miss (`KeyCaptureCostTests`, literal counts equal master's).
 
 ## TRM-Z: what Phase 1.3 executes, and the events
 
@@ -133,4 +161,5 @@ Why: vttest's character-set screens and the spec's list; keeping the fast path u
 4. DA1 answers `CSI ? 62 ; 22 c` (VT220 class, ANSI colour), DA2 `CSI > 1 ; 0 ; 0 c`; DSR 5 answers `CSI 0 n`, DSR 6 `CSI r ; c R`, `CSI ? 6 n` `CSI ? r ; c ; 1 R`. A request with any other parameter is not answered.
 
 Why: spec section 2.1 rule 3 (SGR in all forms) and the replies the spec requires the owner to write.
+
 

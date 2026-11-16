@@ -406,6 +406,10 @@ final class MetalHostView: NSView {
         }
     }
 
+    /// Whether both Option keys act as meta (`TRM-X`, `PlatformWindow.setRawOptionKeys`): an Option combination
+    /// then skips the input context, so dead keys and the character palette never see it.
+    var rawOptionKeys = false
+
     /// The input method's current marked text, for `hasMarkedText`.
     private(set) var markedText = ""
 
@@ -421,7 +425,8 @@ final class MetalHostView: NSView {
         // A key equivalent the window already declined (`MN-J` item 3): AppKit
         // hands the same event here after the main menu passed on it.
         if event === lastOfferedKeyEquivalent { return }
-        if textInputCaret != nil, !event.modifierFlags.contains(.command) {
+        if textInputCaret != nil, !event.modifierFlags.contains(.command),
+           !(rawOptionKeys && event.modifierFlags.contains(.option) && markedText.isEmpty) {
             keyInFlight = event
             defer { keyInFlight = nil }
             if inputContext?.handleEvent(event) == true { return }
@@ -1040,6 +1045,8 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     /// Ruling TI-A: the host view becomes a live text-input client while a
     /// caret is set.
+    func setRawOptionKeys(_ raw: Bool) { hostView.rawOptionKeys = raw }
+
     func setTextInputArea(_ caret: Bounds<Pixels>?) {
         let changed = hostView.textInputCaret != caret
         hostView.textInputCaret = caret

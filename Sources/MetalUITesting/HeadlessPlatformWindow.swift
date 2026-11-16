@@ -212,6 +212,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// Every `setTextInputArea` argument, in order; a non-`nil` last entry
     /// means a text field has the caret.
     public private(set) var textInputAreas: [Bounds<Pixels>?] = []
+    /// Every `setRawOptionKeys` argument, in order (`TRM-X`).
+    public private(set) var rawOptionKeyRequests: [Bool] = []
     /// Every `setContentSizeLimits` call, in order.
     public private(set) var contentSizeLimits: [(minimum: Size<Pixels>?, maximum: Size<Pixels>?)] = []
     /// Every `setDocumentEdited` argument, in order.
@@ -332,6 +334,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
             publishedAccessibilityTrees = [tree]
         }
     }
+
+    /// Records the hint in ``rawOptionKeyRequests`` (`TRM-X`).
+    public func setRawOptionKeys(_ raw: Bool) { rawOptionKeyRequests.append(raw) }
 
     /// Records the caret rect (`nil`: text input stopped).
     /// A `nil` caret discards the input method's marked text with no event to
