@@ -19,10 +19,15 @@ public enum CodeTextAnchor: Hashable, Sendable {
 
 /// The rectangle a text anchor resolved to in one build, written by the ``CodeView`` in prepaint and read by the
 /// `PopoverModifier` wrapping it in the same prepaint (`CV-AQ`). A new box per build, shared by the view's copy
-/// and the wrapper; a class only so the two copies see one value.
+/// and the wrapper; a class only so the two copies see one value. A view holds one box per chained presentation
+/// (`CV-BC`).
 @MainActor
 final class CodeTextAnchorBox {
+    /// What the box's wrapper presents (`CV-BD`): only a popover holds the text hover's grace.
+    enum Kind { case popover, suggestion }
+
     let anchor: CodeTextAnchor
+    let kind: Kind
     /// The anchor in window points as drawn, or `nil` when it cannot be resolved (the wrapper then records the
     /// view's bounds).
     var windowRect: Bounds<Pixels>?
@@ -31,7 +36,35 @@ final class CodeTextAnchorBox {
     /// The view's text hover, when it has a handler: the panel's hover and a dismissal report to it.
     var hover: CodeTextHoverRuntime?
 
-    init(_ anchor: CodeTextAnchor) { self.anchor = anchor }
+    init(_ anchor: CodeTextAnchor, kind: Kind) {
+        self.anchor = anchor
+        self.kind = kind
+    }
+}
+
+/// A ``CodeView``, or a presentation wrapped directly around one, that a text-anchored `popover` or
+/// `suggestionOverlay` can be chained on (`CV-BC`): the chain `codeView.popover(…).suggestionOverlay(…)` presents
+/// both at once, each at its own anchor. **Not for conformers.** MetalUI-only; the protocol exists so the
+/// text-anchored spellings return `PopoverModifier<Self, _>` and apply to their own result.
+public protocol _CodeTextAnchoring: Element {
+    /// The ``CodeView`` the chain is built on, for a wrapper to add its anchor to. Framework entry point, not for callers.
+    var _anchoredCodeView: CodeView { get set }
+}
+
+extension CodeView: _CodeTextAnchoring {
+    /// This view itself. Framework entry point, not for callers.
+    public var _anchoredCodeView: CodeView {
+        get { self }
+        set { self = newValue }
+    }
+}
+
+extension PopoverModifier: _CodeTextAnchoring where Content: _CodeTextAnchoring {
+    /// The chain's view, through the wrapped content. Framework entry point, not for callers.
+    public var _anchoredCodeView: CodeView {
+        get { content._anchoredCodeView }
+        set { content._anchoredCodeView = newValue }
+    }
 }
 
 extension CodeViewPlan {
@@ -87,12 +120,12 @@ extension CodeViewPlan {
     }
 }
 
-extension CodeView {
-    /// This view with a fresh anchor box for `anchor`, and the box for the wrapper.
-    fileprivate func anchored(to anchor: CodeTextAnchor) -> (view: CodeView, box: CodeTextAnchorBox) {
-        let box = CodeTextAnchorBox(anchor)
+extension _CodeTextAnchoring {
+    /// This chain with a fresh anchor box for `anchor` added to its view, and the box for the wrapper.
+    fileprivate func anchored(to anchor: CodeTextAnchor, kind: CodeTextAnchorBox.Kind) -> (view: Self, box: CodeTextAnchorBox) {
+        let box = CodeTextAnchorBox(anchor, kind: kind)
         var copy = self
-        copy.textAnchorBox = box
+        copy._anchoredCodeView.textAnchorBoxes.append(box)
         return (copy, box)
     }
 
@@ -108,13 +141,16 @@ extension CodeView {
     /// placement, flipping, Escape, dismissal by an outside press, `@State` fresh at each presentation. **A press on
     /// the anchored text dismisses and then reaches the view** (it places the caret): unlike an anchor that is a
     /// button, the text is not a toggle, so the press is not consumed. Chain it directly on the ``CodeView``
-    /// (after its own modifiers); one text-anchored presentation per view.
+    /// (after its own modifiers), or on another text-anchored presentation of it: any number, in either order,
+    /// each at its own anchor (`CV-BC`); a `.frame` or `.onKeyPress` between them ends the chain. With two popovers
+    /// open together, the menus' sibling-popover rule decides what Escape dismisses (`MN-N`). Only a popover holds
+    /// the view's text-hover grace (`CV-BD`).
     public func popover<P: ElementGroup>(isPresented: Binding<Bool>,
                                          attachmentAnchor: CodeTextAnchor,
                                          arrowEdge: Edge? = nil,
                                          @ElementBuilder content: @escaping @MainActor () -> P)
-        -> PopoverModifier<CodeView, P> {
-        let (view, box) = anchored(to: attachmentAnchor)
+        -> PopoverModifier<Self, P> {
+        let (view, box) = anchored(to: attachmentAnchor, kind: .popover)
         return PopoverModifier(content: view, kind: .popover(.rect(.bounds), arrowEdge ?? .top),
                                presented: presenting(isPresented, content),
                                dismiss: { isPresented.wrappedValue = false; box.hover?.hardEnd() }, textAnchor: box)
@@ -126,8 +162,8 @@ extension CodeView {
                                                              attachmentAnchor: CodeTextAnchor,
                                                              arrowEdge: Edge? = nil,
                                                              @ElementBuilder content: @escaping @MainActor (Item) -> P)
-        -> PopoverModifier<CodeView, P> {
-        let (view, box) = anchored(to: attachmentAnchor)
+        -> PopoverModifier<Self, P> {
+        let (view, box) = anchored(to: attachmentAnchor, kind: .popover)
         return PopoverModifier(content: view, kind: .popover(.rect(.bounds), arrowEdge ?? .top),
                                presented: presenting(item, content),
                                dismiss: { item.wrappedValue = nil; box.hover?.hardEnd() }, textAnchor: box)
@@ -149,8 +185,8 @@ extension CodeView {
                                                    alignment: HorizontalAlignment = .leading,
                                                    spacing: Pixels = Pixels(2),
                                                    @ElementBuilder content: @escaping @MainActor () -> P)
-        -> PopoverModifier<CodeView, P> {
-        let (view, box) = anchored(to: attachmentAnchor)
+        -> PopoverModifier<Self, P> {
+        let (view, box) = anchored(to: attachmentAnchor, kind: .suggestion)
         return PopoverModifier(content: view, kind: .suggestion(edge: edge, alignment: alignment, spacing: spacing.value),
                                presented: presenting(isPresented, content), dismiss: {}, textAnchor: box)
     }

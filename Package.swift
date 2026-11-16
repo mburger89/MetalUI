@@ -32,6 +32,9 @@ var products: [Product] = [
         // block structure plus GFM tables, with a streaming append (ruling
         // BM-A). Imports nothing, so an app can parse without any UI.
         .library(name: "MetalUIMarkdown", targets: ["MetalUIMarkdown"]),
+        // The terminal emulator (ruling TRM-A): parser, compact grid and snapshots. Imports only Foundation
+        // and Dispatch, so an app can host a terminal without any UI.
+        .library(name: "MetalUITerminal", targets: ["MetalUITerminal"]),
         // The framework itself, on every platform (ruling XP-A), and the
         // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
         .library(name: "MetalUI", targets: ["MetalUI"]),
@@ -61,8 +64,6 @@ var products: [Product] = [
         // Run-time HLSL compute compile with no SDL (item XP-G27, rulings HX-A, HX-C): optional;
         // `MetalUI` does not depend on it, so an app that never compiles links none of it.
         .library(name: "MetalUIShaderRuntime", targets: ["MetalUIShaderRuntime"]),
-        // The terminal core (rulings TRM-A, TRM-K): PseudoTerminal now; the emulator joins it.
-        .library(name: "MetalUITerminal", targets: ["MetalUITerminal"]),
 
 ]
 
@@ -228,11 +229,12 @@ var targets: [Target] = [
         .target(name: "MetalUIMarkdown"),
         .testTarget(name: "MetalUIMarkdownTests", dependencies: ["MetalUIMarkdown"]),
 
-        // --- Terminal (TRM-A, TRM-K): a pty shim and the UI-free terminal core; every platform.
+        // The terminal emulator core (ruling TRM-A) and the POSIX pty (TRM-K): in-house VT parser, compact rows
+        // and scrollback ring, `PseudoTerminal` over the `CPseudoTerminal` shim. Foundation and Dispatch only;
+        // portable, outside the `SDL` trait (PC-A). No MetalUI product depends on it.
         .target(name: "CPseudoTerminal"),
         .target(name: "MetalUITerminal", dependencies: ["CPseudoTerminal"]),
         .testTarget(name: "MetalUITerminalTests", dependencies: ["MetalUITerminal"]),
-        // --- end Terminal
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),

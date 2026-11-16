@@ -12,6 +12,12 @@ Rulings: `docs/superpowers/2026-11-16-terminal-decisions.md`; frozen and draft s
 
 **Platforms** (`TRM-E`). Windows 10 1809+ and Linux 5.3+ (pidfd); the Windows default shell is `pwsh` else `powershell`; on Windows `.interrupt` writes 0x03 and the other signals terminate the job object, and there is no foreground group.
 
+**Storage** (`TRM-F`). A row is UTF-8 text plus run-length attribute spans, copy-on-write, never a struct or `Character` per cell; scrollback is a ring of compacted rows, and a 10 000 x 120 ASCII scrollback is proved under 4 MB by a counted byte census.
+
+**Parser** (`TRM-G`). UTF-8 is decoded first (U+FFFD per maximal invalid subpart, the breaking byte decoded afresh), C1 controls are the scalars U+0080-U+009F, string payloads are capped in bytes and an overlong one is dropped to its terminator, and any split of a stream gives the same state.
+
+**Phase 1.2 seam** (`TRM-H`). The emulator prints, wraps and moves the cursor and records mode flags; every other sequence is parsed and dropped until its phase, so no declared behaviour is a stub. Fixtures are `Tests/MetalUITerminalTests/Fixtures/*.vtfix` (`TRM-I`); the parser guards are chunk invariance, seeded fuzz, the census and the gated bench (`TRM-J`).
+
 **POSIX pty** (`TRM-K`..`TRM-O`). `PseudoTerminal` starts its child with `posix_spawn` and `POSIX_SPAWN_SETSID` (the child's own first open of the slave gives it the controlling tty; the C `fork` path stays for glibc below 2.34 and tests run both), with exactly fds 0-2, every signal at default, and the size set before the child exists through a slave the parent holds open (Darwin forgets a size set on an unopened pty).
 
 **Pty I/O** (`TRM-M`, `TRM-N`). `read` is >0, 0 would block or -1 end of file (a 0-byte read, EIO, or after `close`), latched so the level-triggered source stops firing; `write` queues on an internal queue, never blocks, never drops, never reorders.

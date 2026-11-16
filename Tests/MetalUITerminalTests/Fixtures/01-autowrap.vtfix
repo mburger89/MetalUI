@@ -1,0 +1,8 @@
+# Authored here (TRM-A): printing, autowrap and the pending-wrap state at the last column.
+size 5 3
+input "abcdefg"
+text
+|abcde|
+|fg|
+||
+cursor 1 2

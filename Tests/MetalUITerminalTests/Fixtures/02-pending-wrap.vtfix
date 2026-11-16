@@ -1,0 +1,7 @@
+# A character at the last column leaves the cursor on it, wrap pending.
+size 5 2
+input "abcde"
+text
+|abcde|
+||
+cursor 0 4 pending

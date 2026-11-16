@@ -1,0 +1,8 @@
+# C1 controls arrive as two-byte UTF-8: U+009B is CSI, U+0085 NEL, U+0084 IND; a lone 0x9B byte is invalid.
+size 8 3
+input "ab\u{85}cd\u{9B}3Ge\u{84}f\x9bg"
+text
+|ab|
+|cde|
+|   f\u{FFFD}g|
+cursor 2 6
