@@ -935,6 +935,22 @@ public final class CodeDecorations {
                             owner: owner, priority: priority)
     }
 
+    /// The run in `rows` whose gutter marker is the most severe (`CV-BM`): the higher ``CodeGutterMarker/severity``,
+    /// then the owner of higher priority, then the earlier row. `nil` when no row has a marker. Costs the runs in `rows`.
+    package func strongestMarker(in rows: Range<Int>) -> LineDecorationPayload? {
+        sync()
+        var best: LineDecorationPayload?
+        var bestPriority = 0
+        for run in lines.runs(in: max(0, rows.lowerBound)..<min(lines.total, rows.upperBound)) {
+            guard let marker = run.payload.marker, !marker.text.isEmpty else { continue }
+            let priority = Int(run.payload.markerOwner) < ownerTable.count ? ownerTable[Int(run.payload.markerOwner)].priority : 0
+            if let current = best?.marker, (marker.severity, priority) <= (current.severity, bestPriority) { continue }
+            best = run.payload
+            bestPriority = priority
+        }
+        return best
+    }
+
     /// The decoration of `row`, or `nil`.
     package func lineDecoration(row: Int) -> LineDecorationPayload? {
         guard let payload = lines.payload(at: row), !payload.isEmpty else { return nil }
