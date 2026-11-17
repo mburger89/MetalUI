@@ -11,13 +11,14 @@ import Observation
 //  - the current group not growing at its edges (`hi += delta` dropped): `linkedMirrorsEditTogether`.
 //  - a covered placeholder not marked removed: `overwrittenNestedStopIsSkipped`.
 //  - undo not ending the session of the insertion's group: `undoOfInsertionEndsUndoOfTypingKeeps`.
-//  - the undo end matched by stack depth (`undoStack.count == 1`): `undoOfInsertionEndsUndoOfTypingKeeps` after a trim.
 //  - an explicit write outside every placeholder not ending: `aSelectionWriteOutsideEnds`.
 //  - the inclusive bounds made exclusive: `aSelectionWriteAtAnEdgeKeeps`.
-//  - a second insertion not ending the first: `aSecondInsertionEndsTheFirst`.
+//  - a second insertion not ending the first (the `endSnippet()` first line removed): `aSecondInsertionEndsTheFirst`.
 //  - the indent prefix dropped: `indentationFollowsTheLine`; the view's unit ignored: `indentationFollowsTheLine`.
 //  - $0 not ending the session: `tabCyclesAndDollarZeroEnds`.
-//  - an empty placeholder at the insertion point shifting always: `anEmptyPlaceholderStaysOnItsSide`.
+//  - an empty placeholder at the insertion point shifting always: `anEmptyPlaceholderBeforeTheCurrentOneStays`.
+//  - the paint's ancestor-chain walk removed: `tintedPlaceholdersAreFoundByStartAndByParent`.
+//  - an extra `stateMoveCount` for a state with a session: `noSessionMovesStatesExactlyAsBefore`.
 
 @MainActor
 struct CodeSnippetSessionTests {
@@ -178,6 +179,11 @@ struct CodeSnippetSessionTests {
         #expect(state.nextSnippetPlaceholder())
         #expect(state.selections == [CodeSelection(caret: 6)], "its $0 ends it; the first's stop 2 is gone")
         #expect(!state.isSnippetActive)
+        // A second snippet with no stops of its own starts no session, and the first is gone all the same.
+        state.insertSnippet(CodeSnippet(parsing: "h(${1:q})$0"), replacing: 0..<1)
+        #expect(state.isSnippetActive)
+        state.insertSnippet(CodeSnippet(parsing: "plain$0"), replacing: 0..<1)
+        #expect(!state.isSnippetActive && state.snippet == nil, "ending is not left to the next session replacing it")
     }
 
     @Test func indentationFollowsTheLine() {
@@ -256,6 +262,37 @@ struct CodeSnippetSessionTests {
         #expect(placeholders(state, 1) == [1..<3], "the placeholder before it stays")
         #expect(placeholders(state, 2) == [3..<4])
         #expect(text(state) == "<abZ>")
+    }
+
+    @Test func anEmptyPlaceholderBeforeTheCurrentOneStays() {
+        let buffer = CodeBuffer("")
+        let state = CodeSelectionState(buffer: buffer)
+        // `$2` comes first in the text, `$1` (the current group) second: text typed in `$1` lands after `$2`.
+        state.insertSnippet(CodeSnippet(parsing: "<$2$1>$0"), replacing: 0..<0)
+        state.replaceSelections(with: "ab")
+        #expect(placeholders(state, 1) == [1..<3])
+        #expect(placeholders(state, 2) == [1..<1], "the empty placeholder before the current one stays: \(placeholders(state, 2))")
+        // And the text lands in front of the empty placeholder that follows a nonempty current one's end only when it is typed there.
+        state.nextSnippetPlaceholder()
+        state.replaceSelections(with: "Z")
+        #expect(text(state) == "<Zab>" && placeholders(state, 2) == [1..<2] && placeholders(state, 1) == [2..<4])
+    }
+
+    @Test func tintedPlaceholdersAreFoundByStartAndByParent() {
+        // `[0,100)` holds `[10,20)`; a sibling `[30,40)` follows; `[120,130)` is far below.
+        var session = SnippetSession(stops: [(1, 0..<100), (2, 10..<20), (3, 30..<40), (4, 120..<130), (0, 130..<130)],
+                                     transaction: CodeTransactionID(rawValue: 1))
+        session.setCurrent(4)
+        func tinted(_ window: Range<Int>) -> [Range<Int>] { var out: [Range<Int>] = []; session.forEachTinted(in: window) { out.append($0) }; return out.sorted { $0.lowerBound < $1.lowerBound } }
+        #expect(tinted(50..<60) == [0..<100], "the one that starts above the window and runs through it")
+        #expect(tinted(15..<35) == [0..<100, 10..<20, 30..<40])
+        #expect(tinted(110..<125) == [], "stop 4 is the current group; nothing else reaches it")
+        session.setCurrent(1)
+        #expect(tinted(50..<60) == [], "the current group is not tinted")
+        #expect(tinted(110..<125) == [120..<130])
+        #expect(tinted(125..<140) == [120..<130])
+        session.setCurrent(4)
+        #expect(tinted(99..<101) == [0..<100] && tinted(100..<101) == [], "end-exclusive")
     }
 
     /// Typed multi-caret text moves the session by the batch path; the same edits one event at a time (`sequentialMoves`)

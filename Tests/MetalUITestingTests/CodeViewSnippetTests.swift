@@ -16,8 +16,11 @@ import MetalUITesting
 //  - the plan not writing `viewIndentSpaces`: `theViewsIndentUnitIsUsedWhenNoneIsGiven`.
 //  - the paint tinting the current group too: `nonCurrentPlaceholdersAreTinted`.
 //  - the paint tint read from the wrong theme field (`currentLine`): `nonCurrentPlaceholdersAreTinted`.
-//  - the plan copying the session with no `isSnippetActive` check (observed read removed): `endingTheSessionRedraws`.
-//  - a per-placeholder element or a retention taint in the paint: `aKeystrokeInASessionCostsAPlainKeystroke`.
+//  - the plan reading `source.snippet` instead of the observed `isSnippetActive`: `endingTheSessionRedraws`.
+//  - the paint's row clamp removed is an EQUIVALENT mutant (x(_:) already clamps a byte outside the row to the row's
+//    ends): nothing reddens, and nothing should.
+//  The cost tests (`aKeystrokeInASessionCostsAPlainKeystroke`, `anIdleViewInASessionCostsNothing`) are literals and
+//  equalities against a plain keystroke; they were green on the first run and no mutation of this change moves a count.
 
 private let tintAlpha: Float = 0.37
 
@@ -236,9 +239,7 @@ private struct Card: Component, @MainActor Equatable {
     #expect(tints(w).isEmpty)
 }
 
-/// **8** A placeholder across rows is tinted on each row it reaches. **Mutation:** the clamp to the row removed (a
-/// rect is as wide as the whole placeholder) or the parent chain of the binary search dropped (a placeholder
-/// that starts above the first row and runs into it is not tinted).
+/// **8** A placeholder across rows is tinted on each row it reaches.
 @Test @MainActor func aMultiRowPlaceholderIsTintedPerRow() throws {
     let (w, buffer, _) = try snippetWindow("")
     let state = buffer.selectionState
