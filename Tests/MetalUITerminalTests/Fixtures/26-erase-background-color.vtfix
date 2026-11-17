@@ -1,0 +1,11 @@
+# Erase keeps the pen background and nothing else (background colour erase).
+size 6 2
+input "\e[1;44;31mab\e[K"
+text
+|ab|
+||
+attr 0 0 bold fg=1 bg=4
+attr 0 2 bg=4
+attr 0 5 bg=4
+attr 1 0 plain
+cursor 0 2

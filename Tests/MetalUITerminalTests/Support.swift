@@ -37,7 +37,7 @@ extension TerminalEmulator {
     var fullState: String {
         let c = publishSnapshot()
         return [historyLines.joined(separator: "|"), screenLines.joined(separator: "|"),
-                "\(c.cursor)", "\(c.modes)", "\(firstRow)", parser.stateDescription].joined(separator: "\n")
+                "\(c.cursor)", "\(c.modes)", "\(firstRow)", debugState, parser.stateDescription].joined(separator: "\n")
     }
 }
 
@@ -85,4 +85,11 @@ let mixedCorpus: [[UInt8]] = [
     [0xC2, 0x9B, 0x31, 0x3B, 0x32, 0x48, 0xC2, 0x9D, 0x30, 0x3B, 0x74, 0xC2, 0x9C, 0xC2, 0x85, 0x9B, 0x68],
     Array("\(ESC)[1\u{18}H\(ESC)[2\u{1A}H\(ESC)]x\u{18}y\(ESC)[1\(ESC)[3Aq\(ESC)(0\(ESC)#8\(ESC)7\(ESC)8".utf8),
     Array("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\t\tb\u{08}\u{08}c\(ESC)[3D\(ESC)[2C\(ESC)[9A\(ESC)[9B\(ESC)[;4H".utf8),
+    // Phase 1.3: regions, edits, tabs, save/restore, the alternate screen, charsets, SGR in both forms, replies.
+    Array("\(ESC)[2;4r\(ESC)[?6h\(ESC)[1;1Hab\(ESC)[2L\(ESC)[M\(ESC)[3S\(ESC)[2T\(ESC)M\(ESC)[99;99Hz\(ESC)[?6l\(ESC)[r\n\n\n\n\n\n".utf8),
+    Array("0123456789\(ESC)[1;4H\(ESC)[3@\(ESC)[2P\(ESC)[4X\(ESC)[1K\(ESC)[J\(ESC)[2J\(ESC)[?7l\(ESC)[?7hxx\(ESC)[3b\(ESC)[4hQ\(ESC)[4l".utf8),
+    Array("\(ESC)[3g\(ESC)[1;5H\(ESC)H\t\(ESC)[2I\(ESC)[3Z\(ESC)[g\(ESC)7\(ESC)[?1049hscreen\(ESC)[?1049l\(ESC)8\(ESC)[?47hx\(ESC)[?47l\(ESC)[?1047hy\(ESC)[?1047l".utf8),
+    Array("\(ESC)(0lqqk\(ESC)(B\u{0E}\u{0F}\(ESC))0\u{0E}x\u{0F}\(ESC)(Aa#\(ESC)#8\(ESC)c".utf8),
+    Array("\(ESC)[1;3;4:3;38;5;200;48:2::1:2:3;58:5:9mx\(ESC)[22;24;39;49;0m\(ESC)[38:2:1:2:3;1my\(ESC)[38;2;1;2m\(ESC)[;m\(ESC)[38;5;999mz".utf8),
+    Array("\(ESC)[c\(ESC)[>c\(ESC)[5n\(ESC)[6n\(ESC)[?6n\(ESC)[?7$p\(ESC)[4$p\(ESC)[?1049$p\(ESC)[2;5r\(ESC)[?6h\(ESC)[6n\(ESC)[!p\u{07}\u{07}\(ESC)[2 q\(ESC)[?25l\(ESC)[?1000h\(ESC)[?1006h".utf8),
 ]

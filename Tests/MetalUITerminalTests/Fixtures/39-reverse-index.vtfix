@@ -1,0 +1,8 @@
+# RI scrolls down at the top margin, in the whole screen and in a region.
+size 4 3
+input "a\r\nb\r\nc\e[H\eM\e[2;3r\e[2;1H\eM"
+text
+||
+||
+|a|
+cursor 1 0

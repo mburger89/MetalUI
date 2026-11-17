@@ -1,0 +1,6 @@
+# TBC 0 clears the stop under the cursor; the default stops are every eight columns.
+size 20 1
+input "\e[1;9H\e[g\e[1;1H\ta"
+text
+|                a|
+cursor 0 17

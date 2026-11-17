@@ -1,0 +1,11 @@
+# While origin mode is on the mode flag shows and the cursor is clamped to the margins.
+size 6 5
+input "\e[2;4r\e[?6h\e[99;99H\e[99A\e[A\e[2B\e[9Bx"
+text
+||
+||
+||
+|     x|
+||
+cursor 3 5 pending
+modes originMode=on

@@ -119,6 +119,7 @@ struct FocusRegistry {
         if let target = handlers.textInput { textTargets[id] = target }
         if let shortcut = handlers.keyboardShortcut { shortcuts.append((id, shortcut)) }
         if let presses = handlers.keyboard?.keyPresses, !presses.isEmpty { keyPressHandlers[id] = presses }
+        if let capture = handlers.keyboard?.capture { keyCaptures[id] = capture }
         if let clipboard = handlers.keyboard?.clipboard { clipboardHandlers[id] = clipboard }
     }
 
@@ -232,6 +233,15 @@ struct FocusRegistry {
     /// order (ruling `KF-C`) — the lookup `dispatchKeyPress` makes at each
     /// level of the key chain.
     private var keyPressHandlers: [GlobalElementID: [KeyPressHandler]] = [:]
+
+    /// Every id whose layer is a key capture layer this frame (`TRM-U`).
+    private var keyCaptures: [GlobalElementID: KeyCapture] = [:]
+
+    /// `id`'s key capture, or `nil` when its layer is none.
+    func keyCapture(for id: GlobalElementID) -> KeyCapture? { keyCaptures[id] }
+
+    /// How many ids registered a key capture: with none, a key event walks no chain for one.
+    var keyCaptureCount: Int { keyCaptures.count }
 
     /// `id`'s `onKeyPress` handlers this frame, in written order.
     func keyPresses(for id: GlobalElementID) -> [KeyPressHandler] { keyPressHandlers[id] ?? [] }

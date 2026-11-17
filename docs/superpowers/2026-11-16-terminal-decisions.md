@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-U`.
+Next unused id: `TRM-AE` (`TRM-K`..`TRM-O` are reserved by open PR #341).
 
 ## TRM-A: module split
 
@@ -130,3 +130,75 @@ The draft spelled one initialiser, `GPUSurface(redraw:value:trigger:draw:)`. Thi
 ## TRM-T: cost
 
 An app that never uses a trigger pays nothing. `GPUSurface`'s `paint` passes one more (nil) argument; `Frame.drawSurface` appends to `surfaceTriggers` only when there is one; `SurfaceRedrawState` holds empty collections; the display-link tick tests `deadlineCount > 0`; the drawFrameIfNeeded guard reads `pending.isEmpty`. Literals, on master ff73af7c and on this branch: see record 337 (test `aSurfaceWithoutATriggerCostsWhatItDidOnMaster`, `anAppWithNoSurfaceCostsWhatItDidOnMaster`). A frame owed by a trigger costs 0 builds and 0 element requests (`aTriggerDrawsItsSurfaceInAFrameWithNoBuild`).
+## TRM-U: the capture stage - where it sits and what it offers (Phase 4.1, record 338)
+
+1. `keyCapture(except:optionAsMeta:)` marks the keyboard layer it joins (the layer of the `onKeyPress` it is written beside, in either order). While the focus chain holds a marked layer, `Window.dispatchKeyCapture` runs as the first key stage, ahead of `dispatchAction` (the Keymap), and offers the key to that layer's `onKeyPress` handlers: outermost capture layer first, each layer's handlers last-written first (`KF-C`), under `StateDispatch.dispatching(to:)` the layer's element (`ID-F`).
+2. Key-downs and key-ups are offered (a handler's `phases` still filters). Only the focus chain counts, not a hovered key region: capture is a focus feature.
+3. A layer offered a key is not offered it again by `onKeyPress`'s own stage (`Window.keyCaptureOffered`, `dispatchKeyPress(_:along:in:skipping:)`): a handler answering `.ignored` is called once per key. A layer capture skipped (`except`, composing) is offered by `onKeyPress`'s stage as before, so the unchanged pipeline stays unchanged.
+
+Why: spec §3 order; a double call would double a handler's side effects and break a terminal's encoder (a key written twice to the pty).
+
+## TRM-V: what skips capture
+
+1. A layer whose `except` holds a shortcut matching the event (`KeyboardShortcut.matches`: exact modifiers, key case-folded; `.primary` per platform) is skipped for that event, and only that layer: an outer layer without the exception still captures.
+2. Nothing is captured while the focused text target composes marked text (a field's stored composition, a code view's session): the key belongs to the input method and goes through the pipeline as today (`isComposingMarkedText`).
+3. A key event with no `charactersIgnoringModifiers` is not offered (as `onKeyPress`); a `textInput` commit is not a key and is not captured.
+
+## TRM-W: the carrier - a marker handler, not a new `Handlers` member
+
+`keyCapture` appends a marker `KeyPressHandler` (no phases, so it hears nothing; its `capture` field holds the exceptions and the Option flag) to the layer's handler list. `KeyboardAttachment` reads it into a stored `capture` field and `FocusRegistry` keeps one entry per capturing id (`keyCapture(for:)`, `keyCaptureCount`); `Handlers` gains nothing (its size is pinned). Because the marker rides `KeyPressRegistration` like any handler, `keyCapture` joins on every conformer family exactly as `onKeyPress` does: `StyledElement`/`KeyboardModifier`/a proposal chain (`Self`, `KF-AD`) and any `ElementGroup` (`KeyPressed`, `KF-AC`, `KF-AE`), at no element request.
+
+Why: Alloy's answer 3 (state on `KeyboardAttachment`) and the steady-frame cost rule; the alternative (a `FocusInteractions` payload) cannot carry exceptions.
+
+## TRM-X: the Option hint
+
+`PlatformWindow.setRawOptionKeys(_:)` is a defaulted no-op requirement. `Window.syncRawOptionKeys` sends `true` when the focus chain holds a layer with `optionAsMeta` and `false` when it stops doing so, on each focus change and each frame's registry swap; it sends only changes (the last value is kept), so a steady frame sends nothing. AppKit (`MetalHostView.rawOptionKeys`): a key with Option held skips `inputContext` (dead keys, the character palette, Option-letter symbols) unless marked text is composing; ⌘ keys and every other key are routed as before. SDL: an Alt combination is a plain key (`producesText` false) and the `TEXT_INPUT` an Alt combination produces is dropped. IME and marked text are otherwise untouched.
+
+## TRM-Y: AppKit routing and cost
+
+1. The pre-menu path needs no new AppKit code: `performKeyEquivalent` already offers ⌘ and ⌃ keys to `Window.onInput`, whose first key stage is now capture, so a captured ⌘ or ⌃ key never reaches the main menu (`.handled` is the claim `performKeyEquivalent` returns) and an `.ignored` one does, as before. **⌃Tab** is such a ⌃ key: capture hears it before AppKit's key-view loop sees it; `.ignored` returns the window's answer and the loop proceeds. (Whether AppKit offers ⌃Tab to `performKeyEquivalent` on every macOS version is a human check, `TRM1`.)
+2. Cost: an app not using `keyCapture` pays one dictionary-count comparison per key event and per frame (`keyCaptureCount > 0`); an app using it pays no element request, no layout node and no further retention miss (`KeyCaptureCostTests`, literal counts equal master's).
+
+## TRM-Z: what Phase 1.3 executes, and the events
+
+Phase 1.3 replaces `TRM-H`'s list of dropped sequences: the emulator now runs BEL (a `.bell` event), BS, HT, LF/VT/FF/IND, CR, NEL, RI, HTS (ESC H and C1 0x88), SO/SI; CUU CUD CUF CUB CNL CPL CHA HPA HPR VPA VPR CUP HVP; CHT CBT TBC; ED EL ECH (and DECSED/DECSEL, which are the same without protected cells); ICH DCH IL DL; SU SD; DECSTBM; REP; SGR; DECSC/DECRC (and CSI s/u, since DECSLRM is not implemented); DECALN; DECSTR; RIS; DA1, DA2, DSR 5 and 6 (and DECXCPR `?6n`), DECRQM (ANSI and DEC); DECSET/DECRST 1 6 7 9 12 25 47 1000 1002 1003 1004 1005 1006 1047 1048 1049 2004; SM/RM 4 (insert mode); DECSCUSR; DECKPAM/DECKPNM; G0-G3 designation. **Skipped on purpose:** DECSLRM and left/right margins (mode 69 answers "permanently reset"), DECCOLM, DECSCNM, protected areas, LNM and KAM, SS2/SS3 and 96-character sets, mouse-mode stacking (a mouse mode is one `MouseTracking` value, as the frozen enum says), OSC/DCS/APC (Phase 1.4).
+
+`TerminalEvent` and `TerminalEmulator.drainEvents()` are declared whole, exactly as the frozen spec has them. This phase emits `.reply` and `.bell`; `.title`, `.workingDirectory` and `.hyperlink` are declared and are not emitted until OSC lands (1.4). The queue is bounded at 1 024 events between drains (a host that never drains loses the newest), and a `.bell` directly after a queued `.bell` is not queued again; replies never coalesce.
+
+Why: the plan's 1.3 scope and the spec's rule that a reply must be written by the owner (`TRM-C`).
+
+## TRM-AA: the screen model
+
+1. The scroll region is rows `top...bottom`, 0-based; LF, IND and NEL at the bottom row scroll it up, RI at the top row scrolls it down, a cursor outside the region moves freely. CUU stops at the top margin when the cursor starts at or below it, CUD at the bottom margin when it starts at or above it. DECSTBM with top not above bottom is ignored; a valid one homes the cursor. IL and DL do nothing outside the region and move the cursor to column 0; SU and SD count is clamped to the region.
+2. Rows leave to scrollback only when the region is the whole primary screen. A scroll inside a partial region, and every scroll on the alternate screen, drops the row. Reason: an absolute row number is "scrolled-off count plus screen index", and a partial region would renumber the rows below it. **Differs from xterm** (Alloy review, 2026-11-16, accepted for v1): xterm also saves the line leaving a region whose top margin is row 1 and whose bottom margin is above the last row (a pinned footer). Matching it would renumber the rows below the region on every scroll, breaking the stable `TerminalPosition.row` of a selection or anchor there; doing it without renumbering needs a per-row identity, left for later.
+3. Erase and scroll use the pen's background and nothing else (background colour erase): an erased cell and a row brought in by a scroll carry `background = pen.background`. ED 3 empties scrollback. Erasing to the end of a row also ends its soft wrap. An erase that touches half a wide cell blanks the whole cell; ICH, DCH, ECH and IRM never leave half of one.
+4. ICH, DCH, ECH, IL and DL clear the pending wrap (IL and DL also move to column 0); ED and EL leave it, so `abcd ESC[K` on a 4-column row erases the last cell and the cursor stays pending.
+5. Plain-ASCII rows without attribute spans edit in place (insert, delete, truncate); every other case rebuilds the row from one slot per column and merges equal spans, so wide cells and attributes are handled in one place. Storage stays the `TRM-F` layout: no struct or `Character` per stored cell.
+
+Why: vttest's scrolling-region and insert/delete screens, and xterm's behaviour where the frozen model leaves a choice.
+
+## TRM-AB: save/restore, the alternate screen and resets
+
+1. DECSC saves position, pending wrap, pen, origin mode, the four charsets and the shift state; each screen has its own slot, so 1049 (which saves on the primary slot) does not clobber a DECSC made inside the alternate screen. DECRC with nothing saved goes home with defaults.
+2. 47 swaps to the alternate screen keeping its last contents; 1047 does the same and clears it when left; 1049 saves the cursor, clears the alternate screen on entry and restores the cursor on exit; 1048 is save/restore alone. Entering when already there, or leaving when not there, does nothing. The cursor position carries across 47 and 1047. A switch publishes a full frame, and `rowText` for screen rows answers the screen that shows.
+3. DECSTR resets cursor visibility, cursor style, origin mode, autowrap (to on), application cursor keys and keypad, insert mode, the region, the pen, the charsets and the saved cursors; it leaves the screen, the cursor position, the alternate screen, tab stops and the mouse, paste and focus modes. RIS is the power-on state with a blank screen on the primary screen; scrollback is kept (history survives a `reset`).
+4. DECOM set or reset homes the cursor. The cursor-position report is region-relative in origin mode. DECRQM answers 1 set, 2 reset, 4 permanently reset (mode 69, ANSI 20) and 0 for anything else.
+
+Why: xterm's documented behaviour; the choices on DECSTR autowrap and RIS scrollback are MetalUI's (an app that soft-resets expects wrapping, and a user who runs `reset` expects history to stay).
+
+## TRM-AC: graphics sets, REP and insert mode
+
+G0-G3 hold `ascii` (final `B`, and any set not known), `decGraphics` (`0`) or `uk` (`A`); SO selects G1 and SI G0. Only printable ASCII is translated (UTF-8 above it is never a 7-bit set), and while the set in GL is not ASCII, or insert mode is on, printable bytes take a per-scalar path so the plain-ASCII fast path costs nothing. DEC graphics maps 0x5F-0x7E; 0x5F shows a blank. REP repeats the last printed scalar (after translation, wide ones included, nothing when none), at most 65 535 times. IRM (SM/RM 4) inserts blanks before each printed cell.
+
+Why: vttest's character-set screens and the spec's list; keeping the fast path unconditional keeps the bench honest.
+
+## TRM-AD: SGR and the replies
+
+1. `TerminalAttributes` gains `underlineStyle` (`TerminalUnderlineStyle`: none, single, double, curly, dotted, dashed), `underlineColor` and `blink`; `underline` stays and reads `underlineStyle != .none` (writing sets single or none), so frozen readers compile unchanged.
+2. SGR handles 0-9, 21-29, 30-37, 38, 39, 40-47, 48, 49, 58, 59, 90-97 and 100-107, with `;` and `:` forms (`38;5;n`, `38;2;r;g;b`, `38:5:n`, `38:2:r:g:b`, `38:2::r:g:b`, `38:2:cs:r:g:b`; `4:0`-`4:5`). 5 and 6 both set blink. A malformed or out-of-range extended colour changes nothing and ends the sequence there; what came before applies.
+3. DECSCUSR 1-6 are blinking and steady block, underline and bar; 0 is a blinking block like 1 (xterm ctlseqs and VT520; Alloy's review). The power-on style stays the steady block (`TRM-F`) and DECSTR returns to it; only an explicit `CSI 0 SP q` blinks.
+4. DA1 answers `CSI ? 62 ; 22 c` (VT220 class, ANSI colour), DA2 `CSI > 1 ; 0 ; 0 c`; DSR 5 answers `CSI 0 n`, DSR 6 `CSI r ; c R`, `CSI ? 6 n` `CSI ? r ; c ; 1 R`. A request with any other parameter is not answered.
+
+Why: spec section 2.1 rule 3 (SGR in all forms) and the replies the spec requires the owner to write.
+
+
