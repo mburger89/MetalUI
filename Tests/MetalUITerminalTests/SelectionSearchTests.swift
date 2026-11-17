@@ -451,6 +451,7 @@ extension TerminalEmulator {
         #expect(done.wait(timeout: .now() + 5) == .success)
         let (text, found) = try #require(result.get())
         #expect(text == "needle" && found == range(pos(0, 9), pos(0, 14)))
+        queue.sync {}   // `perform` publishes after its closure returns; wait for that publish before taking the snapshot
         let snapshot = try #require(source.takeSnapshot())
         #expect(snapshot.selection == .linear(range(pos(0, 9), pos(0, 14))))
     }
