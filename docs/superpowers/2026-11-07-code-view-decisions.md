@@ -373,3 +373,22 @@ Pinned by `aPressOnAChevronTogglesItsRangeAndCallsOnToggle`, `theInnermostRangeS
 **Costs.** Counted, no clock. Steady and keystroke literals are those of `CV-BN`/`CV-BG` on master, unchanged (`aFoldGutterCostsWhatNoFoldGutterCosts`): steady 2 requests, 0 hits, 1 miss, 0 ineligible, 1 frame; keystroke the same (Apple platforms; per frame elsewhere). A move within a region: 0 frames, 0 requests to the platform.
 
 Pinned by `movingTextToGutterToTextChangesTheCursorWithoutAFrame`, `movesWithinARegionCostNoFrameAndNoRequest`, `aChevronAndAFoldPlaceholderAreThePointingHand`, `textIsTheHandOnlyWhenOnTextClickActsOnAPlainClick`, `regionCursorsRespectHorizontalScrolling` (`Tests/MetalUITestingTests/CodeViewRegionCursorTests.swift`). Next unused: `CV-BP`.
+
+## CV-BP: the snippet model and parser (landed, record 376; class M, no divergence; Alloy code-intel #1, first PR)
+
+**API** (`MetalUICodeBuffer`, pure values): `CodeSnippet(text:tabStops:)` (precondition: ranges in the text's UTF-8 bytes on scalar boundaries, indexes non-negative, any two ranges nested or disjoint), `CodeSnippet(parsing:)` (never throws), `CodeSnippet.TabStop(index:range:)`; `tabStops` are ordered by start, an enclosing stop before the ones inside it. The session (`CV-BQ`), the keys and paint (`CV-BR`) are a later PR; Alloy's answers bind them: `replacing:` at the primary is enough, a second insert ends the first session, fallbacks are enough.
+
+**Parser rules** (LSP/TextMate grammar; VS Code `SnippetParser` is the reference):
+- `$n`, `${n}`, `${n:default}` with nesting; `\$ \} \\` are the literal characters, any other backslash stays.
+- A choice `${n|a,b|}` is a stop whose text is its first option (`\, \| \\` escape inside).
+- **A variable is plain text, never a stop**: `${NAME:default}` gives its default (stops nested in it stay stops), `$NAME` and `${NAME}` give nothing. This is Alloy's "default if given, else empty"; it differs from VS Code, which makes an unknown variable a placeholder holding its name.
+- A transform is parsed and dropped: `${n/re/fmt/opts}` is a plain mirror of `n`, a variable with one is empty.
+- Malformed syntax is literal text (`${`, `${1:`, an unclosed default, a lone `$`, a trailing `\`, an unclosed choice, an index that overflows `Int`); an inner valid construct inside an unclosed one still parses.
+- No `$0` appends an empty one at the end; an explicit `$0` keeps its place.
+- **Mirrors.** The first stop of an index in text order (outer before inner) with a non-empty default is the source; every other stop of that index, before or after it, gets that text, and as text only: stops nested in the source are not copied. A stop containing a stop of its own index takes the inner text once, no recursion.
+- Offsets are UTF-8 bytes of the resulting `text`.
+- Attempts at `$` are memoised by position, so unclosed nesting (`${1:` x n) is linear, not exponential.
+
+**Cost.** None: no view, no state, nothing observed. Next unused: `CV-BX` (`CV-BQ`..`CV-BW` reserved by wave 2).
+
+Pinned by `parserTable` (39 rows), `unclosedNestingIsLinear`, `parsingNeverTrapsOnArbitraryBytes`, `acceptsNestedDisjointAndAdjacentRanges`, `rejectsPartialOverlap`, `rejectsRangesOutsideTheText`, `rejectsOffsetsInsideAScalar` and `equalSnippetsHashEqualAndDifferencesShow` (`Tests/MetalUICodeBufferTests/CodeSnippetTests.swift`; mutations in its header).
