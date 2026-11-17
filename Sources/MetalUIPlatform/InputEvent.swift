@@ -221,6 +221,13 @@ public struct KeyEvent: Sendable {
     /// implemented (taxonomy shape 1). Every construction site states one; that
     /// churn is the point.
     public var timestamp: Double
+    /// The key's character with **no modifiers applied** under the current
+    /// keyboard layout, or empty when the platform cannot say (`KF-AL`). It is
+    /// the one spelling a shifted key has on every platform: AppKit reports
+    /// ⇧/ as `charactersIgnoringModifiers` "?" (it keeps Shift's effect), SDL
+    /// reports the unshifted "/"; this is "/" on both. `KeyboardShortcut`
+    /// matching reads it, with `.shift`, beside the characters.
+    public var unshiftedKey: String = ""
     /// A key event; every construction site states its timestamp.
     public init(charactersIgnoringModifiers: String, characters: String,
                 modifiers: Modifiers = [], isRepeat: Bool = false,

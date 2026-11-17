@@ -1115,6 +1115,8 @@ pointer, an input method, the display link and the menu bar.
   appear, digits do; an input method's composition (AppKit Japanese IME; SDL
   on Linux with IBus) is unaffected (`KF-Q`, divergence 187). **Observed:**
 
+**KF-AL1** (`KF-AL`, record 356). In a SwiftUI app on macOS, a `Button("x") { }.keyboardShortcut(.tab, modifiers: .shift)` in a key window: press ⇧Tab. Record whether the action runs (probe P3, not observable by an agent). In MetalUI on macOS (`swift run MetalUIDemo` with a `Button` shortcut `("/", modifiers: .shift)`): ⇧/ runs it, on a US layout and on a second layout (switch the input source: the key is the layout's unshifted one).
+
 ## AS. App shell — close veto, quit hook, title and edited marker, hidden title bar, open-document events (item C8, user request 2026-10-02, not a plan task)
 
 *Source: record §87 `87-app-shell.md`, rulings `AS-A`…
