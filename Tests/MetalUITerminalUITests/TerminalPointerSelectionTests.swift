@@ -226,3 +226,32 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     rig.release(at: rig.point(1, 6))
     print("TRM-BD cost literals: steady \(steady), plain hover \(plainResult) twin \(base), command hover \(withCommand) twin \(baseCommand)")
 }
+
+/// **14** (`REQUIRED`) The view is `Equatable` over its inputs (source identity, theme, exceptions, flags; not the closures) so
+/// `.equatable()` accepts it, an editor keystroke beside it costs what it does without `.equatable()` (4 requests, 1 build), and
+/// the view still works. A `GPUSurface` subtree is retention-ineligible until surface replay (#362), so nothing is replayed yet:
+/// the test pins that nothing is replayed yet (`retainedHits` 0), so the flip when #362 lands is visible.
+/// Mutation: compare nothing (every pair equal: a changed theme would replay), or compare the closures (never equal).
+@MainActor @Test func theViewIsEquatableOverItsInputs() async throws {
+    let source = TerminalSnapshotSource(emulator: TerminalEmulator(cols: 4, rows: 2), queue: .main)
+    func view(_ palette: TerminalPalette = .xterm, option: Bool = false, source: TerminalSnapshotSource = source) -> TerminalView {
+        TerminalView(snapshotSource: source, theme: palette, optionAsMeta: option, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
+    }
+    #expect(view() == view(), "closures are not compared")
+    #expect(view(option: true) != view())
+    var other = TerminalPalette.xterm; other.foreground = .red
+    #expect(view(other) != view())
+    #expect(view(source: TerminalSnapshotSource(emulator: TerminalEmulator(cols: 4, rows: 2), queue: .main)) != view())
+    let rig = try TermRig(extra: true, equatable: true)
+    await rig.settle()
+    try rig.window.focus(rig.window.element(identifier: "ed"))
+    await rig.settle()
+    for _ in 0..<2 { rig.window.window.setNeedsRedraw(); rig.window.tick() }
+    rig.window.typeText("z")
+    let work = rig.window.lastFrameWork
+    #expect(work.elementRequests == 4 && work.builds == 1, "\(work.elementRequests) requests, \(work.builds) builds")
+    rig.feed("hi")
+    await rig.frame()
+    #expect(rig.model.statistics.snapshotsTaken >= 1 && rig.window.lastFrameWork.builds == 0, "output still draws")
+    #expect(work.retainedHits == 0, "no replay of a GPUSurface subtree yet: \(work.retainedHits)")
+}

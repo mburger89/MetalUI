@@ -277,7 +277,7 @@ private let up = "\u{F700}", down = "\u{F701}", left = "\u{F702}", right = "\u{F
     let keystroke = rig.window.lastFrameWork
     #expect(rig.sent == [[0x61]])
     #expect(keystroke.elementRequests == steady, "the keystroke frame \(keystroke.elementRequests) vs a plain redraw \(steady)")
-    #expect(steady == 6, "the view's own six requests (two, and four pointer wrappers, TRM-BD): \(steady)")
+    #expect(steady == 2, "the view's own two requests (the pointer input adds none, TRM-BD): \(steady)")
     rig.feed("a")
     await rig.frame()
     let output = rig.window.lastFrameWork
@@ -297,7 +297,7 @@ private let up = "\u{F700}", down = "\u{F701}", left = "\u{F702}", right = "\u{F
     rig.window.typeText("z")
     let work = rig.window.lastFrameWork
     #expect(rig.sent.isEmpty, "the terminal heard nothing")
-    #expect(work.elementRequests == 8 && work.builds == 1, "\(work.elementRequests) requests, \(work.builds) builds")
+    #expect(work.elementRequests == 4 && work.builds == 1, "\(work.elementRequests) requests, \(work.builds) builds")
 }
 
 /// **12** The `KeyPress` overload is the core encoder over the press spelled as a `TerminalKey`: modifiers, the key

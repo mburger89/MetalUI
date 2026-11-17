@@ -59,7 +59,7 @@ import MetalUITextSystem
 /// (Ctrl on Linux and Windows) the hovered cell is offered to `onLink` once per cell change; a target is underlined with
 /// the pointing hand, ⌘-click activates it, and OSC 8 hyperlinks the host did not claim are offered by the view itself.
 /// Accessibility arrives with Phase 5.6.
-public struct TerminalView: Component {
+public struct TerminalView: Component, @MainActor Equatable {
     let snapshotSource: TerminalSnapshotSource
     let theme: TerminalPalette
     let keyCaptureExceptions: [KeyboardShortcut]
@@ -72,7 +72,6 @@ public struct TerminalView: Component {
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
 
     @State private var model = TerminalViewModel()
-    @State private var linkActive = false
     @Environment(\.openURL) private var openURL
     @FocusState private var isFocused: Bool
     @Environment(\.textMeasurer) private var measurer
@@ -124,6 +123,17 @@ public struct TerminalView: Component {
             .onEnded { value in model.pointerEnded(value, button: terminal) }
     }
 
+    /// Whether two views draw and behave alike (`TRM-BD`): the same snapshot source object, theme, key-capture
+    /// exceptions and flags. The closures (`onInput`, `onResize`, `onLink`) are not compared, as `TabStrip`'s are not:
+    /// under `.equatable()` a replay keeps the closures of the build that last ran, so a host that swaps them for others
+    /// with different captures must not use it. Today a `GPUSurface` subtree is retention-ineligible (`EquatableComponent`), so
+    /// `.equatable()` replays nothing yet (measured: 0 retained hits); the equality is what lets surface replay (#362) take it.
+    public static func == (l: TerminalView, r: TerminalView) -> Bool {
+        l.snapshotSource === r.snapshotSource && l.theme == r.theme && l.keyCaptureExceptions == r.keyCaptureExceptions
+            && l.optionAsMeta == r.optionAsMeta && l.cursorBlink == r.cursorBlink
+            && l.blinkStopsAfterIdle == r.blinkStopsAfterIdle && l.boldIsBright == r.boldIsBright
+    }
+
     /// The view's content: the surface leaf under a focus layer and a geometry scope. Not for callers.
     public var content: some ElementGroup {
         let model = self.model
@@ -137,8 +147,6 @@ public struct TerminalView: Component {
         model.exceptions = keyCaptureExceptions
         model.onLink = onLink
         model.openURL = { url in openURL(url) }
-        let linkBinding = $linkActive
-        model.linkPresence = { active in linkBinding.wrappedValue = active }
         if let system = measurer.terminalTextSystem {
             model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
         }
@@ -150,21 +158,20 @@ public struct TerminalView: Component {
             .pasteDestination(for: String.self, action: { items in model.paste(items.joined(separator: "\n")) })
             .copyable(model.copyItems())
             .externalTextInput(model.input)
-            .onGeometryChange(for: TerminalSize.self, of: { proxy in
-                model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
-            }, action: { size in model.gridChanged(to: size) })
-            .onChange(of: isFocused && activeState != .inactive) { _, now in model.focusChanged(to: now) }
-            .onContinuousHover { phase in
+            .pointerInput(hover: { phase in
                 switch phase {
                 case .active(let point): model.hoverMoved(to: point)
                 case .ended: model.hoverEnded()
                 }
-            }
-            .simultaneousGesture(Self.buttonGesture(.primary, .left, model)
+            }, gesture: Self.buttonGesture(.primary, .left, model)
                 .simultaneously(with: Self.buttonGesture(.middle, .middle, model))
-                .simultaneously(with: Self.buttonGesture(.secondary, .right, model)))
-            .onScrollWheel { event in model.wheel(event) }
-            .pointerStyle(linkActive ? .link : nil)
+                .simultaneously(with: Self.buttonGesture(.secondary, .right, model)),
+            wheel: { event in model.wheel(event) },
+            style: { model.pointer.link == nil ? nil : .link })
+            .onGeometryChange(for: TerminalSize.self, of: { proxy in
+                model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
+            }, action: { size in model.gridChanged(to: size) })
+            .onChange(of: isFocused && activeState != .inactive) { _, now in model.focusChanged(to: now) }
             .onModifierKeysChanged(initial: false) { _, now in model.modifiersChanged(to: now) }
     }
 }

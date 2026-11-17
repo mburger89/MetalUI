@@ -23,7 +23,8 @@ import Testing
     var model: TerminalViewModel { TerminalViewModel.latestForTesting! }
 
     init(cols: Int = 80, rows: Int = 24, size: Size<Pixels> = Size(width: Pixels(400), height: Pixels(300)),
-         blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true, commands: Bool = false) throws {
+         blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true, commands: Bool = false,
+         equatable: Bool = false) throws {
         self.size = size
         emulator = TerminalEmulator(cols: cols, rows: rows)
         source = TerminalSnapshotSource(emulator: emulator, queue: .main)
@@ -32,7 +33,10 @@ import Testing
         window = try TestWindow(size: start, textSystem: { portableSystem() }) {
             VStack(spacing: 0) {
                 if extra { TextField("t", text: .constant("")).accessibilityIdentifier("ed").frame(width: Pixels(100), height: Pixels(20)) }
-                if knobs.shown && terminal {
+                if knobs.shown && terminal && equatable {
+                    TerminalView(snapshotSource: source, theme: knobs.palette, onInput: { log.inputs.append($0) },
+                                 onResize: { log.resizes.append($0) }, onLink: { _ in nil }).equatable()
+                } else if knobs.shown && terminal {
                     TerminalView(snapshotSource: source, theme: knobs.palette, keyCaptureExceptions: knobs.exceptions,
                                  optionAsMeta: knobs.optionAsMeta, cursorBlink: blink, blinkStopsAfterIdle: stops,
                                  onInput: { log.inputs.append($0) }, onResize: { log.resizes.append($0) },
@@ -310,6 +314,6 @@ import Testing
         return (rig.window.lastFrameWork.elementRequests, rig.window.lastFrameWork.builds)
     }
     let with = try await keyFrame(terminal: true), without = try await keyFrame(terminal: false)
-    #expect(with.builds == without.builds && with.requests == without.requests + 6, "with \(with) without \(without)")
-    #expect(with.requests == 8 && without.requests == 2)  // TRM-BD: the pointer wrappers (hover, gestures, wheel, pointer style) add 4 to the view's 2
+    #expect(with.builds == without.builds && with.requests == without.requests + 2, "with \(with) without \(without)")
+    #expect(with.requests == 4 && without.requests == 2)  // TRM-BD: the pointer input is fields of the keyboard layer and adds none
 }

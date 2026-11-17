@@ -66,9 +66,6 @@ final class TerminalViewModel {
     var exceptions: [KeyboardShortcut] = []
     var onLink: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil }
     var openURL: (URL) -> Void = { _ in }
-    /// Tells the view whether a link is under the pointer, so it can set the pointer style (the one thing a link hover
-    /// builds for, `TRM-BD`).
-    var linkPresence: (Bool) -> Void = { _ in }
     /// The pointer's state: the press under way, the wheel's remainders, the link, the selected text (`TRM-BD`).
     var pointer = TerminalPointerState()
 

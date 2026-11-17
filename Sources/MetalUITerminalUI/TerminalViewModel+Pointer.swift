@@ -447,10 +447,8 @@ extension TerminalViewModel {
 
     private func setLink(_ link: TerminalLinkHit?) {
         guard link != pointer.link else { return }
-        let toggled = (link == nil) != (pointer.link == nil)
         pointer.link = link
         trigger.requestRedraw()
-        if toggled { linkPresence(link != nil) }
     }
 
     private func activate(_ link: TerminalLinkHit, at cell: TerminalPosition) {

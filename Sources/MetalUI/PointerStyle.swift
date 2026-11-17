@@ -288,14 +288,25 @@ public enum FrameResizeDirection: Sendable, Hashable {
 /// (`CI-AH` item 2) — and keeps the wheel handler.
 final class PointerAttachment {
     let scrollWheel: (@MainActor (ScrollEvent) -> Bool)?
-    let style: PointerStyle?
+    private let fixedStyle: PointerStyle?
+    /// A style its owner decides at each resolution, from input (`TRM-BD`: `TerminalView` shows the pointing hand over a
+    /// ⌘-hovered link without a build). `package`; `.pointerStyle` never sets one.
+    let styleProvider: (@MainActor () -> PointerStyle?)?
+    /// The style this region declares now: the fixed one, else the provider's answer.
+    var style: PointerStyle? {
+        if let fixedStyle { return fixedStyle }
+        guard let styleProvider else { return nil }
+        return MainActor.assumeIsolated { styleProvider() }
+    }
     /// `.hidden` or `.visible` from `pointerVisibility(_:)`; `nil` for none and for `.automatic`
     /// (`PH-F`: automatic defers to an outer declaration).
     let visibility: Visibility?
 
-    init(scrollWheel: (@MainActor (ScrollEvent) -> Bool)?, style: PointerStyle?, visibility: Visibility? = nil) {
+    init(scrollWheel: (@MainActor (ScrollEvent) -> Bool)?, style: PointerStyle?, visibility: Visibility? = nil,
+         styleProvider: (@MainActor () -> PointerStyle?)? = nil) {
         self.scrollWheel = scrollWheel
-        self.style = style
+        self.fixedStyle = style
+        self.styleProvider = styleProvider
         self.visibility = visibility
     }
 
