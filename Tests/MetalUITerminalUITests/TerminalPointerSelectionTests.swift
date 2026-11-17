@@ -5,10 +5,10 @@ import MetalUITerminal
 import Testing
 
 @testable import MetalUI
+@testable import MetalUITerminalUI
 
 /// Copy is ⌘C on Apple platforms and Ctrl+Shift+C elsewhere (TRM-BD); the link modifier is `.primary` (⌘ / Ctrl).
 private let copyModifiers: Modifiers = Modifiers.primary == .command ? .command : [.control, .shift]
-@testable import MetalUITerminalUI
 
 // Terminal phase 5.5 (`TRM-BD`), selection, copy, links and cost. Each test names the mutation it was shown red against.
 
