@@ -11,7 +11,7 @@ import CPseudoTerminal
 import Dispatch
 import Foundation
 
-/// A child process on a pseudo-terminal (macOS and Linux; ruling `TRM-K`).
+/// A child process on a pseudo-terminal (macOS and Linux; ruling `TRM-K`; Windows is `PseudoTerminal+Windows.swift`).
 ///
 /// The child is a session leader whose controlling terminal is the pty and
 /// which owns exactly the file descriptors 0-2. Read it from the
@@ -23,35 +23,6 @@ import Foundation
 /// process source (macOS) or a `pidfd` read source (Linux 5.3+; a shared
 /// polling reaper below that).
 public final class PseudoTerminal: @unchecked Sendable {
-    /// A signal ``signalGroup(_:)`` can send.
-    public enum Signal: Sendable {
-        /// `SIGHUP`.
-        case hangup
-        /// `SIGINT`.
-        case interrupt
-        /// `SIGTERM`.
-        case terminate
-        /// `SIGKILL`.
-        case kill
-
-        var number: Int32 {
-            switch self {
-            case .hangup: SIGHUP
-            case .interrupt: SIGINT
-            case .terminate: SIGTERM
-            case .kill: SIGKILL
-            }
-        }
-    }
-
-    /// How the child ended.
-    public enum ExitStatus: Sendable, Equatable {
-        /// It called `exit` with this status.
-        case exited(Int32)
-        /// A signal with this number killed it.
-        case signaled(Int32)
-    }
-
     /// The mechanism that started the child; tests pin each one.
     package enum Mechanism: Sendable {
         /// `posix_spawn` where sound, else `fork`.
@@ -448,14 +419,15 @@ private func sysWrite(_ fd: Int32, _ p: UnsafeRawPointer, _ n: Int) -> Int { Gli
 private func sysClose(_ fd: Int32) -> Int32 { Glibc.close(fd) }
 #endif
 
-/// Why a pty could not be started.
-public enum PseudoTerminalError: Error, Sendable, Equatable {
-    /// Opening the pty failed (`errno` in `code`).
-    case openFailed(code: Int32)
-    /// Starting the child failed (`errno` in `code`; `ENOENT` for a missing executable).
-    case spawnFailed(code: Int32)
-    /// The platform cannot do it.
-    case unsupported(String)
+extension PseudoTerminal.Signal {
+    var number: Int32 {
+        switch self {
+        case .hangup: SIGHUP
+        case .interrupt: SIGINT
+        case .terminate: SIGTERM
+        case .kill: SIGKILL
+        }
+    }
 }
 
 #endif
