@@ -31,6 +31,15 @@
 // -D PRIMARY, exit 1:  error: type 'EventModifiers' has no member 'primary'
 // -D PLATFORM, exit 1: error: type 'EventModifiers' has no member 'platform'
 //
+// P1 (KF-AI), 2026-11-17, macOS 27.2.1, Apple Swift 6.4.2, default build, exit 0, the two added lines:
+//
+//   P1 Set<KeyboardShortcut>.count: 3
+//   P1 KeyboardShortcut("P") != KeyboardShortcut("p"): true
+//
+// (so `Set<KeyboardShortcut>` compiles, SwiftUI's shortcut is Hashable, and "P" and "p" are different
+// elements). -D DISPLAYTEXT, exit 1: error: value of type 'KeyboardShortcut' has no member 'displayText'.
+// -D CONFLICTS, exit 1: error: value of type 'KeyboardShortcut' has no member 'conflicts'.
+//
 // So: SwiftUI's default is `.command` (16), and SwiftUI spells no modifier
 // that means "⌘ on Apple, Ctrl elsewhere" — SwiftUI ships only on Apple
 // platforms, where `.command` is that modifier.
@@ -49,6 +58,17 @@ struct Probe {
         for (name, value) in named { print("EventModifiers.\(name).rawValue =", value.rawValue) }
         print("KeyboardShortcut.defaultAction.modifiers.rawValue:", KeyboardShortcut.defaultAction.modifiers.rawValue)
         print("KeyboardShortcut.cancelAction.modifiers.rawValue:", KeyboardShortcut.cancelAction.modifiers.rawValue)
+        // Arm P1 (ruling KF-AI): KeyboardShortcut is Hashable, and "P" is not "p".
+        let set: Set<KeyboardShortcut> = [KeyboardShortcut("p"), KeyboardShortcut("p"), KeyboardShortcut("P"),
+                                          KeyboardShortcut("p", modifiers: [.command, .shift])]
+        print("P1 Set<KeyboardShortcut>.count:", set.count)
+        print("P1 KeyboardShortcut(\"P\") != KeyboardShortcut(\"p\"):", KeyboardShortcut("P") != KeyboardShortcut("p"))
+        #if DISPLAYTEXT
+        print(KeyboardShortcut("p").displayText)
+        #endif
+        #if CONFLICTS
+        print(KeyboardShortcut("p").conflicts(with: KeyboardShortcut("P")))
+        #endif
         #if PRIMARY
         let primary: EventModifiers = .primary
         print(primary)
