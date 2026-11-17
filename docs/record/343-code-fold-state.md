@@ -1,6 +1,8 @@
-# 342 - The fold model (`CV-BL`)
+# 343 - The fold model (`CV-BL`)
 
-Branch `feat/code-fold-state` from master `0dfd9f13`. Class M, no divergence. `MetalUICodeBuffer` only, plus `CodeGutterMarker.severity` in `MetalUI`; Alloy gap G5 part 1 (the layout, `CV-BM`, is the next change). Number 342 because 340 is taken by open PRs; expect renumbering at merge. `CV-BL` as the design names it (`CV-BG` is PR #344's; `CV-BH`..`CV-BK` reserved for G3, G2 and G4).
+Renumbered from 342 because #345 merged first.
+
+Branch `feat/code-fold-state` from master `0dfd9f13`. Class M, no divergence. `MetalUICodeBuffer` only, plus `CodeGutterMarker.severity` in `MetalUI`; Alloy gap G5 part 1 (the layout, `CV-BM`, is the next change). Renumbered from 342 because #345 merged first. `CV-BL` as the design names it (`CV-BG` is PR #344's; `CV-BH`..`CV-BK` reserved for G3, G2 and G4).
 
 **What landed.** `Sources/MetalUICodeBuffer/CodeFoldState.swift`: `CodeFoldState` (see `CV-BL` for the rules table), the internal `FoldRangeSet` (sorted ranges with a prefix maximum of the ends) and `FoldLineEdit` (an edit as rows, a break count and a column-0 flag). The buffer keeps `foldStates` (weak), and `applyEvent`, the spliced batch and `applyBatch` feed them: a lone event moves them at once, a run collects its line edits and moves them once (`moveFoldsOverRun`). `CodeSelectionState` keeps its fold states weakly and `openFolds()` runs after every explicit write (`setSelections`, so `selections`, `select`, the buffer's forwards, find's step) and after undo and redo restore their selections. `CodeBuffer.lineEdits(since:)` reads the edit log for `setFoldableRanges(_:asOf:)`.
 

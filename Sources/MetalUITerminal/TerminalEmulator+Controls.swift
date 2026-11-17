@@ -236,7 +236,7 @@ extension TerminalEmulator {
     func sgr(_ p: CSIParameters) {
         let values = p.values
         if values.isEmpty {
-            pen = TerminalAttributes()
+            resetPenKeepingLink()
             return
         }
         var index = 0
@@ -248,7 +248,7 @@ extension TerminalEmulator {
             let subs = Array(values[(index + 1)..<groupEnd])
             index = groupEnd
             switch code {
-            case 0: pen = TerminalAttributes()
+            case 0: resetPenKeepingLink()
             case 1: pen.bold = true
             case 2: pen.dim = true
             case 3: pen.italic = true

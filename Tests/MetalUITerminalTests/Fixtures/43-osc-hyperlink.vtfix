@@ -1,0 +1,12 @@
+# OSC 8 opens a link on the cells printed until the empty one closes it; BEL and ST both end the sequence.
+size 10 2
+input "\e]8;;http://a.example/x\x07ab\e]8;;\e\\c\e]8;;http://b.example\e\\d\e]8;;\x07e"
+text
+|abcde|
+||
+attr 0 0 link=1
+attr 0 1 link=1
+attr 0 2 plain
+attr 0 3 link=2
+attr 0 4 plain
+events link:1:http://a.example/x link:2:http://b.example

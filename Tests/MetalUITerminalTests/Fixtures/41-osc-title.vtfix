@@ -1,0 +1,7 @@
+# OSC 0 and 2 set the title, ended by BEL or ST; OSC 1 (icon) and OSC 52 (clipboard) are dropped.
+size 10 2
+input "a\e]0;first\x07b\e]2;second\e\\c\e]1;icon\x07\e]52;c;aGk=\x07d"
+text
+|abcd|
+||
+events title:first title:second

@@ -18,7 +18,8 @@ import Testing
 ///                                   strike`, `underline=single|double|curly|dotted|dashed`, and `fg= bg= ul=`
 ///                                   with `default`, an index `N` or `R,G,B`; unlisted members are default
 ///     replies "<escaped bytes>"     the concatenated `.reply` events, in order
-///     events <name> ...             the other events, in order (`bell`)
+///     events <name> ...             the other events, in order: `bell`, `title:T`, `cwd:/path`, `link:ID:URI`
+///                                   (no spaces inside a name); `link=N` in an `attr` is the hyperlink id
 ///
 /// Escapes in `input` and in `|row|` lines: `\e \r \n \t \\ \"`, `\xHH` (one raw byte), `\u{H...}` (that scalar
 /// as UTF-8). Every fixture is run whole, byte at a time and split at every position; all must agree.
@@ -59,6 +60,7 @@ struct Fixture {
             case "fg": a.foreground = color(kv[1])
             case "bg": a.background = color(kv[1])
             case "ul": a.underlineColor = color(kv[1])
+            case "link": a.hyperlink = UInt32(kv[1])
             default: Issue.record("unknown attribute token \(token)")
             }
         }
@@ -188,7 +190,9 @@ struct Fixture {
                 switch event {
                 case .bell: return "bell"
                 case .reply: return nil
-                default: return "other"
+                case .title(let text): return "title:\(text)"
+                case .workingDirectory(let url): return "cwd:\(url.path)"
+                case .hyperlink(let id, let uri): return "link:\(id):\(uri)"
                 }
             }
             if got != events { problems.append("\(tag): events \(got) != \(events)") }
