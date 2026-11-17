@@ -1117,6 +1117,8 @@ pointer, an input method, the display link and the menu bar.
 
 **KF-AL1** (`KF-AL`, record 356). In a SwiftUI app on macOS, a `Button("x") { }.keyboardShortcut(.tab, modifiers: .shift)` in a key window: press ⇧Tab. Record whether the action runs (probe P3, not observable by an agent). In MetalUI on macOS (`swift run MetalUIDemo` with a `Button` shortcut `("/", modifiers: .shift)`): ⇧/ runs it, on a US layout and on a second layout (switch the input source: the key is the layout's unshifted one).
 
+**KF-AI1** (`KF-AI`, record 363). Probe `P2` was run from an accessory-policy app, not a MetalUI window. In `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` on macOS open the Edit menu and the View/Window menus: list every item AppKit added and its key. Confirm only AutoFill, Start Dictation and Emoji & Symbols appear (and Enter Full Screen if the window is full-screen capable), none with a key beyond ⌘Space, ⌃⌘Space and Fn chords, which `KeyboardShortcut.systemReserved(on: .macOS)` already lists. On Linux/Windows draw the bar and confirm F10 opens the first menu and Shift-F10 and the Menu key open a context menu (the keys `standardMenuShortcuts()` lists). **Observed:**
+
 ## AS. App shell — close veto, quit hook, title and edited marker, hidden title bar, open-document events (item C8, user request 2026-10-02, not a plan task)
 
 *Source: record §87 `87-app-shell.md`, rulings `AS-A`…

@@ -69,7 +69,12 @@ public struct KeyEquivalent: Hashable, Sendable, ExpressibleByExtendedGraphemeCl
 /// **The modifiers match exactly** (`IX-F` item 2, probe `B4e`–`B4g`): ⌘K fires
 /// a ⌘K shortcut, plain K does not, and a `modifiers: []` shortcut fires on
 /// plain K and not on ⌘K.
-public struct KeyboardShortcut: Equatable, Sendable {
+///
+/// `Hashable` as SwiftUI's is (`KF-AI`, class A, probe `P1`): two shortcuts are
+/// equal when their keys are equal as characters (`"P"` and `"p"` are **not**)
+/// and their modifiers are equal. `conflicts(with:)` is the looser question
+/// "would these two fire on the same keystroke".
+public struct KeyboardShortcut: Hashable, Sendable {
     /// The key that must be pressed, compared case-folded.
     public let key: KeyEquivalent
     /// The modifiers that must be held, matched exactly (`IX-F` item 2).
@@ -149,6 +154,36 @@ public struct KeyboardShortcut: Equatable, Sendable {
                             superKeyName: platform == .windows ? "Win" : "Super")
     }
 
+    /// Whether this shortcut and `other` fire on the same keystroke (`KF-AI`): the
+    /// modifiers are equal exactly and the keys are the same key once normalised.
+    ///
+    /// The key is compared lower-cased (`"P"` conflicts with `"p"`, though the two are not `==`),
+    /// AppKit's ⇧Tab character `"\u{19}"` read as Tab (`KF-AL`), and, **when both hold
+    /// Shift**, a shifted key read as its unshifted base key (`KF-AL`'s one form on every platform): `"?"`
+    /// with ⇧ conflicts with `"/"` with ⇧, `"!"` with `"1"`. The base key is the US layout's
+    /// (`? / ! 1 @ 2 # 3 $ 4 % 5 ^ 6 & 7 * 8 ( 9 ) 0 _ - + = { [ } ] | \ : ; " ' < , > . ~ \``); without Shift `"?"`
+    /// and `"/"` are different keys and do not conflict. Symmetric.
+    public func conflicts(with other: KeyboardShortcut) -> Bool {
+        guard modifiers == other.modifiers else { return false }
+        let shifted = modifiers.contains(.shift)
+        return Self.conflictKey(key, shifted: shifted) == Self.conflictKey(other.key, shifted: shifted)
+    }
+
+    /// A key reduced to the one spelling `conflicts(with:)` compares.
+    private static func conflictKey(_ key: KeyEquivalent, shifted: Bool) -> String {
+        let character = String(key.character)
+        if character == "\u{19}" { return "\t" }
+        let lower = character.lowercased()
+        return shifted ? (shiftedBaseKeys[lower] ?? lower) : lower
+    }
+
+    /// The US layout's shifted punctuation and digits, each to its unshifted key.
+    private static let shiftedBaseKeys: [String: String] = [
+        "?": "/", "!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9",
+        ")": "0", "_": "-", "+": "=", "{": "[", "}": "]", "|": "\\", ":": ";", "\"": "'", "<": ",", ">": ".",
+        "~": "`",
+    ]
+
     /// Whether `event` is this shortcut: the key compared lower-cased with
     /// `charactersIgnoringModifiers` (AppKit reports a shifted letter upper-case
     /// there), the modifiers compared exactly.
@@ -214,7 +249,7 @@ enum ShortcutText {
     }
 
     /// A key's text: the named keys (AppKit's characters) as glyphs or names,
-    /// F1...F35 (U+F704...U+F726) as `F<n>`, any other key upper-cased only
+    /// F1...F35 (U+F704...U+F726) as `F<n>`, the Menu key (U+F735) as `Menu`, any other key upper-cased only
     /// when the result is still one character (`ß` stays `ß`).
     static func keyName(_ key: String, mac: Bool) -> String {
         let scalars = key.unicodeScalars
@@ -235,6 +270,7 @@ enum ShortcutText {
             case 0xF72C: return mac ? "⇞" : "Page Up"
             case 0xF72D: return mac ? "⇟" : "Page Down"
             case 0xF739: return mac ? "⌧" : "Clear"
+            case 0xF735: return "Menu"   // the context-menu key (`KF-AI`: the drawn bar claims it)
             case 0xF704...0xF726: return "F\(scalar.value - 0xF704 + 1)"
             default: break
             }
