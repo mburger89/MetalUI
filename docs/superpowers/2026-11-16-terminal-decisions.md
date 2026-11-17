@@ -225,7 +225,7 @@ Why: vttest's character-set screens and the spec's list; keeping the fast path u
 
 Why: spec section 2.1 rule 3 (SGR in all forms) and the replies the spec requires the owner to write.
 
-## TRM-AE: OSC 0/2/8 and the link table (Phase 1.4, record 340)
+## TRM-AE: OSC 0/2/8 and the link table (Phase 1.4, record 341)
 
 1. An OSC is `number ; text`; a payload with no `;` after the number, or no number, is dropped, as is every number not listed here (OSC 1, 4, 52 and the rest: spec section 2.1 rule 2 keeps the clipboard off). OSC 0 and 2 emit `.title(text)` with the text cut to 256 characters (not bytes; a `;` inside a title is kept); an empty title is a title.
 2. OSC 8 is `params ; uri` (the uri is everything after the second `;`). A non-empty uri registers a link and puts its id in the pen (`TerminalAttributes.hyperlink`), so every cell printed until the link ends carries it; an empty uri ends it. A link is registered, and `.hyperlink(id:uri:)` raised, once per new id. Ids count from 1.

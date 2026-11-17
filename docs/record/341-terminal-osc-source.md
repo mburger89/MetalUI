@@ -1,4 +1,6 @@
-# 340 - Terminal OSC and the snapshot source (`TRM-AE`..`TRM-AH`)
+# 341 - Terminal OSC and the snapshot source (`TRM-AE`..`TRM-AH`)
+
+Renumbered from 340 because #343 (`340-closed-popover-free`) merged first.
 
 Branch `feat/terminal-osc-source` from master `0dfd9f13`; Phase 1.4 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Ids `TRM-AE`..`TRM-AH` only; the decisions doc's "next unused" line (now `TRM-AI`) and the record number will conflict with `feat/terminal-encoders` (Phase 1.7) on merge: rename and reconcile then.
 
