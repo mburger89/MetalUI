@@ -233,11 +233,11 @@ public enum PseudoTerminalError: Error, Sendable, Equatable {
 
 Platform floors and the Windows default shell: `TRM-E`. Windows output is re-rendered by conhost, so Windows tests assert on the emulated screen, not on raw bytes.
 
-## 5. Gap 2 - `TerminalView` (DRAFT, freezes at Phase 5)
+## 5. Gap 2 - `TerminalView` (FROZEN by Phase 5.3, `TRM-BA`, record 357)
 
 ```swift
-// MetalUITerminalUI. Not frozen.
-public struct TerminalView: ElementGroup {
+// MetalUITerminalUI. FROZEN (TRM-BA). TerminalView is a Component, so an ElementGroup.
+public struct TerminalView: Component {
     public init(snapshotSource: TerminalSnapshotSource,
                 theme: TerminalPalette,
                 keyCaptureExceptions: [KeyboardShortcut] = [],
@@ -254,8 +254,14 @@ public struct TerminalPalette: Sendable, Equatable {
     public var foreground, background, cursor, cursorText, selection: Color
     public var boldIsBright: Bool                          // default false; bold is the bold face only unless set
 }
-public struct TerminalLinkQuery: Sendable { /* cell: TerminalPosition, rowText: String, phase: .hover, .exit, .activate */ }
-public struct TerminalLinkTarget: Sendable { /* columns: Range<Int>, payload: String */ }
+public struct TerminalLinkQuery: Sendable, Equatable {     // public memberwise init
+    public enum Phase: Sendable, Equatable { case hover, exit, activate }
+    public var cell: TerminalPosition; public var rowText: String; public var phase: Phase }
+public struct TerminalLinkTarget: Sendable, Equatable {    // public memberwise init
+    public var columns: Range<Int>; public var payload: String }
+// TerminalPalette(ansi:foreground:background:cursor:cursorText:selection:boldIsBright:) (traps unless 16 ansi) and .xterm.
+// Inert in 5.3, wired later: onInput, keyCaptureExceptions, optionAsMeta (5.4); onLink (5.5). onResize, cursorBlink,
+// blinkStopsAfterIdle and boldIsBright work now. The view calls snapshotSource.resize(_:) before onResize (TRM-BA).
 ```
 
 Draft rules:

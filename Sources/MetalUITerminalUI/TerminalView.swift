@@ -1,0 +1,184 @@
+import MetalUI
+import MetalUICore
+import MetalUILayout
+import MetalUIPlatform
+import MetalUIScene
+import MetalUITerminal
+import MetalUITextSystem
+
+/// A terminal: the cell grid of a ``TerminalSnapshotSource`` drawn on a GPU surface (Alloy gap 2, `TRM-BA`,
+/// frozen by Phase 5.3).
+///
+/// ```swift
+/// let source = TerminalSnapshotSource(emulator: emulator, queue: queue)
+/// TerminalView(snapshotSource: source, theme: .xterm,
+///              onInput: { bytes in pty.write(bytes) },
+///              onResize: { size in pty.resize(size) },
+///              onLink: { _ in nil })
+///     .font(.system(size: 13, design: .monospaced))
+/// ```
+///
+/// **Size.** The grid is as many whole cells as the view's laid-out size holds in the environment's font (default:
+/// the system face's monospaced design, 13 points), measured in whole device pixels (`TRM-AZ`). When the cell
+/// count changes (and once at first layout) the view calls `snapshotSource.resize(_:)` and then `onResize`, so the
+/// host resizes its pty; the size is clamped to 2 columns by 1 row and never reported twice. With no proposal the
+/// view asks for 80 x 24 cells.
+///
+/// **Output** does not rebuild the window. The view binds the source's wake to its surface's redraw trigger, so
+/// a feed costs a surface-only frame (no build, no element request) however many feeds arrived, and that frame
+/// redraws only the damaged rows over the retained target; the cursor, the selection and a blink toggle redraw
+/// only the rows they change. A new or resized target, a palette, font or scale change and a reflow redraw every
+/// row. A view that is not painted starts no frame and no timer.
+///
+/// **The cursor** takes the program's shape (block, bar, underline). Unfocused, or in an inactive window, it is a
+/// hollow block, as in Terminal.app. It blinks when the view's `cursorBlink` is on and the program asked for a
+/// blinking style (`CSI 0-5 SP q` or mode 12): it toggles every 500 ms (two surface frames a second) and, when
+/// `blinkStopsAfterIdle`, stops 30 s after the last output or input with the cursor drawn solid. An unfocused
+/// view schedules nothing.
+///
+/// **Colours and text.** The palette's background is opaque. Bold is the bold face (bright colours only with
+/// `boldIsBright`); underline in five styles, strikethrough, dim, inverse and hidden follow the cell's rendition;
+/// box drawing, blocks, braille and Powerline are drawn to the cell; wide characters take two cells; colour emoji
+/// draw monochrome; ligatures are off. A scrolled-back viewport draws the rows the snapshot lists.
+///
+/// **Inert until later phases.** `onInput`, `keyCaptureExceptions`, `optionAsMeta` and `onLink` are part of the
+/// frozen signature, but the view neither captures keys, reads the pointer, nor sends them yet: key capture and
+/// text input arrive with Phase 5.4, the pointer (selection, wheel, mouse reports, links) with 5.5 and
+/// accessibility with 5.6. The view is focusable now (Tab and a press focus it).
+public struct TerminalView: Component {
+    let snapshotSource: TerminalSnapshotSource
+    let theme: TerminalPalette
+    let keyCaptureExceptions: [KeyboardShortcut]
+    let optionAsMeta: Bool
+    let cursorBlink: Bool
+    let blinkStopsAfterIdle: Bool
+    let boldIsBright: Bool
+    let onInput: ([UInt8]) -> Void
+    let onResize: (TerminalSize) -> Void
+    let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
+
+    @State private var model = TerminalViewModel()
+    @FocusState private var isFocused: Bool
+    @Environment(\.textMeasurer) private var measurer
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.font) private var environmentFont
+
+    /// A terminal over `snapshotSource` drawn in `theme`.
+    ///
+    /// - Parameters:
+    ///   - snapshotSource: The emulator's hand-off. The view binds its wake and takes its snapshots; nothing else
+    ///     may (one view per source).
+    ///   - theme: The palette.
+    ///   - keyCaptureExceptions: Shortcuts that skip key capture and reach the app (Phase 5.4; inert).
+    ///   - optionAsMeta: Option sends ESC-prefixed keys (Phase 5.4; inert).
+    ///   - cursorBlink: Whether a blinking cursor style blinks (default true).
+    ///   - blinkStopsAfterIdle: Stop blinking 30 s after the last input or output (default true).
+    ///   - boldIsBright: Bold ANSI 0-7 draws bright, as the palette's own flag does (default false).
+    ///   - onInput: The bytes a key, paste or focus report encodes to (Phase 5.4; never called yet).
+    ///   - onResize: The grid size, when the cell count changes, after the source was resized.
+    ///   - onLink: The link under a ⌘-hovered cell (Phase 5.5; never called yet).
+    public init(snapshotSource: TerminalSnapshotSource,
+                theme: TerminalPalette,
+                keyCaptureExceptions: [KeyboardShortcut] = [],
+                optionAsMeta: Bool = false,
+                cursorBlink: Bool = true,
+                blinkStopsAfterIdle: Bool = true,
+                boldIsBright: Bool = false,
+                onInput: @escaping ([UInt8]) -> Void,
+                onResize: @escaping (TerminalSize) -> Void,
+                onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?) {
+        self.snapshotSource = snapshotSource
+        self.theme = theme
+        self.keyCaptureExceptions = keyCaptureExceptions
+        self.optionAsMeta = optionAsMeta
+        self.cursorBlink = cursorBlink
+        self.blinkStopsAfterIdle = blinkStopsAfterIdle
+        self.boldIsBright = boldIsBright
+        self.onInput = onInput
+        self.onResize = onResize
+        self.onLink = onLink
+    }
+
+    /// The view's content: the surface leaf under a focus layer and a geometry scope. Not for callers.
+    public var content: some ElementGroup {
+        let model = self.model
+        model.source = snapshotSource
+        model.onResize = onResize
+        model.cursorBlink = cursorBlink
+        model.blinkStopsAfterIdle = blinkStopsAfterIdle
+        model.focused = isFocused
+        if let system = measurer.terminalTextSystem {
+            model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
+        }
+        return TerminalSurfaceElement(model: model, palette: theme, boldIsBright: boldIsBright || theme.boldIsBright)
+            .focusable()
+            .focused($isFocused)
+            .onGeometryChange(for: TerminalSize.self, of: { proxy in
+                model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
+            }, action: { size in model.gridChanged(to: size) })
+    }
+}
+
+/// The surface leaf: one native node answering the proposal, and a `GPUSurface` painted under its own id.
+struct TerminalSurfaceElement: ProposalElement {
+    let model: TerminalViewModel
+    let palette: TerminalPalette
+    let boldIsBright: Bool
+
+    /// The stamp that makes the surface redraw on a full frame when what a draw depends on changed.
+    struct Stamp: Hashable {
+        var palette: [UInt32]
+        var focused: Bool
+        var active: Bool
+        var boldIsBright: Bool
+    }
+
+    mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
+        let model = self.model
+        let node = pass.requestNativeLeaf { proposal in
+            let cell = MainActor.assumeIsolated { model.cellSize } ?? (width: 8, height: 16)
+            return LayoutMeasurement(size: SizeD(width: proposal.width ?? cell.width * 80,
+                                                 height: proposal.height ?? cell.height * 24))
+        }
+        return (node, ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void,
+                        pass: inout PaintPass) {
+        func rgb(_ color: Color, opaque: Bool = true) -> (TerminalRGB, Float) {
+            let c = pass.terminalRGBA(color)
+            return (TerminalRGB(c.r, c.g, c.b), opaque ? 1 : c.a)
+        }
+        var packed: [UInt32] = []
+        var ansi: [TerminalRGB] = []
+        for color in palette.ansi {
+            let (value, _) = rgb(color)
+            ansi.append(value)
+            packed.append(UInt32(value.r) << 16 | UInt32(value.g) << 8 | UInt32(value.b))
+        }
+        let foreground = rgb(palette.foreground).0, background = rgb(palette.background).0
+        let cursor = rgb(palette.cursor).0, cursorText = rgb(palette.cursorText).0
+        let (selection, alpha) = rgb(palette.selection, opaque: false)
+        for value in [foreground, background, cursor, cursorText, selection] {
+            packed.append(UInt32(value.r) << 16 | UInt32(value.g) << 8 | UInt32(value.b))
+        }
+        packed.append(UInt32((alpha * 255).rounded()))
+        model.colors = ResolvedTerminalColors(
+            scheme: TerminalColorScheme(ansi: ansi, foreground: foreground, background: background,
+                                        boldIsBright: boldIsBright),
+            cursor: cursor, cursorText: cursorText, selection: selection, selectionAlpha: alpha)
+        model.windowActive = pass.terminalWindowIsActive
+        let stamp = Stamp(palette: packed, focused: model.focused, active: model.windowActive, boldIsBright: boldIsBright)
+        let model = self.model
+        var surface = GPUSurface(redraw: .onDemand, value: stamp, trigger: model.trigger) { context in
+            let sink = (context as? any SurfaceTextSinkProviding)?.textSink
+            model.draw(into: sink, time: context.time, isNewTarget: context.isNewTarget) { r, g, b, a in
+                context.clear(red: r * a, green: g * a, blue: b * a, alpha: a)
+            }
+        }
+        var l: Void = (), p: Void = ()
+        surface.paint(id, bounds: bounds, layout: &l, prepaint: &p, pass: &pass)
+    }
+}

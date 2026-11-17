@@ -23,6 +23,10 @@ package final class TerminalRowPainter {
     package let cache: TerminalGlyphCache
     /// How cells become colours.
     package var scheme: TerminalColorScheme
+    /// The selection's colour and opacity (`TRM-BA`): composited over a selected cell's background.
+    package var selectionColor = TerminalRGB(0x33, 0x66, 0xcc)
+    /// The selection's opacity, 0...1.
+    package var selectionAlpha: Float = 0.5
 
     private var lastAttributes = TerminalAttributes()
     private var lastResolved: TerminalColorScheme.Resolved
@@ -67,7 +71,12 @@ package final class TerminalRowPainter {
 
     /// Records `row` as grid row `rowIndex` of a grid `columns` wide whose top-left is `origin` in the surface's
     /// device pixels. The sink must be in a surface (`beginSurface`).
-    package func draw(_ row: TerminalRow, at rowIndex: Int, columns: Int, origin: (x: Int, y: Int), into sink: SurfaceTextSink) {
+    ///
+    /// `selection` is the half-open column range the selection covers on this row: after the backgrounds and
+    /// before the glyphs the painter records one rect of ``selectionColor`` at ``selectionAlpha`` over it, so the
+    /// glyphs stay legible whatever the alpha (`TRM-BA`).
+    package func draw(_ row: TerminalRow, at rowIndex: Int, columns: Int, origin: (x: Int, y: Int), into sink: SurfaceTextSink,
+                      selection: Range<Int>? = nil) {
         cache.prepare(for: sink.atlas)
         // A new scheme or a rebuilt atlas must not serve a stale resolution.
         lastValid = false
@@ -101,43 +110,23 @@ package final class TerminalRowPainter {
         }
         flush(to: columns)
 
+        // The selection, over the backgrounds and under the glyphs.
+        if let selection {
+            let lo = max(0, selection.lowerBound), hi = min(columns, selection.upperBound)
+            if hi > lo {
+                sink.fillRect(bounds(origin.x + lo * cw, top, (hi - lo) * cw, ch),
+                              color: color(selectionColor, alpha: selectionAlpha))
+            }
+        }
+
         // Glyphs.
-        let atlas = sink.atlas
-        let system = cache.system
         row.forEachCell { column, width, bytes, attributes in
             guard column < columns else { return }
             let colors = resolved(attributes)
             guard !colors.hidden else { return }
             let cellX = origin.x + column * cw
-            switch cache.drawing(for: bytes, bold: attributes.bold, italic: attributes.italic) {
-            case .blank:
-                break
-            case .glyphs(let index):
-                let tint = color(colors.foreground)
-                for placed in cache.glyphs(at: index) {
-                    guard let packed = atlas.packed(for: placed.key, rasterize: { system.rasterize(placed.key) }),
-                          packed.slot.width > 0, packed.slot.height > 0 else { continue }
-                    sink.append(sprite(bounds(cellX + placed.pixelX + packed.left, top + placed.baselineY - packed.top,
-                                              packed.slot.width, packed.slot.height),
-                                       packed.slot, mask: rowBox, color: tint))
-                }
-            case .synthetic(let index):
-                let entry = cache.synthetic(at: index)
-                if let rects = entry.rects {
-                    for r in rects {
-                        sink.fillRect(bounds(cellX + r.x0, top + r.y0, r.x1 - r.x0, r.y1 - r.y0),
-                                      color: color(colors.foreground, alpha: Float(r.coverage) / 255))
-                    }
-                } else if let key = entry.key {
-                    let image = SyntheticGlyphs.raster(for: entry.scalar, cellWidth: cw, cellHeight: ch)
-                    if let packed = atlas.packed(for: key, rasterize: { image ?? .empty }),
-                       packed.slot.width > 0, packed.slot.height > 0 {
-                        sink.append(sprite(bounds(cellX, top, cw, ch), packed.slot, mask: rowBox,
-                                           color: color(colors.foreground)))
-                    }
-                }
-            }
-            _ = width
+            drawCellGlyphs(bytes, attributes: attributes, tint: colors.foreground, cellX: cellX, top: top,
+                           rowBox: rowBox, into: sink)
         }
 
         // Decorations, merged across neighbouring cells of one style and colour.
@@ -176,6 +165,99 @@ package final class TerminalRowPainter {
         }
         flushUnderline()
         flushStrike()
+    }
+
+
+    /// The cursor's shapes (`TRM-BA`).
+    package enum CursorShape: Equatable, Sendable {
+        /// A filled cell with the glyph redrawn in the cursor-text colour.
+        case block
+        /// A one-eighth-cell bar at the cell's left edge (at least one pixel).
+        case bar
+        /// A line along the cell's bottom, as thick as an underline.
+        case underline
+        /// The block's outline, as thick as an underline: the unfocused block (Terminal.app's).
+        case hollow
+    }
+
+    /// Records the cursor over column `column` of `row`, grid row `rowIndex`, after the row itself: in call order
+    /// it lies over the row's own pixels, so redrawing a row and then its cursor replaces both. A pending-wrap
+    /// column past the last clamps to the last. A wide cell takes both columns. `textColor` is the glyph colour
+    /// of a filled block.
+    package func drawCursor(_ shape: CursorShape, row: TerminalRow, column requested: Int, columns: Int, at rowIndex: Int,
+                            origin: (x: Int, y: Int), color rgb: TerminalRGB, textColor: TerminalRGB,
+                            into sink: SurfaceTextSink) {
+        cache.prepare(for: sink.atlas)
+        let m = cache.metrics
+        let cw = m.cellWidth, ch = m.cellHeight
+        let column = max(0, min(requested, columns - 1))
+        let top = origin.y + rowIndex * ch
+        var width = 1
+        var found: (bytes: ArraySlice<UInt8>, attributes: TerminalAttributes)?
+        var start = column
+        row.forEachCell { c, w, bytes, attributes in
+            if c <= column, column < c + w { width = w; start = c; found = (bytes, attributes) }
+        }
+        let x = origin.x + start * cw
+        let box = bounds(x, top, width * cw, ch)
+        let tint = color(rgb)
+        let th = max(1, m.underlineThickness)
+        switch shape {
+        case .block:
+            sink.fillRect(box, color: tint)
+            if let found, !found.attributes.hidden {
+                drawCellGlyphs(found.bytes, attributes: found.attributes, tint: textColor, cellX: x, top: top,
+                               rowBox: bounds(origin.x, top, columns * cw, ch), into: sink)
+            }
+        case .bar:
+            sink.fillRect(bounds(x, top, max(1, cw / 8), ch), color: tint)
+        case .underline:
+            sink.fillRect(bounds(x, top + ch - th, width * cw, th), color: tint)
+        case .hollow:
+            let w = width * cw
+            let t = min(th, max(1, min(w, ch) / 2))
+            sink.fillRect(bounds(x, top, w, t), color: tint)
+            sink.fillRect(bounds(x, top + ch - t, w, t), color: tint)
+            sink.fillRect(bounds(x, top + t, t, ch - 2 * t), color: tint)
+            sink.fillRect(bounds(x + w - t, top + t, t, ch - 2 * t), color: tint)
+        }
+    }
+
+    /// The glyphs of one cell (shaped or synthesised) in `tint`, masked to `rowBox`.
+    private func drawCellGlyphs(_ bytes: ArraySlice<UInt8>, attributes: TerminalAttributes, tint rgb: TerminalRGB,
+                                cellX: Int, top: Int, rowBox: MUIBounds, into sink: SurfaceTextSink) {
+        let m = cache.metrics
+        let cw = m.cellWidth, ch = m.cellHeight
+        let atlas = sink.atlas
+        let system = cache.system
+        switch cache.drawing(for: bytes, bold: attributes.bold, italic: attributes.italic) {
+        case .blank:
+            break
+        case .glyphs(let index):
+            let tint = color(rgb)
+            for placed in cache.glyphs(at: index) {
+                guard let packed = atlas.packed(for: placed.key, rasterize: { system.rasterize(placed.key) }),
+                      packed.slot.width > 0, packed.slot.height > 0 else { continue }
+                sink.append(sprite(bounds(cellX + placed.pixelX + packed.left, top + placed.baselineY - packed.top,
+                                          packed.slot.width, packed.slot.height),
+                                   packed.slot, mask: rowBox, color: tint))
+            }
+        case .synthetic(let index):
+            let entry = cache.synthetic(at: index)
+            if let rects = entry.rects {
+                for r in rects {
+                    sink.fillRect(bounds(cellX + r.x0, top + r.y0, r.x1 - r.x0, r.y1 - r.y0),
+                                  color: color(rgb, alpha: Float(r.coverage) / 255))
+                }
+            } else if let key = entry.key {
+                let image = SyntheticGlyphs.raster(for: entry.scalar, cellWidth: cw, cellHeight: ch)
+                if let packed = atlas.packed(for: key, rasterize: { image ?? .empty }),
+                   packed.slot.width > 0, packed.slot.height > 0 {
+                    sink.append(sprite(bounds(cellX, top, cw, ch), packed.slot, mask: rowBox,
+                                       color: color(rgb)))
+                }
+            }
+        }
     }
 
     /// One underline of `style` over columns `start..<end`. Dotted, dashed and curly patterns are keyed on the

@@ -143,7 +143,8 @@ public final class TerminalEmulator {
         for index in 0..<rows { dirty[index] = false }
         return TerminalSnapshot(version: version, size: TerminalSize(cols: cols, rows: rows), viewportOffset: offset,
                                 damagedRows: damaged, isFullFrame: full, cursor: cursor, modes: currentModes,
-                                selection: selection, links: links, reflowGeneration: reflowGeneration)
+                                selection: selection, links: links, reflowGeneration: reflowGeneration,
+                                topRow: scrolledOff - offset)
     }
 
     func emit(_ event: TerminalEvent) {

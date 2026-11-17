@@ -81,7 +81,7 @@ metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
 
 var terminalUITestDependencies: [Target.Dependency] = [
     "MetalUITerminalUI", "MetalUITerminal", "MetalUICore", "MetalUIScene", "MetalUITextSystem",
-    "MetalUIPortableText", "MetalUIShaderTypes", "MetalUITestSupport",
+    "MetalUIPortableText", "MetalUIShaderTypes", "MetalUITestSupport", "MetalUI", "MetalUIPlatform", "MetalUITesting",
 ]
 #if os(macOS)
 terminalUITestDependencies += ["MetalUIText"]
