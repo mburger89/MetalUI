@@ -74,9 +74,10 @@ package final class TerminalRowPainter {
     ///
     /// `selection` is the half-open column range the selection covers on this row: after the backgrounds and
     /// before the glyphs the painter records one rect of ``selectionColor`` at ``selectionAlpha`` over it, so the
-    /// glyphs stay legible whatever the alpha (`TRM-BA`).
+    /// glyphs stay legible whatever the alpha (`TRM-BA`). `link` is the half-open column range of the link under a
+    /// ⌘-hovered pointer: one single underline in the default foreground over it, after the glyphs (`TRM-BD`).
     package func draw(_ row: TerminalRow, at rowIndex: Int, columns: Int, origin: (x: Int, y: Int), into sink: SurfaceTextSink,
-                      selection: Range<Int>? = nil) {
+                      selection: Range<Int>? = nil, link: Range<Int>? = nil) {
         cache.prepare(for: sink.atlas)
         // A new scheme or a rebuilt atlas must not serve a stale resolution.
         lastValid = false
@@ -165,6 +166,10 @@ package final class TerminalRowPainter {
         }
         flushUnderline()
         flushStrike()
+        if let link {
+            let lo = max(0, link.lowerBound), hi = min(columns, link.upperBound)
+            if hi > lo { drawUnderline(.single, from: lo, to: hi, color: scheme.foreground, top: top, origin: origin.x, sink: sink) }
+        }
     }
 
 

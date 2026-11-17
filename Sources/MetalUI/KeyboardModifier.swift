@@ -187,6 +187,19 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
         addingKeyPress(phases, .any, action)
     }
 
+    /// Puts a view's whole pointer input on this layer (`TRM-BD`, `package`: `TerminalView`'s): continuous hover,
+    /// `gesture` (a `simultaneousGesture`), the wheel, and a pointer style the owner answers from input. They are
+    /// fields of the one layer, so they add no element request, as `onKeyPress` adds none (`KF-AD`).
+    package func pointerInput<G: Gesture>(hover: @escaping @MainActor (HoverPhase) -> Void, gesture: G,
+                                          wheel: @escaping @MainActor (ScrollEvent) -> Bool,
+                                          style: @escaping @MainActor (Point<Pixels>) -> PointerStyle?) -> Self {
+        handling {
+            $0.hover = HoverAttachment(onHover: nil, onContinuousHover: hover)
+            $0.gestures.append(GestureAttachment(gesture, priority: .simultaneous))
+            $0.pointer = PointerAttachment(scrollWheel: wheel, style: nil, styleProvider: style)
+        }
+    }
+
     /// Makes this layer a key capture layer — `StyledElement.keyCapture(except:optionAsMeta:)`'s rules
     /// (ruling `TRM-U`); `Self`, so the chain stays one layer.
     public func keyCapture(except shortcuts: [KeyboardShortcut] = [], optionAsMeta: Bool = false) -> Self {
