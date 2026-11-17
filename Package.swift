@@ -35,6 +35,10 @@ var products: [Product] = [
         // The terminal emulator (ruling TRM-A): parser, compact grid and snapshots. Imports only Foundation
         // and Dispatch, so an app can host a terminal without any UI.
         .library(name: "MetalUITerminal", targets: ["MetalUITerminal"]),
+        // The terminal view's UI half (ruling TRM-A): cell metrics, the grapheme glyph cache and the synthesised
+        // box, block, braille and Powerline glyphs, over MetalUI's `package` grid sink. No MetalUI product
+        // depends on it.
+        .library(name: "MetalUITerminalUI", targets: ["MetalUITerminalUI"]),
         // The framework itself, on every platform (ruling XP-A), and the
         // demo's content, which `Backends/SDL`'s demo draws (roadmap item 10).
         .library(name: "MetalUI", targets: ["MetalUI"]),
@@ -73,6 +77,14 @@ var metalUIDependencies: [Target.Dependency] = [
 ]
 #if os(macOS)
 metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
+#endif
+
+var terminalUITestDependencies: [Target.Dependency] = [
+    "MetalUITerminalUI", "MetalUITerminal", "MetalUICore", "MetalUIScene", "MetalUITextSystem",
+    "MetalUIPortableText", "MetalUIShaderTypes", "MetalUITestSupport",
+]
+#if os(macOS)
+terminalUITestDependencies += ["MetalUIText"]
 #endif
 
 /// AccessKit's static library and what it links against on each platform,
@@ -261,6 +273,13 @@ var targets: [Target] = [
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S) and `Backends/SDL`'s demo can draw it.
         .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
+        // The terminal view's UI half (ruling TRM-A, TRM-AZ): `package` hooks into MetalUI's grid sink; no
+        // MetalUI target depends on it. `MetalUITerminalUITests` reads Noto Sans from Tests/Fonts on every
+        // platform and, on macOS, also runs the CoreText system.
+        .target(name: "MetalUITerminalUI",
+                dependencies: ["MetalUI", "MetalUITerminal", "MetalUICore", "MetalUIScene", "MetalUITextSystem",
+                               "MetalUIPrimitives", "MetalUIShaderTypes"]),
+        .testTarget(name: "MetalUITerminalUITests", dependencies: terminalUITestDependencies),
         // The test harness (ruling HT-A): imports `MetalUI` and `MetalUIScene`
         // only — no AppKit, Metal, CoreText or Foundation — so the Linux and
         // Windows root jobs build and run it. Its tests read Noto Sans from
@@ -416,7 +435,7 @@ targets += [
         .testTarget(
             name: "MetalUITests",
             dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent",
-                           "MetalUIPortableText", "MetalUIAppKit",
+                           "MetalUIPortableText", "MetalUIAppKit", "MetalUITerminalUI",
                            // The harness's plain-import guards (ruling HT-M):
                            // its module is built where `#filePath` expects.
                            "MetalUITesting"]
