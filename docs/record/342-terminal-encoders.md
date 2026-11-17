@@ -1,6 +1,8 @@
-# 340 - Terminal encoders (`TRM-AI`..`TRM-AL`)
+# 342 - Terminal encoders (`TRM-AI`..`TRM-AL`)
 
-Branch `feat/terminal-encoders` from master `0dfd9f13`; Phase 1.7 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Ids `TRM-AI`..`TRM-AL` only (a parallel branch holds `TRM-AE`..`TRM-AH`, so this number and the README row may need renumbering when the two merge).
+Renumbered from 340 because #343 and #346 merged first.
+
+Branch `feat/terminal-encoders` from master `0dfd9f13`; Phase 1.7 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Ids `TRM-AI`..`TRM-AL` only.
 
 **What landed.** `TerminalEncoder` (`encodeKey`, `encodeMouse`, `encodePaste`, `encodeFocus`), `TerminalKey`, `TerminalModifiers` and `TerminalMouseEvent` in `Sources/MetalUITerminal/TerminalEncoder.swift` and `TerminalInput.swift`: pure functions of `TerminalModes`, no UI import. The tables are in the rulings; they were written from xterm's ctlseqs documentation, not from any implementation.
 
