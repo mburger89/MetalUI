@@ -168,6 +168,12 @@ final class CodeEditSession {
     /// or a press in the gutter); shift extends from the current anchor.
     func press(at point: Point<Pixels>, clickCount: Int, extend: Bool, modifiers: EventModifiers = []) {
         hover?.hardEnd()   // a press ends a hover (`CV-AS`)
+        // A press on a folded header's `⋯` unfolds it and is consumed (`CV-BM`).
+        if let state = plan.foldState, let lines = plan.foldedLines(at: point) {
+            update { $0.dragging = false }
+            state.unfold(lines)
+            return
+        }
         // A press whose modifiers are exactly the handler's, on text, is the app's (`CV-AL`): nothing else happens.
         if let click = textClick, modifiers == click.modifiers, !plan.rows.isEmpty {
             let hit = plan.hit(at: point)
@@ -424,8 +430,7 @@ final class CodeEditSession {
             moveOne(motion, extend: extend, snap: snap, selection: selection)
             return
         }
-        // The seam for hidden rows (`CV-BL`, G5 layout): the target row of a vertical step and the row a left/right
-        // wrap lands on are where a hidden row would be skipped; nothing is hidden yet, so every row is a line.
+        // Hidden rows (`CV-BM`) are skipped by `steppedRow` for a vertical step and by `destination` for a wrap.
         var next = sels
         var goals: [Double]?
         switch motion {
@@ -433,15 +438,16 @@ final class CodeEditSession {
             let rows = motion == .up || motion == .down ? 1 : max(1, plan.visibleHeightPx / max(1, plan.pitchPx) - 1)
             let step = (motion == .up || motion == .pageUp) ? -rows : rows
             let st = state()
+            let spans = foldSpans
             let previous = st.goalXs.flatMap { $0.count == sels.count && st.goalXsSerial == selectionState.mutationSerial ? $0 : nil }
             var out = [Double](repeating: .nan, count: sels.count)
             for (i, s) in sels.enumerated() {
-                let row = snap.point(at: s.head).row + step
+                let row = steppedRow(from: snap.point(at: s.head).row, by: step, snap: snap, spans: spans)
                 let target: Int
                 if row < 0 {
                     target = 0
                 } else if row >= snap.lineCount {
-                    target = snap.utf8Count
+                    target = endTarget(snap: snap, spans: spans)
                 } else {
                     let kept = previous?[i] ?? .nan
                     let x = kept.isNaN ? columnX(s.head, snap: snap) : kept
@@ -473,11 +479,12 @@ final class CodeEditSession {
             let rows = motion == .up || motion == .down ? 1 : max(1, plan.visibleHeightPx / max(1, plan.pitchPx) - 1)
             let step = (motion == .up || motion == .pageUp) ? -rows : rows
             let x = state().goalX ?? caretX(head, snap: snap)
-            let row = snap.point(at: head).row + step
+            let spans = foldSpans
+            let row = steppedRow(from: snap.point(at: head).row, by: step, snap: snap, spans: spans)
             if row < 0 {
                 target = 0
             } else if row >= snap.lineCount {
-                target = snap.utf8Count
+                target = endTarget(snap: snap, spans: spans)
             } else {
                 target = offset(inRow: row, atX: x, snap: snap)
                 goal = x
@@ -489,31 +496,58 @@ final class CodeEditSession {
         update { $0.goalX = goal; $0.goalXs = nil; $0.revealsCaret = true }
     }
 
+    // MARK: Hidden rows (`CV-BM`)
+
+    /// The fold state's outermost spans, `nil` for a view with nothing folded (the whole cost of an unfolded view).
+    private var foldSpans: FoldSpans? {
+        guard let spans = plan.foldState?.spans, !spans.isEmpty else { return nil }
+        return spans
+    }
+
+    /// The row `step` shown rows from `row`, skipping hidden ones: `-1` before the first, `lineCount` past the last.
+    private func steppedRow(from row: Int, by step: Int, snap: CodeSnapshot, spans: FoldSpans?) -> Int {
+        guard let spans else { return row + step }
+        return spans.shownLine(from: row, by: step, lineCount: snap.lineCount) ?? (step < 0 ? -1 : snap.lineCount)
+    }
+
+    /// The offset a motion past the last shown row lands on: the document's end, or the end of the header hiding it.
+    private func endTarget(snap: CodeSnapshot, spans: FoldSpans?) -> Int {
+        guard let spans, let k = spans.spanIndex(hiding: snap.lineCount - 1) else { return snap.utf8Count }
+        return snap.lineRange(spans.headers[k]).upperBound
+    }
+
     /// Where the horizontal and absolute motions go from `selection.head`.
     func destination(_ motion: CodeMotion, selection: CodeSelection, extend: Bool, snap: CodeSnapshot) -> Int {
         let head = selection.head
         let row = snap.point(at: head).row
         let line = snap.lineRange(row)
         let relative = head - line.lowerBound
+        let spans = foldSpans
+        /// The shown row before / after this one (a fold's hidden rows skipped), `nil` at the document's edge.
+        func previousRow() -> Int? { row > 0 ? steppedRow(from: row, by: -1, snap: snap, spans: spans) : nil }
+        func nextRow() -> Int? {
+            let next = steppedRow(from: row, by: 1, snap: snap, spans: spans)
+            return next < snap.lineCount ? next : nil
+        }
         func text() -> CodeLineText { CodeLineText(snap.text(in: line)) }
         switch motion {
         case .left:
             if !extend && !selection.isEmpty { return selection.range.lowerBound }
-            if head <= line.lowerBound { return row > 0 ? snap.lineRange(row - 1).upperBound : head }
+            if head <= line.lowerBound { return previousRow().map { snap.lineRange($0).upperBound } ?? head }
             let t = text()
             return line.lowerBound + t.starts[max(0, t.index(atOrAfter: relative) - 1)]
         case .right:
             if !extend && !selection.isEmpty { return selection.range.upperBound }
-            if head >= line.upperBound { return row + 1 < snap.lineCount ? snap.lineRange(row + 1).lowerBound : head }
+            if head >= line.upperBound { return nextRow().map { snap.lineRange($0).lowerBound } ?? head }
             let t = text()
             return line.lowerBound + t.starts[min(t.characters.count, t.index(atOrBefore: relative) + 1)]
         case .wordLeft:
-            if head <= line.lowerBound { return row > 0 ? snap.lineRange(row - 1).upperBound : head }
+            if head <= line.lowerBound { return previousRow().map { snap.lineRange($0).upperBound } ?? head }
             let t = text()
             let at = TextEditing.wordStart(before: t.index(atOrBefore: relative), in: t.characters)
             return line.lowerBound + t.starts[at]
         case .wordRight:
-            if head >= line.upperBound { return row + 1 < snap.lineCount ? snap.lineRange(row + 1).lowerBound : head }
+            if head >= line.upperBound { return nextRow().map { snap.lineRange($0).lowerBound } ?? head }
             let t = text()
             let at = TextEditing.wordEnd(after: t.index(atOrAfter: relative), in: t.characters)
             return line.lowerBound + t.starts[at]
@@ -525,7 +559,7 @@ final class CodeEditSession {
         case .documentStart:
             return 0
         case .documentEnd:
-            return snap.utf8Count
+            return endTarget(snap: snap, spans: spans)
         case .up, .down, .pageUp, .pageDown:
             return head
         }

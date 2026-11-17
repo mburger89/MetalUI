@@ -1,0 +1,15 @@
+# 354 - Hidden-row layout for folds in `CodeView` (`CV-BM`)
+
+Branch `feat/codeview-fold-layout` from master `e349cd74`. Class M, no divergence (labels untouched). PR 8 of the editor-essentials plan for Alloy (G5 part 2); builds on the fold model of record 343 (`CV-BL`), the multi-caret drawing of record 344 and the motion over every selection of record 349. Numbered 354 because 350 to 353 are taken by open lines; expect renumbering.
+
+**What landed.**
+- `CodeView.foldState(_:)`; `CodeHit.foldedLines`; `CodeViewGeometry.foldPlaceholderRect(line:)` (three public declarations, inventory rows covered by the existing `code-geometry` and view rows, doc comments).
+- `Code/CodeFoldLayout.swift`: `CodeFoldLayout` (outermost spans, prefix sums of hidden display rows over the shared row map, cached on the fold state), `CodeRowSpace` (the one place `makePlan` asks), `CodeFoldMark` (the placeholder), the plan's accessibility nodes. `CodeRowMap.revision`; `CodeDecorations.strongestMarker(in:)`; `FoldSpans` and `CodeFoldState.spans`/`layoutCache` in `MetalUICodeBuffer` (all `package`).
+- `makePlan` swaps `let map = decorations.rowMap` for a `CodeRowSpace`; everything below it (anchor, reveal, window, rows) is unchanged. The header row builds the placeholder and the merged marker.
+- `CodeEditSession`: the placeholder press at the top of `press` (unfold, consumed), vertical steps and the wrap targets through `FoldSpans` (the seam `CV-BH` left). The G4 branch's press/drag changes are not touched beyond that one early branch.
+
+**Costs.** See the ruling: no fold state or nothing folded 2 / 0 / 1 / 0 / 1 (steady and, on Apple platforms, keystroke), five folds equal, idle with folds and three carets 0 frames and 0 requests; the layout is built per fold or row-map change.
+
+**Tests.** `CodeViewFoldLayoutTests.swift` (16), `CodeFoldSpansTests.swift` (2). Mutations shown red (each alone; results in the report of the run): nested folds counted twice, the anchor not snapped, the press not consumed, stepping in lines, the cache ignoring the row map, the first marker winning, the accessibility node built without a client, the hidden count in buffer rows.
+
+**Not done / notes.** The placeholder's accessibility node is a button to read and locate; a press from accessibility is not wired. A fold across a very large span makes `strongestMarker` walk the marker runs of that span for each visible header per frame (O(runs), only with folds). `CodeScrollPosition.row` counts shown rows, so a scroll position saved before a fold changes meaning when the fold changes. The chevron lane (G6, `CV-BN`) builds on `foldableRanges`.

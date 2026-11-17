@@ -26,6 +26,9 @@ public struct CodeHit: Equatable, Sendable {
     public var row: Int?
     /// Where the point is.
     public var region: Region
+    /// The folded range (0-based lines, `lowerBound` the header) whose `⋯` placeholder is under the point, else `nil`
+    /// (`CV-BM`, ``CodeView/foldState(_:)``). The region is still ``Region/pastLineEnd``; a press there unfolds it.
+    public var foldedLines: Range<Int>? = nil
 }
 
 /// Answers "what is at this point" and "where is this range" for a ``CodeView`` (`CV-AJ`, Alloy's LSP hover,
@@ -74,6 +77,20 @@ public final class CodeViewGeometry {
         let width = max(1, Int(Double(scale).rounded()))
         return Bounds(origin: Point(x: Pixels(Float(caret.x) / scale) - origin.x, y: Pixels(Float(caret.top) / scale) - origin.y),
                       size: Size(width: Pixels(Float(width) / scale), height: Pixels(Float(plan.pitchPx) / scale)))
+    }
+
+    /// The `⋯` placeholder of the folded header at buffer line `line` (0-based), view-local; `nil` when that line is
+    /// not a folded header shown in the last frame (`CV-BM`).
+    public func foldPlaceholderRect(line: Int) -> Bounds<Pixels>? {
+        guard let plan else { return nil }
+        var i = plan.shownFrom
+        while i < plan.shownTo {
+            let row = plan.rows[i]
+            i += 1
+            guard !row.isVirtual, row.buffer == line, let b = plan.foldPlaceholderBounds(row) else { continue }
+            return Bounds(origin: Point(x: b.origin.x - origin.x, y: b.origin.y - origin.y), size: b.size)
+        }
+        return nil
     }
 
     /// The buffer rows that intersect the view, partially visible ones included; `nil` before a frame or when only
