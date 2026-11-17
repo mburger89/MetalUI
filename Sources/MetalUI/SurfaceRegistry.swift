@@ -65,6 +65,24 @@ final class SurfaceRegistry {
         return id
     }
 
+    /// Whether a retained record's surface calls would get, replayed now, the occurrences and ids they were recorded
+    /// with (`TRM-BB`): the record's scene holds each surface's quad by `SurfaceID`, so a replay that minted another id
+    /// (the surface went unpainted for a frame and was dropped, or an earlier same-`.id` sibling moved its occurrence)
+    /// would draw a target no request names. Such a record is a miss, and the fresh paint records the new ids.
+    func replays(_ notes: [RetainLog.SurfaceNote]) -> Bool {
+        if notes.isEmpty { return true }
+        var counted: [GlobalElementID: Int] = [:]
+        for note in notes {
+            let occurrence = counted[note.element] ?? occurrences[note.element, default: 0]
+            counted[note.element] = occurrence + 1
+            guard occurrence == note.occurrence else { return false }
+            if let request = note.request, ids[Key(element: note.element, occurrence: occurrence)] != request.target.id {
+                return false
+            }
+        }
+        return true
+    }
+
     /// Forgets the build in progress (`RK-M`): the occurrence counts a redo would count twice; the ids stay.
     /// Surface occurrences reached by the build in progress (`RK-F`).
     var buildActivity: Int { occurrences.count }
@@ -73,6 +91,9 @@ final class SurfaceRegistry {
         painted.removeAll(keepingCapacity: true)
         occurrences.removeAll(keepingCapacity: true)
     }
+
+    /// Drops every id, as a frame that painted no surface would: a test's way to make a surface come back as a new one.
+    func forgetIDs() { ids.removeAll() }
 
     /// Drops every surface this frame did not paint and starts the next
     /// frame's occurrence count.

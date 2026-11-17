@@ -116,8 +116,9 @@ private let frameChannels: [String: Channel] = [
     "elidedNodes": .frameLocal, "elidedIDs": .prepaintOnly,
     // Surfaces.
     "surfaceRequests": .ledger,
-    // `TRM-P`: each painted surface's trigger, read by `Window` after the frame is presented; a surface taints the
-    // occurrence (`"surface"`), so no record stands for one until surface replay (Phase 3.3) gives it a ledger row.
+    // `TRM-P`: each painted surface's trigger, read by `Window` after the frame is presented; recorded with the surface's
+    // request in `RetainLog.surfaces` and re-appended by `Frame.replaySurfaces` (`TRM-BB`), so the channel is `.frameLocal`
+    // only because the record's `surfaces` carries it, not because a replay may drop it.
     "surfaceTriggers": .frameLocal,
     // `AS-S`: a disabled control's chrome-only rect, journalled into the ledger and replayed with it.
     "inertChromeBlockers": .ledger,

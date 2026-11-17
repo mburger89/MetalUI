@@ -417,4 +417,12 @@ Why: Alloy's answer 8 (monochrome emoji, bold is the bold face, optional `boldIs
 
 Why: Alloy's answers 5, 6, 8 and 10 and the spec's section 5 rules.
 
-Next unused: `TRM-BB`.
+## TRM-BB: surface replay (Phase 3.3, record 359)
+
+1. **A retained record replays its surfaces.** `Frame.drawSurface` no longer taints retention with `"surface"`. It notes every call in `RetainLog.surfaces` (`SurfaceNote`: the element, the occurrence it counted, the `SurfaceDrawRequest` or `nil` when a no-GPU-work guard skipped it, and the trigger); a record keeps the slice its window covered (`RetainedRecord.surfaces`), a nested replay appends its notes to the open recorders, and `Frame.replaySurfaces` re-runs them in paint order: it counts each occurrence, keeps the id painted (`SurfaceRegistry.id`), appends the request **with this frame's `timestamp`** (the scale, policy, `value:` and draw closure are the record's) and the trigger. The quad is already a leaf of the record's scene, so the renderer gets exactly what a fresh paint hands it: the `SurfaceTargetTable` keeps the target and redraws nothing, a surface-only frame still finds the request and the trigger bound.
+2. **The `value:` is the component's equality, not a paint read.** A retained occurrence is only replayed while its content serial holds; the `GPUSurface` element, its `value:` and its draw closure are those of the build that recorded it, as they are for a fresh paint over a memoised content. A card whose `==` ignores the value shows the old value either way (`aValueChangeRepaintsTheRetainedSurface` changes the value inside `==`).
+3. **A record whose ids the registry no longer holds is a miss** (`SurfaceRegistry.replays(_:)`, part of the hit condition): a surface unpainted for a frame is dropped at `endFrame`, so a replay would name a quad's target that no request carries; likewise an earlier same-`.id` sibling moving the occurrence. The fresh paint records the new ids.
+4. **Translation refuses a surface** (`movedLeaf`'s allow-list is rect, glyph and image, unchanged), so a moved occurrence misses by name; an exact hit never moves it. A `.continuous` surface is still never retained, by `noteActiveAnimation`'s own taint (`activeAnimation`), which the `"surface"` name used to shadow. The ledger's `surfaceRequests` channel is gone (the recorded notes replace it).
+5. **Cost.** A steady frame of an `.equatable()` card holding a surface: builds 1, element requests 0, one hit, no ineligible occurrence (it was 2 requests, one ineligible, reason `surface`); an editor key frame with a terminal visible pays no terminal element request.
+
+Next unused: `TRM-BC`.
