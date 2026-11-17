@@ -64,6 +64,13 @@ final class TerminalViewModel {
     var onInput: ([UInt8]) -> Void = { _ in }
     var optionAsMeta = false
     var exceptions: [KeyboardShortcut] = []
+    var onLink: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil }
+    var openURL: (URL) -> Void = { _ in }
+    /// Tells the view whether a link is under the pointer, so it can set the pointer style (the one thing a link hover
+    /// builds for, `TRM-BD`).
+    var linkPresence: (Bool) -> Void = { _ in }
+    /// The pointer's state: the press under way, the wheel's remainders, the link, the selected text (`TRM-BD`).
+    var pointer = TerminalPointerState()
 
     /// The text target the platform's input method talks to: committed text goes to the child, marked text is drawn
     /// in place at the cursor (`TRM-BC`).
@@ -86,8 +93,8 @@ final class TerminalViewModel {
         var scale: Float
     }
 
-    private var rows: [TerminalRow?] = []
-    private var snapshot: TerminalSnapshot?
+    private(set) var rows: [TerminalRow?] = []
+    private(set) var snapshot: TerminalSnapshot?
     private var lastSize: TerminalSize?
     private var lastSizeReported: TerminalSize?
     private var drawnColors: ResolvedTerminalColors?
@@ -96,6 +103,7 @@ final class TerminalViewModel {
     private var needsFull = true
     private var drawnCursor: DrawnCursor?
     private var drawnSelection: (selection: TerminalSelection?, top: Int)?
+    private var drawnLink: TerminalLinkHit?
     private var activityTime: Double?
     private(set) var statistics = Statistics()
 
@@ -128,6 +136,10 @@ final class TerminalViewModel {
         // The layer's own handler is offered a key the capture skipped (an exception, or marked text composing): those
         // belong to the app and to the input method, so they are left alone (`TRM-D`, `TRM-V`).
         if !input.composition.text.isEmpty || exceptions.contains(where: { $0.matches(press) }) { return .ignored }
+        if Self.copiesWithControlShiftC, press.modifiers == [.control, .shift], press.key.character.lowercased() == "c" {
+            copy(to: clipboard)
+            return .handled
+        }
         if Self.pastesWithControlShiftV, press.modifiers == [.control, .shift], press.key.character.lowercased() == "v" {
             if let text = clipboard.read(String.self) { paste(text) }
             return .handled
@@ -262,6 +274,7 @@ final class TerminalViewModel {
         }
         painter?.selectionColor = colors.selection
         painter?.selectionAlpha = colors.selectionAlpha
+        stepAutoscroll(time: time)
         let background = scheme.background
         if isNewTarget {
             needsFull = true
@@ -331,6 +344,11 @@ final class TerminalViewModel {
                 if let old = drawnMarked { redraw.insert(old.row) }
                 if let new = markedNow { redraw.insert(new.row) }
             }
+            if drawnLink != pointer.link {
+                for hit in [drawnLink, pointer.link] {
+                    if let hit { redraw.insert(hit.row - snapshot.topRow) }
+                }
+            }
             let selection = (snapshot.selection, snapshot.topRow)
             if let old = drawnSelection {
                 if old.selection != selection.0 || old.top != selection.1 {
@@ -378,7 +396,9 @@ final class TerminalViewModel {
             }
             if let sink, let painter {
                 let range = selectedColumns(snapshot.selection, top: snapshot.topRow, row: index, columns: columns)
-                painter.draw(row, at: index, columns: columns, origin: (0, 0), into: sink, selection: range)
+                var link: Range<Int>?
+                if let hit = pointer.link, hit.row == snapshot.topRow + index { link = hit.columns }
+                painter.draw(row, at: index, columns: columns, origin: (0, 0), into: sink, selection: range, link: link)
                 if let shape, cursor.row == index {
                     painter.drawCursor(shape, row: row, column: cursorColumn, columns: columns, at: index,
                                        origin: (0, 0), color: colors.cursor, textColor: colors.cursorText, into: sink)
@@ -394,6 +414,8 @@ final class TerminalViewModel {
         drawnReflow = snapshot.reflowGeneration
         drawnCursor = cursorNow
         drawnSelection = (snapshot.selection, snapshot.topRow)
+        drawnLink = pointer.link
+        syncSelectionText()
         drawnMarked = markedNow
 
         // The next blink toggle: one timed request at the coming half-period boundary, none while unfocused,

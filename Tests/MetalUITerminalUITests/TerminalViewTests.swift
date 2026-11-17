@@ -11,8 +11,8 @@ import Testing
 // trigger on the main actor. Each test names the mutation it was shown red against.
 
 @MainActor final class TermRig {
-    final class Log { var resizes: [TerminalSize] = []; var inputs: [[UInt8]] = []; var commands: [String] = [] }
-    final class Knobs { var palette = TerminalPalette.xterm; var shown = true; var optionAsMeta = false; var exceptions: [KeyboardShortcut] = [] }
+    final class Log { var resizes: [TerminalSize] = []; var inputs: [[UInt8]] = []; var commands: [String] = []; var links: [TerminalLinkQuery] = []; var opened: [URL] = [] }
+    final class Knobs { var palette = TerminalPalette.xterm; var shown = true; var optionAsMeta = false; var exceptions: [KeyboardShortcut] = []; var link: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil } }
     let emulator: TerminalEmulator
     let source: TerminalSnapshotSource
     let log = Log()
@@ -35,9 +35,11 @@ import Testing
                 if knobs.shown && terminal {
                     TerminalView(snapshotSource: source, theme: knobs.palette, keyCaptureExceptions: knobs.exceptions,
                                  optionAsMeta: knobs.optionAsMeta, cursorBlink: blink, blinkStopsAfterIdle: stops,
-                                 onInput: { log.inputs.append($0) }, onResize: { log.resizes.append($0) }, onLink: { _ in nil })
+                                 onInput: { log.inputs.append($0) }, onResize: { log.resizes.append($0) },
+                                 onLink: { query in log.links.append(query); return knobs.link(query) })
                 }
             }
+            .environment(\.openURL, OpenURLAction { url in log.opened.append(url); return .handled })
         }
         window.runsSurfaceDraws = true
         window.resize(to: size)
@@ -308,6 +310,6 @@ import Testing
         return (rig.window.lastFrameWork.elementRequests, rig.window.lastFrameWork.builds)
     }
     let with = try await keyFrame(terminal: true), without = try await keyFrame(terminal: false)
-    #expect(with.builds == without.builds && with.requests == without.requests + 2, "with \(with) without \(without)")
-    #expect(with.requests == 4 && without.requests == 2)
+    #expect(with.builds == without.builds && with.requests == without.requests + 6, "with \(with) without \(without)")
+    #expect(with.requests == 8 && without.requests == 2)  // TRM-BD: the pointer wrappers (hover, gestures, wheel, pointer style) add 4 to the view's 2
 }

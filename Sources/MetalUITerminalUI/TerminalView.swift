@@ -52,8 +52,13 @@ import MetalUITextSystem
 /// sent through `TerminalEncoder.encodePaste` (bracketed when the program asked, ESC stripped). **Focus** in and out
 /// is reported with `ESC [ I` and `ESC [ O` while the program set mode 1004. Every byte sent restarts the blink's idle clock.
 ///
-/// **Inert until later phases.** `onLink` is part of the frozen signature, but the view does not read the pointer
-/// yet: selection, the wheel, mouse reports and links arrive with Phase 5.5 and accessibility with 5.6.
+/// **The pointer** (`TRM-BD`, Phase 5.5). With the program's mouse reporting on, presses, moves and releases (and the
+/// wheel) are encoded through `TerminalEncoder.encodeMouse` and sent to `onInput`; ⇧ held at the press selects locally
+/// instead. Otherwise a drag selects (⌥-drag a block, double-click a word, triple-click a line, ⇧-click extends, past the
+/// edge scrolls), ⌘C copies, and the wheel scrolls scrollback (on the alternate screen it sends arrow keys). With ⌘ held
+/// (Ctrl on Linux and Windows) the hovered cell is offered to `onLink` once per cell change; a target is underlined with
+/// the pointing hand, ⌘-click activates it, and OSC 8 hyperlinks the host did not claim are offered by the view itself.
+/// Accessibility arrives with Phase 5.6.
 public struct TerminalView: Component {
     let snapshotSource: TerminalSnapshotSource
     let theme: TerminalPalette
@@ -67,6 +72,8 @@ public struct TerminalView: Component {
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
 
     @State private var model = TerminalViewModel()
+    @State private var linkActive = false
+    @Environment(\.openURL) private var openURL
     @FocusState private var isFocused: Bool
     @Environment(\.textMeasurer) private var measurer
     @Environment(\.displayScale) private var displayScale
@@ -87,7 +94,7 @@ public struct TerminalView: Component {
     ///   - boldIsBright: Bold ANSI 0-7 draws bright, as the palette's own flag does (default false).
     ///   - onInput: The bytes a key, committed text, paste or focus report encodes to; the host writes them to the pty.
     ///   - onResize: The grid size, when the cell count changes, after the source was resized.
-    ///   - onLink: The link under a ⌘-hovered cell (Phase 5.5; never called yet).
+    ///   - onLink: The link under a ⌘-hovered cell: asked `.hover` once per cell change, `.exit` on leaving, `.activate` on ⌘-click.
     public init(snapshotSource: TerminalSnapshotSource,
                 theme: TerminalPalette,
                 keyCaptureExceptions: [KeyboardShortcut] = [],
@@ -110,6 +117,13 @@ public struct TerminalView: Component {
         self.onLink = onLink
     }
 
+    private static func buttonGesture(_ button: MouseButton, _ terminal: TerminalMouseEvent.Button,
+                                      _ model: TerminalViewModel) -> DragGesture {
+        DragGesture(minimumDistance: Pixels(0), button: button)
+            .onChanged { value in model.pointerChanged(value, button: terminal) }
+            .onEnded { value in model.pointerEnded(value, button: terminal) }
+    }
+
     /// The view's content: the surface leaf under a focus layer and a geometry scope. Not for callers.
     public var content: some ElementGroup {
         let model = self.model
@@ -121,6 +135,10 @@ public struct TerminalView: Component {
         model.onInput = onInput
         model.optionAsMeta = optionAsMeta
         model.exceptions = keyCaptureExceptions
+        model.onLink = onLink
+        model.openURL = { url in openURL(url) }
+        let linkBinding = $linkActive
+        model.linkPresence = { active in linkBinding.wrappedValue = active }
         if let system = measurer.terminalTextSystem {
             model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
         }
@@ -130,11 +148,24 @@ public struct TerminalView: Component {
             .keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta)
             .onKeyPress { press in model.handle(press, clipboard: clipboard) }
             .pasteDestination(for: String.self, action: { items in model.paste(items.joined(separator: "\n")) })
+            .copyable(model.copyItems())
             .externalTextInput(model.input)
             .onGeometryChange(for: TerminalSize.self, of: { proxy in
                 model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
             }, action: { size in model.gridChanged(to: size) })
             .onChange(of: isFocused && activeState != .inactive) { _, now in model.focusChanged(to: now) }
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let point): model.hoverMoved(to: point)
+                case .ended: model.hoverEnded()
+                }
+            }
+            .simultaneousGesture(Self.buttonGesture(.primary, .left, model)
+                .simultaneously(with: Self.buttonGesture(.middle, .middle, model))
+                .simultaneously(with: Self.buttonGesture(.secondary, .right, model)))
+            .onScrollWheel { event in model.wheel(event) }
+            .pointerStyle(linkActive ? .link : nil)
+            .onModifierKeysChanged(initial: false) { _, now in model.modifiersChanged(to: now) }
     }
 }
 
