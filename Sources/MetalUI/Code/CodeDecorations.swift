@@ -81,6 +81,24 @@ public struct CodeStyleRun: Sendable {
     }
 }
 
+/// A mark in a ``CodeView``'s change lane (`CV-BS`): the colour of a version-control change beside a row, in its own
+/// lane between the line numbers and the fold chevrons, so it shows on the same row as a ``CodeLineDecoration/gutterBar``.
+public enum CodeChangeBar: Hashable, Sendable {
+    /// A line that was added: a 3 pt bar in the lane.
+    case added(Color)
+    /// A line that was changed: a 3 pt bar in the lane.
+    case modified(Color)
+    /// Lines were deleted above this row: a small triangle at the row's top edge pointing into the text (VS Code's mark).
+    case deletedAbove(Color)
+
+    /// The colour the mark is drawn in.
+    public var color: Color {
+        switch self {
+        case .added(let c), .modified(let c), .deletedAbove(let c): return c
+        }
+    }
+}
+
 /// A tint and a gutter bar over buffer rows (a diff hunk, an author, a diagnostic).
 public struct CodeLineDecoration: Sendable {
     /// The rows (0-based buffer rows), as of the `asOf` version they are given at.
@@ -97,10 +115,15 @@ public struct CodeLineDecoration: Sendable {
     /// decoration's gutter bar or marker (an edit's id, say); `nil` for none. Decorations with different tags never
     /// merge into one hit range.
     public var tag: UInt64?
+    /// A mark in the change lane beside each of the rows (`CV-BS`); `nil` draws none. The first one any owner gives
+    /// reserves the lane (see ``CodeView/changeLane(_:)``). A press on it is a ``CodeGutterHit`` with source
+    /// ``CodeGutterHit/Source/changeBar`` and this decoration's ``tag``.
+    public var changeBar: CodeChangeBar?
 
     /// A decoration of `lines`.
     public init(lines: Range<Int>, gutterBar: Color? = nil, background: Color? = nil, gutterMarker: CodeGutterMarker? = nil,
-                tag: UInt64? = nil) {
+                tag: UInt64? = nil, changeBar: CodeChangeBar? = nil) {
+        self.changeBar = changeBar
         self.lines = lines
         self.gutterBar = gutterBar
         self.background = background
@@ -253,7 +276,11 @@ package struct LineDecorationPayload: Equatable {
     package var marker: CodeGutterMarker?
     package var markerTag: UInt64?
     package var markerOwner: UInt16 = 0
-    var isEmpty: Bool { gutterBar == nil && background == nil && marker == nil }
+    /// The change-lane mark, with its own tag and owner: after a merge they can come from another owner than the bar (`CV-BS`).
+    package var changeBar: CodeChangeBar?
+    package var changeTag: UInt64?
+    package var changeOwner: UInt16 = 0
+    var isEmpty: Bool { gutterBar == nil && background == nil && marker == nil && changeBar == nil }
 }
 
 /// One edit's effect on rows, kept so decorations given `asOf` an older version can be shifted forward.
@@ -303,6 +330,8 @@ public final class CodeDecorations {
     @ObservationIgnored package var ownerMerges = 0
     /// Whether any owner has ever given a gutter marker: the marker lane is then reserved (sticky, `CV-AP`).
     @ObservationIgnored package private(set) var markersEverSet = false
+    /// Whether any owner has ever given a change bar: the change lane is then reserved (sticky, `CV-BS`).
+    @ObservationIgnored package private(set) var changeBarsEverSet = false
     /// The display rows: buffer rows and the read-only virtual lines between them (`CV-S`).
     @ObservationIgnored let rowMap: CodeRowMap
     @ObservationIgnored private var cursor: CodeEditCursor
@@ -684,7 +713,8 @@ public final class CodeDecorations {
         let total = max(0, sizeThen)
         func payload(_ d: CodeLineDecoration) -> LineDecorationPayload {
             LineDecorationPayload(gutterBar: d.gutterBar, background: d.background, tag: d.tag, owner: id,
-                                  marker: d.gutterMarker, markerTag: d.tag, markerOwner: id)
+                                  marker: d.gutterMarker, markerTag: d.tag, markerOwner: id,
+                                  changeBar: d.changeBar, changeTag: d.tag, changeOwner: id)
         }
         // Sorted, disjoint decorations (the usual answer) build in one pass; anything else sets one by one, the
         // later overwriting the earlier.
@@ -716,6 +746,7 @@ public final class CodeDecorations {
                         empty: LineDecorationPayload())
         }
         if decorations.contains(where: { $0.gutterMarker != nil && !$0.lines.isEmpty }) { markersEverSet = true }
+        if decorations.contains(where: { $0.changeBar != nil && !$0.lines.isEmpty }) { changeBarsEverSet = true }
         if let slot = lineTrees.firstIndex(where: { $0.id == id }) { lineTrees[slot].tree = tree } else { lineTrees.append((id, tree)) }
         rebuildLines()
         revision &+= 1
@@ -793,6 +824,9 @@ public final class CodeDecorations {
                     if layer.gutterBar != nil { merged.gutterBar = layer.gutterBar; merged.tag = layer.tag; merged.owner = layer.owner }
                     if layer.marker != nil {
                         merged.marker = layer.marker; merged.markerTag = layer.markerTag; merged.markerOwner = layer.markerOwner
+                    }
+                    if layer.changeBar != nil {
+                        merged.changeBar = layer.changeBar; merged.changeTag = layer.changeTag; merged.changeOwner = layer.changeOwner
                     }
                     if lists[k][index[k]].range.upperBound == end { index[k] += 1 }
                 }
@@ -984,6 +1018,45 @@ public final class CodeDecorations {
             step *= 2
         }
         return (lower..<upper, payload.tag, payload.owner)
+    }
+
+    /// The change-lane mark over `row` and the whole row range it spans (`CV-BS`): the neighbouring runs with the same
+    /// mark and tag are one. Costs as ``gutterBar(overRow:)``.
+    package func changeBar(overRow row: Int) -> (lines: Range<Int>, tag: UInt64?, owner: UInt16)? {
+        sync()
+        guard let payload = lines.payload(at: row), payload.changeBar != nil else { return nil }
+        func same(_ other: LineDecorationPayload) -> Bool {
+            other.changeBar == payload.changeBar && other.changeTag == payload.changeTag && other.changeOwner == payload.changeOwner
+        }
+        var lower = row, upper = row + 1
+        var step = 64
+        outer: while lower > 0 {
+            let from = max(0, lower - step)
+            for run in lines.runs(in: from..<lower).reversed() {
+                guard same(run.payload) else { break outer }
+                lower = run.range.lowerBound
+            }
+            step *= 2
+        }
+        step = 64
+        outer: while upper < lines.total {
+            let to = min(lines.total, upper + step)
+            for run in lines.runs(in: upper..<to) {
+                guard same(run.payload) else { break outer }
+                upper = run.range.upperBound
+            }
+            step *= 2
+        }
+        return (lower..<upper, payload.changeTag, payload.changeOwner)
+    }
+
+    /// The first run in `rows` with a change-lane mark (a folded header shows it, `CV-BS`), or `nil`.
+    package func firstChange(in rows: Range<Int>) -> LineDecorationPayload? {
+        sync()
+        for run in lines.runs(in: max(0, rows.lowerBound)..<min(lines.total, rows.upperBound)) where run.payload.changeBar != nil {
+            return run.payload
+        }
+        return nil
     }
 
     /// The decorated runs in `rows`, clipped, for painting: tints merge across equal neighbours.

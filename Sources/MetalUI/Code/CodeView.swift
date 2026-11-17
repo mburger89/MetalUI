@@ -49,6 +49,7 @@ public struct CodeView: Element, StyledElement {
     var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
+    var changeLaneReserved: Bool?
     var geometryObject: CodeViewGeometry?
     var foldStateObject: CodeFoldState?
     var foldGutterConfig: CodeFoldGutter?
@@ -211,6 +212,16 @@ public struct CodeView: Element, StyledElement {
     public func gutterMarkerLane(_ reserved: Bool) -> CodeView {
         var copy = self
         copy.markerLane = reserved
+        return copy
+    }
+
+    /// Whether the gutter reserves a lane for ``CodeLineDecoration/changeBar``s (`CV-BS`), 4 pt wide (a 3 pt bar and a
+    /// 1 pt gap) between the line numbers and the fold chevrons, so a version-control mark and a ``CodeLineDecoration/gutterBar``
+    /// show on one row. By default (not called) the lane appears once any owner has given a change bar and stays, so the
+    /// text moves right once; `true` reserves it from the first frame; `false` has no lane and draws no change bars.
+    public func changeLane(_ reserved: Bool) -> CodeView {
+        var copy = self
+        copy.changeLaneReserved = reserved
         return copy
     }
 
