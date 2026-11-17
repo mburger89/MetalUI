@@ -201,6 +201,6 @@ private struct Merge {
         return TerminalSnapshot(version: latest.version, size: latest.size, viewportOffset: latest.viewportOffset,
                                 damagedRows: damaged, isFullFrame: full, cursor: latest.cursor, modes: latest.modes,
                                 selection: latest.selection, links: latest.links,
-                                reflowGeneration: latest.reflowGeneration)
+                                reflowGeneration: latest.reflowGeneration, topRow: latest.topRow)
     }
 }
