@@ -53,10 +53,10 @@ import Testing
     rig.feed("see http://a.test/x here\r\n")
     await unfocused(rig)
     rig.window.hover(at: rig.point(0, 8))
-    rig.window.pressModifiers(.command)
+    rig.window.pressModifiers(Modifiers.primary)
     await rig.settle()
     rig.log.links = []
-    rig.window.click(at: rig.point(0, 8), modifierFlags: .command)
+    rig.window.click(at: rig.point(0, 8), modifierFlags: Modifiers.primary)
     #expect(rig.log.links.last?.phase == .activate, "activated: \(rig.log.links)")
     #expect(terminalIsFocused(rig))
 }
