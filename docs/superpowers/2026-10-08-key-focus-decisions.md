@@ -1099,7 +1099,7 @@ Next unused id: `KF-AH` (`KF-AH`..`KF-AK` are reserved by the later PRs of the s
 
 ## KF-AI — which keys are already taken: `ClaimedShortcut`, `conflicts(with:)`, `systemReserved`, `App.standardMenuShortcuts()`/`commandShortcuts()` (Alloy; record 363)
 
-Next unused id: `KF-AH` (`KF-AH`, `KF-AJ` and `KF-AK` are reserved by the later PRs of the shortcut design; `KF-AI` is this ruling).
+Next unused id: `KF-AH` (`KF-AH` and `KF-AK` are reserved by the later PRs of the shortcut design; `KF-AI` and `KF-AJ` are used).
 
 1. **The finding.** An app that lets its user bind a shortcut needs to know what the key collides with. MetalUI had no way to ask: the standard items were not in `MenuBarModel.shortcuts` (enabled command items only), the desktop's own keys were nowhere, and `KeyboardShortcut` was `Equatable`, not SwiftUI's `Hashable`. All MetalUI-only (class M) except `Hashable`, class A (probe `P1`).
 2. **`Hashable`.** `KeyboardShortcut: Hashable`. Equality is as before: the keys equal as characters, so `"P" != "p"` (probe `P1`, recorded in `swiftui-shortcut-modifiers.swift`: `Set<KeyboardShortcut>` compiles and `KeyboardShortcut("P") != KeyboardShortcut("p")` is `true` in SwiftUI too).
@@ -1111,3 +1111,17 @@ Next unused id: `KF-AH` (`KF-AH`, `KF-AJ` and `KF-AK` are reserved by the later 
 8. **`App.commandShortcuts()`** lists every `commands` item with a key, in menu order, enabled or not (the item owns the key either way and the answer then does not change between calls: Alloy's answer 4, a difference from "enabled only"), submenu items included, with its `identifier`; items with no key are omitted. The key is the lower-cased spelling the bar model holds (`"P"` reads `"p"`; use `conflicts`). A `Toggle` item has no `keyboardShortcut` in MetalUI, so none appears (the design expected toggles with identifiers; a toggle can never hold a key, so it is simply not a claim).
 9. **Cost.** Each read is one evaluation of the `commands` content (a test counts the closure's runs); a keystroke still evaluates it once (the command stage is untouched). Both are methods, not properties, and **calling either from inside the `commands` content recurses without end** (documented).
 10. **Tests.** `ShortcutClaimsTests`; mutations named on each.
+
+## KF-AJ — the keys a code view takes, as claims: `CodeView.builtInKeyBindings(platform:)` (Alloy; record 364)
+
+Next unused id: `KF-AH` (`KF-AH` and `KF-AK` are reserved by the later PRs of the shortcut design; `KF-AJ` is this ruling).
+
+1. **The finding.** Alloy binds its own shortcuts next to a code view's keys and needs to know which the view already takes. The table is `CodeEditing.command(for:platform:)`, a pure function with no list form. All MetalUI-only (class M).
+2. **API.** `public nonisolated static func CodeView.builtInKeyBindings(platform: KeyboardShortcut.Platform = .current) -> [ClaimedShortcut]`, source `.codeView`, English titles by command (`Move Word Left`, `Select to Line Start`, `Delete Word Backward`, `Insert Newline`, `Indent`, `Outdent`, `Undo`, `Find Next`, `Collapse Selections` ...). `.macOS` runs the table's `.mac` convention, `.linux` and `.windows` its `.other`, so the two give one list.
+3. **Built by asking the table**, not by a second hand-written list, so it cannot drift: every named `KeyEquivalent` (Return, Escape, Space, Tab, Delete, forward delete, the four arrows, Home, End, Page Up/Down, Clear), `a`-`z`, `0`-`9`, the 32 ASCII punctuation characters, in that order, each with the 16 modifier combinations in ascending bit order; a key the table answers `nil` is skipped. Computed once per platform family into a static (about 1,300 table calls, once). Shortcuts are in the base-key form of `KF-AL` item 3: letters lower-cased, ⇧Tab as Tab with ⇧ (the AppKit `U+0019` is the table's own spelling and never listed). The table claims no punctuation or digit, so they add no entries today and keep the list correct if it ever does.
+4. **Counts:** macOS 63, Linux 46, Windows 46.
+5. **Conditional claims (Alloy's answer 5)**: Escape "Collapse Selections" `"only with several selections"`; ⌘G / ⇧⌘G (Ctrl+G / Ctrl+Shift+G) "Find Next" / "Find Previous" `"only with find matches"`; every command that changes the text (Insert Newline, Indent, Outdent, all Delete variants, Cut, Paste, Undo, Redo) `"editable only"`, since a read-only view does not take the key. Movement, selection (Select All included) and Copy are unconditional. Entries are listed whether or not the condition holds now.
+6. **Multi-caret.** `CodeCommand` has no multi-caret case other than `collapseSelections`; the ⌥-click and ⌥-drag of `CV-BK` are pointer gestures and not claims.
+7. **Not done:** `TextField`'s keys (Ctrl+Y, word motions); a later `TextField.builtInKeyBindings`.
+8. **Tests.** `CodeKeyBindingsTests`: fixed counts per platform, round trip through the table, a sweep over a wider key set against the list, macOS and Linux landmarks, `.windows == .linux`, the conditions. Mutations are named on the tests.
+

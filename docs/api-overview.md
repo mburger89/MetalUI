@@ -443,6 +443,8 @@ macOS, `Ctrl+Shift+P` elsewhere, named keys as glyphs or names, one formatter sh
 `isConditional`, `condition`), and `App.standardMenuShortcuts()` / `App.commandShortcuts()` (M, `KF-AI`: which keys
 the desktop, the standard menu items and the app's `commands` already take; methods, since each evaluates the
 `commands` content once, and recursive when called from inside it);
+`CodeView.builtInKeyBindings(platform:)` (M, `KF-AJ`: the keys a code view takes, as `[ClaimedShortcut]` read from its
+key table, with conditions for Escape, find next/previous and the editing keys);
 `@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
