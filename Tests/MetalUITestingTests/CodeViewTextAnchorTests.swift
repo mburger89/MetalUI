@@ -584,8 +584,8 @@ private struct ChainedHost: Component, @MainActor Equatable {
 // A focused `TextField` inside the view's text-anchored popover (`CV-BW`, Alloy's rename field). These pin what
 // MetalUI does TODAY, with no product change: the field receives the keys and the view does not, `onSubmit` works, Escape
 // dismisses through the popover's key stage before the field's own `onKeyPress(.escape)`, a `@FocusState` write in the
-// handler that opens the popover is dropped (the field was not registered in the last frame, `IX-J`), and focus is nil
-// after the dismissal (`IX-I`). `MN-AS` will change the last.
+// handler that opens the popover is dropped (the field was not registered in the last frame, `IX-J`), and focus returns to the view
+// after the dismissal (`MN-AS`; it was nil under `IX-I`).
 
 @Observable @MainActor private final class FieldModel {
     var item: Pick?
