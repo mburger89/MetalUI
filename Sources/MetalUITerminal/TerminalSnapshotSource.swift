@@ -95,8 +95,10 @@ public final class TerminalSnapshotSource: @unchecked Sendable {
         set { lock.withLock { wake = newValue } }
     }
 
-    /// What applies a resize on `queue`; `TerminalEmulator.resize` joins in Phase 1.5.
-    package var resizeHandler: @Sendable (TerminalEmulator, TerminalSize) -> Void = { _, _ in }
+    /// What applies a resize on `queue`: `TerminalEmulator.resize(cols:rows:)` unless a test replaces it.
+    package var resizeHandler: @Sendable (TerminalEmulator, TerminalSize) -> Void = { emulator, size in
+        emulator.resize(cols: size.cols, rows: size.rows)
+    }
 
     /// Takes the merged snapshot of every publish since the previous take, or nil when nothing is waiting, and
     /// re-arms the wake. Cheap, and safe on any thread: one merge result per take.
@@ -198,6 +200,7 @@ private struct Merge {
         let damaged = rows.keys.sorted().map { TerminalDamagedRow(index: $0, row: rows[$0]!) }
         return TerminalSnapshot(version: latest.version, size: latest.size, viewportOffset: latest.viewportOffset,
                                 damagedRows: damaged, isFullFrame: full, cursor: latest.cursor, modes: latest.modes,
-                                selection: latest.selection, links: latest.links)
+                                selection: latest.selection, links: latest.links,
+                                reflowGeneration: latest.reflowGeneration)
     }
 }

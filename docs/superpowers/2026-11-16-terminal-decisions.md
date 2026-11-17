@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-AI`.
+Next unused id: `TRM-AQ` (`TRM-AI`..`TRM-AL` are held by `feat/terminal-encoders`, PR #345).
 
 ## TRM-A: module split
 
@@ -246,11 +246,47 @@ Why: spec section 2.1 rule 4 (queries are `.reply` events) and rule 2 (no sequen
 1. The frozen signatures are as the spec has them. `feed` runs on `queue` (at once when already there, else a copy of the bytes is queued), feeds the emulator, publishes and merges the snapshot into one pending value: rows listed later override earlier ones, a full frame or a size change makes the result a full frame, the latest version, cursor, modes, selection and links win. `resize` keeps the newest pending size and applies it once on `queue`; `perform` runs its body on `queue` and publishes after it.
 2. After each publish the source drains the emulator's events: every `.reply` goes to `onReply`, on `queue`, in order, at once; everything else queues (1 024 at most) for `onEvents`, delivered on the main actor in one batch per hop (a hop is scheduled only when none is outstanding, so a burst is one call). Events raised while `onEvents` is nil wait for the next hop after it is set.
 3. The bound view attaches through `package var onWake` (called on `queue` when a snapshot is waiting and none was before; the view binds it to its `SurfaceRedrawTrigger`) and `package func takeSnapshot()` (the merged snapshot, then re-arms the wake). A flood of N feeds is N publishes and one wake, and the take is one merge result. `package var statistics` and `package var eventHop` exist for the counted tests. Nothing in `MetalUITerminalUI` exists yet; no public API is added beyond the frozen one.
-4. `resize` applies through `package var resizeHandler`, which does nothing until Phase 1.5 gives `TerminalEmulator` its `resize(cols:rows:)` and sets the default; a test supplies a recording handler.
+4. `resize` applies through `package var resizeHandler`, which `TRM-AM` (Phase 1.5) defaults to `TerminalEmulator.resize(cols:rows:)`; a test supplies a recording handler.
 
 Why: spec section 2 (the queue/main hand-off) and rule 6 (a flood costs one merge and one draw), and the Phase 5 hook in draft gap 2.
 
 ## TRM-AH: bounds
 
 Titles 256 characters; OSC strings by `payloadCap` (an overlong one is dropped whole, with no event and no link); distinct links 65 536 per emulator (a link past it is not attached to cells and raises no event); queued events 1 024 in the emulator and 1 024 in the source. A flood of links, titles or directories therefore cannot grow memory without bound.
+
+## TRM-AM: `resize(cols:rows:)` and absolute rows (Phase 1.5, record 342)
+
+1. `resize(cols:rows:)` is the frozen signature; the size clamps to 2 x 1 (`TRM-B`). The same size after clamping is a no-op (no damage, no version). Any other size sets the next publish to a full frame, resets the scroll region to the whole screen (xterm does too), keeps origin mode, clears the pending wrap (except where the reflow keeps one, `TRM-AN`), and raises no event: the pty's own window size is the owner's call (`PseudoTerminal.resize`).
+2. **Absolute rows after a resize.** The oldest retained row keeps its absolute number; `firstRow` moves only by the rows the scrollback capacity evicts during the resize; every later row is renumbered consecutively, and the screen's first row is `firstRow` plus the retained scrollback count. A resize that changes only the height therefore keeps every row's number and text (rows move between the screen and scrollback, the numbers do not). A resize that changes the width renumbers, because the row count above the screen changes; it increments `TerminalEmulator.reflowGeneration`, which the next snapshot carries (`TerminalSnapshot.reflowGeneration`) with `isFullFrame == true`.
+3. **What Phase 1.6's selection must do** (stated here so it cannot diverge): a `TerminalPosition` is valid only for the reflow generation it was taken in. A selection that sees a snapshot of a later generation is cleared (the text under a range cannot be named across a rewrap without per-row identity, which the model does not have, `TRM-AA` 2); height-only resizes keep it. Phase 1.6 may refine this; it may not reuse a position across generations.
+4. Tab stops keep their columns; columns past the old width get the default stops (every 8th). A DECSC slot on the primary screen follows its character through the reflow like the cursor, and clamps to the grid when it fell into scrolled-off or blank rows; the alternate screen's slot clamps. The scroll region is reset (rule 1), so a program that wants one sets it again on SIGWINCH.
+
+Why: xterm resets margins on resize and clamps saved cursors; renumbering is forced by reflow, so the rule keeps the one number that cannot move (the oldest retained row) and gives the host one integer to compare.
+
+## TRM-AN: rewrap
+
+1. **The unit is a logical line**: a run of rows joined by the soft-wrap flag (`wrapsToNext`), across the scrollback and screen boundary. Only the primary screen and its scrollback rewrap; hard lines (no flag) never join, and a line that already fits is untouched.
+2. A line is cut into rows of the new width cell by cell. **A wide character never splits**: when it does not fit in the last column the row ends one column short (flagged soft-wrapped) and the character starts the next row. That empty column is not text: joining rows does not carry it, so widening and narrowing back restores the line.
+3. **Blanks.** Trailing blanks in the default rendition at the end of a line are not carried; a coloured blank (background erase, a status bar) is content and is. A soft-wrapped row keeps its own trailing blanks (they are text of the longer line), so `ScrollbackRing` rows that wrap are not trimmed by `compact()`. When joining, a wrapped row stored shorter than the old width is padded with blanks to that width, except for the one-column gap rule above.
+4. **The cursor stays on its character** (the cell it addressed, a wide cell included). A cursor past the end of the text keeps its column: the line is lengthened by blanks that exist only to hold it (they are not stored in the rows), so a cursor at the start of a full row gets its own row, flagged as the same line. A pending wrap survives only when the line still ends exactly at the right edge (the cursor on the last cell of a full row); otherwise it is cleared and the cursor sits on the next column.
+5. Attributes and hyperlink ids ride with their cells. Text, attribute spans, `isASCII` and the used width of each new row are rebuilt from the joined line; a row that fits is moved without copying its storage.
+6. Round trip: narrowing to any width and widening back (with enough scrollback not to evict) gives the original logical lines, text and attributes, when the original had no trailing default blanks stored; the property test checks it.
+
+Why: the spec asks for reflow with cursor tracking and no split wide character; the soft-wrap flag is the only join signal terminals keep, as xterm-family and Terminal.app do.
+
+## TRM-AO: rows, the screen's top and the hidden primary
+
+1. After the rewrap the content is the rows up to the last one holding text, attributes, a wrap flag or the cursor; blank rows below it are not content. The screen shows `rows` rows starting at `top`, where `top` starts as the new index of the old screen's first row, then:
+   - **growing**: `top` moves up by the added rows, so rows come back from scrollback and the cursor moves down with them (as xterm and Terminal.app do); with less scrollback than rows added, the rest is blank at the bottom;
+   - **shrinking**: blank rows below the content go first; if content still does not fit, the top rows go to scrollback, but never so far that the cursor leaves the screen (rows below that are dropped from the bottom);
+   - the cursor row is always on the screen afterwards.
+2. Rows leaving the screen are compacted like a scroll (`TRM-F`); scrollback keeps the newest rows that fit its capacity, so a narrowing that multiplies the rows evicts the oldest and `firstRow` advances (`TRM-AM` 2).
+3. **While the alternate screen shows**, the primary (hidden) screen reflows the same way, following the DECSC slot saved on entry (1049/1048) as its cursor; with no slot it is anchored by its content alone. 47 and 1047 saved nothing, so the primary comes back with the cursor clamped.
+4. **The alternate screen clips**: columns past the new width are cut (a wide cell cut in half is blanked), rows past the new height are dropped from the bottom, new rows are blank; nothing wraps, no row keeps a wrap flag; the cursor clamps and its pending wrap clears. The alternate buffer that is not showing is clipped the same way so both buffers always match the grid.
+
+Why: xterm and Terminal.app pull from and push to scrollback with the window; a full-screen program repaints the alternate screen on SIGWINCH, so clipping loses nothing it will not redraw.
+
+## TRM-AP: cost
+
+A resize that changes only the height does not rewrap: it moves rows. A width change visits every retained row once (one pass to find lines, one to rebuild the ones that change; a row that fits is relabelled, not copied). Measured in release on the macOS arm64 dev machine: reflow of 10 068 retained rows (120 columns, mixed soft and hard lines, some coloured and wide) takes 1 ms best and 3 ms worst over 80, 120, 200 and 120 columns, against a proposed bound of 50 ms (the gated bench `reflowOfTenThousandScrollbackRows`, `METALUI_RUN_TERMINAL_BENCH=1`). Reflow runs on the emulator's queue and `TerminalSnapshotSource.resize` coalesces a drag into one call, so nothing here is on the main thread.
 
