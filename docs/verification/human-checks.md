@@ -1119,6 +1119,12 @@ pointer, an input method, the display link and the menu bar.
 
 **KF-AI1** (`KF-AI`, record 363). Probe `P2` was run from an accessory-policy app, not a MetalUI window. In `METALUI_KEY_FOCUS_DEMO=1 swift run MetalUIDemo` on macOS open the Edit menu and the View/Window menus: list every item AppKit added and its key. Confirm only AutoFill, Start Dictation and Emoji & Symbols appear (and Enter Full Screen if the window is full-screen capable), none with a key beyond ⌘Space, ⌃⌘Space and Fn chords, which `KeyboardShortcut.systemReserved(on: .macOS)` already lists. On Linux/Windows draw the bar and confirm F10 opens the first menu and Shift-F10 and the Menu key open a context menu (the keys `standardMenuShortcuts()` lists). **Observed:**
 
+**KF-AK1** (`KF-AK`, record 366). In a MetalUI window on macOS with a `ShortcutRecorder` (a settings row, or the Alloy palette's key setting): press the field, so it reads "Press Shortcut" with the focus ring, then press ⌘Q. Confirm the app does **not** quit and the field shows ⌘Q. Press it again and press ⌘W, ⌘H and ⌘, in turn: none closes, hides or opens anything. Escape alone leaves the old shortcut, ⌫ alone clears it. **Observed:**
+
+**KF-AK2** (`KF-AK`, record 366). With the field recording press ⌘Tab (and ⌘Space): the system takes them, the field records nothing and, if the app lost focus, stops recording once. On GNOME press Super+L and on Windows Alt+F4: both act as the desktop documents and the recorder records neither. Press Tab and ⇧Tab while recording: focus moves to the next and previous control and the field stops recording. **Observed:**
+
+**KF-AK3** (`KF-AK`, record 366). With VoiceOver on, move to the field: it reads "Shortcut, button" and the value (the shortcut as ⇧⌘P, or "None"). Activate it (VO-Space): the value reads "Press Shortcut" and the next chord is recorded and read back. On Windows with Narrator and on Linux with Orca the same. **Observed:**
+
 ## AS. App shell — close veto, quit hook, title and edited marker, hidden title bar, open-document events (item C8, user request 2026-10-02, not a plan task)
 
 *Source: record §87 `87-app-shell.md`, rulings `AS-A`…
