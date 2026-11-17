@@ -2,8 +2,6 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-AI`.
-
 ## TRM-A: module split
 
 `MetalUITerminal` is UI-free (Foundation and Dispatch only; macOS, Linux, Windows) with a C shim `CPseudoTerminal`; `TerminalView` lives in a separate `MetalUITerminalUI` (depends on `MetalUI` and `MetalUITerminal`, uses `package` hooks). Both are library products; no MetalUI product depends on either, so an app that does not import them builds and costs the same as before. The parser is written in-house from the ECMA-48 and DEC state-machine descriptions, with no third-party code read or copied. `TerminalKey` is in the core; the `KeyPress` overload of `encodeKey` is in the UI module.
@@ -254,3 +252,39 @@ Why: spec section 2 (the queue/main hand-off) and rule 6 (a flood costs one merg
 
 Titles 256 characters; OSC strings by `payloadCap` (an overlong one is dropped whole, with no event and no link); distinct links 65 536 per emulator (a link past it is not attached to cells and raises no event); queued events 1 024 in the emulator and 1 024 in the source. A flood of links, titles or directories therefore cannot grow memory without bound.
 
+
+## TRM-AI: the encoder surface (amended 2026-11-16: keypad and horizontal wheel)
+
+1. `TerminalEncoder` is the four frozen statics; `TerminalKey`, `TerminalModifiers` (`.shift .control .option .command`) and `TerminalMouseEvent` (with `init(kind:button:modifiers:)`, button and modifiers defaulted) live in `MetalUITerminal` and import no UI module. `TerminalKey.key` is `KeyEquivalent`'s spelling: U+F700-F703 up, down, left, right; U+F704-F717 F1-F20; U+F727 Insert; U+F728 forward delete; U+F729 Home; U+F72B End; U+F72C and U+F72D the page keys; U+007F Backspace.
+2. **Amendment 2026-11-16 (Alloy approved, binding), both additive.** `TerminalKey.isKeypad` (default false; the init parameter is defaulted, so existing calls compile) marks a numeric-keypad key, spelled in `key` as `0`-`9`, `*`, `+`, `,`, `-`, `.`, `/`, `=` or CR for Enter. With `applicationKeypad` (DECKPAM) such a key sends `ESC O` plus a final: `0`-`9` are `p q r s t u v w x y`, `*` `j`, `+` `k`, `,` `l`, `-` `m`, `.` `n`, `/` `o`, Enter `M`, `=` `X`; a Shift, Option or Control key inserts the xterm parameter (`1 + shift + 2 alt + 4 ctrl`) before the final (Control+Enter `ESC O 5 M`). With DECKPNM (or `isKeypad` false) the key is an ordinary key and sends its character (Enter is CR). Command still encodes to `[]`. NumLock state is not modelled (the spec does not cover it). `TerminalMouseEvent.Kind` gains `wheelLeft` and `wheelRight`, buttons 66 and 67 in legacy, UTF-8 and SGR, with wheel up and down's rules (not in x10, no release, modifier bits added).
+3. `encodeMouse`'s cell is the viewport cell, row and column from 0 (the caller subtracts the first visible row from a `TerminalPosition`); a negative row or column reports nothing.
+4. A private-use code in U+F700-U+F8FF with no row in the table (F21 and up, Begin, Clear) encodes to nothing.
+
+Why: spec section 2.1 rule 9 and `TRM-C` item 4.
+
+## TRM-AJ: Command, Option and option-as-meta
+
+1. A key with `.command` encodes to `[]` for every key and mode, so `TerminalView` declines it and menus see it (`TRM-D` item 2).
+2. On arrows, Home, End, the page keys, Insert, forward delete and F1-F20, Option is the xterm Alt parameter (`m = 1 + shift + 2 alt + 4 ctrl`, so Option alone is 3) whether or not `optionAsMeta` is on. Option never sets xterm's meta bit (8).
+3. On every other key, `optionAsMeta` makes Option an ESC prefix on the unmodified character: the ASCII `key` (an ASCII lower-case letter is upper-cased when Shift is held; other keys stay as `key`, so Option+Shift+1 is `ESC 1`), or `ESC` plus `characters` when `key` is not ASCII. Option with Control gives `ESC` plus the control byte; Option with Tab, Return, Escape and Backspace is `ESC` plus that key's bytes (Shift+Tab: `ESC ESC [ Z`). Without `optionAsMeta`, Option leaves `characters` (the composed text) alone.
+
+Why: `TRM-D` item 4 (both Option keys are meta; dead keys are bypassed by the platform hint, not by the encoder) and the spec's "ESC prefix on the unmodified character".
+
+## TRM-AK: key tables
+
+1. Control with an ASCII letter (either case) is the letter's C0 byte; Control with `@`, Space, `` ` `` or `2` is NUL; `[` or `3` ESC; `\` or `4` FS; `]` or `5` GS; `^` or `6` RS; `_`, `-`, `/` or `7` US; `?`, `8` and Shift+`/` DEL. Control with any other key sends its `characters` unchanged. Shift never changes a Control byte.
+2. Backspace is DEL, Control+Backspace BS (0x08), Shift changes neither. Tab is HT, Shift+Tab `CSI Z`, Control+Tab HT. Return and keypad-style LF are CR in every modifier combination. Escape is ESC.
+3. Unmodified arrows, Home, End and F1-F4 are `CSI x` (Home `H`, End `F`) and, when `applicationCursorKeys`, `SS3 x`; F1-F4 are `SS3 P Q R S` in both modes; a key with Shift, Option or Control uses `CSI 1 ; m x` in both modes. Insert, forward delete, Page Up and Page Down are `CSI 2/3/5/6 ~` or `CSI n ; m ~`. F5-F20 are `CSI 15 17 18 19 20 21 23 24 25 26 28 29 31 32 33 34 ~`, with `; m` when modified.
+
+Why: xterm's ctlseqs "PC-Style Function Keys" and "Control Bytes" tables, written out here, not copied from any implementation.
+
+## TRM-AL: mouse, paste and focus bytes
+
+1. Reporting by mode: x10 reports left, middle and right presses and nothing else, without modifier bits; normal (1000) adds releases and the wheel; button-event (1002) adds motion with a button held; any-event (1003) adds motion with none. A press or release with `.none` is never reported.
+2. The code is the button (left 0, middle 1, right 2), plus 32 for motion (motion with no button is 3 + 32), 64 up and 65 down for the wheel (presses only, no release), plus Shift 4, Option 8, Control 16; Command adds nothing. Coordinates are 1-based.
+3. Legacy is `ESC [ M` and three bytes of 32 + value; a column or row above 223 drops the whole report, never wraps. A release in legacy and UTF-8 is button 3 plus the modifier bits. UTF-8 (1005) writes each value 32 + n as one or two UTF-8 bytes and drops a report above 2015. SGR (1006) is `ESC [ < code ; col ; row M`, a release the button's own code and `m`, with no coordinate limit.
+4. Paste drops every byte below 0x20 except tab, LF and CR (the ESC of an embedded `ESC[201~` goes, leaving `[201~` as text), changes nothing else (no LF to CR conversion), and wraps in `ESC[200~ ... ESC[201~` only with `bracketedPaste`. Focus is `ESC[I` or `ESC[O` only with `focusEvents`.
+
+Why: spec section 2.1 rule 9 and xterm's mouse tracking description.
+
+Next unused: `TRM-AM`.
