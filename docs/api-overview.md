@@ -435,6 +435,9 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 modifier is `EventModifiers.primary` (M, `SG-B`: `.command` on Apple, `.control`
 elsewhere; SwiftUI's default, `.command`, is the same value on macOS, and SwiftUI has
 no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
+`KeyboardShortcut.displayText` and `displayText(for: KeyboardShortcut.Platform)` (M, `KF-AG`: `⇧⌘P` on
+macOS, `Ctrl+Shift+P` elsewhere, named keys as glyphs or names, one formatter shared with the drawn menu;
+`Platform` is `.macOS`/`.linux`/`.windows` with `current` and `primaryModifiers`; modifiers show as stored);
 `@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 

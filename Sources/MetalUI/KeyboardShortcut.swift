@@ -88,6 +88,67 @@ public struct KeyboardShortcut: Equatable, Sendable {
     /// Escape, no modifiers (`B4b`).
     public static let cancelAction = KeyboardShortcut(.escape, modifiers: [])
 
+    /// A desktop whose shortcut spelling `displayText(for:)` produces (`KF-AG`).
+    ///
+    /// MetalUI-only (class M): SwiftUI's menus are drawn by the system, so it has no
+    /// such type. It is public so a settings screen can show a shortcut as
+    /// another desktop would, and has a Windows case that the internal
+    /// `TextEditing.Platform` (`.mac`/`.other`) lacks.
+    public enum Platform: Hashable, Sendable, CaseIterable {
+        /// macOS: glyphs, `⌃⌥⇧⌘K`.
+        case macOS
+        /// Linux: names, `Ctrl+Super+Alt+Shift+K`.
+        case linux
+        /// Windows: names, `Ctrl+Win+Alt+Shift+K`.
+        case windows
+
+        /// The platform this build runs on, decided at compile time by the
+        /// same conditions as `Modifiers.primary`, `TextEditing.platform` and
+        /// the drawn menu's Super/Win name: Apple (macOS) is `.macOS`,
+        /// Windows `.windows`, anything else `.linux`.
+        public static var current: Platform {
+            #if os(macOS) || os(iOS) || os(tvOS) || os(visionOS) || os(watchOS)
+            return .macOS
+            #elseif os(Windows)
+            return .windows
+            #else
+            return .linux
+            #endif
+        }
+
+        /// The modifier `.primary` means on this platform: `.command` on
+        /// macOS, `.control` on Linux and Windows. Use it to build another
+        /// platform's shortcut, since `.primary` itself resolves to the host's
+        /// modifier when the code is compiled.
+        public var primaryModifiers: EventModifiers {
+            switch self {
+            case .macOS: .command
+            case .linux, .windows: .control
+            }
+        }
+    }
+
+    /// The shortcut as the current platform spells it: `⇧⌘P` on macOS,
+    /// `Ctrl+Shift+P` elsewhere (`KF-AG`). Equal to `displayText(for: .current)`.
+    public var displayText: String { displayText(for: .current) }
+
+    /// The shortcut as `platform` spells it (`KF-AG`): on macOS the modifier
+    /// glyphs in ⌃⌥⇧⌘ order then the key (`⇧⌘P`, `⌘↩`, `⌥F12`); on Linux and
+    /// Windows each held key by name joined by `+`, in the order Ctrl, Super
+    /// (Linux) or Win (Windows), Alt, Shift, then the key (`Ctrl+Shift+P`,
+    /// `Alt+Page Up`). Named keys read as glyphs (macOS) or names (elsewhere);
+    /// any other key is upper-cased unless that would change its length.
+    ///
+    /// **Modifiers are shown exactly as stored.** `.primary` resolves when the
+    /// code is compiled, so another platform's text of a `.primary` shortcut
+    /// shows the host's modifier (⌘ on a Mac host reads `Super+P` for
+    /// `.linux`). Build the shortcut with `Platform.primaryModifiers` to get
+    /// another platform's text.
+    public func displayText(for platform: Platform) -> String {
+        ShortcutText.format(key: String(key.character), modifiers: modifiers, mac: platform == .macOS,
+                            superKeyName: platform == .windows ? "Win" : "Super")
+    }
+
     /// Whether `event` is this shortcut: the key compared lower-cased with
     /// `charactersIgnoringModifiers` (AppKit reports a shifted letter upper-case
     /// there), the modifiers compared exactly.
@@ -133,5 +194,59 @@ extension Window {
         guard let (id, target) = lastFocusRegistry.shortcut(matching: key) else { return false }
         StateDispatch.dispatching(to: id) { target.action() }   // ID-F: the button that owns it
         return true
+    }
+}
+
+/// The one shortcut formatter (`KF-AG`): `KeyboardShortcut.displayText` and the
+/// drawn menu's `MenuPanel.shortcutText` both call it, so they cannot differ.
+enum ShortcutText {
+    /// `key` and `modifiers` spelled for macOS (`mac`: glyphs, ⌃⌥⇧⌘ order, no
+    /// separators) or elsewhere (names, `Ctrl+<superKeyName>+Alt+Shift+Key`).
+    static func format(key: String, modifiers: EventModifiers, mac: Bool, superKeyName: String) -> String {
+        let keyText = keyName(key, mac: mac)
+        if mac {
+            var s = ""
+            if modifiers.contains(.control) { s += "⌃" }
+            if modifiers.contains(.option) { s += "⌥" }
+            if modifiers.contains(.shift) { s += "⇧" }
+            if modifiers.contains(.command) { s += "⌘" }
+            return s + keyText
+        }
+        var parts: [String] = []
+        if modifiers.contains(.control) { parts.append("Ctrl") }
+        if modifiers.contains(.command) { parts.append(superKeyName) }
+        if modifiers.contains(.option) { parts.append("Alt") }
+        if modifiers.contains(.shift) { parts.append("Shift") }
+        return (parts + [keyText]).joined(separator: "+")
+    }
+
+    /// A key's text: the named keys (AppKit's characters) as glyphs or names,
+    /// F1...F35 (U+F704...U+F726) as `F<n>`, any other key upper-cased only
+    /// when the result is still one character (`ß` stays `ß`).
+    static func keyName(_ key: String, mac: Bool) -> String {
+        let scalars = key.unicodeScalars
+        if scalars.count == 1, let scalar = scalars.first {
+            switch scalar.value {
+            case 0x0D, 0x0A: return mac ? "↩" : "Enter"
+            case 0x1B: return mac ? "⎋" : "Esc"
+            case 0x09, 0x19: return mac ? "⇥" : "Tab"   // AppKit sends ⇧Tab as U+0019
+            case 0x20: return "Space"
+            case 0x7F: return mac ? "⌫" : "Backspace"
+            case 0xF728: return mac ? "⌦" : "Delete"
+            case 0xF700: return mac ? "↑" : "Up"
+            case 0xF701: return mac ? "↓" : "Down"
+            case 0xF702: return mac ? "←" : "Left"
+            case 0xF703: return mac ? "→" : "Right"
+            case 0xF729: return mac ? "↖" : "Home"
+            case 0xF72B: return mac ? "↘" : "End"
+            case 0xF72C: return mac ? "⇞" : "Page Up"
+            case 0xF72D: return mac ? "⇟" : "Page Down"
+            case 0xF739: return mac ? "⌧" : "Clear"
+            case 0xF704...0xF726: return "F\(scalar.value - 0xF704 + 1)"
+            default: break
+            }
+        }
+        let upper = key.uppercased()
+        return upper.count == 1 ? upper : key
     }
 }

@@ -579,6 +579,10 @@ private struct RSChannelProbe: Component, @MainActor Equatable {
     if channel == .activeAnimation { flag.on = true; await rsSettle() }
     for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
     let f = rsFrame(window)
+    if channel == .surface {   // `TRM-BB`: an `.onDemand` surface's request and trigger are recorded, so it replays like its neighbour
+        #expect(f.retainedHits == 2 && f.retainedIneligible == 0 && f.retainedMisses == 0, "both replay: \(f.retainedHits)/\(f.retainedIneligible)/\(f.retainedMisses)")
+        return
+    }
     if channel == .scrollRegion {   // read-only scroll state since `RW-H`: the scroller replays like its neighbour
         #expect(f.retainedHits == 2 && f.retainedIneligible == 0 && f.retainedMisses == 0, "both replay: \(f.retainedHits)/\(f.retainedIneligible)/\(f.retainedMisses)")
         return
