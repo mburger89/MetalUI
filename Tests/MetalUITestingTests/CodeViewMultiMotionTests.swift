@@ -119,6 +119,11 @@ private let ragged = "abcdefghij\nab\nabcdefghij\nabcde\nabcdefghij\nx\n"
     w.typeKey(.rightArrow)
     w.typeKey(.downArrow)
     #expect(heads(buffer) == [[1, 2], [3, 5]], "a horizontal move ends the run: the goals are the new columns \(heads(buffer))")
+    // Selections written from outside end the run too: the same count of carets elsewhere must not reuse the goals.
+    w.typeKey(.downArrow)
+    carets(buffer, [(2, 1), (4, 2)])
+    w.typeKey(.downArrow)
+    #expect(heads(buffer) == [[3, 1], [5, 1]], "stale goals are not reused: \(heads(buffer))")
 }
 
 /// **6** Vertical carets that land together merge; at the document's edges a caret goes to the start or end.
@@ -146,18 +151,20 @@ private let ragged = "abcdefghij\nab\nabcdefghij\nabcde\nabcdefghij\nx\n"
     w.typeKey(.pageDown)
     let moved = heads(buffer)
     #expect(moved.count == 2 && moved[0][0] > 2 && moved[1][0] - moved[0][0] == 5, "the same rows for both: \(moved)")
-    // Row 1 of `codeText` starts with a tab and row 3 has emoji: both are laid out, never read as ASCII columns, so
-    // several carets land where one caret does.
+}
+
+/// **7b** A line that is not plain ASCII (a tab here) is laid out, never read as columns: from four spaces, x is four
+/// spaces wide, which is the column after a four-column tab; read as a column it would be the line's end. **Mutation:**
+/// the ASCII test always true (the carets land at the line's end, byte 3).
+@Test @MainActor func aTabLineIsLaidOutAndNotReadAsColumns() throws {
+    let (w, buffer) = try editingWindow("    \n\tab\n    \n\tcd\n")
+    defer { withExtendedLifetime(w) {} }
     carets(buffer, [(0, 4), (2, 4)])
     w.typeKey(.downArrow)
-    let several = buffer.selections.map(\.head)
-    var alone: [Int] = []
-    for row in [0, 2] {
-        carets(buffer, [(row, 4)])
-        w.typeKey(.downArrow)
-        alone.append(buffer.primarySelection.head)
-    }
-    #expect(several == alone, "\(several) vs \(alone)")
+    #expect(heads(buffer) == [[1, 1], [3, 1]], "\(heads(buffer))")
+    carets(buffer, [(0, 4)])
+    w.typeKey(.downArrow)
+    #expect(heads(buffer) == [[1, 1]], "one caret does the same")
 }
 
 // MARK: Editing
@@ -238,21 +245,21 @@ private let ragged = "abcdefghij\nab\nabcdefghij\nabcde\nabcdefghij\nx\n"
     #expect(texts(buffer) == " \t ab\n\t\tcd\n\tef\n", "a tab at each caret: \(texts(buffer).debugDescription)")
 }
 
-/// **13** A selection over several rows makes Tab and Shift-Tab act on rows, once for rows several selections share.
+/// **13** Selections over several rows make Tab and Shift-Tab act on rows, once for a row several selections share.
 /// **Mutation:** the rows not unioned (a shared row indented twice).
 @Test @MainActor func indentAndOutdentOverSeveralSelectionsTouchEachRowOnce() throws {
-    let (w, buffer) = try editingWindow("a\nb\nc\nd\n")
+    let (w, buffer) = try editingWindow("ab\ncd\nef\ngh\n")
     defer { withExtendedLifetime(w) {} }
     buffer.selectionState.setSelections([CodeSelection(anchor: at(buffer, 0, 0), head: at(buffer, 1, 1)),
-                                         CodeSelection(anchor: at(buffer, 1, 0), head: at(buffer, 2, 1)),
-                                         CodeSelection(caret: at(buffer, 3, 1))], primary: 0)
-    // Overlapping selections normalise: rows 0..2 are one selection, the caret on row 3 another.
+                                         CodeSelection(caret: at(buffer, 1, 2)),
+                                         CodeSelection(anchor: at(buffer, 2, 0), head: at(buffer, 3, 1))], primary: 0)
+    #expect(buffer.selections.count == 3, "row 1 is touched by the first two")
     w.typeKey(.tab)
-    #expect(texts(buffer) == "\ta\n\tb\n\tc\n\td\n", "every touched row once: \(texts(buffer).debugDescription)")
+    #expect(texts(buffer) == "\tab\n\tcd\n\tef\n\tgh\n", "every touched row once: \(texts(buffer).debugDescription)")
     w.typeKey(.tab, modifierFlags: .shift)
-    #expect(texts(buffer) == "a\nb\nc\nd\n", "and one unit off each")
+    #expect(texts(buffer) == "ab\ncd\nef\ngh\n", "and one unit off each")
     w.typeKey("z", modifierFlags: codePrimary)
-    #expect(texts(buffer) == "\ta\n\tb\n\tc\n\td\n", "an outdent is one step")
+    #expect(texts(buffer) == "\tab\n\tcd\n\tef\n\tgh\n", "an outdent is one step")
 }
 
 // MARK: Clipboard
