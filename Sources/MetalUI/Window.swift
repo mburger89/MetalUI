@@ -761,12 +761,18 @@ public final class Window {
         for (slot, state) in lastFocusStates {
             guard let write = state.takePendingWrite(in: stateTable, slot: slot) else { continue }
             if write.clears {
-                if let focused = focusedElement, lastFocusRegistry.focusBinding(for: focused)?.slot == slot {
+                // The focused element or a container around it carries the binding (`FW-A`).
+                if let focused = focusedElement,
+                   lastFocusRegistry.focusBindings(within: focused).contains(where: { $0.slot == slot }) {
                     focusedElement = nil
                 }
-            } else if let target = lastFocusRegistry.element(boundTo: slot, value: write.value),
-                      lastFocusRegistry.isFocusable(target) {
-                focusedElement = target
+            } else if let target = lastFocusRegistry.element(boundTo: slot, value: write.value) {
+                if lastFocusRegistry.isFocusable(target) {
+                    focusedElement = target
+                } else if let inner = lastFocusRegistry.firstFocusable(within: target) {
+                    // A container that is not itself focusable: its first focusable descendant (`FW-B`).
+                    focusedElement = inner
+                }
             }
         }
     }
@@ -802,9 +808,11 @@ public final class Window {
     /// this is M3b.
     private func reconcileFocusStates() {
         guard !lastFocusStates.isEmpty else { return }
-        let bound = focusedElement.flatMap { lastFocusRegistry.focusBinding(for: $0) }
+        // The focused element's bindings and those of every container around it, innermost first
+        // (`FW-A`): a state reads the nearest one naming it.
+        let bound = focusedElement.map { lastFocusRegistry.focusBindings(within: $0) } ?? []
         for (slot, state) in lastFocusStates {
-            state.reconcile(in: stateTable, slot: slot, focusedValue: bound?.slot == slot ? bound?.value : nil)
+            state.reconcile(in: stateTable, slot: slot, focusedValue: bound.first { $0.slot == slot }?.value)
         }
     }
 
