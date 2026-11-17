@@ -431,6 +431,12 @@ void cpw_spawn(const uint16_t *application, uint16_t *commandLine, const uint16_
     memset(&startup, 0, sizeof startup);
     startup.StartupInfo.cb = sizeof startup;
     startup.lpAttributeList = attributes;
+    // Std handles asked for and left invalid: the child then gets the pseudo console's, instead of the values
+    // this process's own (redirected) std handles hold, which mean nothing in the child and swallow its output.
+    startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    startup.StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
+    startup.StartupInfo.hStdOutput = INVALID_HANDLE_VALUE;
+    startup.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
     // No handle is inherited.
     if (!CreateProcessW(program, (wchar_t *)commandLine, NULL, NULL, FALSE,
                         EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
