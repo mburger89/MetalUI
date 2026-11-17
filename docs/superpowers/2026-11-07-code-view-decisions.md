@@ -381,7 +381,7 @@ Tests only; no product change. What the code does today with a `TextField` insid
 - **The field takes the keys.** The popover content is the `PopoverModifier`'s child, a sibling of the view (`Popover.swift`). With the field focused, typed text goes to it; the view's `onKeyPress` and buffer see nothing. A click on the field focuses it (`FC-A`).
 - **`onSubmit` works.** Return fires it and not the view's handler; the popover stays until the app sets the item to nil.
 - **Escape dismisses through the popover key stage** (`MN-N` item 2, `CV-AR`), **before** the field's own `onKeyPress(.escape)`, which does NOT run (and the view's handler does not see that Escape). NSPopover differs: the field sees Escape first. Pins the order; the PF3 probe arm decides whether SwiftUI differs (open).
-- **A `@FocusState` write in the handler that opens the popover is dropped**: the field was not registered in the last frame (`IX-J`, `IX-S`). `.onAppear { focused = true }` inside the content works, on the second frame after the open. MetalUI has no `defaultFocus`.
+- **A `@FocusState` write in the handler that opens the popover is dropped**: the field was not registered in the last frame (`IX-J`, `IX-S`). `.onAppear { focused = true }` inside the content works: the field is focused after the first tick, the cost being the one extra frame the write requests. MetalUI has no `defaultFocus`.
 - **Focus after the dismissal is nil** (`IX-I`). `MN-AS` (a popover returns focus on dismiss, through `KF-AM`'s restoring scope) will change this; `focusAfterDismissIsNil` is the test that flips.
 - **Not wired for the editor:** an app's `.focused($codeFocused)` on the `CodeView` does not read true while the field has focus (the field is not inside the view, FW-A).
 
