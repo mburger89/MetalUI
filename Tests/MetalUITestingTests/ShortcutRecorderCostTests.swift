@@ -106,18 +106,19 @@ private struct CostHost: Component {
 
 private let unit = Cost(requests: 0, evaluations: 0, skips: 0, refusals: 0, frames: 1)
 
-/// **C1** An idle recorder costs a fixed number of element requests on a steady frame (4 more than the same window
-/// without one: its box, text, padding and the keyboard layer), and `.equatable()` replays it: the content is skipped
-/// (one skip more than the window's own, the `Probe`'s), the request count returns to the window's own. Mutation: wrap the chain in one more element (the 7
-/// moves); or make `==` always false (the equatable frame then evaluates and the 3 moves).
+/// **C1** An idle recorder costs nothing extra on a rebuilt frame **by default**, with no caller `.equatable()`: the
+/// public type wraps its field in `.equatable()`, so the field is skipped (one skip more than the window's own, the
+/// `Probe`'s) and the request count is the window's own (3); an explicit caller `.equatable()` costs the same.
+/// Mutation: return `field` without `.equatable()` from `ShortcutRecorder.content` (the default frame is 7 requests, 1
+/// skip); or make `==` always false (the frame then evaluates).
 @Test @MainActor func anIdleRecorderCostsAFixedSteadyFrameAndEquatableReplaysIt() async throws {
     let plain = try await steady(), replayed = try await steady(equatable: true), without = try await steady(withRecorder: false)
     #if canImport(Darwin)
-    #expect(plain == Cost(requests: 7, evaluations: 0, skips: 1, refusals: 0, frames: 1), "plain \(plain)")
+    #expect(plain == Cost(requests: 3, evaluations: 0, skips: 2, refusals: 0, frames: 1), "plain \(plain)")
     #expect(replayed == Cost(requests: 3, evaluations: 0, skips: 2, refusals: 0, frames: 1), "equatable \(replayed)")
     #expect(without == Cost(requests: 3, evaluations: 0, skips: 1, refusals: 0, frames: 1), "without \(without)")
     #else
-    #expect(plain.perFrameEquals(Cost(requests: 7, evaluations: 0, skips: 1, refusals: 0, frames: 1)), "plain \(plain)")
+    #expect(plain.perFrameEquals(Cost(requests: 3, evaluations: 0, skips: 2, refusals: 0, frames: 1)), "plain \(plain)")
     #expect(replayed.perFrameEquals(Cost(requests: 3, evaluations: 0, skips: 2, refusals: 0, frames: 1)), "equatable \(replayed)")
     #expect(without.perFrameEquals(Cost(requests: 3, evaluations: 0, skips: 1, refusals: 0, frames: 1)), "without \(without)")
     #endif
@@ -131,9 +132,12 @@ private let unit = Cost(requests: 0, evaluations: 0, skips: 0, refusals: 0, fram
     let plain = try await keystroke(), replayed = try await keystroke(equatable: true), without = try await keystroke(withRecorder: false)
     let plainSteady = try await steady()
     #if canImport(Darwin)
+    #expect(plain.requests == without.requests && plain.evaluations == without.evaluations,
+            "default \(plain) vs without \(without)")
     #expect(replayed.requests == without.requests && replayed.evaluations == without.evaluations,
             "with \(replayed) vs without \(without)")
     #expect(plain == plainSteady, "keystroke \(plain) vs steady \(plainSteady)")
+    #expect(plain.requests == without.requests, "default \(plain) vs without \(without)")
     #else
     #expect(replayed.requests * without.frames == without.requests * replayed.frames
                 && replayed.evaluations * without.frames == without.evaluations * replayed.frames,
@@ -147,7 +151,7 @@ private let unit = Cost(requests: 0, evaluations: 0, skips: 0, refusals: 0, fram
 /// Mutation: write the recorder's end flag through `@State` (an extra evaluation at each end); or read focus in the
 /// parent (the sibling re-evaluates).
 @Test @MainActor func startingAndEndingARecordingReRendersOnlyTheRecorder() async throws {
-    let (w, model) = try await open(equatable: true)
+    let (w, model) = try await open()
     defer { withExtendedLifetime(w) {} }
     let probe = model.probeEvaluations
     w.resetFrameWork()
