@@ -437,6 +437,10 @@ void cpw_spawn(const uint16_t *application, uint16_t *commandLine, const uint16_
     startup.StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
     startup.StartupInfo.hStdOutput = INVALID_HANDLE_VALUE;
     startup.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
+    // A host that was started with Ctrl+C ignored (a CI runner's step, a process made with
+    // CREATE_NEW_PROCESS_GROUP) passes that flag to every child, and a child with it set discards the
+    // CTRL_C_EVENT conhost raises for an input 0x03. Clear it so the child starts with Ctrl+C enabled.
+    SetConsoleCtrlHandler(NULL, FALSE);
     // No handle is inherited.
     if (!CreateProcessW(program, (wchar_t *)commandLine, NULL, NULL, FALSE,
                         EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
