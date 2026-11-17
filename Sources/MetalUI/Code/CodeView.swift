@@ -51,6 +51,7 @@ public struct CodeView: Element, StyledElement {
     var markerLane: Bool?
     var geometryObject: CodeViewGeometry?
     var foldStateObject: CodeFoldState?
+    var foldGutterConfig: CodeFoldGutter?
     /// Where each chained text-anchored popover or suggestion overlay points, resolved in prepaint (`CV-AQ`, `CV-BC`).
     /// Empty (no allocation) for a view with none.
     var textAnchorBoxes: [CodeTextAnchorBox] = []
@@ -138,6 +139,21 @@ public struct CodeView: Element, StyledElement {
         precondition(state.buffer === buffer, "CodeView.foldState: the fold state belongs to another buffer")
         var copy = self
         copy.foldStateObject = state
+        return copy
+    }
+
+    /// A fold chevron lane (`CV-BN`): between the line numbers and the text, two space advances wide, a ▾ on every line that
+    /// starts one of ``CodeFoldState/foldableRanges`` (edit-tracked, so the chevrons follow edits) and a ▸ on one whose fold is
+    /// closed. A closed chevron always shows; an open one only while the pointer is over the gutter, unless `showsOnHover`
+    /// is false, in which case open chevrons are never shown (a closed one still is, and every chevron still takes the press).
+    /// A press on a chevron toggles the innermost foldable range starting on its line (opens the folds starting there, if
+    /// any), then calls `onToggle` with the line, from input; it is consumed and never reaches ``onGutterBarClick(_:)``.
+    /// The lane is reserved only when ``foldState(_:)`` is also set; without a fold state this does nothing. A view without
+    /// it pays nothing; with it, a hover enter or leave is one frame and a move within the gutter none. Accessibility:
+    /// a `.button` per chevron, identifier `fold-chevron-<line>`, value `expanded` or `collapsed`. MetalUI-only (class `M`).
+    public func foldGutter(showsOnHover: Bool = true, onToggle: (@MainActor (Int) -> Void)? = nil) -> CodeView {
+        var copy = self
+        copy.foldGutterConfig = CodeFoldGutter(showsOnHover: showsOnHover, onToggle: onToggle)
         return copy
     }
 
@@ -270,6 +286,24 @@ public struct CodeView: Element, StyledElement {
                                              localContinuous: { phase in MainActor.assumeIsolated { runtime.pointer(phase) } })
             hoverRuntime = runtime
         }
+        // The fold gutter's hover (`CV-BN`): attached only by a view that shows open chevrons on hover. The write is compared,
+        // so an enter or a leave is one frame and a move within the gutter none.
+        if let config = foldGutterConfig, config.showsOnHover, plan.chevronPx > 0 {
+            let origin = bounds.origin
+            let existing = handlers.hover
+            let text = existing?.localContinuous
+            handlers.hover = HoverAttachment(onHover: existing?.onHover, onContinuousHover: existing?.onContinuousHover,
+                                             coordinateSpace: existing?.coordinateSpace ?? .local,
+                                             localContinuous: { [plan] phase in
+                MainActor.assumeIsolated {
+                    text?(phase)
+                    var over = false
+                    if case .active(let local) = phase { over = plan.isInGutter(Point(x: local.x + origin.x, y: local.y + origin.y)) }
+                    guard table.readState(id, initial: CodeViewState()).gutterHovered != over else { return }
+                    table.withState(id, initial: CodeViewState()) { $0.gutterHovered = over }
+                }
+            })
+        }
         handlers.pointer = PointerAttachment.wheel({ [plan, hoverRuntime] event in
             hoverRuntime?.hardEnd()   // a wheel scroll ends a hover (`CV-AS`)
             let scale = Double(plan.scale)
@@ -312,6 +346,7 @@ public struct CodeView: Element, StyledElement {
         if frame.collectsAccessibility {
             handlers.axNode.fillControl(role: .textArea, label: nil, value: plan.accessibilityText())
             if plan.foldLayout != nil { plan.recordFoldPlaceholders(id, frame: frame) }   // `CV-BM`: `fold-placeholder-<line>` buttons
+            if plan.chevronOpen != nil { plan.recordFoldChevrons(id, frame: frame) }   // `CV-BN`: `fold-chevron-<line>` buttons
         }
         layout.plan = plan
         if let geometry = geometryObject {   // unobserved, like `CodeDecorations.sync()` (`CV-K`)
