@@ -94,10 +94,18 @@ private struct Card: Component, @MainActor Equatable {
 /// on; the blinking view is retention-ineligible (its caret is a function of the clock), as on master.
 /// **Mutation:** a per-caret retention taint or element.
 @Test @MainActor func aKeystrokeFrameCostsWhatItDidWithOneCaretWhateverTheCaretCount() async throws {
-    for n in [1, 3, 50] {
+    // Off Darwin the typed key's dirty mark hops to the main actor through a `Task`, so the keystroke spans two
+    // frames there for one caret as for fifty; the literal is pinned on Apple platforms, and everywhere the cost must
+    // not depend on the caret count.
+    let baseOff = try await keystroke(carets: 1), baseOn = try await keystroke(carets: 1, blink: .on)
+    #if canImport(Darwin)
+    #expect(baseOff == Cost(requests: 2, hits: 0, misses: 1, ineligible: 0, frames: 1), "1 caret, blink off: \(baseOff)")
+    #expect(baseOn == Cost(requests: 2, hits: 0, misses: 0, ineligible: 1, frames: 1), "1 caret, blink on: \(baseOn)")
+    #endif
+    for n in [3, 50] {
         let off = try await keystroke(carets: n), on = try await keystroke(carets: n, blink: .on)
-        #expect(off == Cost(requests: 2, hits: 0, misses: 1, ineligible: 0, frames: 1), "\(n) carets, blink off: \(off)")
-        #expect(on == Cost(requests: 2, hits: 0, misses: 0, ineligible: 1, frames: 1), "\(n) carets, blink on: \(on)")
+        #expect(off == baseOff, "\(n) carets, blink off: \(off) vs one caret \(baseOff)")
+        #expect(on == baseOn, "\(n) carets, blink on: \(on) vs one caret \(baseOn)")
     }
 }
 
