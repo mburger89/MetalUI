@@ -6,7 +6,7 @@ Branch `feat/codeview-option-gestures` from master e349cd74. Class M, no diverge
 - `CodeEditing.caretToggleModifier = .option`.
 - `CodeEditSession.press`: after the `onTextClick` and gutter-bar checks, a press holding ⌥ off the line-number gutter records a pending toggle in `CodeViewState` (`optionMode`, `optionOffset`, `optionRow`, `optionX`) and changes nothing. `drag` turns it into a column selection once the pointer's nearest boundary or buffer row differs from the press's; `endDrag` toggles (pending) or commits the live column (autoscroll). A plain press resets the mode.
 - `CodeViewPlan`: `rowIndex(at:)` (factored out of `hit`), `textX(of:)`, `columnRow(at:towards:)`, `columnSelections(...)`, `liveColumnSelections`, and a frame branch that computes the live column while a ⌥ drag autoscrolls.
-- `CodeSelectionState.isFoldHidden(line:)` (package) over the registered fold states.
+- `CodeSelectionState.isFoldHidden(line:)` (package) over the registered fold states. The "fold layout seam" (a pointer landing on a hidden row before `CV-BM` existed) closed with record 354: the pointer maps through the shown rows, so the column drag never lands on a hidden row and `aColumnDragPassesOverRowsAFoldHides` (now over a laid-out fold, one jump) leaves the fold closed.
 
 ## Decisions worth knowing
 - The column is built over buffer rows, so virtual rows are skipped by construction; a row not among the frame's rows (a long autoscrolled column) is placed by monospace columns, since it has no layout to measure.

@@ -135,6 +135,8 @@ final class CodeViewPlan {
         var markerOwner: UInt16 = 0
         /// Whether a buffer row has a marker (in the lane, or in place of its number).
         var hasMarker = false
+        /// The `⋯` placeholder of a folded header (`CV-BM`); `nil` for every other row.
+        var fold: CodeFoldMark? = nil
 
         /// The marked text inserted into this row's layout for display.
         struct Marked {
@@ -205,6 +207,11 @@ final class CodeViewPlan {
     var liveDragSelection: CodeSelection?
     /// The column selection a held ⌥ drag has now (`CV-BK`), as `liveDragSelection` is for a plain drag.
     var liveColumnSelections: (selections: [CodeSelection], primary: Int)?
+    /// The hidden-row overlay and its fold state (`CV-BM`); `nil` for a view with none folded.
+    var foldLayout: CodeFoldLayout?
+    var foldState: CodeFoldState?
+    /// The row map the frame laid out over, for the scroll row <-> line conversions of `CodeViewGeometry` (`CV-BM`).
+    var rowMap: CodeRowMap?
 
     init(snapshot: CodeSnapshot, font: FontKey) {
         self.snapshot = snapshot
@@ -256,6 +263,9 @@ final class CodeViewPlan {
             return CodeHit(offset: offset, character: nil, row: rowIndex, region: .gutter)
         }
         if row.isVirtual { return CodeHit(offset: offset, character: nil, row: nil, region: .virtualRow) }
+        if let mark = row.fold, x >= textOriginX + mark.offsetPx, x < textOriginX + mark.offsetPx + mark.widthPx {
+            return CodeHit(offset: offset, character: nil, row: rowIndex, region: .pastLineEnd, foldedLines: mark.lines)   // `CV-BM`
+        }
         let layout = row.layout
         guard layout.caretX.count > 1, local < layout.caretX[layout.caretX.count - 1] else {
             return CodeHit(offset: offset, character: nil, row: rowIndex, region: .pastLineEnd)
@@ -354,7 +364,8 @@ final class CodeViewPlan {
     }
 
     /// The selections of a column drag (`CV-BK`): one per buffer row from `pressRow` to `pointerRow` that `hidden`
-    /// does not hide (virtual rows are no buffer rows), the anchor at text x `pressX` and the head at `pointerX`, each
+    /// does not hide (virtual rows are no buffer rows; the pointer's own row is a shown row once the view lays out
+    /// its fold state, `CV-BM`), the anchor at text x `pressX` and the head at `pointerX`, each
     /// clamped to the line. Rows with a laid-out line use its glyph positions; a row outside the frame's rows counts
     /// monospace columns. The pointer's row is the primary; past `limit` rows the ones nearest the press are dropped.
     /// Returned ascending, with the primary's index in that order.
@@ -364,7 +375,9 @@ final class CodeViewPlan {
         var lines: [Int] = []
         var line = pressRow
         while true {
-            if !hidden(line) || line == pointerRow { lines.append(line) }
+            // With the fold layout the pointer's row is a shown row (`rows` has no hidden ones, `CV-BM`), so the
+            // exception below only serves a view whose fold state is registered but not laid out over.
+            if !hidden(line) || (foldLayout == nil && line == pointerRow) { lines.append(line) }
             if line == pointerRow { break }
             line += step
         }
@@ -583,7 +596,16 @@ extension CodeView {
                 state.composition = .none
             }
         }
-        let map = decorations.rowMap   // the one place a display row becomes a buffer row or a virtual line (`CV-S`)
+        // The one place a display row becomes a buffer row or a virtual line (`CV-S`), less the rows a fold hides (`CV-BM`).
+        var foldLayout: CodeFoldLayout?
+        if let foldState = foldStateObject {
+            _ = foldState.folded   // observed: folding or unfolding redraws
+            foldLayout = CodeFoldLayout.of(foldState, map: decorations.rowMap)
+            plan.foldState = foldState
+            plan.foldLayout = foldLayout
+        }
+        plan.rowMap = decorations.rowMap
+        let map = CodeRowSpace(decorations.rowMap, fold: foldLayout)
         let bufferRows = snap.lineCount
         let displayRows = map.displayRowCount
         plan.maxTopPx = max(0, displayRows * pitchPx + plan.insetTopPx + plan.insetBottomPx - plan.heightPx)
@@ -794,7 +816,22 @@ extension CodeView {
                 widest = max(widest, Int((layout.width * scaleD).rounded(.up)))
                 var label: CodeLineLayout?
                 var labelWidth = 0
-                let payload = decorations.lineDecoration(row: row)
+                var payload = decorations.lineDecoration(row: row)
+                var foldMark: CodeFoldMark?
+                if let foldLayout, let k = foldLayout.spans.spanIndex(headedBy: row) {   // a folded header (`CV-BM`)
+                    let end = foldLayout.spans.ends[k]
+                    if let strongest = decorations.strongestMarker(in: row..<end) {   // the hidden rows' strongest marker
+                        var merged = payload ?? LineDecorationPayload()
+                        merged.marker = strongest.marker; merged.markerTag = strongest.markerTag; merged.markerOwner = strongest.markerOwner
+                        payload = merged
+                    }
+                    let gap = max(1, Int((metrics.space * scaleD).rounded()))
+                    let glyphs = cache.marker("\u{22EF}", font: font, system: system, scale: scale, spaceAdvance: metrics.space)
+                    let endPoints = layout.x(ofByte: bytes.count) ?? (bytes.count < layout.windowStart ? layout.caretX.first : layout.caretX.last) ?? 0
+                    foldMark = CodeFoldMark(lines: foldLayout.spans.folds[k], glyphs: glyphs,
+                                            offsetPx: Int((endPoints * scaleD).rounded()) + gap / 2, gapPx: gap,
+                                            glyphWidthPx: Int((glyphs.width * scaleD).rounded()))
+                }
                 let marker = payload?.marker.flatMap { $0.text.isEmpty ? nil : $0 }
                 var laneMarker: CodeLineLayout?
                 var laneMarkerWidth = 0
@@ -822,7 +859,7 @@ extension CodeView {
                                        tag: payload?.tag, anchorLine: row, marked: rowMarked, owner: payload?.owner ?? 0,
                                        laneMarker: laneMarker, laneMarkerWidthPx: laneMarkerWidth, laneMarkerColor: marker?.color,
                                        markerTag: payload?.markerTag, markerOwner: payload?.markerOwner ?? 0,
-                                       hasMarker: marker != nil && (plan.laneWidthPx > 0 || plan.markersReplaceNumbers)))
+                                       hasMarker: marker != nil && (plan.laneWidthPx > 0 || plan.markersReplaceNumbers), fold: foldMark))
             case .virtual(let group, let lineIndex, let gap):
                 let line = group.lines[lineIndex]
                 let layout = lineLayout(bytes: line.bytes, knownHash: line.hash, parts: line.styling.foreground, digest: line.styling.digest,
