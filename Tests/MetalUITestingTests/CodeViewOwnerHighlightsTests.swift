@@ -3,6 +3,7 @@ import Foundation
 import MetalUI
 import MetalUIScene
 import MetalUITesting
+import Observation
 
 // Owner-keyed range highlights (ruling `CV-BV`, record 373, Alloy plugins #1): each (layer, named owner) is a
 // sub-layer; the cross-layer merge walks sub-layers ordered by (layer, priority, name) and the higher priority
