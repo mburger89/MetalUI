@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AH`.**
+**Next unused id: `KF-AM`.**
 
 ## The final spellings (what an app writes)
 
@@ -1111,3 +1111,14 @@ Next unused id: `KF-AH` (`KF-AH`, `KF-AJ` and `KF-AK` are reserved by the later 
 8. **`App.commandShortcuts()`** lists every `commands` item with a key, in menu order, enabled or not (the item owns the key either way and the answer then does not change between calls: Alloy's answer 4, a difference from "enabled only"), submenu items included, with its `identifier`; items with no key are omitted. The key is the lower-cased spelling the bar model holds (`"P"` reads `"p"`; use `conflicts`). A `Toggle` item has no `keyboardShortcut` in MetalUI, so none appears (the design expected toggles with identifiers; a toggle can never hold a key, so it is simply not a claim).
 9. **Cost.** Each read is one evaluation of the `commands` content (a test counts the closure's runs); a keystroke still evaluates it once (the command stage is untouched). Both are methods, not properties, and **calling either from inside the `commands` content recurses without end** (documented).
 10. **Tests.** `ShortcutClaimsTests`; mutations named on each.
+
+## KF-AH — named function keys, F1 to F20 (Alloy; record 367)
+
+Next unused id: `KF-AM` (`KF-AK` is the recorder PR's; `KF-AL` is above).
+
+1. **API.** `KeyEquivalent.f1`...`.f20`, public statics holding AppKit's `NSF1FunctionKey`...`NSF20FunctionKey`, `U+F704`...`U+F717`. Class M: SwiftUI has no spelling (probe `P1` arm `-D FKEYS`, `swiftui-shortcut-modifiers.swift`: `KeyEquivalent.f1` is refused by the compiler).
+2. **Platforms.** AppKit already reports these characters. SDL mapped F1 to F12 (`U+F704`...`U+F70F`); `SDLKeys.named` now adds `SDLK_F13`...`SDLK_F20` (`0x4000_0068`...`0x4000_006F`) to `U+F710`...`U+F717`. F21 and up stay unmapped: Alloy's `NamedKey` stops at F20. `Keymap.namedKeys` gains `f13`...`f20` (`"ctrl-shift-f20"` parses).
+3. **Already consistent.** `ShortcutText` names `U+F704`...`U+F726` `F1`...`F35` on every platform (`KF-AG`); `TerminalEncoder.specialKey` encodes `U+F704`...`U+F717` as F1...F20 (the xterm tilde numbers), so no change in either.
+4. **No Fn modifier.** `Modifiers` has no Fn bit, so AppKit's `.function` flag never reaches matching; a shortcut cannot require or exclude it.
+5. **Cost.** Constants only; no view structure changes. No divergence.
+6. **Tests.** `FunctionKeysTests` (root), `sdlFunctionKeysMapToAppKitsCodes` (SDL package); mutations are named on each.

@@ -1684,6 +1684,8 @@ public enum SDLKeys {
         0x4000_003A: "\u{f704}", 0x4000_003B: "\u{f705}", 0x4000_003C: "\u{f706}", 0x4000_003D: "\u{f707}",
         0x4000_003E: "\u{f708}", 0x4000_003F: "\u{f709}", 0x4000_0040: "\u{f70a}", 0x4000_0041: "\u{f70b}",
         0x4000_0042: "\u{f70c}", 0x4000_0043: "\u{f70d}", 0x4000_0044: "\u{f70e}", 0x4000_0045: "\u{f70f}",
+        // F13-F20 (SDLK_F13...SDLK_F20) → NSF13FunctionKey...NSF20FunctionKey (ruling KF-AH)
+        0x4000_0068: "\u{f710}", 0x4000_0069: "\u{f711}", 0x4000_006a: "\u{f712}", 0x4000_006b: "\u{f713}", 0x4000_006c: "\u{f714}", 0x4000_006d: "\u{f715}", 0x4000_006e: "\u{f716}", 0x4000_006f: "\u{f717}",
     ]
 
     /// SDL's editing event as a composition: `start`/`length` are code

@@ -150,6 +150,7 @@ F	gesture-composition-wrappers	A	swiftui-gesture-composition.swift	S6	updatingOn
 F	gesture-drag-velocity	A	swiftui-gesture-composition.swift	D1	aSteadyDragReportsItsVelocityAndAQuarterSecondPrediction	-	GE-D GE-F	DragGesture.Value.time, velocity, predictedEndLocation, predictedEndTranslation and the init that takes time and velocity: derived from the event timestamps (probes D0..D15)
 F	mouse-event-timestamp	M	-	-	-	-	GE-D	MouseEvent.timestamp: the platform's event time, nil for an event built without one; SwiftUI has no event type
 F	keyboard-shortcut	A	swiftui-interaction.swift	B4e	aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch	-	IX-F	KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order
+F	function-keys	M	-	-	-	-	KF-AH	KeyEquivalent.f1...f20: AppKit's NSF1FunctionKey...NSF20FunctionKey (U+F704...U+F717); SwiftUI has no spelling (probe P1 -D FKEYS); SDL maps F13-F20; no Fn modifier
 F	key-press	A	swiftui-key-focus.swift	K2v	onKeyPressRunsOutermostFirstAlongTheFocusChain	-	KF-B KF-C KF-Q KF-X	KeyPress/onKeyPress: SwiftUI's family (keys, characters, phases; .handled/.ignored) along the focus chain outermost first, after the Keymap and before a focused field's editing keys; a typed character on a focused field is offered first (KF-Q); a keystroke an app command binds runs the command (KF-X)
 F	focus-interactions	A	swiftui-key-focus.swift	FC3	aPressFocusesAnEditInteractionFocusable	-	KF-F FC-A	FocusInteractions/focusable(_:interactions:): .edit and .automatic (plain focusable()) focus on a primary press as SwiftUI does (FC1, FC3); .activate focuses by Tab only (FC2)
 F	hover-key-region	M	-	-	-	-	KF-D KF-E KF-U	hoverKeyRegion(_:): with nothing focused, keys go to the hovered key region (its onKeyPress and Keymap contexts, not onKey); a press in it clears focus; MetalUI-only (SwiftUI routes no key by hover, K1u/K1v)
@@ -536,6 +537,7 @@ M	MetalUI	KeyboardShortcut.swift	-	KeyboardShortcut	struct	keyboard-shortcut-has
 M	MetalUI	KeyboardShortcut.swift	KeyboardShortcut	(conflicts|systemReserved)	.*	shortcut-claims
 M	MetalUI	ShortcutClaims.swift	.*	.*	.*	shortcut-claims
 M	MetalUI	KeyboardShortcut.swift	KeyboardShortcut(\.Platform)?	(Platform|current|primaryModifiers|displayText)	.*	shortcut-display-text
+M	MetalUI	KeyboardShortcut.swift	KeyEquivalent	f([1-9]|1[0-9]|20)	.*	function-keys
 M	MetalUI	KeyboardShortcut.swift	.*	.*	.*	keyboard-shortcut
 M	MetalUI	KeyContext.swift	.*	.*	.*	keymap
 M	MetalUI	Keymap.swift	.*	.*	.*	keymap
