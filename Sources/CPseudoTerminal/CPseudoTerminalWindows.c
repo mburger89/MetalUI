@@ -22,6 +22,7 @@ typedef HRESULT(WINAPI *ResizePseudoConsoleFn)(cpw_hpcon, COORD);
 typedef VOID(WINAPI *ClosePseudoConsoleFn)(cpw_hpcon);
 
 #define CPW_ATTRIBUTE_PSEUDOCONSOLE ((DWORD_PTR)0x00020016)   // PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
+#define CPW_ATTRIBUTE_JOB_LIST ((DWORD_PTR)0x0002000D)         // PROC_THREAD_ATTRIBUTE_JOB_LIST
 #define CPW_STAGE 65536            // one read's size
 #define CPW_RING (4 * CPW_STAGE)   // buffered output before reading pauses (back pressure on conhost)
 #define CPW_PIPE 65536
@@ -400,15 +401,21 @@ void cpw_spawn(const uint16_t *application, uint16_t *commandLine, const uint16_
     }
 
     SIZE_T attributeSize = 0;
-    InitializeProcThreadAttributeList(NULL, 1, 0, &attributeSize);
+    InitializeProcThreadAttributeList(NULL, 2, 0, &attributeSize);
     attributes = HeapAlloc(GetProcessHeap(), 0, attributeSize);
-    if (!attributes || !InitializeProcThreadAttributeList(attributes, 1, 0, &attributeSize)) {
+    if (!attributes || !InitializeProcThreadAttributeList(attributes, 2, 0, &attributeSize)) {
         code = GetLastError();
         if (attributes) { HeapFree(GetProcessHeap(), 0, attributes); attributes = NULL; }
         goto failed;
     }
     if (!UpdateProcThreadAttribute(attributes, 0, CPW_ATTRIBUTE_PSEUDOCONSOLE, pty->console, sizeof(cpw_hpcon),
                                    NULL, NULL)) {
+        code = GetLastError();
+        goto failed;
+    }
+    // The child is born in the job (Windows 10 1709+), so it is neither started suspended nor assigned later:
+    // a console child created suspended showed conhost no output in CI.
+    if (!UpdateProcThreadAttribute(attributes, 0, CPW_ATTRIBUTE_JOB_LIST, &pty->job, sizeof(HANDLE), NULL, NULL)) {
         code = GetLastError();
         goto failed;
     }
@@ -424,20 +431,18 @@ void cpw_spawn(const uint16_t *application, uint16_t *commandLine, const uint16_
     memset(&startup, 0, sizeof startup);
     startup.StartupInfo.cb = sizeof startup;
     startup.lpAttributeList = attributes;
-    // Suspended so the child is in the job before it can start another process; no handle is inherited.
+    // No handle is inherited.
     if (!CreateProcessW(program, (wchar_t *)commandLine, NULL, NULL, FALSE,
-                        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
+                        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
                         (LPVOID)environment, (const wchar_t *)cwd, &startup.StartupInfo, &info)) {
         code = GetLastError();
         goto failed;
     }
     processStarted = 1;
     pty->process = info.hProcess;
-    if (!AssignProcessToJobObject(pty->job, info.hProcess)) { code = GetLastError(); goto failed; }
     DeleteProcThreadAttributeList(attributes);
     HeapFree(GetProcessHeap(), 0, attributes);
     attributes = NULL;
-    if (ResumeThread(info.hThread) == (DWORD)-1) { code = GetLastError(); goto failed; }
     CloseHandle(info.hThread);
     info.hThread = NULL;
 
