@@ -14,7 +14,10 @@ import Testing
 //  - a variable with a default becoming a stop: `variableWithDefault`, `variableWithNestedStop`.
 //  - stops recorded after their children (inner before outer): `nested`.
 //  - UTF-8 counted as scalars (`unicode`): `unicode`.
-//  - the failed-attempt memo removed: `unclosedNestingIsLinear` times out (exponential).
+//  - the failed-attempt memo removed: `unclosedNestingIsLinear` never finishes (2^60 steps; killed at 150 s).
+//  - the depth cap removed: `hostileDepthIsLiteralNotAStackOverflow` crashes the test process (stack overflow).
+//  - a stop's range not closed after its children (`stops[slot].range`): the table and `equalSnippetsHashEqualAndDifferencesShow`.
+//  - the scalar-boundary check removed: `rejectsOffsetsInsideAScalar`.
 //  - the validation's partial-overlap test removed: `rejects partial overlap`.
 
 struct CodeSnippetTests {
