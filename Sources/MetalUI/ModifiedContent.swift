@@ -190,6 +190,21 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
                                                        inner: layers, prefix: prefix)
     }
 
+    /// `_wrap(_:)` for a modifier written after a `LifecycleScope` over this chain (ruling `KF-AF`): this chain's
+    /// layers and `layer` over its base wrapped in the scope, one chain.
+    public func _wrapInScope(_ layer: ModifierLayer, scope: LifecycleScopeRegistration)
+        -> ModifiedContent<LifecycleScope<Content>, ModifierLayer> {
+        let (prefix, layers) = Modifier._legacyStack(outermost, inner, prefix)
+        return ModifiedContent<LifecycleScope<Content>, ModifierLayer>(
+            content: LifecycleScope(content: content, write: scope.write), outermost: layer,
+            inner: layers, prefix: prefix)
+    }
+
+    /// This chain over `transform` of its base, the layers unchanged.
+    func _rebased<New: ElementGroup>(_ transform: (Content) -> New) -> ModifiedContent<New, Modifier> {
+        ModifiedContent<New, Modifier>(content: transform(content), outermost: outermost, inner: inner, prefix: prefix)
+    }
+
     /// One inner layer's identity and node, carried from layout to the later
     /// phases.
     struct LayerPlacement {
@@ -522,6 +537,17 @@ extension ModifiedContent: ProposalElementGroup, ProposalElement
     /// nesting (`LR-FV` item 4).
     public func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<Content, LayoutModifier> {
         var copy = self
+        copy.inner.append(copy.outermost)
+        copy.outermost = modifier
+        return copy
+    }
+
+    /// `_wrapLayout(_:)` for a modifier written after a `LifecycleScope` over this chain (`KF-AF`).
+    public func _wrapLayoutInScope(_ modifier: LayoutModifier, scope: LifecycleScopeRegistration)
+        -> ModifiedContent<LifecycleScope<Content>, LayoutModifier> {
+        var copy = ModifiedContent<LifecycleScope<Content>, LayoutModifier>(
+            content: LifecycleScope(content: content, write: scope.write), outermost: outermost,
+            inner: inner, prefix: prefix)
         copy.inner.append(copy.outermost)
         copy.outermost = modifier
         return copy

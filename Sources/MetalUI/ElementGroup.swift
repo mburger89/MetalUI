@@ -99,6 +99,13 @@ public protocol ElementGroup {
     /// (ruling MC-A).
     func _wrap(_ layer: ModifierLayer) -> ModifiedElement<LayerBase>
 
+    /// Framework entry point for a wrapper modifier written after a `LifecycleScope` over this group (ruling
+    /// `KF-AF`): the chain with `layer` added, its base wrapped in the scope — so the scope is transparent to the
+    /// chain and the modifier joins it rather than starting a second one. **Not for conformers to implement**, as
+    /// `_wrap(_:)`; MetalUI-only.
+    func _wrapInScope(_ layer: ModifierLayer, scope: LifecycleScopeRegistration)
+        -> ModifiedElement<LifecycleScope<LayerBase>>
+
     /// What `onKeyPress` returns on this group (ruling `KF-AE`): `Self` where the handler joins a layer this
     /// group already owns (a modifier chain, a lifecycle scope, an accessibility wrapper, an overlay, a
     /// `StyledElement`), `ModifiedElement<LayerBase>` — one wrapper layer — for every other. **A requirement
