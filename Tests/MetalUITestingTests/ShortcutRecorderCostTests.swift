@@ -186,6 +186,11 @@ private let unit = Cost(requests: 0, evaluations: 0, skips: 0, refusals: 0, fram
     #if canImport(Darwin)
     #expect(with.requests == without.requests, "with \(with) vs without \(without)")
     #else
-    #expect(with.perFrameEquals(without), "with \(with) vs without \(without)")
+    // The recorder's own `.equatable()` is one more skip than the window without one has (checked above), so skips
+    // are left out of the per-frame comparison.
+    #expect(with.requests * without.frames == without.requests * with.frames
+                && with.refusals * without.frames == without.refusals * with.frames
+                && with.skips * without.frames == (without.skips + 1) * with.frames,
+            "with \(with) vs without \(without)")
     #endif
 }

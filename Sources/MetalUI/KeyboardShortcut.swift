@@ -63,6 +63,52 @@ public struct KeyEquivalent: Hashable, Sendable, ExpressibleByExtendedGraphemeCl
     public static let clear = KeyEquivalent("\u{f739}")
 }
 
+/// The function keys (`KF-AH`): AppKit's `NSF1FunctionKey`...`NSF20FunctionKey`, `U+F704`...`U+F717`.
+/// SwiftUI has no spelling for them (class M); AppKit already reports them and the SDL backend maps its
+/// F1-F20 keycodes to them. There is no Fn modifier: `Modifiers` has no such bit.
+extension KeyEquivalent {
+    /// The F1 key.
+    public static let f1 = KeyEquivalent("\u{f704}")
+    /// The F2 key.
+    public static let f2 = KeyEquivalent("\u{f705}")
+    /// The F3 key.
+    public static let f3 = KeyEquivalent("\u{f706}")
+    /// The F4 key.
+    public static let f4 = KeyEquivalent("\u{f707}")
+    /// The F5 key.
+    public static let f5 = KeyEquivalent("\u{f708}")
+    /// The F6 key.
+    public static let f6 = KeyEquivalent("\u{f709}")
+    /// The F7 key.
+    public static let f7 = KeyEquivalent("\u{f70a}")
+    /// The F8 key.
+    public static let f8 = KeyEquivalent("\u{f70b}")
+    /// The F9 key.
+    public static let f9 = KeyEquivalent("\u{f70c}")
+    /// The F10 key.
+    public static let f10 = KeyEquivalent("\u{f70d}")
+    /// The F11 key.
+    public static let f11 = KeyEquivalent("\u{f70e}")
+    /// The F12 key.
+    public static let f12 = KeyEquivalent("\u{f70f}")
+    /// The F13 key.
+    public static let f13 = KeyEquivalent("\u{f710}")
+    /// The F14 key.
+    public static let f14 = KeyEquivalent("\u{f711}")
+    /// The F15 key.
+    public static let f15 = KeyEquivalent("\u{f712}")
+    /// The F16 key.
+    public static let f16 = KeyEquivalent("\u{f713}")
+    /// The F17 key.
+    public static let f17 = KeyEquivalent("\u{f714}")
+    /// The F18 key.
+    public static let f18 = KeyEquivalent("\u{f715}")
+    /// The F19 key.
+    public static let f19 = KeyEquivalent("\u{f716}")
+    /// The F20 key.
+    public static let f20 = KeyEquivalent("\u{f717}")
+}
+
 /// A key and the modifiers that must be held with it — SwiftUI's
 /// `KeyboardShortcut`.
 ///
@@ -187,6 +233,13 @@ public struct KeyboardShortcut: Hashable, Sendable {
     /// Whether `event` is this shortcut: the key compared lower-cased with
     /// `charactersIgnoringModifiers` (AppKit reports a shifted letter upper-case
     /// there), the modifiers compared exactly.
+    /// Whether `press` is this shortcut, by the same rule as a key event's (`TRM-BC`): a handler that shares a layer
+    /// with a `keyCapture(except:)` leaves the excepted keys alone. `package`: the terminal view's.
+    package func matches(_ press: KeyPress) -> Bool {
+        matches(KeyEvent(charactersIgnoringModifiers: String(press.key.character), characters: press.characters,
+                         modifiers: press.modifiers, timestamp: 0))
+    }
+
     func matches(_ event: KeyEvent) -> Bool {
         guard event.modifiers == modifiers else { return false }
         let wanted = String(key.character).lowercased()

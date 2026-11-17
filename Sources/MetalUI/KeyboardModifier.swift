@@ -196,6 +196,13 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
         }
     }
 
+    /// Makes this layer a text target whose text lives outside MetalUI (`TRM-BC`): while it is focused the platform's
+    /// input method is on at `input.caret()`, committed text reaches `input.commit` and marked text `input.compose`.
+    /// `Self`, so the chain stays one layer. `package`: the terminal view's.
+    package func externalTextInput(_ input: ExternalTextInput) -> Self {
+        handling { $0.textInput = TextInputTarget(external: input) }
+    }
+
     /// Makes this layer focusable (or not) with the automatic interactions —
     /// `StyledElement.focusable(_:)`'s rules (a primary press focuses it,
     /// `FC-A`). A later `focusable` replaces it.

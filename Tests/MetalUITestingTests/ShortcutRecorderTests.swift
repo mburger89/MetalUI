@@ -219,11 +219,12 @@ private let forwardDelete = String(KeyEquivalent.deleteForward.character)
 @Test @MainActor func menuItemsAndButtonsDoNotRunWhileRecording() async throws {
     let r = try await rig()
     try await startRecording(r)
-    try await press(r, "k", .command)
-    #expect(r.log.records == [KeyboardShortcut("k", modifiers: .command)])
+    try await press(r, "k", .primary)
+    #expect(r.log.records == [KeyboardShortcut("k", modifiers: .primary)])
     #expect(r.log.entries == ["record"], "neither the item nor the button ran: \(r.log.entries)")
+    // `.primary` is ⌘ on Apple and Ctrl elsewhere, the modifier the shortcuts below use.
     // Once recording ended the button's shortcut is live again (focus is nowhere; the item runs as a command).
-    try await press(r, "k", .command)
+    try await press(r, "k", .primary)
     #expect(r.log.entries.contains("command") || r.log.entries.contains("button"), "\(r.log.entries)")
 }
 

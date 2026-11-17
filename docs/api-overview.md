@@ -447,6 +447,9 @@ the desktop, the standard menu items and the app's `commands` already take; meth
 `KeyboardShortcut` in one form on every platform, the unshifted base key lower-cased plus the modifiers held;
 recording is having focus; bare Escape cancels, bare ⌫/⌦ clears, ⌘Q records instead of quitting; `Equatable`, so
 `.equatable()` replays it);
+`CodeView.builtInKeyBindings(platform:)` (M, `KF-AJ`: the keys a code view takes, as `[ClaimedShortcut]` read from its
+key table, with conditions for Escape, find next/previous and the editing keys);
+`KeyEquivalent.f1`...`.f20` (M, `KF-AH`: AppKit's `U+F704`...`U+F717`; SwiftUI has no spelling; no Fn modifier);
 `@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 

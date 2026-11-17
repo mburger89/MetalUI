@@ -637,13 +637,44 @@ final class TextTargetHooks {
     /// Whether this is a vertical `TextField` (`VT-F`, `VT-E`), not a `TextEditor`: Return submits, and the wheel is taken
     /// only while it is focused and has room.
     let vertical: Bool
+    /// The text input of a view that edits outside MetalUI (`TRM-BC`): a terminal. `Window` routes committed and
+    /// marked text to it and never to `TextEditing`.
+    let external: ExternalTextInput?
 
     init(submit: (@MainActor () -> Void)?, sink: (@MainActor (Range<Int>, String) -> AnyHashable)?,
-         code: CodeEditSession? = nil, vertical: Bool = false) {
+         code: CodeEditSession? = nil, vertical: Bool = false, external: ExternalTextInput? = nil) {
         self.submit = submit
         self.sink = sink
         self.code = code
         self.vertical = vertical
+        self.external = external
+    }
+}
+
+/// A text-input target whose text lives outside MetalUI (`TRM-BC`): the terminal view. `package`: `MetalUITerminalUI`'s.
+///
+/// While it holds focus the platform's input method is on and positioned at ``caret``; `Window` sends committed text
+/// to ``commit`` and marked text to ``compose`` (and keeps it in ``composition``, where `isComposingMarkedText` reads
+/// it, so nothing is captured while composing). It edits nothing, has no selection and no editing keys: a field's
+/// ⌘A, ⌘V and the rest decline, and a press is the view's own.
+@MainActor
+package final class ExternalTextInput {
+    /// Where the input method's candidate window goes, in window points, now; nil before the view painted.
+    package var caret: @MainActor () -> Bounds<Pixels>? = { nil }
+    /// Committed text (an input-method commit, a dead-key result, the emoji picker, a typed character).
+    package var commit: @MainActor (String) -> Void = { _ in }
+    /// The marked text changed (empty: it ended, nothing committed).
+    package var compose: @MainActor (TextComposition) -> Void = { _ in }
+    /// The marked text now; `Window` writes it before it calls ``compose``.
+    package private(set) var composition: TextComposition = .none
+
+    package init() {}
+
+    /// Window's: sets the marked text and tells the view.
+    func setComposition(_ value: TextComposition) {
+        guard value != composition else { return }
+        composition = value
+        compose(value)
     }
 }
 
@@ -673,6 +704,9 @@ struct TextInputTarget {
     /// Whether the lines are a vertical `TextField`'s, not a `TextEditor`'s (`VT-F`): in the one hooks box, as a new part of
     /// a target goes (`Handlers` stays pinned).
     var verticalField: Bool { hooks?.vertical ?? false }
+
+    /// The external text input when this target is a terminal's (`TRM-BC`).
+    var external: ExternalTextInput? { hooks?.external }
 
     // A multi-line field's (ruling TI-H); `lines` is nil for a `TextField`.
     var lines: TextLineModel? = nil
@@ -709,6 +743,17 @@ struct TextInputTarget {
         self.caretRect = caretRect
         self.onChange = { _ in }
         self.hooks = TextTargetHooks(submit: nil, sink: nil, code: session)
+    }
+
+    /// A target whose text is edited outside MetalUI (`TRM-BC`); `caretRect` is replaced by the input's `caret()` on
+    /// every frame, this is its value before the view paints.
+    init(external input: ExternalTextInput) {
+        self.text = ""
+        self.caretOffsets = []
+        self.originX = 0
+        self.caretRect = Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: Size(width: Pixels(0), height: Pixels(0)))
+        self.onChange = { _ in }
+        self.hooks = TextTargetHooks(submit: nil, sink: nil, external: input)
     }
 
     /// The grapheme boundary under a window point: on the line under `y`

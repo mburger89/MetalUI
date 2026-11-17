@@ -48,13 +48,17 @@ public struct KeyPress: Sendable {
     public let characters: String
     /// The modifier keys held.
     public let modifiers: EventModifiers
+    /// Whether the key is on the numeric keypad (`KeyEvent.isKeypad`, `TRM-BC`). `package`: the terminal's.
+    package let isKeypad: Bool
 
     /// The key's character with no modifier applied (`KeyEvent.unshiftedKey`, `KF-AL`), or empty when the platform
     /// cannot say. Internal: `ShortcutRecorder` reads it to record `⇧/` as `"/"` + Shift on every platform (`KF-AK`).
     let unshiftedKey: String
 
-    init(phase: Phases, key: KeyEquivalent, characters: String, modifiers: EventModifiers, unshiftedKey: String = "") {
+    init(phase: Phases, key: KeyEquivalent, characters: String, modifiers: EventModifiers, unshiftedKey: String = "",
+         isKeypad: Bool = false) {
         self.unshiftedKey = unshiftedKey
+        self.isKeypad = isKeypad
         self.phase = phase
         self.key = key
         self.characters = characters

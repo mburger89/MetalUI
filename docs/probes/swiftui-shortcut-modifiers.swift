@@ -40,6 +40,12 @@
 // elements). -D DISPLAYTEXT, exit 1: error: value of type 'KeyboardShortcut' has no member 'displayText'.
 // -D CONFLICTS, exit 1: error: value of type 'KeyboardShortcut' has no member 'conflicts'.
 //
+//
+// P1 arm FKEYS (KF-AH), 2026-11-17, macOS 27.2.1, Apple Swift 6.4.2: `xcrun swiftc -parse-as-library -D FKEYS
+// docs/probes/swiftui-shortcut-modifiers.swift`, exit 1:
+//   error: type 'KeyEquivalent' has no member 'f1'
+// (SwiftUI spells no function keys; MetalUI's `KeyEquivalent.f1`...`.f20` are class M.)
+//
 // So: SwiftUI's default is `.command` (16), and SwiftUI spells no modifier
 // that means "⌘ on Apple, Ctrl elsewhere" — SwiftUI ships only on Apple
 // platforms, where `.command` is that modifier.
@@ -68,6 +74,9 @@ struct Probe {
         #endif
         #if CONFLICTS
         print(KeyboardShortcut("p").conflicts(with: KeyboardShortcut("P")))
+        #endif
+        #if FKEYS
+        print(KeyboardShortcut(.f1, modifiers: []))
         #endif
         #if PRIMARY
         let primary: EventModifiers = .primary

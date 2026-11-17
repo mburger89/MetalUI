@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AH`.**
+**Next unused id: `KF-AM`.**
 
 ## The final spellings (what an app writes)
 
@@ -1099,7 +1099,7 @@ Next unused id: `KF-AH` (`KF-AH`..`KF-AK` are reserved by the later PRs of the s
 
 ## KF-AI — which keys are already taken: `ClaimedShortcut`, `conflicts(with:)`, `systemReserved`, `App.standardMenuShortcuts()`/`commandShortcuts()` (Alloy; record 363)
 
-Next unused id: `KF-AH` (`KF-AH`, `KF-AJ` and `KF-AK` are reserved by the later PRs of the shortcut design; `KF-AI` is this ruling).
+Next unused id: `KF-AH` (`KF-AH` and `KF-AK` are reserved by the later PRs of the shortcut design; `KF-AI` and `KF-AJ` are used).
 
 1. **The finding.** An app that lets its user bind a shortcut needs to know what the key collides with. MetalUI had no way to ask: the standard items were not in `MenuBarModel.shortcuts` (enabled command items only), the desktop's own keys were nowhere, and `KeyboardShortcut` was `Equatable`, not SwiftUI's `Hashable`. All MetalUI-only (class M) except `Hashable`, class A (probe `P1`).
 2. **`Hashable`.** `KeyboardShortcut: Hashable`. Equality is as before: the keys equal as characters, so `"P" != "p"` (probe `P1`, recorded in `swiftui-shortcut-modifiers.swift`: `Set<KeyboardShortcut>` compiles and `KeyboardShortcut("P") != KeyboardShortcut("p")` is `true` in SwiftUI too).
@@ -1112,9 +1112,29 @@ Next unused id: `KF-AH` (`KF-AH`, `KF-AJ` and `KF-AK` are reserved by the later 
 9. **Cost.** Each read is one evaluation of the `commands` content (a test counts the closure's runs); a keystroke still evaluates it once (the command stage is untouched). Both are methods, not properties, and **calling either from inside the `commands` content recurses without end** (documented).
 10. **Tests.** `ShortcutClaimsTests`; mutations named on each.
 
+## KF-AJ — the keys a code view takes, as claims: `CodeView.builtInKeyBindings(platform:)` (Alloy; record 364)
+
+1. **The finding.** Alloy binds its own shortcuts next to a code view's keys and needs to know which the view already takes. The table is `CodeEditing.command(for:platform:)`, a pure function with no list form. All MetalUI-only (class M).
+2. **API.** `public nonisolated static func CodeView.builtInKeyBindings(platform: KeyboardShortcut.Platform = .current) -> [ClaimedShortcut]`, source `.codeView`, English titles by command (`Move Word Left`, `Select to Line Start`, `Delete Word Backward`, `Insert Newline`, `Indent`, `Outdent`, `Undo`, `Find Next`, `Collapse Selections` ...). `.macOS` runs the table's `.mac` convention, `.linux` and `.windows` its `.other`, so the two give one list.
+3. **Built by asking the table**, not by a second hand-written list, so it cannot drift: every named `KeyEquivalent` (Return, Escape, Space, Tab, Delete, forward delete, the four arrows, Home, End, Page Up/Down, Clear), `a`-`z`, `0`-`9`, the 32 ASCII punctuation characters, in that order, each with the 16 modifier combinations in ascending bit order; a key the table answers `nil` is skipped. Computed once per platform family into a static (about 1,300 table calls, once). Shortcuts are in the base-key form of `KF-AL` item 3: letters lower-cased, ⇧Tab as Tab with ⇧ (the AppKit `U+0019` is the table's own spelling and never listed). The table claims no punctuation or digit, so they add no entries today and keep the list correct if it ever does.
+4. **Counts:** macOS 63, Linux 46, Windows 46.
+5. **Conditional claims (Alloy's answer 5)**: Escape "Collapse Selections" `"only with several selections"`; ⌘G / ⇧⌘G (Ctrl+G / Ctrl+Shift+G) "Find Next" / "Find Previous" `"only with find matches"`; every command that changes the text (Insert Newline, Indent, Outdent, all Delete variants, Cut, Paste, Undo, Redo) `"editable only"`, since a read-only view does not take the key. Movement, selection (Select All included) and Copy are unconditional. Entries are listed whether or not the condition holds now.
+6. **Multi-caret.** `CodeCommand` has no multi-caret case other than `collapseSelections`; the ⌥-click and ⌥-drag of `CV-BK` are pointer gestures and not claims.
+7. **Not done:** `TextField`'s keys (Ctrl+Y, word motions); a later `TextField.builtInKeyBindings`.
+8. **Tests.** `CodeKeyBindingsTests`: fixed counts per platform, round trip through the table, a sweep over a wider key set against the list, macOS and Linux landmarks, `.windows == .linux`, the conditions. Mutations are named on the tests.
+
+## KF-AH — named function keys, F1 to F20 (Alloy; record 367)
+
+
+1. **API.** `KeyEquivalent.f1`...`.f20`, public statics holding AppKit's `NSF1FunctionKey`...`NSF20FunctionKey`, `U+F704`...`U+F717`. Class M: SwiftUI has no spelling (probe `P1` arm `-D FKEYS`, `swiftui-shortcut-modifiers.swift`: `KeyEquivalent.f1` is refused by the compiler).
+2. **Platforms.** AppKit already reports these characters. SDL mapped F1 to F12 (`U+F704`...`U+F70F`); `SDLKeys.named` now adds `SDLK_F13`...`SDLK_F20` (`0x4000_0068`...`0x4000_006F`) to `U+F710`...`U+F717`. F21 and up stay unmapped: Alloy's `NamedKey` stops at F20. `Keymap.namedKeys` gains `f13`...`f20` (`"ctrl-shift-f20"` parses).
+3. **Already consistent.** `ShortcutText` names `U+F704`...`U+F726` `F1`...`F35` on every platform (`KF-AG`); `TerminalEncoder.specialKey` encodes `U+F704`...`U+F717` as F1...F20 (the xterm tilde numbers), so no change in either.
+4. **No Fn modifier.** `Modifiers` has no Fn bit, so AppKit's `.function` flag never reaches matching; a shortcut cannot require or exclude it.
+5. **Cost.** Constants only; no view structure changes. No divergence.
+6. **Tests.** `FunctionKeysTests` (root), `sdlFunctionKeysMapToAppKitsCodes` (SDL package); mutations are named on each.
 ## KF-AK — `ShortcutRecorder`: a field that records a shortcut (Alloy; record 366)
 
-Next unused id: `KF-AM` (`KF-AH` is reserved by the function-keys branch, `KF-AJ` is `CodeView`'s binding list, `KF-AK` is this ruling, `KF-AL` is above).
+Next unused id: `KF-AM`.
 
 1. **The finding.** Alloy lets a user rebind a command and needs the one control macOS's System Settings, Xcode's Key Bindings and the KeyboardShortcuts and MASShortcut recorders give: press it, press a chord, get a `KeyboardShortcut`. SwiftUI has none, and an app cannot build it without `TRM-U`'s capture (⌘Q would quit instead of record). Class M, no divergence.
 2. **API.** `public struct ShortcutRecorder: Component, @MainActor Equatable`; `init(_ shortcut: KeyboardShortcut?, onRecord: @escaping @MainActor (KeyboardShortcut) -> Void, onClear: @escaping @MainActor () -> Void, onCancel: @escaping @MainActor () -> Void)`; `accessibilityLabel(_:)` (default "Shortcut"). It draws the current shortcut itself (`displayText`, Alloy's answer 1). `==` compares the shortcut and the label; **the closures are not compared**, as `TabStrip`'s are not.
