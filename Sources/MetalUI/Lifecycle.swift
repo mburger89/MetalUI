@@ -26,6 +26,13 @@ enum LifecycleWrite {
     case task(TaskSpec)
 }
 
+/// One lifecycle scope's write on its way to `ElementGroup._wrapInScope(_:scope:)`. MetalUI-only and opaque: made by
+/// `LifecycleScope`, never directly (ruling `KF-AF`).
+public struct LifecycleScopeRegistration: @unchecked Sendable {
+    let write: LifecycleWrite?
+    init(_ write: LifecycleWrite?) { self.write = write }
+}
+
 /// A `LifecycleScope`'s layout: its content's (the scope stores nothing — it
 /// notes itself in layout and forwards prepaint and paint unchanged). A
 /// `PresentationScope` (`SV-K`) uses it too, for the same reason.
@@ -58,6 +65,23 @@ public struct LifecycleScope<Content: ElementGroup>: ElementGroup {
     init(content: Content, write: LifecycleWrite?) {
         self.content = content
         self.write = write
+    }
+
+    /// A wrapper modifier written after the scope joins the chain under it, over the scope around the chain's
+    /// base, so `chain.onDisappear { … }.frame(…)` is one chain, as `chain.frame(…)` is (ruling `KF-AF`).
+    public typealias LayerBase = LifecycleScope<Content.LayerBase>
+
+    /// The wrapper chain over the scope around `content`'s base.
+    public func _wrap(_ layer: ModifierLayer) -> ModifiedElement<LifecycleScope<Content.LayerBase>> {
+        content._wrapInScope(layer, scope: LifecycleScopeRegistration(write))
+    }
+
+    /// As `_wrap(_:)`, for a scope written over this one: the outer scope wraps this one's.
+    public func _wrapInScope(_ layer: ModifierLayer, scope: LifecycleScopeRegistration)
+        -> ModifiedElement<LifecycleScope<LifecycleScope<Content.LayerBase>>> {
+        content._wrapInScope(layer, scope: LifecycleScopeRegistration(write))._rebased {
+            LifecycleScope<LifecycleScope<Content.LayerBase>>(content: $0, write: scope.write)
+        }
     }
 
     /// The scope stays transparent: the handler goes to its content's `onKeyPress` (ruling `KF-AE`).
@@ -104,6 +128,22 @@ public struct LifecycleScope<Content: ElementGroup>: ElementGroup {
 /// **The typed entry is a line-for-line copy of the untyped one, pinned on its
 /// own** (spec test 1.10): a copy of a pinned implementation is unpinned.
 extension LifecycleScope: ProposalElementGroup where Content: ProposalElementGroup {
+    /// As `LayerBase`, for a proposal modifier (ruling `KF-AF`).
+    public typealias ProposalBase = LifecycleScope<Content.ProposalBase>
+
+    /// The proposal chain over the scope around `content`'s base.
+    public func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<LifecycleScope<Content.ProposalBase>, LayoutModifier> {
+        content._wrapLayoutInScope(modifier, scope: LifecycleScopeRegistration(write))
+    }
+
+    /// As `_wrapLayout(_:)`, for a scope written over this one.
+    public func _wrapLayoutInScope(_ modifier: LayoutModifier, scope: LifecycleScopeRegistration)
+        -> ModifiedContent<LifecycleScope<LifecycleScope<Content.ProposalBase>>, LayoutModifier> {
+        content._wrapLayoutInScope(modifier, scope: LifecycleScopeRegistration(write))._rebased {
+            LifecycleScope<LifecycleScope<Content.ProposalBase>>(content: $0, write: scope.write)
+        }
+    }
+
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
