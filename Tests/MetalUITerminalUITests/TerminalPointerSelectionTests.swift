@@ -166,7 +166,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
 /// **13** (`REQUIRED`) Cost. A window dirties itself for every pointer event (`Window`'s input tail; `FP-T`, #363, spares only an
 /// unclaimed move within one hitbox and is not on this base), so the pointer wiring is judged against a twin window with no
 /// terminal: the same hover script draws the same frames and builds, plain and with ⌘ over a link, and the callbacks add no
-/// frame of their own. Entering a link builds once more (the pointer style); a build costs the view's own requests. A selection
+/// frame of their own. Entering a link costs no build (the pointer style is answered from input); a build costs the view's own 2 requests. A selection
 /// drag event is one build and the same requests as a plain redraw, and its surface redraw touches only the selected row.
 /// Mutation: request a redraw on every hover; write the pointer-style state on every query.
 @MainActor @Test func pointerCostsAreThoseOfAnyPointerEvent() async throws {
@@ -197,7 +197,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     linked.feed("see http://a.test/x here http://a.test/x\r\nsecond line of text\r\n")
     // Row 0 is the link row: moves within it and onto text, the link entered once.
     let withCommand = await script(linked, command: true)
-    #expect(withCommand.frames <= baseCommand.frames + 1 && withCommand.builds <= baseCommand.builds + 1,
+    #expect(withCommand.frames == baseCommand.frames && withCommand.builds == baseCommand.builds,
             "⌘ hover over a link row: \(withCommand) vs \(baseCommand)")
     #expect(linked.log.links.filter { $0.phase == .hover }.count == 21, "one query per cell change: 20 cells of row 0 and the move to row 1, none for 5 nudges within a cell: \(linked.log.links.count)")
     // Moving within the link: no more frames than the twin.
