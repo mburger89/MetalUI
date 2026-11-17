@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AG`.**
+**Next unused id: `KF-AH`.**
 
 ## The final spellings (what an app writes)
 
@@ -1080,9 +1080,17 @@ Next unused id: `KF-AG`.
 3. **Semantics kept.** Handler order and dispatch (`KF-C`: ancestor first, the later-written first) and each scope's write, store key order and presence (`LC-C`, `LC-F`) are untouched: the scope still registers the nodes of its content (the layers of a chain it used to hold now sit outside it; presence is membership of a build, not a node span, and a span matters only to `ViewThatFits`). **Identity:** a chain written as above has one identity level fewer than before (the second chain's), so the content under it moves one level, as `KF-AD` item 5 did for a group wrapper; `@State` under such a chain is keyed afresh across the upgrade only. A scope over a non-chain group is as before (the wrapper is the one chain either way).
 4. **Cost.** The Alloy chain: 7 requests steady and keystroke for neither handler, each alone, both in each order and both after the frame (`HandlerChainFoldCostTests`); a legacy chain 2, a `Pair` with one handler 3, a proposal chain 3, each equal to its twin without the scope (`ElementGroupKeyPressCostTests` A, B). Before: both-before-frame 8, 3 vs 2, 4 vs 3, 4 vs 3. Class `M`, no divergence.
 
+## KF-AG — a shortcut's display text (Alloy; record 355)
+
+1. **The finding.** `MenuPanel.shortcutText` upper-cased a shortcut's key, so a named key (AppKit's private-use characters: the arrows, Home, F1...) drew as a blank box in a drawn menu, and an app had no public way to show a shortcut (a settings list, a palette row, a tooltip). SwiftUI has no API: the system draws menu shortcuts (class M).
+2. **API.** `KeyboardShortcut.Platform` (`.macOS`, `.linux`, `.windows`; `Hashable`, `Sendable`, `CaseIterable`) with `static var current` (compile-time `#if`, the conditions of `Modifiers.primary`, `TextEditing.platform` and `MenuPanel.superKeyName`: Apple is `.macOS`, Windows `.windows`, else `.linux`) and `primaryModifiers` (`.command` on macOS, `.control` elsewhere); `KeyboardShortcut.displayText` (equal to `displayText(for: .current)`) and `displayText(for:)`. Alloy's `TextEditing.Platform` spelling is declined: that type is internal and has no Windows case.
+3. **One formatter.** `ShortcutText.format` is called by `KeyboardShortcut.displayText(for:)` and `MenuPanel.shortcutText`, so a drawn menu and an app's own text cannot differ. Modifier order is `SG-B` item 5's: macOS `⌃⌥⇧⌘` then the key, no separators; elsewhere `Ctrl+Super|Win+Alt+Shift+Key` (Super on Linux, Win on Windows).
+4. **Key names.** macOS: Return `↩`, Escape `⎋`, Tab `⇥` (also ⇧Tab's `U+0019`), Space `Space`, Delete `⌫`, forward delete `⌦`, arrows `↑↓←→`, Home `↖`, End `↘`, Page Up/Down `⇞`/`⇟`, Clear `⌧`. Linux and Windows: `Enter`, `Esc`, `Tab`, `Space`, `Backspace`, `Delete`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `Page Up`, `Page Down`, `Clear`. F-keys (`U+F704`...`U+F726`) are `F1`...`F35` on every platform. Any other key is upper-cased only when the result is still one character (`ß` stays `ß`).
+5. **Modifiers are shown as stored.** `.primary` resolves when the code is compiled, so another platform's text of a `.primary` shortcut shows the host's modifier (a Mac host's `.linux` text of a `.primary` shortcut reads `Super+P`). `Platform.primaryModifiers` builds another platform's shortcut.
+6. **Cost and class.** No view structure changes: the drawn menu's row cost tests are unchanged. Class M, no divergence. The drawn menu's text changes only for a named key (a box before, the glyph or name now).
 ## KF-AL — a shifted shortcut matches one way on every platform; ⇧Tab; the ⇧⌘P confirmation (Alloy; record 356)
 
-Next unused id: `KF-AH` (`KF-AG` is PR1's display text; `KF-AH`..`KF-AK` are reserved by the later PRs of the shortcut design).
+Next unused id: `KF-AH` (`KF-AH`..`KF-AK` are reserved by the later PRs of the shortcut design).
 
 1. **The finding.** Alloy's palette #3 binds ⇧⌘P / Ctrl+Shift+P. On SDL it already works: `[.primary, .shift]` "p" runs once on the host's primary + Shift + P whether or not a `TextField` is focused (the key carries Ctrl/⌘, so it is not text), the event is "p" ignoring modifiers and "P" as characters, an explicit `[.control, .shift]` runs on every host, and plain primary+P and primary+Alt+Shift+P do not (`SDLShiftShortcutTests`). AppKit's "P" with [⌘, ⇧] already matched (lower-cased compare).
 2. **⇧Tab.** AppKit reports ⇧Tab as `charactersIgnoringModifiers` "\u{19}"; `Window`'s traversal and `CodeEditing` read it, `KeyboardShortcut.matches` did not, so `KeyboardShortcut(.tab, modifiers: .shift)` could never fire on AppKit. `matches` now reads "\u{19}" as "\t". Class A *if* SwiftUI fires `.keyboardShortcut(.tab, modifiers: .shift)` on ⇧Tab: probe P3 could not be observed by an agent (a SwiftUI shortcut needs a key window and a real key event), so it is **unconfirmed**; human check KF-AL1. Until then it is a MetalUI-side fix that changes no SwiftUI-observed behaviour, no divergence row.
