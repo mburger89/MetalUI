@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AG`.**
+**Next unused id: `KF-AH`.**
 
 ## The final spellings (what an app writes)
 
@@ -1079,3 +1079,14 @@ Next unused id: `KF-AG`.
 2. **The fix.** `LifecycleScope` is transparent to a chain: `LayerBase`/`ProposalBase` of `LifecycleScope<C>` are `LifecycleScope<C.LayerBase>`/`LifecycleScope<C.ProposalBase>`, and its `_wrap`/`_wrapLayout` hand the layer to its content's new requirement `_wrapInScope(_:scope:)`/`_wrapLayoutInScope(_:scope:)` (default: scope the group, wrap that; `ModifiedContent`: keep its layers, put the scope around its base, add the layer on top; a scope over a scope nests the writes). A scope over a chain followed by a wrapper modifier is therefore one chain over a scope over the base. The write is carried in an opaque `LifecycleScopeRegistration` (precedent `KeyPressRegistration`). The chain's type (and the scope's own return types: `onDisappear` and the others still return `LifecycleScope<Self>`) are unchanged; only what a **wrapper modifier after** a scope over a chain returns changes, from a chain around the scope to the chain over the scope.
 3. **Semantics kept.** Handler order and dispatch (`KF-C`: ancestor first, the later-written first) and each scope's write, store key order and presence (`LC-C`, `LC-F`) are untouched: the scope still registers the nodes of its content (the layers of a chain it used to hold now sit outside it; presence is membership of a build, not a node span, and a span matters only to `ViewThatFits`). **Identity:** a chain written as above has one identity level fewer than before (the second chain's), so the content under it moves one level, as `KF-AD` item 5 did for a group wrapper; `@State` under such a chain is keyed afresh across the upgrade only. A scope over a non-chain group is as before (the wrapper is the one chain either way).
 4. **Cost.** The Alloy chain: 7 requests steady and keystroke for neither handler, each alone, both in each order and both after the frame (`HandlerChainFoldCostTests`); a legacy chain 2, a `Pair` with one handler 3, a proposal chain 3, each equal to its twin without the scope (`ElementGroupKeyPressCostTests` A, B). Before: both-before-frame 8, 3 vs 2, 4 vs 3, 4 vs 3. Class `M`, no divergence.
+
+## KF-AG — a shortcut's display text (Alloy; record 355)
+
+Next unused id: `KF-AH`.
+
+1. **The finding.** `MenuPanel.shortcutText` upper-cased a shortcut's key, so a named key (AppKit's private-use characters: the arrows, Home, F1...) drew as a blank box in a drawn menu, and an app had no public way to show a shortcut (a settings list, a palette row, a tooltip). SwiftUI has no API: the system draws menu shortcuts (class M).
+2. **API.** `KeyboardShortcut.Platform` (`.macOS`, `.linux`, `.windows`; `Hashable`, `Sendable`, `CaseIterable`) with `static var current` (compile-time `#if`, the conditions of `Modifiers.primary`, `TextEditing.platform` and `MenuPanel.superKeyName`: Apple is `.macOS`, Windows `.windows`, else `.linux`) and `primaryModifiers` (`.command` on macOS, `.control` elsewhere); `KeyboardShortcut.displayText` (equal to `displayText(for: .current)`) and `displayText(for:)`. Alloy's `TextEditing.Platform` spelling is declined: that type is internal and has no Windows case.
+3. **One formatter.** `ShortcutText.format` is called by `KeyboardShortcut.displayText(for:)` and `MenuPanel.shortcutText`, so a drawn menu and an app's own text cannot differ. Modifier order is `SG-B` item 5's: macOS `⌃⌥⇧⌘` then the key, no separators; elsewhere `Ctrl+Super|Win+Alt+Shift+Key` (Super on Linux, Win on Windows).
+4. **Key names.** macOS: Return `↩`, Escape `⎋`, Tab `⇥` (also ⇧Tab's `U+0019`), Space `Space`, Delete `⌫`, forward delete `⌦`, arrows `↑↓←→`, Home `↖`, End `↘`, Page Up/Down `⇞`/`⇟`, Clear `⌧`. Linux and Windows: `Enter`, `Esc`, `Tab`, `Space`, `Backspace`, `Delete`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `Page Up`, `Page Down`, `Clear`. F-keys (`U+F704`...`U+F726`) are `F1`...`F35` on every platform. Any other key is upper-cased only when the result is still one character (`ß` stays `ß`).
+5. **Modifiers are shown as stored.** `.primary` resolves when the code is compiled, so another platform's text of a `.primary` shortcut shows the host's modifier (a Mac host's `.linux` text of a `.primary` shortcut reads `Super+P`). `Platform.primaryModifiers` builds another platform's shortcut.
+6. **Cost and class.** No view structure changes: the drawn menu's row cost tests are unchanged. Class M, no divergence. The drawn menu's text changes only for a named key (a box before, the glyph or name now).
