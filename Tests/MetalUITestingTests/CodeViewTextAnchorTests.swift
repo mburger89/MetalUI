@@ -580,3 +580,171 @@ private struct ChainedHost: Component, @MainActor Equatable {
         }
     }
 }
+
+// A focused `TextField` inside the view's text-anchored popover (`CV-BW`, Alloy's rename field). These pin what
+// MetalUI does TODAY, with no product change: the field receives the keys and the view does not, `onSubmit` works, Escape
+// dismisses through the popover's key stage before the field's own `onKeyPress(.escape)`, a `@FocusState` write in the
+// handler that opens the popover is dropped (the field was not registered in the last frame, `IX-J`), and focus is nil
+// after the dismissal (`IX-I`). `MN-AS` will change the last.
+
+@Observable @MainActor private final class FieldModel {
+    var item: Pick?
+    var text = ""
+    var submits = 0
+    var fieldEscapes = 0
+    /// Whether the field's `.onAppear` writes the popover's `@FocusState`.
+    var focusOnAppear = false
+    /// Whether `onSubmit` dismisses (the app sets the item to nil).
+    var dismissOnSubmit = true
+    var viewKeys: [String] = []
+    var itemBinding: Binding<Pick?> { Binding(get: { self.item }, set: { self.item = $0 }) }
+    var textBinding: Binding<String> { Binding(get: { self.text }, set: { self.text = $0 }) }
+}
+
+private struct FieldHost: Component {
+    let buffer: CodeBuffer, decorations: CodeDecorations, geometry: CodeViewGeometry, model: FieldModel
+    @FocusState var focused: Bool
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            CodeView(buffer: buffer, decorations: decorations).font(size: 12).showsLineNumbers(false)
+                .codeCaretBlink(.off).geometry(geometry)
+                .onKeyPress(keys: [.escape, .return]) { press in
+                    model.viewKeys.append(String(press.key.character.unicodeScalars.first!.value, radix: 16))
+                    return .handled
+                }
+                .onKeyPress(characters: CharacterSet(charactersIn: "a")) { press in
+                    model.viewKeys.append(press.characters)
+                    return .handled
+                }
+                .popover(item: model.itemBinding, attachmentAnchor: .caret, arrowEdge: .bottom) { _ in
+                    TextField("name", text: model.textBinding).accessibilityIdentifier("pfield").focused($focused)
+                        .onSubmit { model.submits += 1; if model.dismissOnSubmit { model.item = nil } }
+                        .onKeyPress(.escape) { model.fieldEscapes += 1; return .handled }
+                        .frame(width: Pixels(120), height: Pixels(24))
+                        .onAppear { if model.focusOnAppear { focused = true } }
+                }
+                .frame(width: Pixels(400), height: Pixels(200))
+            // The opening handler: it presents the popover and writes the focus in the same transaction.
+            Button("open") { model.item = Pick(id: 1); focused = true }.accessibilityIdentifier("open")
+                .frame(width: Pixels(80), height: Pixels(24))
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+@MainActor private func fieldWindow(_ model: FieldModel, text: String = plainText) throws -> (TestWindow, CodeBuffer) {
+    let buffer = CodeBuffer(text)
+    let decorations = CodeDecorations(buffer: buffer)
+    let geometry = CodeViewGeometry()
+    let window = try harnessWindow(size: sz(400, 300)) {
+        VStack(spacing: 0) { FieldHost(buffer: buffer, decorations: decorations, geometry: geometry, model: model) }
+    }
+    window.window.setNeedsRedraw()
+    window.tick(); window.tick()
+    return (window, buffer)
+}
+
+/// Opens the popover from outside the opening handler (the model only) and clicks the field.
+@MainActor private func openAndFocusField(_ window: TestWindow, _ model: FieldModel) throws {
+    model.item = Pick(id: 1)
+    window.window.setNeedsRedraw()
+    window.tick(); window.tick()
+    try window.click(try window.element(identifier: "pfield"))
+}
+
+/// 14 — with the field focused, typing goes to the field and the view's `onKeyPress` and buffer see nothing.
+/// **Mutation:** route the key to the view before the field (the key stage ahead of the text input) and `"a"` reaches
+/// `viewKeys` and the field stays empty.
+@Test @MainActor func aTextFieldInAnItemPopoverTakesKeysAwayFromTheView() throws {
+    let model = FieldModel()
+    let (window, buffer) = try fieldWindow(model)
+    window.click(at: pt(60, 6))   // the view has the focus first
+    let before = buffer.snapshot().line(0)
+    try openAndFocusField(window, model)
+    #expect(try window.focusedElement?.identifier == "pfield", "a click focuses the field (FC-A)")
+    window.typeText("abca")
+    #expect(model.text == "abca", "the field got the text: \(model.text)")
+    #expect(model.viewKeys.isEmpty, "the view's onKeyPress saw nothing: \(model.viewKeys)")
+    #expect(buffer.snapshot().line(0) == before, "the buffer is unchanged")
+    #expect(model.item != nil, "typing does not dismiss")
+}
+
+/// 15 — Return fires the field's `onSubmit` and not the view's handler; the popover stays until the app sets the item to
+/// nil, which it does here. **Mutation:** `onSubmit` never firing (the field consuming Return without it) leaves
+/// `submits` 0.
+@Test @MainActor func onSubmitFiresAndDismissingFromItClosesThePopover() throws {
+    let model = FieldModel()
+    model.dismissOnSubmit = false
+    let (window, _) = try fieldWindow(model)
+    try openAndFocusField(window, model)
+    window.typeText("x")
+    window.typeKey(.return)
+    #expect(model.submits == 1 && model.viewKeys.isEmpty, "submit fired, the view saw no Return: \(model.submits) \(model.viewKeys)")
+    #expect(model.item != nil, "without the app's help the popover stays")
+    model.dismissOnSubmit = true
+    window.typeKey(.return)
+    #expect(model.submits == 2 && model.item == nil, "the app's dismissal closes it: \(model.submits)")
+    #expect(throws: (any Error).self) { _ = try window.element(identifier: "pfield") }
+}
+
+/// 16 — Escape dismisses the popover with the field focused, and the field's own `onKeyPress(.escape)` does NOT run:
+/// the popover key stage (`MN-N` item 2, `CV-AR`) runs before the field's handler. Pins today's order; AppKit's NSPopover
+/// lets the field see Escape first (probe arm PF3). **Mutation:** run the field's handler first and `fieldEscapes` is 1.
+@Test @MainActor func escapeDismissesWithTheFieldFocused() throws {
+    let model = FieldModel()
+    let (window, _) = try fieldWindow(model)
+    try openAndFocusField(window, model)
+    window.typeText("x")
+    window.typeKey(.escape)
+    #expect(model.item == nil, "Escape dismissed the popover")
+    #expect(model.fieldEscapes == 0, "the field's own onKeyPress(.escape) did not run: \(model.fieldEscapes)")
+    #expect(model.viewKeys.isEmpty, "and the view's handler did not see this Escape either: \(model.viewKeys)")
+}
+
+/// 17 — a `@FocusState` write in the handler that opens the popover is dropped: the field was not registered in the
+/// last frame (`IX-J`, `IX-S`), so the open frame seats no focus. `.onAppear { focused = true }` focuses it within the
+/// first tick (the second frame of it). **Mutation:** applying the write after the build in the same frame focuses the field at
+/// once and the first expectation fails.
+@Test @MainActor func aWriteInTheOpeningHandlerIsDropped_onAppearWorks() throws {
+    // The opening handler writes the focus: dropped.
+    let dropped = FieldModel()
+    let (w1, _) = try fieldWindow(dropped)
+    try w1.click(try w1.element(identifier: "open"))
+    #expect(dropped.item != nil, "the handler presented it")
+    #expect(try w1.element(identifier: "pfield").isFocused == false, "the focus write in the same handler is dropped")
+    w1.window.setNeedsRedraw(); w1.tick(); w1.tick()
+    #expect(try w1.element(identifier: "pfield").isFocused == false, "and stays dropped on later frames")
+    #expect(try w1.focusedElement?.identifier != "pfield")
+
+    // `.onAppear` writes it from inside the popover's content: it works, one frame after the popover's first.
+    let appear = FieldModel()
+    appear.focusOnAppear = true
+    let (w2, _) = try fieldWindow(appear)
+    appear.item = Pick(id: 1)
+    w2.window.setNeedsRedraw()
+    w2.tick()
+    // One `tick` runs the open frame and the frame the write requests (the field registers in the first, the write is
+    // applied before the second): focused after the first tick, the cost being that second frame.
+    let afterOne = try w2.element(identifier: "pfield").isFocused
+    #expect(afterOne, "the onAppear write focuses the field within the first tick")
+    w2.typeText("q")
+    #expect(appear.text == "q", "and typing lands in it")
+}
+
+/// 18 — after the dismissal focus returns to the presenter's view (`MN-AS`, through `KF-AM`'s restoring scope; it was nil
+/// under `IX-I`), so the view takes the keys again. **Mutation:** drop the popover's implicit scope in
+/// `PopoverModifier.prepaint` and the view gets nothing back: `viewKeys` stays empty.
+@Test @MainActor func focusReturnsToTheViewOnDismiss() throws {
+    let model = FieldModel()
+    let (window, buffer) = try fieldWindow(model)
+    window.click(at: pt(60, 6))
+    try openAndFocusField(window, model)
+    #expect(try window.focusedElement?.identifier == "pfield")
+    window.typeKey(.escape)
+    window.tick()
+    #expect(model.item == nil)
+    window.window.setNeedsRedraw(); window.tick()
+    window.typeText("a")
+    #expect(model.viewKeys == ["a"], "the view has focus again: \(model.viewKeys)")
+    _ = buffer
+}
