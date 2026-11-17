@@ -1,0 +1,17 @@
+# 357 - TerminalView (`TRM-BA`; terminal Phase 5.3)
+
+Numbered 357: 350 is the ConPTY branch's, 354-356 are open PRs'; expect renumbering. `TRM-AX`/`TRM-AY` belong to the ConPTY branch, this takes `TRM-BA`.
+
+Branch `feat/terminal-view` from master `19a45680`. Alloy gap 2, **frozen** here: the signatures are the spec's draft, unchanged (`docs/superpowers/specs/2026-11-16-terminal-design.md` section 5). Class M, no divergence label (SwiftUI has no terminal).
+
+**What landed** (`MetalUITerminalUI`, public): `TerminalView` (a `Component`), `TerminalPalette` (+ `.xterm`, a public initialiser), `TerminalLinkQuery` (+ `Phase`), `TerminalLinkTarget`. Package: `TerminalViewModel` (retained rows, glyph cache and painter, redraw policy, blink clock, trigger), the painter's selection overlay and cursor shapes, `TerminalSnapshot.topRow`, `TerminalRow.init(columns:)`, `MetalUI/TerminalBridge.swift` (the paint pass's scale, text system, font, window-active and resolved colours). Alongside: `closeout-public-api.sh` now censuses `MetalUITerminalUI`.
+
+**How.** The view is a `Component` whose content is an internal proposal leaf (one native node; 80 x 24 cells with no proposal) that paints a `GPUSurface(redraw: .onDemand, value: stamp, trigger:)`, under `.focusable().focused($isFocused)` and `.onGeometryChange(for: TerminalSize.self)`; the model lives in `@State`. Rulings and the redraw policy: `TRM-BA`.
+
+**Cost literals** (headless `TestWindow`, portable text system): output then a tick: builds 0, elementRequests 0, surfaceOnlyFrames 1, one surface draw; 100 feeds: one draw, one snapshot take; unfocused idle over 200 ticks of 250 ms: 0 frames, 0 deadlines; blink, focused, 35 s simulated: between 55 and 61 surface frames, none after 30.2 s, 0 builds and 0 element requests across them; hidden: 0 frames, trigger unbound, draws on return. An editor key frame in a window with the view costs 4 element requests, 1 build; the same window without it 2 and 1: **the view adds exactly 2 (focus layer, surface leaf) to a rebuilding frame**, not 0, because `drawSurface` still taints retention (`TRM-P`); the draft's "same as without" holds as "plus 2, constant".
+
+**Tests.** `Tests/MetalUITerminalUITests/TerminalViewTests.swift` (14, portable): onResize once per real change and never for the same size, clamp 2 x 1, the source resized, output as a surface-only frame, 100 feeds one draw, unfocused idle, blink stop at 30 s, blink without the stop, steady and `cursorBlink: false` schedule nothing, hidden view, damaged rows only (`[1]`, `[1, 4]`, `[4]`), palette change redraws all, selection rows, scrolled viewport, the key-frame literals. `Tests/MetalUITests/TerminalViewMetalTests.swift` (Metal): a known snapshot's cell colours at cell centres (red, blue, a truecolour cell, margin black), the focused block cursor and the unfocused hollow outline.
+
+**Findings.** The window seats focus on the view's first frame, but `@FocusState` reads it one frame later, so the cursor is hollow for that frame. `Frame` paint cannot read the focus of a layer a modifier wraps around the element (the wrapper owns the id), hence `@FocusState`. A stale blink deadline survives a focus loss for one frame (one draw, then none).
+
+**Not done.** Input, key capture, IME, pointer, wheel, mouse reports, links, accessibility (5.4-5.6); a retained record for the surface (the taint stays); SDL and D3D pixel tests of the view (the row painter's own SDL tests cover the primitives).
