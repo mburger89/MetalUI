@@ -797,7 +797,7 @@ M	MetalUICodeBuffer	.*	.*	.*	.*	code-buffer
 M	MetalUIMarkdown	.*	.*	.*	.*	block-markdown
 M	MetalUITerminal	TerminalEncoder.swift	.*	.*	.*	terminal-encoders
 M	MetalUITerminal	TerminalInput.swift	.*	.*	.*	terminal-encoders
-M	MetalUITerminal	PseudoTerminal.swift	.*	.*	.*	terminal-pty
+M	MetalUITerminal	PseudoTerminal.*\.swift	.*	.*	.*	terminal-pty
 M	MetalUITerminal	.*	.*	.*	.*	terminal-emulator
 M	MetalUI	Markdown/.*\.swift	.*	.*	.*	markdown-views
 M	MetalUI	Code/CodeView\.swift	.*	.*	.*	code-view
@@ -829,7 +829,7 @@ F	matched-geometry	A	swiftui-matched-geometry.swift	S1	aNewcomerFliesFromTheLeav
 F	custom-transition	A	swiftui-matched-geometry.swift	TP1	aCustomTransitionInsertsFromItsWillAppearState	898	MG-F	Transition/TransitionPhase/TransitionContent: a custom transition between its willAppear, identity and didDisappear states, opacity/scale/offset only (898)
 F	namespace	A	swiftui-liquid-glass.swift	A10	aNamespaceIdIsStableAcrossFramesAndDistinctPerDeclaration	-	LG-K	@Namespace and Namespace.ID: SwiftUI's property wrapper, a Hashable Sendable id stable across frames and distinct per declaration, carried by an ordinary state slot (no eighth reserved name)
 F	runtime-shader-compile	M	-	-	-	-	HX-A HX-C HX-D HX-E HX-G	RuntimeShaderCompiler, RuntimeShaderTarget, RuntimeShaderDefine, ComputeShaderReflection, CompiledComputeShader, RuntimeShaderSelfTestReport and RuntimeShaderCompileError (product MetalUIShaderRuntime): run-time HLSL compute compile to SPIR-V, MSL or DXIL with reflection, with no SDL trait; SwiftUI and gpui have no run-time shader compiler; shadercross's own SDL3 is preloaded only when the process has none, one load per process shared with SDLGPUShaderCompiler
-F	terminal-pty	M	-	-	-	-	TRM-K TRM-L TRM-M TRM-N TRM-O	MetalUITerminal (record 336, Alloy gap 4, POSIX): TerminalSize, PseudoTerminal (spawn, processID, onReadable, read, write, resize, signalGroup, exitStatus, foregroundProcessGroup, close), PseudoTerminal.Signal and ExitStatus, PseudoTerminalError: a child on a pty with its own session and fds 0-2 only; macOS and Linux (Windows ConPTY follows in Phase 2.3); MetalUI-only, SwiftUI has no process model
+F	terminal-pty	M	-	-	-	-	TRM-K TRM-L TRM-M TRM-N TRM-O TRM-AX TRM-AY	MetalUITerminal (record 336, Alloy gap 4, POSIX; Windows record 350): TerminalSize, PseudoTerminal (spawn, processID, onReadable, read, write, resize, signalGroup, exitStatus, foregroundProcessGroup, close), PseudoTerminal.Signal and ExitStatus, PseudoTerminalError: a child on a pty with its own session and fds 0-2 only; macOS, Linux and Windows (ConPTY, record 348, TRM-AX TRM-AY); MetalUI-only, SwiftUI has no process model
 M	MetalUI	PresentationBackground.swift	.*	.*	.*	presentation-background
 M	MetalUI	WindowInteractionBehavior.swift	Window	backgroundDragBehavior	.*	window-background-drag
 M	MetalUI	WindowInteractionBehavior.swift	(-|WindowInteractionBehavior)	.*	.*	window-interaction-behavior

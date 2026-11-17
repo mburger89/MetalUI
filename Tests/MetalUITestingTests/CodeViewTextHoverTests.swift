@@ -177,8 +177,10 @@ private let hoverText = (0..<3).map { "row\($0) alpha beta gamma\n" }.joined() +
 }
 
 /// 4 — a view with no handler adds no state write as the pointer moves over it and time passes: its four moves write what
-/// the view wrote before the hover existed (two plain writes a move, the scroll chrome's, 8 in all), and a view with a
-/// handler writes more as the grapheme changes, which the same count sees.
+/// the view wrote before the hover existed (two plain writes a move, the frame's focus and accessibility retention, 8 in all
+/// before `FP-T`; 4 since: the `blank` point lies below the 200-point view, so two of the four moves cross its edge and draw,
+/// the two within it draw nothing), and a view with a handler writes more as the
+/// grapheme changes, which the same count sees.
 /// **Mutation:** the hover attachment installed unconditionally (a handler-less view's moves write the hover track).
 @Test @MainActor func noHoverHandlerNoStateWrites() throws {
     func plainWrites(_ f: HoverFixture) throws -> (writes: Int, phases: Int) {
@@ -193,7 +195,7 @@ private let hoverText = (0..<3).map { "row\($0) alpha beta gamma\n" }.joined() +
         return (w.window.testingStatePlainWriteCount - before, f.model.phases.count)
     }
     let none = try plainWrites(try hoverFixture(handler: false))
-    #expect(none.writes == 8 && none.phases == 0, "nothing added without a handler: \(none)")
+    #expect(none.writes == 4 && none.phases == 0, "nothing added without a handler: \(none)")
     let with = try plainWrites(try hoverFixture())
     #expect(with.writes > none.writes && with.phases > 0, "and a handler's moves do write: \(with)")
 }

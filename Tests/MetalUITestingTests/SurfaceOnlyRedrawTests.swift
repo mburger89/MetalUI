@@ -337,25 +337,154 @@ private func callFromAnotherThread(_ body: @escaping @Sendable () -> Void) {
     #expect(work.retainedIneligible == 0 && work.surfaceOnlyFrames == 0)
 }
 
-/// A retained card holding an untriggered surface: the `"surface"` taint (`TRM-` Phase 3.3 removes it) is what a
-/// steady frame pays today, and this branch must not move it.
+/// A retained card holding a surface (`TRM-BB`): equal when `id` and `value` are, so `value` is the one thing that
+/// repaints it. `trigger` is not part of its equality (a trigger is a handle, not a value).
 private struct SurfaceCard: Component, @MainActor Equatable {
     let id: Int
+    var value = 0
+    var probe: Probe?
+    var trigger: SurfaceRedrawTrigger?
     var content: some ElementGroup {
-        GPUSurface { _ in }.frame(width: Pixels(40), height: Pixels(20))
+        if let trigger, let probe {
+            GPUSurface(trigger: trigger, draw: probe.draw("a")).frame(width: Pixels(40), height: Pixels(20))
+        } else if let probe {
+            GPUSurface(redraw: .onDemand, value: value, draw: probe.draw("a")).frame(width: Pixels(40), height: Pixels(20))
+        } else {
+            GPUSurface { _ in }.frame(width: Pixels(40), height: Pixels(20))
+        }
     }
-    static func == (l: SurfaceCard, r: SurfaceCard) -> Bool { l.id == r.id }
+    static func == (l: SurfaceCard, r: SurfaceCard) -> Bool { l.id == r.id && l.value == r.value }
 }
 
-/// **15** The same, inside an `.equatable()` card: the surface still taints it (reason `surface`, one ineligible
-/// occurrence), exactly the numbers master has.
-@MainActor @Test func aRetainedCardWithAnUntriggeredSurfaceCostsWhatItDidOnMaster() throws {
+/// **15** A surface inside an `.equatable()` card replays like any other leaf (`TRM-BB`): the steady frame is a hit with
+/// no element request and no ineligible occurrence (it was `elementRequests 2`, one ineligible, reason `surface`).
+/// Mutation: restore `retainLog?.taint("surface")` in `drawSurface` (ineligible 1, hits 0, requests 2).
+@MainActor @Test func aRetainedCardWithASurfaceReplays() throws {
     let w = try harnessWindow(size: side) { VStack(spacing: 0) { SurfaceCard(id: 1).equatable() } }
     for _ in 0..<4 { w.window.setNeedsRedraw(); w.advance(by: 0.05) }
     let f = w.lastFrameWork
-    #expect(f.builds == 1 && f.elementRequests == 2, "requests \(f.elementRequests)")
-    #expect(f.retainedHits == 0 && f.retainedMisses == 0
-            && f.retainedIneligible == 1,
+    #expect(f.builds == 1 && f.elementRequests == 0, "builds \(f.builds) requests \(f.elementRequests)")
+    #expect(f.retainedHits == 1 && f.retainedMisses == 0 && f.retainedIneligible == 0,
             "hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible) reasons \(f.retainedIneligibleReasons)")
-    #expect(f.retainedIneligibleReasons == ["surface": 1])
+    #expect(f.retainedIneligibleReasons.isEmpty)
+}
+
+/// The same window with and without `.equatable()`, run through one script of frames: the surface's draws, the requests
+/// the renderer got and the quad it composites.
+@MainActor private struct SurfaceRun {
+    let w: TestWindow, probe = Probe(), trigger = SurfaceRedrawTrigger()
+    var value = 0
+    init(retained: Bool, triggered: Bool) throws {
+        let probe = probe, trigger = trigger
+        let box = ValueBox()
+        self.box = box
+        w = try harnessWindow(size: side) {
+            let card = SurfaceCard(id: 1, value: box.value, probe: probe, trigger: triggered ? trigger : nil)
+            return VStack(spacing: 0) { if retained { card.equatable() } else { card } }
+        }
+        w.runsSurfaceDraws = true
+    }
+    let box: ValueBox
+    func frame(by seconds: Double = 0.05) { w.window.setNeedsRedraw(); w.advance(by: seconds) }
+    var requests: [SurfaceDrawRequest] { w.platformWindow.headlessRenderer.lastSurfaceRequests }
+}
+@MainActor private final class ValueBox { var value = 0 }
+
+/// **16** The replayed frame still hands the renderer the surface's request (the table keeps the target, so nothing
+/// redraws), at that frame's own time, with the same target as the painted one, and the quad is in the scene. Mutation:
+/// `replaySurfaces` not appending the request (the renderer's list is empty and the table drops the target: the next
+/// frame redraws).
+@MainActor @Test func aReplayedFrameStillRequestsItsSurface() throws {
+    let run = try SurfaceRun(retained: true, triggered: false)
+    for _ in 0..<3 { run.frame() }
+    let drawn = run.w.surfaceDrawCount
+    let before = try #require(run.requests.first)
+    run.w.resetFrameWork()
+    run.frame()
+    let f = run.w.lastFrameWork
+    try #require(f.retainedHits == 1 && f.elementRequests == 0, "set up: a replayed frame (hits \(f.retainedHits))")
+    let after = try #require(run.requests.first, "the replayed frame handed the renderer no request")
+    #expect(run.requests.count == 1 && run.w.scene.surfaces.count == 1)
+    #expect(after.target == before.target, "the same target")
+    #expect(after.time > before.time, "the request is at this frame's time, not the record's")
+    #expect(run.w.surfaceDrawCount == drawn, "a replay must not redraw the surface")
+}
+
+/// **17** Draw counts are the same with and without the retained card, over the same script (steady frames, a trigger frame,
+/// steady frames again): a replay neither forces nor loses a draw. Mutation: `replaySurfaces` minting a new
+/// occurrence (a new id: a redraw every replayed frame).
+@MainActor @Test(arguments: [true, false]) func replayDrawsTheSameAsAFreshPaint(triggered: Bool) async throws {
+    func script(retained: Bool) async throws -> [Int] {
+        let run = try SurfaceRun(retained: retained, triggered: triggered)
+        var counts: [Int] = []
+        for _ in 0..<4 { run.frame() }
+        counts.append(run.w.surfaceDrawCount)
+        run.frame(); run.frame()
+        counts.append(run.w.surfaceDrawCount)
+        run.trigger.requestRedraw()
+        await hopped(run.w)
+        run.w.advance(by: 0.05)
+        counts.append(run.w.surfaceDrawCount)
+        run.frame(); run.frame()
+        counts.append(run.w.surfaceDrawCount)
+        return counts
+    }
+    let fresh = try await script(retained: false), retained = try await script(retained: true)
+    #expect(fresh == retained, "fresh \(fresh) retained \(retained)")
+    #expect(retained[1] == retained[0] && retained[3] == retained[2], "steady frames draw nothing")
+    if triggered { #expect(retained[2] == retained[1] + 1, "the trigger frame draws once") }
+}
+
+/// **18** A surface-only frame after replayed frames still draws the surface, and the trigger stays bound through the
+/// replay. Mutation: `replaySurfaces` not appending the trigger (unbound after a replayed frame, the request a no-op).
+@MainActor @Test func aTriggerFrameAfterAReplayedFrameDrawsTheSurface() async throws {
+    let run = try SurfaceRun(retained: true, triggered: true)
+    for _ in 0..<4 { run.frame() }
+    run.w.resetFrameWork()
+    run.frame()
+    try #require(run.w.lastFrameWork.retainedHits == 1, "set up: the last frame replayed")
+    #expect(run.trigger.isBound, "a replayed surface is bound to its trigger")
+    let draws = run.probe.count("a"), frames = run.w.framesDrawn
+    run.trigger.requestRedraw()
+    await hopped(run.w)
+    run.w.advance(by: 0.05)
+    #expect(run.w.lastFrameWork.surfaceOnlyFrames == 1 && run.w.lastFrameWork.builds == 0)
+    #expect(run.probe.count("a") == draws + 1 && run.w.framesDrawn == frames + 1)
+}
+
+/// **19** A value change is part of the card's equality: the record misses, the surface is painted again, and the
+/// `.onDemand` table redraws it once; the steady frames after replay again. Mutation: a record that survives the
+/// equality change (the old value would keep drawing).
+@MainActor @Test func aValueChangeRepaintsTheRetainedSurface() throws {
+    let run = try SurfaceRun(retained: true, triggered: false)
+    for _ in 0..<4 { run.frame() }
+    let draws = run.probe.count("a")
+    run.box.value = 1
+    run.w.resetFrameWork()
+    run.frame()
+    let f = run.w.lastFrameWork
+    #expect(f.retainedHits == 0 && f.retainedMisses == 1, "hits \(f.retainedHits) misses \(f.retainedMisses)")
+    #expect(run.probe.count("a") == draws + 1, "the new value draws once")
+    #expect(run.requests.first?.value == AnyHashable(1))
+    run.frame(); run.frame()
+    #expect(run.probe.count("a") == draws + 1)
+    #expect(run.w.lastFrameWork.retainedHits == 1)
+}
+
+/// **20** A record whose surface lost its id (unpainted for a frame, so the registry dropped it) is a miss, not a replay
+/// of a quad for a target nothing requests. Mutation: drop the `replays` check from the hit condition (the scene holds
+/// the old id, the request the new one: the quad's target has no request).
+@MainActor @Test func aRecordWhoseSurfaceLostItsIdIsAMiss() throws {
+    let run = try SurfaceRun(retained: true, triggered: false)
+    for _ in 0..<4 { run.frame() }
+    let old = try #require(run.requests.first).target.id
+    // The registry forgets the surface exactly as a frame that did not paint it would.
+    run.w.window.surfaceRegistry.forgetIDs()
+    run.w.resetFrameWork()
+    run.frame()
+    let f = run.w.lastFrameWork
+    #expect(f.retainedHits == 0 && f.retainedMisses == 1, "hits \(f.retainedHits) misses \(f.retainedMisses)")
+    let now = try #require(run.requests.first).target.id
+    #expect(now != old)
+    #expect(run.w.scene.surfaceTargets.count == 1 && run.w.scene.surfaces.count == 1)
 }

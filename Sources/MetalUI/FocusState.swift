@@ -19,14 +19,15 @@ import MetalUICore
 /// ```
 ///
 /// **Reading** returns the window's focus as of the last completed frame:
-/// `true` (or the bound value) iff the focused element carries a `.focused`
-/// binding to this property with that value, `false`/`nil` otherwise.
+/// `true` (or the bound value) iff the focused element — or a container around it, **focusable or not**
+/// (`FW-A`) — carries a `.focused` binding to this property with that value (the nearest one), `false`/`nil` otherwise.
 ///
 /// **Writing** — from input, as a `@State` write is — moves focus at the next
 /// frame to the element that registered the written value (or `true`) on the
 /// last frame, **if that element was focusable there**; otherwise focus stays
-/// where it is (`IX-J` item 2, `IX-S`). Writing `false`/`nil` clears focus
-/// **only if** the focused element is bound to this property.
+/// where it is (`IX-J` item 2, `IX-S`); a bound container that is not focusable focuses its first focusable
+/// descendant (`FW-B`). Writing `false`/`nil` clears focus **only if** the focused element, or a container around
+/// it, is bound to this property.
 ///
 /// **It follows every other focus mover** — Tab, a `TextField` press,
 /// `Window.focus(_:)`, `IX-I`'s drop when the focused identity goes away —

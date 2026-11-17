@@ -363,13 +363,14 @@ private struct RWChannelProbe: Component, @MainActor Equatable {
 }
 
 /// What each channel costs, measured by this lane's first run (`RW-M`): the plain neighbour's hits, the three ineligible counters and
-/// the reasons (the funnel's names are the trace's). A surface is refused at paint only (the graft and prepaint audits do not see
-/// an `.onDemand` or `.continuous` request); a popover at all three, under three names; an alert only at the graft (its paint
+/// the reasons (the funnel's names are the trace's). A `.continuous` surface is refused at paint only (by `activeAnimation`; an `.onDemand` one replays, `TRM-BB`); a popover at all three, under three names; an alert only at the graft (its paint
 /// replays, hits 2: the presentation is the window's, not the occurrence's).
 private struct RWChannelCost { let hits: Int, paint: Int, prepaint: Int, graft: Int, reasons: [String: Int] }
 private let rwExpected: [RWChannel: RWChannelCost] = [
-    .surface: RWChannelCost(hits: 1, paint: 1, prepaint: 0, graft: 0, reasons: ["surface": 1]),
-    .continuousSurface: RWChannelCost(hits: 1, paint: 1, prepaint: 0, graft: 0, reasons: ["surface": 1]),
+    // `TRM-BB`: an `.onDemand` surface replays (it was `hits 1, paint 1, ["surface": 1]`); a `.continuous` one is refused by
+    // `noteActiveAnimation`'s own name, which the `"surface"` taint used to shadow.
+    .surface: RWChannelCost(hits: 2, paint: 0, prepaint: 0, graft: 0, reasons: [:]),
+    .continuousSurface: RWChannelCost(hits: 1, paint: 1, prepaint: 0, graft: 0, reasons: ["activeAnimation": 1]),
     .popover: RWChannelCost(hits: 1, paint: 1, prepaint: 1, graft: 1, reasons: ["popover": 1, "presentation": 1, "portal": 1]),
     .alert: RWChannelCost(hits: 2, paint: 0, prepaint: 0, graft: 1, reasons: ["presentation": 1]),
     .stateWrite: RWChannelCost(hits: 1, paint: 1, prepaint: 1, graft: 1, reasons: ["stateWrite": 3]),
