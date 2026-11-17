@@ -1498,4 +1498,18 @@ role), a pull-down `Menu` button's menu, the main menu bar's `CommandMenu`. So "
 `aDrawnMenuRowPublishesTheAccessibilityLabelAsItsNodeLabel`; dropping `setAccessibilityLabel` reddens `anAppKitMenuItemCarriesItsAccessibilityLabelAndKeepsItsTitle`;
 an extra `.accessibilityLabel` wrapper reddens the cost literal.
 
-Next unused: `MN-AR`.
+## MN-AR — A closed popover costs no element request (Alloy report; record 340; class `M`, no divergence)
+
+**Measured** (`ClosedPopoverCostTests`): a closed `PopoverModifier`, of any form (`popover(isPresented:)`/`(item:)`, the text-anchored ones on a `CodeView`, `suggestionOverlay`, `anchoredOverlay`), cost **one** element request a frame, steady and on a keystroke: its group-member entry (`enteringGroupMember`, `pass.frame.elementRequests += 1`), whether or not `presented()` is `nil`. Alloy's second reading (modifiers written after it, `.frame` and `.accessibilityIdentifier`, no longer folding into the proposal chain, a second +1) was **not reproduced**: `popover(...).frame(...).accessibilityIdentifier(...)` is +1 over its twin, the same as the bare wrapper (`PopoverModifier` is a `ProposalElementGroup` and the chain folds above it as before).
+
+**Ruling.**
+
+1. The wrapper still enters its identity level exactly as before (id, `@State` bind, cursor advance: `enteringGroupMember(…, counted: false)`), so the anchor's id, state and layout node are the same open or closed and opening or closing never remounts it (pinned: `openingAndClosingAPopoverKeepsTheCodeViewsState`, scroll offset and selection across two open/close rounds).
+2. It counts its request only while it presents (`layOutPopover`, inside `if let presented()`), so every open frame costs what it did and a closed one costs **0** versus the same tree without the modifier.
+3. Not folded into the proposal chain (the `KF-AD` route): a chain layer would not hold the anchor map, the retained-replay journal (`RW-K`) or the slot, and a closed wrapper's remaining work (recording the anchor for the next frame's placement) is not a request.
+
+**Literals** (bar + view in a `VStack`; `1` retained hit, no miss): closed `Text` popover/overlay 3 (was 4), closed `CodeView` popover/suggestion 2 (was 3), closed one followed by `.frame` and `.accessibilityIdentifier` 3 (was 4); open 7, unchanged. `CodeViewTextAnchorCostTests` literals unchanged (no closed case there).
+
+**Mutation.** `counted: true` in the two entries reddens the five closed-equals-twin tests; deleting the count in `layOutPopover` reddens `theOpenCasesCostWhatTheyDid` and the two open literals of `CodeViewTextAnchorCostTests`.
+
+Next unused: `MN-AS`.

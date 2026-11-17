@@ -15,6 +15,9 @@ extension GlobalElementID {
     /// there too. `AnyElement`'s default is a second, older divergence and does
     /// not bind at all (its own doc).
     ///
+    /// `counted: false` enters the identity level without counting a request: only `PopoverModifier` while closed
+    /// (`MN-AR`), which counts itself in `layOutPopover` once it presents.
+    ///
     /// **Why a helper and not three copies.** A copy survives a change that
     /// alters behaviour without altering a signature, which is how `AnyElement`'s
     /// lost its bind and then its cursor advance. A mistake here breaks legacy and
@@ -34,9 +37,10 @@ extension GlobalElementID {
     static func enteringGroupMember<E>(_ element: E, name: ElementID?,
                                        under parent: GlobalElementID?,
                                        at cursor: inout Int,
-                                       pass: inout LayoutPass) -> GlobalElementID {
+                                       pass: inout LayoutPass,
+                                       counted: Bool = true) -> GlobalElementID {
         let id = GlobalElementID.child(of: parent, at: cursor, name: name)
-        pass.frame.elementRequests += 1
+        if counted { pass.frame.elementRequests += 1 }
         pass.frame.stateTable.noteNamed(id, at: cursor)  // `ID-R`
         StateBinder.bind(element, in: pass.frame, id: id)
         cursor += 1
