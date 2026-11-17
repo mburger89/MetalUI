@@ -47,6 +47,7 @@ public struct CodeView: Element, StyledElement {
     var textClick: (modifiers: EventModifiers, action: @MainActor (CodeHit) -> Void)?
     var textHover: CodeTextHover?
     var gutterMenu: (@MainActor (CodeGutterHit) -> MenuItems)?
+    var gutterHelpText: (@MainActor (CodeGutterHit) -> String?)?
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
     var markerLaneAdvances = 2
@@ -205,6 +206,19 @@ public struct CodeView: Element, StyledElement {
         return copy
     }
 
+    /// The tooltip of a gutter bar or marker (`CV-BT`): `text` is asked for the ``CodeGutterHit`` under the pointer
+    /// and answers the tooltip text, `nil` (or empty) for none. It is the view's model-driven `.help` (`MN-AJ`): it
+    /// runs in input only, on each pointer move over the view, against the last frame's plan, so a steady frame
+    /// costs nothing; a changed text restarts the usual delay and the same text keeps the bubble. A point outside
+    /// the gutter's bars and markers is answered by the view's own ``StyledElement/help(_:)-(String)`` or model-driven
+    /// `.help { }`, if it has one, and has no tooltip otherwise. Apply it after the app's own `.help`, which
+    /// replaces it as a later `.help` replaces an earlier one.
+    public func gutterHelp(_ text: @escaping @MainActor (CodeGutterHit) -> String?) -> CodeView {
+        var copy = self
+        copy.gutterHelpText = text
+        return copy
+    }
+
     /// Whether the gutter reserves a lane for ``CodeLineDecoration/gutterMarker``s (`CV-AP`). By default (not
     /// called) the lane appears once any owner has given a marker and stays, so the text moves right once, by the
     /// lane's width (two space advances), and never again as diagnostics come and go; `true` reserves it from the
@@ -351,6 +365,16 @@ public struct CodeView: Element, StyledElement {
                 if let point, let hit = plan.gutterHit(at: Point(x: point.x + origin.x, y: point.y + origin.y)) { return menu(hit) }
                 return existing?.menu?(point) ?? MenuItems([])
             }, help: existing?.help, helpProvider: existing?.helpProvider)
+        }
+        if let help = gutterHelpText {
+            // `CV-BT`: a gutter point is the app's text for its hit, any other the view's own `.help`. Input only.
+            let existing = handlers.contextual
+            let origin = bounds.origin
+            handlers.contextual = ContextualAttachment(locatedMenu: existing?.menu, help: nil, helpProvider: { [plan] point in
+                if let hit = plan.gutterHit(at: Point(x: point.x + origin.x, y: point.y + origin.y)) { return help(hit) }
+                if let provider = existing?.helpProvider { return provider(point) }
+                return existing?.help
+            }, selection: existing?.selection)
         }
         let caret = plan.caretPosition()
         let scaleF = frame.scaleFactor
