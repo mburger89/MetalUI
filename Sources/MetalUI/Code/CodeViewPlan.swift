@@ -57,6 +57,8 @@ struct CodeViewState: Equatable {
     var blinkEpoch = 0.0
     var blinkSelection = 0..<0
     var blinkHead = 0
+    /// The selection state's `mutationSerial` at the last restart (`CV-BG`): any selection moving restarts the blink.
+    var blinkSerial: UInt64 = 0
     var blinkVersion: UInt64 = 0
     var blinkFocused = false
     var blinkComposition = ""
@@ -165,6 +167,11 @@ final class CodeViewPlan {
     var windowIsKey = true
     /// The primary selection's moving end.
     var head = 0
+    /// With several selections (`CV-BG`): the state's sorted array (no copy), the primary's index in it, and the
+    /// index range of those touching the shown rows. Empty with one selection, which `selection` and `head` carry.
+    var allSelections: [CodeSelection] = []
+    var primaryIndex = 0
+    var visibleSelections = 0..<0
     var spaceAdvance = 0.0
     /// One buffer row's layout from the text now, through the line cache: what a key's vertical motion and caret
     /// x read in input, where the frame's own rows may be older than the buffer (`CV-X`).
@@ -278,13 +285,19 @@ final class CodeViewPlan {
     /// the frame's rows.
     func caretPosition() -> (x: Int, top: Int)? {
         var i = 0
+        return caretPosition(at: head, primary: true, from: &i)
+    }
+
+    /// Where a caret at byte `at` is drawn, scanning the rows from `i` on (carets ascend, so a sweep of them scans the
+    /// rows once). Only the primary's caret sits in marked text (`CV-BG`).
+    func caretPosition(at byte: Int, primary: Bool, from i: inout Int) -> (x: Int, top: Int)? {
         while i < rows.count {
             let row = rows[i]
-            i += 1
-            if !row.isVirtual && row.range.lowerBound <= head && head <= row.range.upperBound {
-                if let marked = row.marked { return (xPx(row, layoutByte: marked.at + marked.caretBytes), row.top) }
-                return (xPx(row, byte: head), row.top)
+            if !row.isVirtual && row.range.lowerBound <= byte && byte <= row.range.upperBound {
+                if primary, let marked = row.marked { return (xPx(row, layoutByte: marked.at + marked.caretBytes), row.top) }
+                return (xPx(row, byte: byte), row.top)
             }
+            if !row.isVirtual && row.range.upperBound < byte { i += 1 } else if row.isVirtual { i += 1 } else { return nil }
         }
         return nil
     }
@@ -465,9 +478,15 @@ extension CodeView {
         let numbersPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
         plan.gutterPx = numbersPx + plan.laneWidthPx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
         let source = selectionSource
-        let primary = source.primarySelection   // one read: each is an observed access
+        let all = source.selections   // observed; the state's own array, not a copy
+        let primaryIndex = source.primaryIndex
+        let primary = all[primaryIndex]
         plan.selection = primary.range
         plan.head = primary.head
+        if all.count > 1 {   // `CV-BG`: with one selection every line below is the scalar path
+            plan.allSelections = all
+            plan.primaryIndex = primaryIndex
+        }
         let textViewPx = max(1, plan.widthPx - plan.gutterPx - plan.padPx)
 
         var state = stored
@@ -757,6 +776,9 @@ extension CodeView {
         while to < plan.rows.count, plan.rows[to].top < plan.originY + plan.heightPx { to += 1 }
         plan.shownFrom = from
         plan.shownTo = to
+        if !plan.allSelections.isEmpty {
+            plan.visibleSelections = Self.selections(plan.allSelections, touching: plan.rows[from..<to], visited: &frame.codeWork.selectionsVisited)
+        }
 
         frame.codeWork.linesShaped += cache.shapedTotal - shapedBefore
         frame.codeWork.highlightRunsVisited += decorations.runsVisited - runsBefore
@@ -802,18 +824,46 @@ extension CodeView {
         }
         // The caret's blink restarts when it moves, an edit lands, the marked text changes or the view gains focus (`CV-AC`).
         if caretBlink == .on {
+            let serial = source.mutationSerial
             let moved = state.blinkSelection != plan.selection || state.blinkHead != plan.head || state.blinkVersion != snap.version
-                || state.blinkFocused != focused || state.blinkComposition != state.composition.text
+                || state.blinkFocused != focused || state.blinkComposition != state.composition.text || state.blinkSerial != serial
             if moved {
                 state.blinkSelection = plan.selection
                 state.blinkHead = plan.head
                 state.blinkVersion = snap.version
                 state.blinkFocused = focused
                 state.blinkComposition = state.composition.text
+                state.blinkSerial = serial
                 state.blinkEpoch = frame.timestamp
             }
         }
         return (plan, state)
+    }
+
+    /// The index range of `selections` (sorted, non-overlapping) that touch the byte span of `rows`' buffer rows,
+    /// from two binary searches: O(log n + the range) however many selections there are (`CV-BG`). A selection
+    /// touches the span when it ends at or after its start and begins at or before its end. `visited` is counted
+    /// with each probe and each selection of the range.
+    static func selections(_ selections: [CodeSelection], touching rows: ArraySlice<CodeViewPlan.Row>, visited: inout Int) -> Range<Int> {
+        guard let first = rows.first(where: { !$0.isVirtual }), let last = rows.last(where: { !$0.isVirtual }) else { return 0..<0 }
+        let low = first.range.lowerBound, high = last.range.upperBound
+        // The first selection ending at or after `low`.
+        var lo = 0, hi = selections.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            visited += 1
+            if selections[mid].range.upperBound < low { lo = mid + 1 } else { hi = mid }
+        }
+        let start = lo
+        // The first selection beginning after `high`.
+        hi = selections.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            visited += 1
+            if selections[mid].range.lowerBound <= high { lo = mid + 1 } else { hi = mid }
+        }
+        visited += lo - start
+        return start..<lo
     }
 
     /// `parts` (a line's foreground partition) with an unstyled stretch of `length` bytes inserted at byte `at`.
@@ -1048,6 +1098,7 @@ extension CodeView {
                 let findColor = pass.resolve(theme.findMatch), currentFindColor = pass.resolve(theme.currentFindMatch)
                 let currentMatch = decorations.currentMatch
                 var colors: [Hsla] = []
+                var selectionCursor = plan.visibleSelections.lowerBound
                 var rowIndex = from
                 while rowIndex < to {
                     let row = plan.rows[rowIndex]
@@ -1080,14 +1131,28 @@ extension CodeView {
                         }
                     }
                     // 4. The selection, with the line break's tail past the end of a selected line (buffer rows only).
-                    let selection = plan.selection
-                    if !selection.isEmpty && !row.isVirtual {
+                    @MainActor func paintSelection(_ selection: Range<Int>) {
                         let lo = max(selection.lowerBound, row.range.lowerBound), hi = min(selection.upperBound, row.range.upperBound)
                         let breaks = selection.lowerBound <= row.range.upperBound && selection.upperBound > row.range.upperBound
                             && row.buffer + 1 < plan.snapshot.lineCount
                         if lo < hi || breaks {
                             let x0 = x(min(lo, hi)), x1 = x(max(lo, hi)) + (breaks ? Int((4 * scaleD).rounded()) : 0)
                             pass.fill(rect(x0, row.top, x1, row.top + plan.pitchPx), color: selectionColor)
+                        }
+                    }
+                    if !row.isVirtual {
+                        if plan.allSelections.isEmpty {
+                            if !plan.selection.isEmpty { paintSelection(plan.selection) }
+                        } else {   // `CV-BG`: every selection touching this row, the primary as the frame has it
+                            while selectionCursor < plan.visibleSelections.upperBound
+                                    && plan.allSelections[selectionCursor].range.upperBound < row.range.lowerBound { selectionCursor += 1 }
+                            var k = selectionCursor
+                            while k < plan.visibleSelections.upperBound {
+                                let selection = k == plan.primaryIndex ? plan.selection : plan.allSelections[k].range
+                                if selection.lowerBound > row.range.upperBound && k != plan.primaryIndex { break }
+                                if !selection.isEmpty { paintSelection(selection) }
+                                k += 1
+                            }
                         }
                     }
                     // 5. The glyphs, translated by whole device pixels.
@@ -1153,10 +1218,31 @@ extension CodeView {
                     }
                 }
                 // 8. The caret: a bar a point wide at the head, while the view has focus and nothing is selected.
-                if plan.selection.isEmpty, pass.isFocused(id), let caret = plan.caretPosition(), caretIsShown(id, pass: &pass) {
-                    let width = max(1, Int(scaleD.rounded()))
-                    pass.fill(rect(caret.x, caret.top, caret.x + width, caret.top + plan.pitchPx),
-                              color: pass.resolve(theme.caret ?? theme.foreground))
+                if plan.allSelections.isEmpty {
+                    if plan.selection.isEmpty, pass.isFocused(id), let caret = plan.caretPosition(), caretIsShown(id, pass: &pass) {
+                        let width = max(1, Int(scaleD.rounded()))
+                        pass.fill(rect(caret.x, caret.top, caret.x + width, caret.top + plan.pitchPx),
+                                  color: pass.resolve(theme.caret ?? theme.foreground))
+                    }
+                } else if pass.isFocused(id) {   // `CV-BG`: a caret for every visible empty selection, all in one blink phase
+                    var shown: Bool?
+                    var rowCursor = 0
+                    var k = plan.visibleSelections.lowerBound
+                    while k < plan.visibleSelections.upperBound {
+                        let isPrimary = k == plan.primaryIndex
+                        let selection = isPrimary ? plan.selection : plan.allSelections[k].range
+                        let head = isPrimary ? plan.head : plan.allSelections[k].head
+                        k += 1
+                        guard selection.isEmpty else { continue }
+                        var fresh = 0   // the primary may be out of order with the sweep (a drag, marked text)
+                        guard let caret = isPrimary ? plan.caretPosition(at: head, primary: true, from: &fresh)
+                                : plan.caretPosition(at: head, primary: false, from: &rowCursor) else { continue }
+                        if shown == nil { shown = caretIsShown(id, pass: &pass) }
+                        guard shown == true else { break }
+                        let width = max(1, Int(scaleD.rounded()))
+                        pass.fill(rect(caret.x, caret.top, caret.x + width, caret.top + plan.pitchPx),
+                                  color: pass.resolve(theme.caret ?? theme.foreground))
+                    }
                 }
             }
             // 9. The gutter: numbers and markers, then the author bars.

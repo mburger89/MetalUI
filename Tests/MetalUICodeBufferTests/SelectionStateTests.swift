@@ -343,6 +343,23 @@ struct SelectionStateTests {
         buffer.replace(5..<5, with: "XY")
         #expect(fired.value)
     }
+    // MARK: mutationSerial (CV-BG)
+
+    /// The serial rises on every stored change (an assignment, a primary-only change, an edit that moves the
+    /// selections) and not on one that changes nothing. **Mutation:** not bumping in `setSelections` (the first check).
+    @Test func theMutationSerialRisesOnEachStoredChangeAndOnlyThen() {
+        let buffer = CodeBuffer("0123456789")
+        let state = CodeSelectionState(buffer: buffer, selections: [CodeSelection(caret: 1), CodeSelection(caret: 5)])
+        var serial = state.mutationSerial
+        state.selections = [CodeSelection(caret: 2), CodeSelection(caret: 6)]
+        #expect(state.mutationSerial > serial, "an assignment"); serial = state.mutationSerial
+        state.setSelections(state.selections, primary: 1)
+        #expect(state.mutationSerial > serial, "only the primary changed"); serial = state.mutationSerial
+        buffer.replace(8..<8, with: "XY")
+        #expect(state.mutationSerial == serial, "an edit after both selections moves neither")
+        buffer.replace(0..<0, with: "Z")
+        #expect(state.mutationSerial > serial, "an edit before them moves both")
+    }
 }
 
 private final class Flag: @unchecked Sendable { var value = false }

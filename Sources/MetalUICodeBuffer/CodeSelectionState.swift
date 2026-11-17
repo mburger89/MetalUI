@@ -16,6 +16,10 @@ public final class CodeSelectionState {
     @ObservationIgnored var stored = [CodeSelection(caret: 0)]
     @ObservationIgnored var storedPrimary = 0
 
+    /// Rises each time the stored selections or the primary change (`CV-BG`): what a view compares to restart its
+    /// caret blink when any selection moved, where comparing the array would cost O(n) a frame. Never observed.
+    @ObservationIgnored package private(set) var mutationSerial: UInt64 = 0
+
     /// The most selections a helper (add next occurrence, select all occurrences, a column selection) will
     /// make (`CV-BE`). Assigning more is not refused.
     public static let selectionLimit = 10_000
@@ -67,6 +71,7 @@ public final class CodeSelectionState {
         let p = selections.isEmpty ? 0 : min(max(primary, 0), selections.count - 1)
         withMutation(keyPath: \.selections) {
             (stored, storedPrimary) = CodeBuffer.normalize(selections, limit: buffer.rope.summary.utf8, primary: p)
+            mutationSerial &+= 1
         }
         buffer.breakUndoCoalescing()
     }
@@ -148,11 +153,11 @@ public final class CodeSelectionState {
     func setInternal(_ new: [CodeSelection], primary: Int? = nil, normalizing: Bool = true) {
         if !normalizing {
             // A run of edits moving the selections event by event: they are normalised once, after the last (`CV-BF`).
-            withMutation(keyPath: \.selections) { stored = new }
+            withMutation(keyPath: \.selections) { stored = new; mutationSerial &+= 1 }
             return
         }
         let (normalized, p) = CodeBuffer.normalize(new, limit: buffer.rope.summary.utf8, primary: min(primary ?? storedPrimary, max(new.count - 1, 0)))
         guard normalized != stored || p != storedPrimary || retainedBuffer == nil else { return }
-        withMutation(keyPath: \.selections) { stored = normalized; storedPrimary = p }
+        withMutation(keyPath: \.selections) { stored = normalized; storedPrimary = p; mutationSerial &+= 1 }
     }
 }
