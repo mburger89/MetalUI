@@ -24,7 +24,7 @@ public struct TerminalRow: Sendable, Hashable {
     /// True when the text continues on the next row because it wrapped at the last column.
     var wrapsToNext = false
 
-    init(columns: Int) { self.columns = columns }
+    package init(columns: Int) { self.columns = columns }
 
     var usedColumns: Int { Int(used) }
 

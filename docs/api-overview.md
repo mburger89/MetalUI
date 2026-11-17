@@ -435,6 +435,9 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 modifier is `EventModifiers.primary` (M, `SG-B`: `.command` on Apple, `.control`
 elsewhere; SwiftUI's default, `.command`, is the same value on macOS, and SwiftUI has
 no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
+`KeyboardShortcut.displayText` and `displayText(for: KeyboardShortcut.Platform)` (M, `KF-AG`: `⇧⌘P` on
+macOS, `Ctrl+Shift+P` elsewhere, named keys as glyphs or names, one formatter shared with the drawn menu;
+`Platform` is `.macOS`/`.linux`/`.windows` with `current` and `primaryModifiers`; modifiers show as stored);
 `@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
@@ -822,6 +825,18 @@ dirtied the window, an animation or timer runs, or the scale, size or glyph-atla
 `requestRedraw(after:)` keeps the earliest deadline per surface on the window's frame clock (the simulated one in a
 `TestWindow`). A trigger whose surface the last frame did not paint does nothing and starts no timer.
 `TestWindow.runsSurfaceDraws` makes a headless frame call the draws it would run; `surfaceDrawCount` counts them.
+
+## `TerminalView` — M
+
+`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:onInput:onResize:onLink:)`
+(M; `TRM-BA`, record 357; Alloy gap 2, **frozen**; product `MetalUITerminalUI`, macOS, Linux and Windows). It draws a
+`TerminalSnapshotSource`'s grid on a `GPUSurface` in the environment's `.font` (default the system face's monospaced
+design) and reports the grid of whole cells that fits through `snapshotSource.resize(_:)` and then `onResize`, once per
+real change. Output is a surface-only frame (0 builds, 0 element requests) that redraws only the damaged rows over an
+opaque background. The cursor is a block, bar or underline, a hollow block when unfocused, blinks every 500 ms for a
+blinking style and stops 30 s after the last activity (`blinkStopsAfterIdle`). `TerminalPalette` (`ansi` x 16,
+`foreground`, `background`, `cursor`, `cursorText`, `selection`, `boldIsBright`, `.xterm`); `TerminalLinkQuery` and
+`TerminalLinkTarget`. `onInput`, `keyCaptureExceptions`, `optionAsMeta` and `onLink` are inert until Phases 5.4 and 5.5.
 
 ## Application icon — M
 
@@ -1325,3 +1340,4 @@ Typical use: keep one `CodeBuffer` per open file; make an edit cursor and `drain
 Typical use: one buffer and one decorations object per open file; give highlights from a provider or a background parse, authorship as `annotations` highlights, a diff as line decorations plus virtual rows for the removed lines, and sync two views with `onScroll`. Demo: `METALUI_CODE_DEMO=1 swift run MetalUIDemo` (a generated 100 000-line file with all of it). No guide yet (a guide needs compiled mirrors in `MetalUITestingTests`); the doc comments are the reference.
 - Selection helpers (`CV-BJ`, record 346): on `CodeSelectionState`, `addNextOccurrence(limit:)` (⌘D: a caret selects its word, later calls add the next whole-word match, a selection adds its next exact match; wraps, skips what is selected, the new one is primary), `skipToNextOccurrence()`, `selectAllOccurrences(limit:)`, `addCaret(lineDelta:tabWidth:limit:)` (the primary's visible column, graphemes and tabs, kept across short lines, skipping rows a registered `CodeFoldState` hides) and `collapseToPrimary()`. Each is a selection write (no undo step) and reveals the primary with the least scroll; the `Bool` is `false` only when the limit stopped it.
 - Folds (`CV-BL`, record 343): `CodeFoldState(selectionState:folded:)` in `MetalUICodeBuffer` holds folded line ranges (0-based; `lowerBound` is the shown header, `lowerBound+1..<upperBound` hidden; nested allowed): `folded` (get/set, normalised), `foldableRanges` and `setFoldableRanges(_:asOf:)` (ranges computed at an older buffer version are mapped through later edits, dropped when unmappable), `fold`/`unfold`/`toggle` (return whether anything changed), `unfold(containing:)`, `unfoldAll`, `isHidden(line:)`. The buffer moves it over every edit by line deltas (an edit inside a folded body keeps the fold; one crossing a boundary or breaking the header line opens it; undo never re-folds); `fold` moves carets out of hidden rows; explicit selection writes (and undo/redo restores) open the folds hiding a selection end, edits never do. `CodeGutterMarker(_:color:severity:)` gains `severity` (default 0). The view layout is `CodeView.foldState(_:)` (`CV-BM`, record 354): hidden rows are not built or counted, the scroll position is in shown rows, a folded header ends in a `⋯` whose press unfolds (`CodeHit.foldedLines`, `CodeViewGeometry.foldPlaceholderRect(line:)`; the region stays `.pastLineEnd`), up/down/left/right step over hidden rows, the header shows the strongest hidden `CodeGutterMarker` (by `severity`, owner priority, earlier row) and an accessibility button `fold-placeholder-<line>` exists while accessibility is collected.
+- Fold chevron lane (`CV-BN`, record 358): `CodeView.foldGutter(showsOnHover:onToggle:)` reserves a lane of two space advances between the line numbers and the text (only with `foldState`), with ▾ on every line that starts a `CodeFoldState.foldableRanges` entry (open ones drawn only while the pointer is over the gutter) and ▸ on a folded one (always shown); a press toggles the innermost range starting on the line, calls `onToggle(line)` and is not an `onGutterBarClick`. `CodeViewGeometry.foldChevronRect(line:)` is the line's cell; the accessibility buttons are `fold-chevron-<line>` (value `expanded` or `collapsed`).
