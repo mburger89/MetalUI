@@ -6,6 +6,114 @@ import MetalUIScene
 import MetalUITerminal
 import MetalUITextSystem
 
+
+/// The terminal's content, internal so the public ``TerminalView`` can wrap it in `.equatable()` itself (`TRM-BD`):
+/// `Equatable` over the source object, theme, exceptions and flags, closures not compared. It holds the `@State`,
+/// the environment reads and the whole modifier chain.
+struct TerminalViewField: Component, @MainActor Equatable {
+    let snapshotSource: TerminalSnapshotSource
+    let theme: TerminalPalette
+    let keyCaptureExceptions: [KeyboardShortcut]
+    let optionAsMeta: Bool
+    let cursorBlink: Bool
+    let blinkStopsAfterIdle: Bool
+    let boldIsBright: Bool
+    let onInput: ([UInt8]) -> Void
+    let onResize: (TerminalSize) -> Void
+    let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
+
+    @State private var model = TerminalViewModel()
+    /// Read by the public `TerminalView` (an `OpenURLAction` and a `Clipboard` hold functions, so an `@Environment`
+    /// reading of either is uncomparable and would refuse the memo: `EE-B`); not compared.
+    let openURL: OpenURLAction
+    let clipboard: Clipboard
+    @FocusState private var isFocused: Bool
+    @Environment(\.textMeasurer) private var measurer
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.font) private var environmentFont
+    @Environment(\.controlActiveState) private var activeState
+
+    init(snapshotSource: TerminalSnapshotSource, theme: TerminalPalette, keyCaptureExceptions: [KeyboardShortcut],
+         optionAsMeta: Bool, cursorBlink: Bool, blinkStopsAfterIdle: Bool, boldIsBright: Bool,
+         onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (TerminalSize) -> Void,
+         onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?, openURL: OpenURLAction, clipboard: Clipboard) {
+        self.snapshotSource = snapshotSource
+        self.theme = theme
+        self.keyCaptureExceptions = keyCaptureExceptions
+        self.optionAsMeta = optionAsMeta
+        self.cursorBlink = cursorBlink
+        self.blinkStopsAfterIdle = blinkStopsAfterIdle
+        self.boldIsBright = boldIsBright
+        self.onInput = onInput
+        self.onResize = onResize
+        self.onLink = onLink
+        self.openURL = openURL
+        self.clipboard = clipboard
+    }
+
+    private static func buttonGesture(_ button: MouseButton, _ terminal: TerminalMouseEvent.Button,
+                                      _ model: TerminalViewModel) -> DragGesture {
+        DragGesture(minimumDistance: Pixels(0), button: button)
+            .onChanged { value in model.pointerChanged(value, button: terminal) }
+            .onEnded { value in model.pointerEnded(value, button: terminal) }
+    }
+
+    /// Whether two views draw and behave alike (`TRM-BD`): the same snapshot source object, theme, key-capture
+    /// exceptions and flags. The closures (`onInput`, `onResize`, `onLink`) are not compared, as `TabStrip`'s are not:
+    /// a replay keeps the closures of the build that last ran. With surface replay (#362) a retained field replays
+    /// its surface, so an idle terminal costs no element request.
+    static func == (l: TerminalViewField, r: TerminalViewField) -> Bool {
+        same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright,
+             r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright)
+    }
+
+    static func same(_ ls: TerminalSnapshotSource, _ lt: TerminalPalette, _ le: [KeyboardShortcut], _ lo: Bool, _ lc: Bool, _ lb: Bool, _ lbb: Bool,
+                     _ rs: TerminalSnapshotSource, _ rt: TerminalPalette, _ re: [KeyboardShortcut], _ ro: Bool, _ rc: Bool, _ rb: Bool, _ rbb: Bool) -> Bool {
+        ls === rs && lt == rt && le == re && lo == ro && lc == rc && lb == rb && lbb == rbb
+    }
+
+    /// The view's content: the surface leaf under a focus layer and a geometry scope. Not for callers.
+    var content: some ElementGroup {
+        let model = self.model
+        model.source = snapshotSource
+        model.onResize = onResize
+        model.cursorBlink = cursorBlink
+        model.blinkStopsAfterIdle = blinkStopsAfterIdle
+        model.focused = isFocused
+        model.onInput = onInput
+        model.optionAsMeta = optionAsMeta
+        model.exceptions = keyCaptureExceptions
+        model.onLink = onLink
+        model.openURL = { url in openURL(url) }
+        if let system = measurer.terminalTextSystem {
+            model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
+        }
+        return TerminalSurfaceElement(model: model, palette: theme, boldIsBright: boldIsBright || theme.boldIsBright)
+            .focusable()
+            .focused($isFocused)
+            .keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta)
+            .onKeyPress { press in model.handle(press, clipboard: clipboard) }
+            .pasteDestination(for: String.self, action: { items in model.paste(items.joined(separator: "\n")) })
+            .copyable(model.copyItems())
+            .externalTextInput(model.input)
+            .pointerInput(hover: { phase in
+                switch phase {
+                case .active(let point): model.hoverMoved(to: point)
+                case .ended: model.hoverEnded()
+                }
+            }, gesture: Self.buttonGesture(.primary, .left, model)
+                .simultaneously(with: Self.buttonGesture(.middle, .middle, model))
+                .simultaneously(with: Self.buttonGesture(.secondary, .right, model)),
+            wheel: { event in model.wheel(event) },
+            style: { _ in model.pointer.link == nil ? nil : .link })
+            .onGeometryChange(for: TerminalSize.self, of: { proxy in
+                model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
+            }, action: { size in model.gridChanged(to: size) })
+            .onChange(of: isFocused && activeState != .inactive) { _, now in model.focusChanged(to: now) }
+            .onModifierKeysChanged(initial: false) { _, now in model.modifiersChanged(to: now) }
+    }
+}
+
 /// A terminal: the cell grid of a ``TerminalSnapshotSource`` drawn on a GPU surface (Alloy gap 2, `TRM-BA`,
 /// frozen by Phase 5.3).
 ///
@@ -52,9 +160,20 @@ import MetalUITextSystem
 /// sent through `TerminalEncoder.encodePaste` (bracketed when the program asked, ESC stripped). **Focus** in and out
 /// is reported with `ESC [ I` and `ESC [ O` while the program set mode 1004. Every byte sent restarts the blink's idle clock.
 ///
-/// **Inert until later phases.** `onLink` is part of the frozen signature, but the view does not read the pointer
-/// yet: selection, the wheel, mouse reports and links arrive with Phase 5.5 and accessibility with 5.6.
-public struct TerminalView: Component {
+/// **The pointer** (`TRM-BD`, Phase 5.5). With the program's mouse reporting on, presses, moves and releases (and the
+/// wheel) are encoded through `TerminalEncoder.encodeMouse` and sent to `onInput`; ⇧ held at the press selects locally
+/// instead. Otherwise a drag selects (⌥-drag a block, double-click a word, triple-click a line, ⇧-click extends, past the
+/// edge scrolls), ⌘C copies, and the wheel scrolls scrollback (on the alternate screen it sends arrow keys). With ⌘ held
+/// (Ctrl on Linux and Windows) the hovered cell is offered to `onLink` once per cell change; a target is underlined with
+/// the pointing hand, ⌘-click activates it, and OSC 8 hyperlinks the host did not claim are offered by the view itself.
+/// Accessibility arrives with Phase 5.6.
+///
+/// **Idle, it costs nothing extra on a rebuilt frame without the caller adding `.equatable()`** (`TRM-BD`): the public
+/// type is a thin component whose content is the internal field under `.equatable()`, so the field's content is
+/// skipped and its surface replayed while the inputs (not the closures) are equal. A host that swaps `onInput`,
+/// `onResize` or `onLink` for closures with different captures keeps the first build's closures until an input
+/// changes; give the view a new `.id(_:)` to force them.
+public struct TerminalView: Component, @MainActor Equatable {
     let snapshotSource: TerminalSnapshotSource
     let theme: TerminalPalette
     let keyCaptureExceptions: [KeyboardShortcut]
@@ -66,13 +185,8 @@ public struct TerminalView: Component {
     let onResize: (TerminalSize) -> Void
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
 
-    @State private var model = TerminalViewModel()
-    @FocusState private var isFocused: Bool
-    @Environment(\.textMeasurer) private var measurer
-    @Environment(\.displayScale) private var displayScale
-    @Environment(\.font) private var environmentFont
+    @Environment(\.openURL) private var openURL
     @Environment(\.clipboard) private var clipboard
-    @Environment(\.controlActiveState) private var activeState
 
     /// A terminal over `snapshotSource` drawn in `theme`.
     ///
@@ -87,7 +201,7 @@ public struct TerminalView: Component {
     ///   - boldIsBright: Bold ANSI 0-7 draws bright, as the palette's own flag does (default false).
     ///   - onInput: The bytes a key, committed text, paste or focus report encodes to; the host writes them to the pty.
     ///   - onResize: The grid size, when the cell count changes, after the source was resized.
-    ///   - onLink: The link under a ⌘-hovered cell (Phase 5.5; never called yet).
+    ///   - onLink: The link under a ⌘-hovered cell: asked `.hover` once per cell change, `.exit` on leaving, `.activate` on ⌘-click.
     public init(snapshotSource: TerminalSnapshotSource,
                 theme: TerminalPalette,
                 keyCaptureExceptions: [KeyboardShortcut] = [],
@@ -110,31 +224,19 @@ public struct TerminalView: Component {
         self.onLink = onLink
     }
 
-    /// The view's content: the surface leaf under a focus layer and a geometry scope. Not for callers.
+    /// Whether two views draw and behave alike: the same source object, theme, exceptions and flags; closures are not compared.
+    public static func == (l: TerminalView, r: TerminalView) -> Bool { 
+        TerminalViewField.same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright,
+                               r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright)
+    }
+
+    /// The field under `.equatable()`. Not for callers.
     public var content: some ElementGroup {
-        let model = self.model
-        model.source = snapshotSource
-        model.onResize = onResize
-        model.cursorBlink = cursorBlink
-        model.blinkStopsAfterIdle = blinkStopsAfterIdle
-        model.focused = isFocused
-        model.onInput = onInput
-        model.optionAsMeta = optionAsMeta
-        model.exceptions = keyCaptureExceptions
-        if let system = measurer.terminalTextSystem {
-            model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
-        }
-        return TerminalSurfaceElement(model: model, palette: theme, boldIsBright: boldIsBright || theme.boldIsBright)
-            .focusable()
-            .focused($isFocused)
-            .keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta)
-            .onKeyPress { press in model.handle(press, clipboard: clipboard) }
-            .pasteDestination(for: String.self, action: { items in model.paste(items.joined(separator: "\n")) })
-            .externalTextInput(model.input)
-            .onGeometryChange(for: TerminalSize.self, of: { proxy in
-                model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
-            }, action: { size in model.gridChanged(to: size) })
-            .onChange(of: isFocused && activeState != .inactive) { _, now in model.focusChanged(to: now) }
+        TerminalViewField(snapshotSource: snapshotSource, theme: theme, keyCaptureExceptions: keyCaptureExceptions,
+                          optionAsMeta: optionAsMeta, cursorBlink: cursorBlink, blinkStopsAfterIdle: blinkStopsAfterIdle,
+                          boldIsBright: boldIsBright, onInput: onInput, onResize: onResize, onLink: onLink,
+                          openURL: openURL, clipboard: clipboard)
+            .equatable()
     }
 }
 
