@@ -20,6 +20,12 @@ Rulings: `docs/superpowers/2026-11-16-terminal-decisions.md`; frozen and draft s
 
 **Phase 1.2 seam** (`TRM-H`). The emulator prints, wraps and moves the cursor and records mode flags; every other sequence is parsed and dropped until its phase, so no declared behaviour is a stub. Fixtures are `Tests/MetalUITerminalTests/Fixtures/*.vtfix` (`TRM-I`); the parser guards are chunk invariance, seeded fuzz, the census and the gated bench (`TRM-J`).
 
+**POSIX pty** (`TRM-K`..`TRM-O`). `PseudoTerminal` starts its child with `posix_spawn` and `POSIX_SPAWN_SETSID` (the child's own first open of the slave gives it the controlling tty; the C `fork` path stays for glibc below 2.34 and tests run both), with exactly fds 0-2, every signal at default, and the size set before the child exists through a slave the parent holds open (Darwin forgets a size set on an unopened pty).
+
+**Pty I/O** (`TRM-M`, `TRM-N`). `read` is >0, 0 would block or -1 end of file (a 0-byte read, EIO, or after `close`), latched so the level-triggered source stops firing; `write` queues on an internal queue, never blocks, never drops, never reorders.
+
+**Pty lifetime** (`TRM-O`). No SIGCHLD handler: macOS process source, Linux pidfd (shared poll fallback); one reap under the lock that `signalGroup` takes, so a reaped pid is never signalled; `close()` stops callbacks, not reaping; Windows has no `PseudoTerminal` yet.
+
 **Phase 1.3 screen** (`TRM-Z`..`TRM-AD`). The emulator executes cursor motion within margins and origin mode, erase with background colour, insert/delete, scroll regions, tab stops, DECSC/DECRC per screen, the alternate screen (47/1047/1049), DECSTR/RIS, DEC graphics, REP, SGR in `;` and `:` forms and the DA/DSR/CPR/DECRQM replies; DECSLRM is skipped. Rows reach scrollback only from a full-screen scroll on the primary screen; every reply is a `TerminalEvent.reply` from `drainEvents()` that the owner MUST write, and only `.reply` and `.bell` are emitted before OSC (1.4).
 
 **Cost.** A terminal output, blink or selection frame costs 0 builds and 0 element requests, and a hidden or idle terminal schedules nothing; every shared-view change pins the steady-frame request counts for apps that do not use it.

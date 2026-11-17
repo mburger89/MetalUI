@@ -229,10 +229,11 @@ var targets: [Target] = [
         .target(name: "MetalUIMarkdown"),
         .testTarget(name: "MetalUIMarkdownTests", dependencies: ["MetalUIMarkdown"]),
 
-        // The terminal emulator core (ruling TRM-A): in-house VT parser, compact rows and scrollback ring.
-        // Foundation and Dispatch only; portable, outside the `SDL` trait (PC-A). No MetalUI product
-        // depends on it.
-        .target(name: "MetalUITerminal"),
+        // The terminal emulator core (ruling TRM-A) and the POSIX pty (TRM-K): in-house VT parser, compact rows
+        // and scrollback ring, `PseudoTerminal` over the `CPseudoTerminal` shim. Foundation and Dispatch only;
+        // portable, outside the `SDL` trait (PC-A). No MetalUI product depends on it.
+        .target(name: "CPseudoTerminal"),
+        .target(name: "MetalUITerminal", dependencies: ["CPseudoTerminal"]),
         .testTarget(name: "MetalUITerminalTests", dependencies: ["MetalUITerminal"]),
 
         // The C structs shared with the shaders; MetalUIScene imports them.

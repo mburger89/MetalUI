@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-AE` (`TRM-K`..`TRM-O` are reserved by open PR #341).
+Next unused id: `TRM-AE`.
 
 ## TRM-A: module split
 
@@ -92,9 +92,33 @@ Chunk-split invariance (every two-way cut, byte at a time, seeded partitions, ov
 
 Why: spec sections 7 and 8.
 
+## TRM-K: spawn mechanism (POSIX, Phase 2.1 spike)
+
+`PseudoTerminal.spawn` opens the pty in C (`CPseudoTerminal`: `posix_openpt`, `grantpt`, `unlockpt`, `ptsname_r` or `TIOCPTYGNAME`) and starts the child with `posix_spawn` and `POSIX_SPAWN_SETSID` on both macOS and Linux. The slave is opened by the child itself as its first file action (`addopen` on fd 0, then `adddup2` onto 1 and 2): a session leader without a controlling terminal acquires the tty it opens, so no `TIOCSCTTY` is needed. **Spike result: macOS accepts this** (the child is its own session leader, `/dev/tty` opens, `tcgetpgrp` on the master answers the leader's group), so the macOS fork fallback is not needed there. The async-signal-safe `fork` path (`setsid`, `open`, `ioctl(TIOCSCTTY)`, `dup2`, `close_range` or a descriptor loop, `sigaction`, `chdir`, `execve`; argv, env and the descriptor limit built before the fork; an exec failure reported through a close-on-exec pipe) stays as the mechanism on a glibc older than 2.34 or musl, where `posix_spawn_file_actions_addclosefrom_np` is missing. A `package` `PseudoTerminal.Mechanism` (`.automatic`, `.posixSpawn`, `.fork`) lets the test suite run every behaviour under both. The parent holds the slave open across the spawn and sets `TIOCSWINSZ` on it: Darwin discards a size set on a pty nobody has opened (measured: `stty size` printed `0 0`), and this way the child's first `stty size` is right.
+
+Why: spec 4.2 and plan 2.1 ("fork fallback only if macOS refuses the controlling tty").
+
+## TRM-L: what the child inherits
+
+Exactly fds 0-2 (the slave), nothing else: Darwin `POSIX_SPAWN_CLOEXEC_DEFAULT` with `addinherit_np` for 0-2; Linux `addclosefrom_np(3)`; the fork path `close_range` (else a loop to `_SC_OPEN_MAX`). Every signal is reset to its default and the mask is emptied (a host that ignores `SIGPIPE` does not pass that on). The master is close-on-exec and non-blocking. `env` is the whole environment and `argv` the whole argument vector; a missing executable or working directory is `spawnFailed(code: ENOENT)`.
+
+Why: spec 4.1; the pinning tests probe fds 3-60 and the environment under both mechanisms.
+
+## TRM-M: reading and end of file
+
+`read(into:)` returns n > 0, 0 for `EAGAIN`, and -1 at end of file: a 0-byte read (macOS), `EIO` (Linux; spec 4.1) or any other error, and always after `close()`. It runs under the object's lock so a concurrent `close()` cannot close and reuse the descriptor mid-read. A `DispatchSourceRead` is level-triggered and fires forever at end of file, so the first `-1` latches end of file and the next event suspends the source instead of calling the handler again; `close()` and a replacing `onReadable` resume a suspended source before cancelling it so its cancel handler runs. The handler checks the closed flag under the lock, so none runs after `close()` returns on the handler's own queue and none starts after it from another.
+
+## TRM-N: writing
+
+`write(_:)` appends to a queue on an internal serial queue and returns; the queue is drained with non-blocking `write(2)` until `EAGAIN`, and a `DispatchSourceWrite` is resumed only while bytes are pending (a suspended or idle source costs nothing). Chunks keep their order, nothing is dropped and the queue has no cap (a child that never reads costs memory, not a stalled caller). `close()` discards what is still unsent. The master descriptor closes when its last source's cancel handler has run, because dispatch requires it.
+
+## TRM-O: reaping, signals, lifetime, Windows
+
+Nothing installs a `SIGCHLD` handler. macOS reaps from a `DispatchSource` process source plus one `waitpid(WNOHANG)` right after it is armed (the child may have gone first); Linux reads a `pidfd_open` descriptor (kernel 5.3+, `TRM-E`) and, where that is missing, one shared 20 ms timer polls `waitpid(WNOHANG)` for every unreaped child (a `package` flag forces it for its test). The reap and the `exitStatus` result happen once, under the object's lock, and the same lock guards `signalGroup` (`killpg`, a no-op after the reap, so a reused pid is never signalled). `close()` does not stop reaping: the hangup from a closed master ends the child and it is still reaped, `exitStatus` still resolves, and an unclosed object is closed by `deinit`. On Windows the target compiles but `PseudoTerminal` and `PseudoTerminalError` are absent (`#if !os(Windows)`, and `CPseudoTerminal` is empty there); Phase 2.3 supplies them. `TerminalSize` is declared once, in `Geometry.swift`.
+
 ## TRM-P: the surface-only frame (Phase 3.1, gap 5 draft)
 
-(Appended by `feat/surface-only-redraw`. Ids `TRM-P`..`TRM-T` are this branch's; `TRM-F`..`TRM-J` are record 335's; `TRM-K`..`TRM-O` stay reserved by parallel branches.)
+(Appended by `feat/surface-only-redraw`. Ids `TRM-P`..`TRM-T` are this branch's; `TRM-F`..`TRM-J` are record 335's; `TRM-K`..`TRM-O` are record 336's.)
 
 1. `SurfaceRedrawTrigger.requestRedraw()` draws one `GPUSurface` in a **surface-only frame**: `Window.drawFrameIfNeeded` takes the branch only when the window is not dirty, not animating, has no gesture or tooltip timer, and a surface is pending. It re-encodes `lastScene` (kept since `HT-` and unchanged) with the same atlas and hands the renderer **only the pending surfaces' requests**, rebuilt from the last full frame's, at the display link's time. The renderers' table keeps every other referenced surface, undrawn (its existing keep rule), so they composite as they were. 0 builds, 0 element requests, no body, no `@State` or observation read, no accessibility or hover work (nothing it reads moved).
 2. Any other reason for a frame (dirty, an animation, a timer) takes the full path, which **forces the pending surfaces' requests** instead (item 3), so a trigger is never lost to a frame that happened first and a surface draws once per request however many frames passed.
