@@ -372,4 +372,16 @@ Pinned by `aPressOnAChevronTogglesItsRangeAndCallsOnToggle`, `theInnermostRangeS
 
 **Costs.** Counted, no clock. Steady and keystroke literals are those of `CV-BN`/`CV-BG` on master, unchanged (`aFoldGutterCostsWhatNoFoldGutterCosts`): steady 2 requests, 0 hits, 1 miss, 0 ineligible, 1 frame; keystroke the same (Apple platforms; per frame elsewhere). A move within a region: 0 frames, 0 requests to the platform.
 
-Pinned by `movingTextToGutterToTextChangesTheCursorWithoutAFrame`, `movesWithinARegionCostNoFrameAndNoRequest`, `aChevronAndAFoldPlaceholderAreThePointingHand`, `textIsTheHandOnlyWhenOnTextClickActsOnAPlainClick`, `regionCursorsRespectHorizontalScrolling` (`Tests/MetalUITestingTests/CodeViewRegionCursorTests.swift`). Next unused: `CV-BP`.
+Pinned by `movingTextToGutterToTextChangesTheCursorWithoutAFrame`, `movesWithinARegionCostNoFrameAndNoRequest`, `aChevronAndAFoldPlaceholderAreThePointingHand`, `textIsTheHandOnlyWhenOnTextClickActsOnAPlainClick`, `regionCursorsRespectHorizontalScrolling` (`Tests/MetalUITestingTests/CodeViewRegionCursorTests.swift`). Next unused: `CV-BX` (`CV-BP`..`CV-BW` are reserved by the wave-2 design; `CV-BU` is used).
+
+## CV-BU: the marker lane's width (landed, record 372; class M, no divergence; Alloy wave 2)
+
+**API.** `CodeView.gutterMarkerLane(width: Int) -> CodeView`: the lane's width in space advances, clamped to 1...16. It reserves the lane like `gutterMarkerLane(true)` (the text never moves). Not called, the width stays two advances, so every existing view is byte-identical. Alloy's answer 8: markers stay **centred**; MetalUI adds no leading alignment (the face is monospaced, so an app pads its text for a column look).
+
+- **Clip.** A marker wider than the lane is cut to the lane's rectangle on its row (a clip pushed only for such a marker; a marker that fits draws as before, with no clip).
+- **Hits.** `gutterHit` already tests the lane by `laneWidthPx`, so the hit area is the whole widened lane.
+- **Clamp.** Out-of-range widths clamp (0 and below to 1, above 16 to 16); no trap.
+
+**Costs.** Counted, no clock. The lane width is a plan integer: a keystroke frame of the bare test view 0 requests, 0 hits, 0 misses, 0 ineligible, 1 frame (`costLiteralsAreUnchangedByTheWidth`), as without the call (Apple platforms; per frame elsewhere).
+
+Pinned by `markerLaneWidthMovesTextOnceAndClips`, `defaultWidthIsByteIdentical`, `widthClampsToOneThroughSixteen`, `hitAreaFollowsTheWidth`, `costLiteralsAreUnchangedByTheWidth` (`Tests/MetalUITestingTests/CodeViewMarkerWidthTests.swift`). Next unused: `CV-BX` (`CV-BP`..`CV-BW` reserved by the wave-2 design).
