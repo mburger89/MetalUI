@@ -92,8 +92,13 @@ public struct KeyboardShortcut: Equatable, Sendable {
     /// `charactersIgnoringModifiers` (AppKit reports a shifted letter upper-case
     /// there), the modifiers compared exactly.
     func matches(_ event: KeyEvent) -> Bool {
-        event.modifiers == modifiers
-            && event.charactersIgnoringModifiers.lowercased() == String(key.character).lowercased()
+        guard event.modifiers == modifiers else { return false }
+        let wanted = String(key.character).lowercased()
+        // AppKit sends ⇧Tab as the backtab character (`KF-AL`); it is the Tab key.
+        let typed = event.charactersIgnoringModifiers == "\u{19}" ? "\t" : event.charactersIgnoringModifiers.lowercased()
+        if typed == wanted { return true }
+        // The unshifted base key with Shift (`KF-AL`): ⇧/ fires "/" on AppKit as on SDL.
+        return modifiers.contains(.shift) && !event.unshiftedKey.isEmpty && event.unshiftedKey.lowercased() == wanted
     }
 }
 

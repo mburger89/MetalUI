@@ -382,11 +382,15 @@ final class MetalHostView: NSView {
     }
 
     private func keyEvent(_ event: NSEvent) -> KeyEvent {
-        KeyEvent(charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-                 characters: event.characters ?? "",
-                 modifiers: modifiers(event),
-                 isRepeat: event.isARepeat,
-                 timestamp: event.timestamp)
+        var key = KeyEvent(charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
+                           characters: event.characters ?? "",
+                           modifiers: modifiers(event),
+                           isRepeat: event.isARepeat,
+                           timestamp: event.timestamp)
+        // The layout's unshifted key (`KF-AL`), so a "/" + Shift shortcut matches ⇧/ whose
+        // `charactersIgnoringModifiers` is "?". Only read when Shift is held: nothing else needs it.
+        if key.modifiers.contains(.shift) { key.unshiftedKey = UnshiftedKey.character(forKeyCode: event.keyCode) }
+        return key
     }
 
     // MARK: Text input (ruling TI-A)
