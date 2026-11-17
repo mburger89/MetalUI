@@ -36,11 +36,20 @@ final class Capture: @unchecked Sendable {
     private var sum: UInt64 = 0
     private let keep: Bool
     private var _callbacks = 0
+    /// Windows only: a terminal in front of conhost answers its queries (a cursor-position request, device
+    /// attributes), as a real one does; conhost on recent builds can hold its output back until it is answered.
+    /// Touched on `queue` only.
+    private let answering: TerminalEmulator?
 
     /// `keep: false` counts and sums instead of storing, for floods.
     init(_ pty: PseudoTerminal, keep: Bool = true) {
         self.pty = pty
         self.keep = keep
+        #if os(Windows)
+        answering = TerminalEmulator(cols: 240, rows: 60)
+        #else
+        answering = nil
+        #endif
         pty.onReadable(queue: queue) { [self] in drain() }
     }
 
@@ -65,6 +74,10 @@ final class Capture: @unchecked Sendable {
             }
             condition.broadcast()
             condition.unlock()
+            if n > 0, let answering {
+                buffer.withUnsafeBytes { answering.feed(UnsafeRawBufferPointer(rebasing: $0[0..<n])) }
+                for case .reply(let bytes) in answering.drainEvents() { pty.write(bytes) }
+            }
             if n <= 0 { break }
         }
     }

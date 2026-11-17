@@ -39,9 +39,22 @@ private func screenText(_ bytes: [UInt8], cols: Int = 240, rows: Int = 60) -> St
 
 extension Capture {
     func screenContains(_ needle: String, timeout: TimeInterval = 30) -> Bool {
-        wait(timeout: timeout) { text, _, _ in screenText(Array(text.utf8)).contains(needle) }
+        let found = wait(timeout: timeout) { text, _, _ in screenText(Array(text.utf8)).contains(needle) }
+        if !found {
+            // Say what arrived, so a failure tells "nothing came" from "something came that does not show".
+            Issue.record("waiting for \"\(needle)\": \(describe)")
+        }
+        return found
     }
     var screen: String { screenText(Array(text.utf8)) }
+
+    /// How many bytes arrived, the first 200 characters of the screen they draw and the first 200 raw bytes.
+    var describe: String {
+        let blanks = CharacterSet.whitespacesAndNewlines
+        let drawn = String(screen.trimmingCharacters(in: blanks).prefix(200))
+        let raw = String(data.prefix(200).map { $0 < 0x20 || $0 > 0x7e ? String(format: "\\x%02x", $0) : String(UnicodeScalar($0)) }.joined().prefix(400))
+        return "\(count) bytes received, ended=\(hitEnd); screen starts: \(drawn.debugDescription); raw starts: \(raw)"
+    }
 }
 
 /// True once the process `pid` has ended (or never could be opened), within `timeout` seconds.
@@ -73,7 +86,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let pty = try powershell("Write-Output ('marker-' + (6*7))")
         defer { finish(pty) }
         let out = Capture(pty)
-        #expect(out.screenContains("marker-42"), "screen: \(out.screen)")
+        #expect(out.screenContains("marker-42"))
     }
 
     @Test func theEnvironmentIsExactlyTheOneGivenAndCwdIsHonoured() throws {
@@ -82,14 +95,20 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let pty = try cmd(["echo", "%METALUI_PTY_MARK%", "&", "cd"], cols: 200, cwd: tempDirectory, env: env)
         defer { finish(pty) }
         let out = Capture(pty)
-        #expect(out.screenContains("mark Ünï 42"), "screen: \(out.screen)")
+        #expect(out.screenContains("mark Ünï 42"))
         let leaf = URL(fileURLWithPath: tempDirectory).lastPathComponent
-        #expect(out.screenContains(leaf), "cwd not shown: \(out.screen)")
+        #expect(out.screenContains(leaf))
     }
 
     @Test func aMissingExecutableIsASpawnFailure() {
-        #expect(throws: PseudoTerminalError.spawnFailed(code: 2)) {
+        // The directory is missing too, which Windows reports as ERROR_PATH_NOT_FOUND (3); a missing file in an
+        // existing directory is ERROR_FILE_NOT_FOUND (2).
+        #expect(throws: PseudoTerminalError.spawnFailed(code: 3)) {
             try PseudoTerminal.spawn(executable: "C:\\nonexistent\\program.exe", argv: ["x"], env: environment, cwd: "C:\\",
+                                     size: TerminalSize(cols: 80, rows: 24))
+        }
+        #expect(throws: PseudoTerminalError.spawnFailed(code: 2)) {
+            try PseudoTerminal.spawn(executable: "C:\\Windows\\no-such-program.exe", argv: ["x"], env: environment, cwd: "C:\\",
                                      size: TerminalSize(cols: 80, rows: 24))
         }
     }
@@ -109,11 +128,11 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let pty = try powershell(script, cols: 97, rows: 21)
         defer { finish(pty) }
         let out = Capture(pty)
-        #expect(out.screenContains("H1=21"), "screen: \(out.screen)")
+        #expect(out.screenContains("H1=21"))
         #expect(out.screen.contains("W1=97"))
         pty.resize(cols: 133, rows: 33)
         pty.write(Array("\r".utf8))
-        #expect(out.screenContains("H2=33"), "screen: \(out.screen)")
+        #expect(out.screenContains("H2=33"))
         #expect(out.screen.contains("W2=133"))
     }
 
@@ -142,7 +161,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
                                  + "'grandchild=' + $p.Id; Start-Sleep 300")
         defer { finish(pty) }
         let out = Capture(pty)
-        #expect(out.screenContains("grandchild="), "screen: \(out.screen)")
+        #expect(out.screenContains("grandchild="))
         let digits = out.screen.components(separatedBy: "grandchild=").dropFirst().first?.prefix { $0.isNumber }
         let grandchild = try #require(digits.flatMap { UInt32($0) }, "no pid in \(out.screen)")
         defer {
@@ -159,7 +178,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let pty = try powershell("$p = Start-Process -PassThru -NoNewWindow ping.exe -ArgumentList '-n','300','127.0.0.1'; "
                                  + "'grandchild=' + $p.Id; Start-Sleep 300")
         let out = Capture(pty)
-        #expect(out.screenContains("grandchild="), "screen: \(out.screen)")
+        #expect(out.screenContains("grandchild="))
         let digits = out.screen.components(separatedBy: "grandchild=").dropFirst().first?.prefix { $0.isNumber }
         let grandchild = try #require(digits.flatMap { UInt32($0) })
         defer {
@@ -184,7 +203,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let pty = try cmd(["ping", "-n", "300", "127.0.0.1"])
         defer { finish(pty) }
         let out = Capture(pty)
-        #expect(out.screenContains("Pinging"), "screen: \(out.screen)")
+        #expect(out.screenContains("Pinging"))
         pty.signalGroup(.interrupt)
         #expect(await exitStatus(of: pty) == .exited(Int32(bitPattern: 0xC000013A)))
     }
@@ -204,7 +223,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let out = Capture(pty)
         pty.write(Array("first\r".utf8))
         pty.write(Array("second\r".utf8))
-        #expect(out.screenContains("got=first+second"), "screen: \(out.screen)")
+        #expect(out.screenContains("got=first+second"))
     }
 
     @Test func aMegabyteWrittenToAChildThatDoesNotReadDoesNotBlockTheCaller() throws {
@@ -226,7 +245,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let pty = try cmd(["for", "/l", "%i", "in", "(1,1,100000000)", "do", "@echo", "flood-line-%i"])
         defer { finish(pty) }
         let out = Capture(pty, keep: false)
-        #expect(out.wait { _, count, _ in count > 1 << 16 })
+        #expect(out.wait { _, count, _ in count > 1 << 16 }, "\(out.describe)")
         // Closing on the reader's own queue makes "after" exact: every handler run that follows is a late one.
         let before = out.queue.sync { () -> Int in
             pty.close()
@@ -246,7 +265,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         // Let the flood fill the buffer: the output of a child that is never read cannot be waited for, so
         // observe it through the pause: read until the first bytes exist, then stop reading.
         let out = Capture(pty, keep: false)
-        #expect(out.wait { _, count, _ in count > 1 << 20 })
+        #expect(out.wait { _, count, _ in count > 1 << 20 }, "\(out.describe)")
         pty.onReadable(queue: DispatchQueue(label: "ignored")) {}   // replaced handler never reads
         pty.close()
         #expect(pty.waitUntilReleased(timeout: 90), "ClosePseudoConsole deadlocked")
