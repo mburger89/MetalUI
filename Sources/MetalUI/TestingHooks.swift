@@ -64,6 +64,7 @@ package struct BuildWork: Sendable, Equatable {
     package var codeGlyphsEmitted = 0
     package var codeHighlightRunsVisited = 0
     package var codeFindMatchesVisited = 0
+    package var codeSelectionsVisited = 0
 }
 
 extension Window {
@@ -120,7 +121,8 @@ extension Window {
                                codeLinesShaped: frame.codeWork.linesShaped, codeLinesPainted: frame.codeWork.linesPainted,
                                codeGlyphsEmitted: frame.codeWork.glyphsEmitted,
                                codeHighlightRunsVisited: frame.codeWork.highlightRunsVisited,
-                               codeFindMatchesVisited: frame.codeWork.findMatchesVisited))
+                               codeFindMatchesVisited: frame.codeWork.findMatchesVisited,
+                               codeSelectionsVisited: frame.codeWork.selectionsVisited))
         }
     }
 }

@@ -31,6 +31,8 @@ struct CodeWork: Equatable {
     var highlightRunsVisited = 0
     /// Find matches the paint looked at: those in the shown rows, never all of them (`CV-AE`).
     var findMatchesVisited = 0
+    /// Selections the paint looked at: those touching the shown rows plus a binary search's probes, never all of them (`CV-BG`).
+    var selectionsVisited = 0
 }
 
 struct LazyWork: Equatable {

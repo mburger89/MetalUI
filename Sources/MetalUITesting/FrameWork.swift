@@ -132,6 +132,9 @@ public struct FrameWork: Sendable, Equatable {
     /// Find matches the `CodeView`s' paint looked at: those in the shown rows, so a view of 10 000 matches visits
     /// the handful in the viewport (`CV-AE`).
     public var codeFindMatchesVisited: Int
+    /// Selections the `CodeView`s' paint looked at: those touching the shown rows and a binary search's probes, so a
+    /// view of 10 000 selections visits the handful in the viewport (`CV-BG`).
+    public var codeSelectionsVisited: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -169,7 +172,8 @@ public struct FrameWork: Sendable, Equatable {
                 outlineContentEvaluations: Int = 0, outlineContentRebuilds: Int = 0, outlineContentHits: Int = 0,
                 outlineContentChecks: Int = 0,
                 codeLinesShaped: Int = 0, codeLinesPainted: Int = 0, codeGlyphsEmitted: Int = 0,
-                codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0, surfaceOnlyFrames: Int = 0) {
+                codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0, surfaceOnlyFrames: Int = 0,
+                codeSelectionsVisited: Int = 0) {
         self.surfaceOnlyFrames = surfaceOnlyFrames
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
@@ -228,6 +232,7 @@ public struct FrameWork: Sendable, Equatable {
         self.codeGlyphsEmitted = codeGlyphsEmitted
         self.codeHighlightRunsVisited = codeHighlightRunsVisited
         self.codeFindMatchesVisited = codeFindMatchesVisited
+        self.codeSelectionsVisited = codeSelectionsVisited
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -287,6 +292,7 @@ public struct FrameWork: Sendable, Equatable {
                   codeGlyphsEmitted: l.codeGlyphsEmitted + r.codeGlyphsEmitted,
                   codeHighlightRunsVisited: l.codeHighlightRunsVisited + r.codeHighlightRunsVisited,
                   codeFindMatchesVisited: l.codeFindMatchesVisited + r.codeFindMatchesVisited,
-                  surfaceOnlyFrames: l.surfaceOnlyFrames + r.surfaceOnlyFrames)
+                  surfaceOnlyFrames: l.surfaceOnlyFrames + r.surfaceOnlyFrames,
+                  codeSelectionsVisited: l.codeSelectionsVisited + r.codeSelectionsVisited)
     }
 }
