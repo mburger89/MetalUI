@@ -132,10 +132,40 @@ public struct CodeSnapshot: Sendable {
     /// O(n) per call: run it when the query changes, never per frame. Matching is bytewise, so a match
     /// always starts and ends on a scalar boundary.
     public func ranges(of query: String, options: CodeFindOptions = [], limit: Int? = nil) -> [Range<Int>] {
+        if (limit ?? 1) <= 0 { return [] }
+        var results: [Range<Int>] = []
+        scan(query, options: options, in: 0..<utf8Count) { match in
+            results.append(match)
+            if let limit, results.count >= limit { return true }
+            return false
+        }
+        return results
+    }
+
+    /// The first match of `query` that starts at or after `offset`, wrapping to the text's start, for which
+    /// `accept` is true (`CV-BJ`); `nil` when there is none. One forward scan of the text after `offset`, then of
+    /// the text before it (a match may straddle `offset` only on the wrapped pass), so O(n) and never per frame.
+    package func firstRange(of query: String, options: CodeFindOptions = [], from offset: Int,
+                            accept: (Range<Int>) -> Bool = { _ in true }) -> Range<Int>? {
+        let from = max(0, min(offset, utf8Count))
+        let wrapEnd = min(utf8Count, from + query.utf8.count - 1)
+        var found: Range<Int>?
+        for window in [from..<utf8Count, 0..<wrapEnd] where found == nil && window.lowerBound < window.upperBound {
+            scan(query, options: options, in: window) { match in
+                if accept(match) { found = match; return true }
+                return false
+            }
+        }
+        return found
+    }
+
+    /// Calls `visit` with each match inside `window`, left to right and not overlapping, until it returns true.
+    /// A whole-word check reads the bytes just outside the window.
+    private func scan(_ query: String, options: CodeFindOptions, in window: Range<Int>, visit: (Range<Int>) -> Bool) {
         let fold = options.contains(.caseInsensitive)
         @inline(__always) func f(_ b: UInt8) -> UInt8 { fold && b >= 0x41 && b <= 0x5A ? b | 0x20 : b }
         let q = query.utf8.map(f)
-        if q.isEmpty || (limit ?? 1) <= 0 { return [] }
+        if q.isEmpty { return }
         var fail = [Int](repeating: 0, count: q.count)
         var k = 0
         for i in 1..<max(q.count, 1) where i < q.count {
@@ -144,13 +174,9 @@ public struct CodeSnapshot: Sendable {
             fail[i] = k
         }
         let whole = options.contains(.wholeWord)
-        func isWord(_ b: UInt8) -> Bool {
-            (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || b == 0x5F || b >= 0x80
-        }
-        var results: [Range<Int>] = []
         var state = 0
-        var pos = 0
-        rope.forEachSlice(0, utf8Count) { buffer in
+        var pos = window.lowerBound
+        rope.forEachSlice(window.lowerBound, window.upperBound) { buffer in
             for raw in buffer {
                 let c = f(raw)
                 while state > 0 && (state == q.count || q[state] != c) { state = fail[state - 1] }
@@ -159,16 +185,29 @@ public struct CodeSnapshot: Sendable {
                 if state == q.count {
                     let start = pos - q.count
                     let ok = !whole
-                        || ((start == 0 || !isWord(rope.byte(at: start - 1))) && (pos == utf8Count || !isWord(rope.byte(at: pos))))
+                        || ((start == 0 || !Self.isWordByte(rope.byte(at: start - 1))) && (pos == utf8Count || !Self.isWordByte(rope.byte(at: pos))))
                     if ok {
-                        results.append(start..<pos)
                         state = 0
-                        if let limit, results.count >= limit { return false }
+                        if visit(start..<pos) { return false }
                     }
                 }
             }
             return true
         }
-        return results
+    }
+
+    /// Whether `b` is part of a word for `.wholeWord` and the selection helpers: an ASCII letter, digit or `_`, or
+    /// any byte of a non-ASCII scalar (`CV-BJ`).
+    package static func isWordByte(_ b: UInt8) -> Bool {
+        (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || b == 0x5F || b >= 0x80
+    }
+
+    /// The bytes of the word touching `offset` (a run of word bytes ending at or starting at it), or `nil`.
+    package func wordRange(at offset: Int) -> Range<Int>? {
+        let o = max(0, min(offset, utf8Count))
+        var lo = o, hi = o
+        while lo > 0, Self.isWordByte(rope.byte(at: lo - 1)) { lo -= 1 }
+        while hi < utf8Count, Self.isWordByte(rope.byte(at: hi)) { hi += 1 }
+        return lo < hi ? lo..<hi : nil
     }
 }
