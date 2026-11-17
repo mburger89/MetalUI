@@ -12,6 +12,6 @@ Branch `feat/code-snippet-session` on `feat/code-snippet-model` (PR 378, `CV-BP`
 
 **Costs.** `noSessionMovesStatesExactlyAsBefore` pins that the number of state moves does not change with a session on another state; the existing multi-caret keystroke literals (`aKeystrokeFrameCostsWhatItDidWithOneCaretWhateverTheCaretCount`) are unchanged; `aKeystrokeInASessionCostsAPlainKeystroke` pins 1 request, 0 hits, 1 miss, 0 ineligible, 1 frame (Apple platforms; per frame elsewhere) with one and three mirrors.
 
-**Tests.** `CodeSnippetSessionTests` (buffer module) and `CodeViewSnippetTests` (view, keys, paint, cost); the key list test gained the new conditions. Mutations are recorded in each file's header. Human check `CV35`.
+**Tests.** `CodeSnippetSessionTests` (buffer module) and `CodeViewSnippetTests` (view, keys, paint, cost); the key list test gained the new conditions. Mutations are recorded in each file's header. Human check `CV36`.
 
 **Counts (2026-11-17, `--build-system native`, `--no-parallel`).** Full root run 6931 tests in 75 suites, green; the focused run (`Snippet|CodeView|CodeBuffer|CodeSelection|MultiSelection|KeyBindings`) 454 tests in 12 suites. 22 `CodeSnippetSessionTests`, 11 `CodeViewSnippetTests`. Mutations: M1-M19 recorded in the two test files' headers all reddened named tests; the paint's row clamp is an equivalent mutant (`x(_:)` already clamps).
