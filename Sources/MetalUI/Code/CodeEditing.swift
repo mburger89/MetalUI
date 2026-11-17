@@ -29,6 +29,8 @@ enum CodeCommand: Equatable {
     case selectAll, copy, cut, paste, undo, redo
     /// ⌘G / ⇧⌘G: the next or previous find match (`CV-AE`).
     case findNext, findPrevious
+    /// Escape: with several selections, keep only the primary (`CV-BI`); with one the key is not the view's.
+    case collapseSelections
 }
 
 enum CodeEditing {
@@ -94,6 +96,8 @@ enum CodeEditing {
             return held.isEmpty ? (shift ? .outdent : .indent) : nil
         case "\u{19}":   // AppKit's backtab character
             return held.isEmpty ? .outdent : nil
+        case "\u{1B}":   // Escape, no modifiers (`CV-BI`)
+            return mods.isEmpty ? .collapseSelections : nil
         default:
             break
         }
