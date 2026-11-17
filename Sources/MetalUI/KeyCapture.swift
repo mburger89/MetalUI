@@ -30,7 +30,7 @@ extension Window {
         }
         guard let first = key.charactersIgnoringModifiers.first, !isComposingMarkedText else { return false }
         let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
-                             modifiers: key.modifiers, isKeypad: key.isKeypad)
+                             modifiers: key.modifiers, unshiftedKey: key.unshiftedKey, isKeypad: key.isKeypad)
         for id in focusChain.reversed() {
             guard let capture = lastFocusRegistry.keyCapture(for: id),
                   !capture.exceptions.contains(where: { $0.matches(key) }) else { continue }
