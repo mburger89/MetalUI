@@ -192,6 +192,10 @@ final class FakePlatformWindow: PlatformWindow {
     private(set) var textInputAreas: [Bounds<Pixels>?] = []
     func setTextInputArea(_ caret: Bounds<Pixels>?) { textInputAreas.append(caret) }
 
+    /// Every `setRawOptionKeys` argument, in call order (`TRM-X`).
+    private(set) var rawOptionKeyRequests: [Bool] = []
+    func setRawOptionKeys(_ raw: Bool) { rawOptionKeyRequests.append(raw) }
+
     /// A clipboard private to this window.
     var clipboard: String?
     func readClipboard() -> String? { clipboard }

@@ -1,0 +1,7 @@
+# TBC 3 clears every stop, HTS sets one, CHT and CBT walk them.
+size 20 2
+input "\e[3g\e[1;5H\eH\e[1;10H\eH\e[1;1H\ta\tb\tc\e[2;1H\e[2I|\e[2Z>"
+text
+|    a    b         c|
+|    >    ||
+cursor 1 5

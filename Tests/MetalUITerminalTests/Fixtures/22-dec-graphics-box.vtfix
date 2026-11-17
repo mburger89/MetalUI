@@ -1,0 +1,8 @@
+# DEC special graphics in G0 draw a box; ESC ( B returns to ASCII mid-line.
+size 12 3
+input "\e(0lqqk\r\nx\e(Bq\e(0x\r\nmqqj\e(B"
+text
+|┌──┐|
+|│q│|
+|└──┘|
+cursor 2 4

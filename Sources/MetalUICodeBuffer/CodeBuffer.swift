@@ -34,6 +34,9 @@ struct CodeUndoGroup {
     var inverse: [CodeInverse]
     var undoSelections: [CodeSelection]
     var redoSelections: [CodeSelection]
+    /// The primary's index in each side's selections (`CV-BE`).
+    var undoPrimary = 0
+    var redoPrimary = 0
 
     var bytes: Int { inverse.reduce(64) { $0 + $1.text.utf8.count + 16 } }
 }
@@ -78,6 +81,9 @@ public final class CodeBuffer {
     @ObservationIgnored private weak var openState: CodeSelectionState?
     /// How many states edit events have moved so far, summed over events (one per live state per event).
     @ObservationIgnored package private(set) var stateMoveCount = 0
+    /// Test hook: move states event by event, as before batching (`CV-BF`), so a batched result can be
+    /// compared with the sequential one.
+    @ObservationIgnored package var sequentialMoves = false
     /// How many states are alive and registered (the default state included).
     @ObservationIgnored package var registeredStateCount: Int { selectionStates.count }
     @ObservationIgnored package var liveStateCount: Int { selectionStates.reduce(0) { $0 + ($1.state == nil ? 0 : 1) } }
@@ -173,8 +179,14 @@ public final class CodeBuffer {
         set { selectionState.selections = newValue }
     }
 
-    /// The first selection, which views reveal and move.
+    /// The primary selection, which views reveal and move (`CV-BE`).
     public var primarySelection: CodeSelection { selectionState.primarySelection }
+
+    /// Replaces selection `i` with `texts[i]` as one edit (`CodeSelectionState.replaceSelections(withEach:origin:)`).
+    @discardableResult
+    public func replaceSelections(withEach texts: [String], origin: CodeEditOrigin = .paste) -> CodeTransactionID {
+        asActing(actor) { performReplaceSelections(withEach: texts, origin: origin) }
+    }
 
     /// Selects `range` (anchor at its start, head at its end), ending undo coalescing. With `reveal`, views
     /// scroll the selection into view: they observe `revealSerial`.
@@ -212,18 +224,38 @@ public final class CodeBuffer {
     private var actor: CodeSelectionState { acting ?? selectionState }
 
     nonisolated static func normalize(_ input: [CodeSelection], limit: Int) -> [CodeSelection] {
+        normalize(input, limit: limit, primary: 0).0
+    }
+
+    /// Clamps, sorts and merges `input`, and returns where `input[primary]` ended up (`CV-BE`).
+    nonisolated static func normalize(_ input: [CodeSelection], limit: Int, primary: Int) -> ([CodeSelection], Int) {
         var xs = input.map { CodeSelection(anchor: max(0, min($0.anchor, limit)), head: max(0, min($0.head, limit))) }
-        if xs.isEmpty { return [CodeSelection(caret: 0)] }
-        xs.sort { $0.range.lowerBound != $1.range.lowerBound ? $0.range.lowerBound < $1.range.lowerBound : $0.range.upperBound < $1.range.upperBound }
+        if xs.isEmpty { return ([CodeSelection(caret: 0)], 0) }
+        func joins(_ x: CodeSelection, _ last: CodeSelection) -> Bool {
+            x.range.lowerBound < last.range.upperBound || (x.range.lowerBound == last.range.upperBound && (x.isEmpty || last.isEmpty))
+        }
+        var ordered = true
+        for i in 1..<xs.count where joins(xs[i], xs[i - 1]) { ordered = false; break }
+        if ordered { return (xs, primary) }
+        var order = Array(xs.indices)
+        order.sort {
+            let a = xs[$0].range, b = xs[$1].range
+            if a.lowerBound != b.lowerBound { return a.lowerBound < b.lowerBound }
+            if a.upperBound != b.upperBound { return a.upperBound < b.upperBound }
+            return $0 < $1
+        }
         var out: [CodeSelection] = []
-        for x in xs {
-            if let last = out.last,
-               x.range.lowerBound < last.range.upperBound || (x.range.lowerBound == last.range.upperBound && (x.isEmpty || last.isEmpty)) {
+        var newPrimary = 0
+        for i in order {
+            let x = xs[i]
+            if let last = out.last, joins(x, last) {
                 let lo = last.range.lowerBound, hi = max(last.range.upperBound, x.range.upperBound)
                 out[out.count - 1] = last.head < last.anchor ? CodeSelection(anchor: hi, head: lo) : CodeSelection(anchor: lo, head: hi)
             } else { out.append(x) }
+            if i == primary { newPrimary = out.count - 1 }
         }
-        return out
+        xs = out
+        return (xs, newPrimary)
     }
 
     /// Where `offset` goes when `start..<end` is replaced by `newLength` bytes: before it, unchanged;
@@ -290,9 +322,9 @@ public final class CodeBuffer {
         }
         let tx = newTransaction()
         if isReadOnly || (range.isEmpty && text.isEmpty) { return tx }
-        let before = actor.stored
+        let before = actor.stored, beforePrimary = actor.storedPrimary
         let inverse = applyEvent(range, text, origin: origin, transaction: tx)
-        recordUndo(inverse, origin: origin, transaction: tx, before: before)
+        recordUndo(inverse, origin: origin, transaction: tx, before: before, beforePrimary: beforePrimary)
         return tx
     }
 
@@ -308,11 +340,13 @@ public final class CodeBuffer {
         let tx = newTransaction()
         transactionDepth = 1
         currentTransaction = tx
-        building = CodeUndoGroup(id: tx, inverse: [], undoSelections: actor.stored, redoSelections: actor.stored)
+        building = CodeUndoGroup(id: tx, inverse: [], undoSelections: actor.stored, redoSelections: actor.stored,
+                                 undoPrimary: actor.storedPrimary, redoPrimary: actor.storedPrimary)
         body(self)
         transactionDepth = 0
         if var group = building, !group.inverse.isEmpty {
             group.redoSelections = actor.stored
+            group.redoPrimary = actor.storedPrimary
             openKind = nil
             openState = nil
             pushUndo(group)
@@ -329,28 +363,188 @@ public final class CodeBuffer {
     }
 
     func performReplaceSelections(with text: String, origin: CodeEditOrigin) -> CodeTransactionID {
+        performReplaceSelections(origin: origin) { _ in text }
+    }
+
+    func performReplaceSelections(withEach texts: [String], origin: CodeEditOrigin) -> CodeTransactionID {
+        precondition(texts.count == actor.stored.count, "CodeSelectionState.replaceSelections(withEach:): \(texts.count) texts for \(actor.stored.count) selections")
+        return performReplaceSelections(origin: origin) { texts[$0] }
+    }
+
+    private func performReplaceSelections(origin: CodeEditOrigin, text: (Int) -> String) -> CodeTransactionID {
         let state = actor
         let sels = state.stored
-        let length = text.utf8.count
+        let primary = state.storedPrimary
         var carets: [CodeSelection] = []
+        var edits: [(range: Range<Int>, text: String)] = []
         var shift = 0
-        for s in sels {
+        for (i, s) in sels.enumerated() {
+            let t = text(i)
+            let length = t.utf8.count
             carets.append(CodeSelection(caret: s.range.lowerBound + shift + length))
             shift += length - s.range.count
+            edits.append((s.range, t))
         }
         if sels.count == 1 {
             let before = version
-            let tx = performReplace(sels[0].range, with: text, origin: origin)
+            let tx = performReplace(edits[0].range, with: edits[0].text, origin: origin)
             if version != before {
-                state.setInternal(carets)
-                if Self.isUndoable(origin), !undoStack.isEmpty { undoStack[undoStack.count - 1].redoSelections = state.stored }
+                state.setInternal(carets, primary: 0)
+                if Self.isUndoable(origin), !undoStack.isEmpty {
+                    undoStack[undoStack.count - 1].redoSelections = state.stored
+                    undoStack[undoStack.count - 1].redoPrimary = state.storedPrimary
+                }
             }
             return tx
         }
-        return performTransaction { buffer in
-            for s in sels.reversed() { buffer.replace(s.range, with: text, origin: origin) }
-            if !buffer.isReadOnly { state.setInternal(carets) }
+        if transactionDepth > 0 {
+            applyBatchInTransaction(edits, origin: origin)
+            if !isReadOnly { state.setInternal(carets, primary: primary) }
+            return currentTransaction
         }
+        let tx = newTransaction()
+        if isReadOnly { return tx }
+        let before = state.stored
+        let inverses = applyBatch(live(edits), origin: origin, transaction: tx)
+        if inverses.isEmpty { return tx }
+        state.setInternal(carets, primary: primary)
+        recordBatchUndo(inverses, origin: origin, transaction: tx, before: before, beforePrimary: primary)
+        return tx
+    }
+
+    /// The edits that change anything, highest first.
+    private func live(_ edits: [(range: Range<Int>, text: String)]) -> [(range: Range<Int>, text: String)] {
+        var previousEnd = 0
+        for e in edits {
+            precondition(validate(e.range) && e.range.lowerBound >= previousEnd, "CodeBuffer: batch range \(e.range) is out of bounds, inside a scalar or overlaps another")
+            previousEnd = e.range.upperBound
+        }
+        return edits.filter { !($0.range.isEmpty && $0.text.isEmpty) }.reversed()
+    }
+
+    /// Applies `edits` (ascending, non-overlapping, in the current coordinates) inside the running transaction
+    /// as one batch (`CV-BF`): the events are logged highest first and every state moves once.
+    func applyBatchInTransaction(_ edits: [(range: Range<Int>, text: String)], origin: CodeEditOrigin) {
+        precondition(transactionDepth > 0)
+        let steps = live(edits)
+        if isReadOnly { return }
+        let inverses = applyBatch(steps, origin: origin, transaction: currentTransaction)
+        if Self.isUndoable(origin) { building?.inverse.append(contentsOf: inverses) }
+    }
+
+    /// Applies `steps` in order (each in the coordinates of the text at that moment) and returns the inverse
+    /// of each. When the steps are all below the previous one or all after it, the states move once for the
+    /// whole run, otherwise once per step (`CV-BF`).
+    private func applyBatch(_ steps: [(range: Range<Int>, text: String)], origin: CodeEditOrigin, transaction tx: CodeTransactionID) -> [CodeInverse] {
+        let shape = steps.map { (range: $0.range, newLength: $0.text.utf8.count) }
+        guard steps.count > 1 else {
+            return steps.map { applyEvent($0.range, $0.text, origin: origin, transaction: tx) }
+        }
+        guard !sequentialMoves, let descending = CodeEditRun.order(of: shape) else {
+            // One move per event, the selections left as the events move them and normalised once at the end.
+            let inverses = steps.map { applyEvent($0.range, $0.text, origin: origin, transaction: tx, normalizing: false) }
+            for entry in selectionStates { entry.state?.setInternal(entry.state!.stored) }
+            return inverses
+        }
+        // Many edits close together: one splice of their span instead of one rope edit each.
+        let spanLo = steps.last!.range.lowerBound, spanHi = steps.first!.range.upperBound
+        let inverses: [CodeInverse]
+        if descending, steps.count >= 32, spanHi - spanLo <= steps.count * 256 {
+            inverses = applySpliced(steps, origin: origin, transaction: tx)
+        } else {
+            inverses = steps.map { applyEvent($0.range, $0.text, origin: origin, transaction: tx, movesStates: false) }
+        }
+        moveStates(CodeEditRun(steps: shape, descending: descending), origin: origin)
+        return inverses
+    }
+
+    /// The effect of applying `steps` (descending: each wholly below the previous) one by one, with one rope
+    /// splice over their span: every event's position, old text and log entry are read from the text before
+    /// the splice, which is what each saw in turn (an edit only changes the text above it).
+    private func applySpliced(_ steps: [(range: Range<Int>, text: String)], origin: CodeEditOrigin, transaction tx: CodeTransactionID) -> [CodeInverse] {
+        let spanLo = steps.last!.range.lowerBound, spanHi = steps.first!.range.upperBound
+        let original = CodeSnapshot(rope: rope, version: version)
+        var spliced: [UInt8] = []
+        spliced.reserveCapacity(spanHi - spanLo + 64)
+        var cursor = spanLo
+        var inverses: [CodeInverse] = []
+        inverses.reserveCapacity(steps.count)
+        var edits: [CodeEdit] = []
+        edits.reserveCapacity(steps.count)
+        let first = version
+        for (j, step) in steps.reversed().enumerated() {
+            let lo = step.range.lowerBound, hi = step.range.upperBound
+            if lo > cursor { spliced.append(contentsOf: original.utf8(in: cursor..<lo)) }
+            cursor = hi
+            var t = step.text
+            var newlines = 0, afterLastNewline = 0
+            let length = t.withUTF8 { bytes -> Int in
+                for i in bytes.indices where bytes[i] == 0x0A { newlines += 1; afterLastNewline = i + 1 }
+                spliced.append(contentsOf: bytes)
+                return bytes.count
+            }
+            let ps = rope.prefix(utf8: lo)
+            let pe = hi == lo ? ps : rope.prefix(utf8: hi)
+            let startPoint = CodePoint(row: ps.newlines, column: ps.lastLineBytes)
+            let newEnd = newlines == 0
+                ? CodePoint(row: startPoint.row, column: startPoint.column + length)
+                : CodePoint(row: startPoint.row + newlines, column: length - afterLastNewline)
+            inverses.append(CodeInverse(range: lo..<lo + length, text: hi > lo ? original.text(in: step.range) : ""))
+            edits.append(CodeEdit(version: first + UInt64(steps.count - j), transaction: tx, origin: origin, range: step.range,
+                                  scalarRange: ps.scalars..<pe.scalars, startPoint: startPoint,
+                                  oldEndPoint: CodePoint(row: pe.newlines, column: pe.lastLineBytes),
+                                  newEndPoint: newEnd, newText: step.text))
+        }
+        if spanHi > cursor { spliced.append(contentsOf: original.utf8(in: cursor..<spanHi)) }
+        spliced.withUnsafeBufferPointer { rope.replace(spanLo, spanHi, with: $0) }
+        version += UInt64(steps.count)
+        // Applied highest first: the highest edit is the first event; `edits` is ascending.
+        for e in edits.reversed() {
+            log.append(e)
+            logBytes += e.newText.utf8.count + 96
+        }
+        trimLog()
+        // `inverses` was built ascending; the events ran highest first.
+        return inverses.reversed()
+    }
+
+    /// `merged` for a whole batch: the i-th inverse of `previous` with the i-th of `next`, whose coordinates are
+    /// taken back over the length changes of the lower carets' earlier edits (the run is highest first).
+    nonisolated static func mergedBatch(_ previous: [CodeInverse], _ next: [CodeInverse], kind: CodeCoalesceKind) -> [CodeInverse]? {
+        guard previous.count == next.count else { return nil }
+        var below = Array(repeating: 0, count: previous.count)
+        var sum = 0
+        for i in stride(from: previous.count - 1, through: 0, by: -1) {
+            below[i] = sum
+            sum += previous[i].range.count - previous[i].text.utf8.count
+        }
+        var out: [CodeInverse] = []
+        for i in previous.indices {
+            var n = next[i]
+            n.range = (n.range.lowerBound - below[i])..<(n.range.upperBound - below[i])
+            guard let m = CodeInverse.merged(previous[i], n, kind: kind) else { return nil }
+            out.append(m)
+        }
+        return out
+    }
+
+    private func recordBatchUndo(_ inverses: [CodeInverse], origin: CodeEditOrigin, transaction tx: CodeTransactionID,
+                                 before: [CodeSelection], beforePrimary: Int) {
+        guard Self.isUndoable(origin) else { return }
+        let kind: CodeCoalesceKind? = switch origin { case .typing: .typing; case .deletion: .deletion; default: nil }
+        let state = actor
+        if let kind, openKind == kind, openState === state, var top = undoStack.last,
+           let merged = Self.mergedBatch(top.inverse, inverses, kind: kind) {
+            top.inverse = merged
+            top.redoSelections = state.stored
+            top.redoPrimary = state.storedPrimary
+            undoStack[undoStack.count - 1] = top
+            return
+        }
+        pushUndo(CodeUndoGroup(id: tx, inverse: inverses, undoSelections: before, redoSelections: state.stored,
+                               undoPrimary: beforePrimary, redoPrimary: state.storedPrimary))
+        openKind = kind
+        openState = kind == nil ? nil : state
     }
 
     private static func isUndoable(_ origin: CodeEditOrigin) -> Bool {
@@ -360,7 +554,8 @@ public final class CodeBuffer {
         }
     }
 
-    private func recordUndo(_ inverse: CodeInverse, origin: CodeEditOrigin, transaction tx: CodeTransactionID, before: [CodeSelection]) {
+    private func recordUndo(_ inverse: CodeInverse, origin: CodeEditOrigin, transaction tx: CodeTransactionID,
+                            before: [CodeSelection], beforePrimary: Int) {
         guard Self.isUndoable(origin) else { return }
         let kind: CodeCoalesceKind? = switch origin { case .typing: .typing; case .deletion: .deletion; default: nil }
         let state = actor
@@ -368,10 +563,12 @@ public final class CodeBuffer {
            let merged = CodeInverse.merged(last, inverse, kind: kind) {
             top.inverse[top.inverse.count - 1] = merged
             top.redoSelections = state.stored
+            top.redoPrimary = state.storedPrimary
             undoStack[undoStack.count - 1] = top
             return
         }
-        pushUndo(CodeUndoGroup(id: tx, inverse: [inverse], undoSelections: before, redoSelections: state.stored))
+        pushUndo(CodeUndoGroup(id: tx, inverse: [inverse], undoSelections: before, redoSelections: state.stored,
+                               undoPrimary: beforePrimary, redoPrimary: state.storedPrimary))
         openKind = kind
         openState = kind == nil ? nil : state
     }
@@ -394,7 +591,8 @@ public final class CodeBuffer {
 
     /// Applies one replacement: updates the tree, the version, the log and the selections, and returns the
     /// step that reverses it.
-    private func applyEvent(_ range: Range<Int>, _ text: String, origin: CodeEditOrigin, transaction tx: CodeTransactionID) -> CodeInverse {
+    private func applyEvent(_ range: Range<Int>, _ text: String, origin: CodeEditOrigin, transaction tx: CodeTransactionID,
+                            movesStates: Bool = true, normalizing: Bool = true) -> CodeInverse {
         let lo = range.lowerBound, hi = range.upperBound
         let ps = rope.prefix(utf8: lo)
         let pe = hi == lo ? ps : rope.prefix(utf8: hi)
@@ -419,7 +617,7 @@ public final class CodeBuffer {
         log.append(edit)
         logBytes += length + 96
         trimLog()
-        moveStates(start: lo, end: hi, newLength: length, origin: origin)
+        if movesStates { moveStates(start: lo, end: hi, newLength: length, origin: origin, normalizing: normalizing) }
         return CodeInverse(range: lo..<lo + length, text: old)
     }
 
@@ -427,7 +625,7 @@ public final class CodeBuffer {
     /// state by `mapOtherSelection` (`CV-AW`). An external edit has no acting state and moves all of them
     /// by the `CV-D` rule without stickiness, so a buffer used through its default state alone moves exactly
     /// as before states existed.
-    private func moveStates(start: Int, end: Int, newLength: Int, origin: CodeEditOrigin) {
+    private func moveStates(start: Int, end: Int, newLength: Int, origin: CodeEditOrigin, normalizing: Bool) {
         let sticky: Bool = switch origin { case .typing, .paste: true; default: false }
         let isExternal: Bool = if case .external = origin { true } else { false }
         let current = actor
@@ -438,9 +636,26 @@ public final class CodeBuffer {
                 state.setInternal(state.stored.map {
                     CodeSelection(anchor: Self.mapSelectionOffset($0.anchor, start: start, end: end, newLength: newLength, sticky: sticky && !isExternal),
                                   head: Self.mapSelectionOffset($0.head, start: start, end: end, newLength: newLength, sticky: sticky && !isExternal))
-                })
+                }, normalizing: normalizing)
             } else {
-                state.setInternal(state.stored.map { Self.mapOtherSelection($0, start: start, end: end, newLength: newLength) })
+                state.setInternal(state.stored.map { Self.mapOtherSelection($0, start: start, end: end, newLength: newLength) }, normalizing: normalizing)
+            }
+        }
+    }
+
+    /// Moves every live state over a whole run of edits at once (`CV-BF`): the same result as `moveStates`
+    /// once per edit, in O(edits + selections) per state, counted once per state.
+    private func moveStates(_ batch: CodeEditRun, origin: CodeEditOrigin) {
+        let sticky: Bool = switch origin { case .typing, .paste: true; default: false }
+        let isExternal: Bool = if case .external = origin { true } else { false }
+        let current = actor
+        for entry in selectionStates {
+            guard let state = entry.state else { continue }
+            stateMoveCount += 1
+            if isExternal || state === current {
+                state.setInternal(batch.moveActing(state.stored, sticky: sticky && !isExternal))
+            } else {
+                state.setInternal(batch.moveOther(state.stored))
             }
         }
     }
@@ -466,7 +681,7 @@ public final class CodeBuffer {
         openState = nil
         let counterpart = replay(group, origin: .undo(group.id))
         redoStack.append(counterpart)
-        actor.setInternal(group.undoSelections)
+        actor.setInternal(group.undoSelections, primary: group.undoPrimary)
         return true
     }
 
@@ -483,17 +698,15 @@ public final class CodeBuffer {
         let counterpart = replay(group, origin: .redo(group.id))
         undoStack.append(counterpart)
         trimUndo()
-        actor.setInternal(group.redoSelections)
+        actor.setInternal(group.redoSelections, primary: group.redoPrimary)
         return true
     }
 
     private func replay(_ group: CodeUndoGroup, origin: CodeEditOrigin) -> CodeUndoGroup {
         let tx = newTransaction()
-        var recorded: [CodeInverse] = []
-        for step in group.inverse.reversed() {
-            recorded.append(applyEvent(step.range, step.text, origin: origin, transaction: tx))
-        }
-        return CodeUndoGroup(id: group.id, inverse: recorded, undoSelections: group.undoSelections, redoSelections: group.redoSelections)
+        let recorded = applyBatch(group.inverse.reversed().map { (range: $0.range, text: $0.text) }, origin: origin, transaction: tx)
+        return CodeUndoGroup(id: group.id, inverse: recorded, undoSelections: group.undoSelections, redoSelections: group.redoSelections,
+                             undoPrimary: group.undoPrimary, redoPrimary: group.redoPrimary)
     }
 
     // MARK: External edits
@@ -545,7 +758,7 @@ public final class CodeBuffer {
         let shape = live.map { ExternalShape(range: $0.range, newLength: $0.text.utf8.count) }
         Self.rebase(&undoStack, over: shape)
         Self.rebase(&redoStack, over: shape)
-        for e in live.reversed() { _ = applyEvent(e.range, e.text, origin: .external, transaction: tx) }
+        _ = applyBatch(live.reversed().map { (range: $0.range, text: $0.text) }, origin: .external, transaction: tx)
         return tx
     }
 

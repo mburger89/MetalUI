@@ -1,0 +1,10 @@
+# DECSC saves position and pen; DECRC brings both back.
+size 8 3
+input "\e[2;3H\e[1;31m\e7\e[H\e[0mab\e8c"
+text
+|ab|
+|  c|
+||
+attr 1 2 bold fg=1
+attr 0 0 plain
+cursor 1 3

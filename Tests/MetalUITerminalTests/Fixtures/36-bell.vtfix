@@ -1,0 +1,6 @@
+# BEL queues one bell event; two with nothing between them in the queue are one.
+size 6 1
+input "a\x07\x07b"
+text
+|ab|
+events bell

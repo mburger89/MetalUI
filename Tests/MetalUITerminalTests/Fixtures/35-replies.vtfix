@@ -1,0 +1,5 @@
+# DA1, DA2, DSR 5 and 6 (CPR, relative to the region in origin mode) and DECRQM. `\e[1c` is not a request.
+size 20 10
+input "\e[c\e[0c\e[>c\e[5n\e[3;4H\e[6n\e[2;5r\e[?6h\e[6n\e[?6l\e[?7$p\e[?1049$p\e[4$p\e[?2004h\e[?2004$p\e[?9999$p\e[1c"
+replies "\e[?62;22c\e[?62;22c\e[>1;0;0c\e[0n\e[3;4R\e[1;1R\e[?7;1$y\e[?1049;2$y\e[4;2$y\e[?2004;1$y\e[?9999;0$y"
+cursor 0 0

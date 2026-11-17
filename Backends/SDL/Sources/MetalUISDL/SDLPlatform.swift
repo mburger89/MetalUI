@@ -853,6 +853,11 @@ public final class SDLWindow: PlatformWindow {
         }
     }
 
+    /// Whether both Alt keys act as meta (`TRM-X`): an Alt combination is then a plain key, never text.
+    private(set) var rawOptionKeys = false
+
+    public func setRawOptionKeys(_ raw: Bool) { rawOptionKeys = raw }
+
     public func readClipboard() -> String? {
         guard let text = mui_clipboard_text() else { return nil }
         defer { mui_free(text) }
@@ -947,8 +952,9 @@ public final class SDLWindow: PlatformWindow {
         composing && modifiers.isDisjoint(with: [.control, .command])
     }
 
-    nonisolated static func producesText(keycode: UInt32, modifiers: Modifiers) -> Bool {
+    nonisolated static func producesText(keycode: UInt32, modifiers: Modifiers, rawOptionKeys: Bool = false) -> Bool {
         guard modifiers.isDisjoint(with: [.control, .command]) else { return false }
+        if rawOptionKeys, modifiers.contains(.option) { return false }   // `TRM-X`
         return keycode >= 0x20 && keycode < 0x7F
     }
 
@@ -1590,6 +1596,8 @@ public final class SDLWindow: PlatformWindow {
             handleDrop(event)
         case Int(MUI_EVENT_TEXT_INPUT):
             guard textInputCaret != nil, let text = event.text else { return }
+            // `TRM-X`: with Alt as meta, the text an Alt combination produced is not typed (the key went as a key).
+            if rawOptionKeys, modifiers.contains(.option) { return }
             isComposing = false   // a commit ends the composition
             _ = onInput?(.textInput(String(cString: text)))
         case Int(MUI_EVENT_TEXT_EDITING):
@@ -1606,7 +1614,8 @@ public final class SDLWindow: PlatformWindow {
         case Int(MUI_EVENT_FOCUS_GAINED):
             _ = onInput?(.modifiersChanged(modifiers))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
-            if textInputCaret != nil, Self.producesText(keycode: event.keycode, modifiers: modifiers) { return }
+            if textInputCaret != nil,
+               Self.producesText(keycode: event.keycode, modifiers: modifiers, rawOptionKeys: rawOptionKeys) { return }
             // KF-AB: while the input method composes, its keys are its own.
             if Self.suppressesKey(composing: isComposing, modifiers: modifiers) { return }
             let keys = SDLKeys.characters(forKeycode: event.keycode, modifiers: modifiers)

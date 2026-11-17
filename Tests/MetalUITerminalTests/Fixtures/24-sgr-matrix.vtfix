@@ -1,0 +1,16 @@
+# SGR: flags, 16/256/truecolour in both forms, underline styles and colour, the 9x and 10x brights.
+size 20 2
+input "\e[1;3;4mA\e[0m\e[31;42mB\e[0m\e[38;5;200;48;5;17mC\e[0m\e[38;2;10;20;30mD\e[0m\e[38:2::1:2:3mE\e[0m\e[4:3;58:2::9:8:7mF\e[0m\e[9;7;8;5;2mG\e[0m\e[91;104mH\e[0m\e[1;22mI"
+text
+|ABCDEFGHI|
+||
+attr 0 0 bold italic underline=single
+attr 0 1 fg=1 bg=2
+attr 0 2 fg=200 bg=17
+attr 0 3 fg=10,20,30
+attr 0 4 fg=1,2,3
+attr 0 5 underline=curly ul=9,8,7
+attr 0 6 dim blink inverse hidden strike
+attr 0 7 fg=9 bg=12
+attr 0 8 plain
+cursor 0 9

@@ -1,0 +1,6 @@
+# REP repeats the preceding graphic character.
+size 8 1
+input "ab\e[3b"
+text
+|abbbb|
+cursor 0 5

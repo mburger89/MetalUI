@@ -130,6 +130,13 @@ extension _KeyPressFolding {
                            action: @escaping @MainActor (KeyPress) -> KeyPress.Result) -> Self {
         addingKeyPress(phases, .any, action)
     }
+
+    /// `StyledElement.keyCapture(except:optionAsMeta:)` on a proposal chain: the capture joins the chain's
+    /// keyboard layer as `onKeyPress` does (ruling `TRM-U`, `KF-AD`); `Self` back, no further element.
+    public func keyCapture(except shortcuts: [KeyboardShortcut] = [], optionAsMeta: Bool = false) -> Self {
+        let handler = KeyCapture(exceptions: shortcuts, optionAsMeta: optionAsMeta).marker
+        return _foldingKeyboardLayer { $0.add(handler) }
+    }
 }
 
 /// One `onKeyPress` handler on its way to `ElementGroup._addingKeyPress(_:)`. MetalUI-only and opaque: made by the
@@ -143,7 +150,6 @@ extension ElementGroup where KeyPressed == ModifiedElement<LayerBase> {
     /// A group with no layer of its own: one wrapper layer (a default `Style`, one node, one identity level) holding
     /// the handler, the `KF-AC` shape.
     public func _addingKeyPress(_ registration: KeyPressRegistration) -> ModifiedElement<LayerBase> {
-        let h = registration.handler
-        return _wrap(ModifierLayer(style: Style())).addingKeyPress(h.phases, h.filter, h.action)
+        return _wrap(ModifierLayer(style: Style())).addingKeyPress(registration.handler)
     }
 }

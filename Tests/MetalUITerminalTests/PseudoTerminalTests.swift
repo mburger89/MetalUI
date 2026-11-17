@@ -15,6 +15,20 @@ import Musl
 // Spec section 8 (rulings TRM-K..TRM-O). Every wait is bounded and none sleeps for timing; every behaviour runs
 // under both spawn mechanisms. Run with `--no-parallel`.
 
+/// True when `pid` no longer exists or is a zombie (dead, only unreaped). `kill(pid, 0)` alone cannot tell a zombie
+/// from a live process, and an unreaped zombie is what a killed orphan is when PID 1 never waits (a container).
+private func processIsDead(_ pid: pid_t) -> Bool {
+    if kill(pid, 0) != 0 { return true }
+    #if os(Linux)
+    // `/proc/<pid>/stat` is `pid (comm) S ...`; comm may hold spaces and parentheses, so read the state after the last `)`.
+    guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8) else { return true }
+    guard let close = stat.lastIndex(of: ")") else { return false }
+    return stat[stat.index(after: close)...].first(where: { $0 != " " }) == "Z"
+    #else
+    return false
+    #endif
+}
+
 @Suite(.serialized) struct PseudoTerminalTests {
     // MARK: The child's world
 
@@ -131,12 +145,13 @@ import Musl
         #expect(kill(grandchild, 0) == 0)
         pty.signalGroup(.kill)
         #expect(await exitStatus(of: pty) == .signaled(SIGKILL))
-        // A killed process is a zombie until its parent (init, now) reaps it; either way `kill` then fails or
-        // the process is gone. Bounded poll.
+        // A killed process is a zombie until its parent reaps it, and the grandchild's parent is now whatever
+        // adopts orphans: launchd on macOS, but in a container PID 1 may be `tail` or a shell that never calls
+        // `wait`, so the zombie stays and `kill(pid, 0)` keeps succeeding. Dead means gone or a zombie. Bounded poll.
         var gone = false
         let deadline = Date(timeIntervalSinceNow: 20)
         while Date() < deadline {
-            if kill(grandchild, 0) != 0 { gone = true; break }
+            if processIsDead(grandchild) { gone = true; break }
             usleep(2000)
         }
         #expect(gone, "the grandchild survived signalGroup")

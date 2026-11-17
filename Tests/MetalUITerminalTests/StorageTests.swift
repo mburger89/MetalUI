@@ -19,6 +19,18 @@ private var boldBlue: TerminalAttributes {
     return a
 }
 
+/// The capacity this platform's allocator gives `[UInt8]` for an exact `reserveCapacity(n)`; what a tight array is.
+private func exactRequestCapacity(_ n: Int) -> Int {
+    var reference: [UInt8] = []
+    reference.reserveCapacity(n)
+    return reference.capacity
+}
+
+/// `TerminalRow.heapByteCount`'s formula for that reference array (header plus capacity, 16-byte granules).
+private func referenceHeapBytes(forRequest n: Int) -> Int {
+    (32 + exactRequestCapacity(n) + 15) / 16 * 16
+}
+
 @Suite struct RowStorageTests {
     @Test func plainTextStoresBytesAndNoSpans() {
         var row = TerminalRow(columns: 10)
@@ -97,7 +109,12 @@ private var boldBlue: TerminalAttributes {
         let compact = row.compacted()
         #expect(compact.text == row.text && compact.usedColumns == 20)
         #expect(compact.bytes.capacity < 64)
-        #expect(compact.heapByteCount <= 64)
+        // "Exactly" is what the allocator hands back for an exact request: macOS and aarch64 Linux give 24 bytes for
+        // 20 (64 heap bytes), while CI's x86_64 runner measured 80 for the same row (an allocator rounding that
+        // `compact` cannot undo).
+        // So the bound is 64 or the reference array's own size, whichever is larger: tight on every platform.
+        #expect(compact.bytes.capacity <= exactRequestCapacity(20))
+        #expect(compact.heapByteCount <= max(64, referenceHeapBytes(forRequest: 20)))
         #expect(compact.columns == 80)
     }
 }
@@ -139,7 +156,7 @@ private var boldBlue: TerminalAttributes {
         var row = TerminalRow(columns: 120)
         write(&row, String(repeating: "q", count: 120), at: 0)
         let compact = row.compacted()
-        #expect(compact.heapByteCount <= 120 + 48)
+        #expect(compact.heapByteCount <= max(120 + 48, referenceHeapBytes(forRequest: 120)))
         #expect(MemoryLayout<TerminalRow>.stride <= 40)
     }
 }

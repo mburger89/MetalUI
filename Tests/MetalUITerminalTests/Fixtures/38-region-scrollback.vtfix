@@ -1,0 +1,10 @@
+# Rows scrolled out of a partial region are dropped; a full-screen scroll keeps them.
+size 4 3
+input "a\r\nb\r\nc\e[1;2r\n\n\e[r\e[3;1H\n"
+text
+||
+|c|
+||
+history
+|b|
+cursor 2 0
