@@ -78,3 +78,20 @@ extension CodeViewPlan {
         }
     }
 }
+
+extension CodeViewPlan {
+    /// The pointer style over `point` (bounds space) (`CV-BO`): an arrow in the gutter (numbers, marker lane, bars) and
+    /// on a virtual row, the pointing hand on a fold chevron that acts, on a folded header's `⋯` and, with
+    /// `plainClickTargets` (an `onTextClick` whose modifiers are none), on a character of text; the I-beam elsewhere
+    /// in the text area, past a line's end and below the last row included, as NSTextView's.
+    func regionCursor(at point: Point<Pixels>, plainClickTargets: Bool) -> PointerStyle {
+        if foldChevronLine(at: point) != nil { return .link }
+        if rows.isEmpty { return isInGutter(point) ? .default : .horizontalText }
+        let hit = hit(at: point)
+        switch hit.region {
+        case .gutter, .virtualRow: return .default
+        case .text: return plainClickTargets ? .link : .horizontalText
+        case .pastLineEnd: return hit.foldedLines != nil ? .link : .horizontalText
+        }
+    }
+}

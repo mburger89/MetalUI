@@ -292,17 +292,32 @@ final class PointerAttachment {
     /// `.hidden` or `.visible` from `pointerVisibility(_:)`; `nil` for none and for `.automatic`
     /// (`PH-F`: automatic defers to an outer declaration).
     let visibility: Visibility?
+    /// A per-element style asked on input with the pointer's element-local point (the space the element's
+    /// `onContinuousHover(coordinateSpace: .local)` reports); `nil` answers "no opinion" and an outer style applies.
+    /// Package, for ``CodeView``'s region cursors (`CV-BO`): the answer is read from the element's last frame, so a move
+    /// within one region resolves to the same style and the platform is not asked again.
+    let styleProvider: (@MainActor (Point<Pixels>) -> PointerStyle?)?
 
-    init(scrollWheel: (@MainActor (ScrollEvent) -> Bool)?, style: PointerStyle?, visibility: Visibility? = nil) {
+    init(scrollWheel: (@MainActor (ScrollEvent) -> Bool)?, style: PointerStyle?, visibility: Visibility? = nil,
+         styleProvider: (@MainActor (Point<Pixels>) -> PointerStyle?)? = nil) {
         self.scrollWheel = scrollWheel
         self.style = style
         self.visibility = visibility
+        self.styleProvider = styleProvider
+    }
+
+    /// `existing` with its style provider replaced by `provider`.
+    static func styleProvider(_ provider: @escaping @MainActor (Point<Pixels>) -> PointerStyle?,
+                              over existing: PointerAttachment?) -> PointerAttachment {
+        PointerAttachment(scrollWheel: existing?.scrollWheel, style: existing?.style, visibility: existing?.visibility,
+                          styleProvider: provider)
     }
 
     /// `existing` with its wheel handler replaced by `action`.
     static func wheel(_ action: @escaping @MainActor (ScrollEvent) -> Bool,
                       over existing: PointerAttachment?) -> PointerAttachment {
-        PointerAttachment(scrollWheel: action, style: existing?.style, visibility: existing?.visibility)
+        PointerAttachment(scrollWheel: action, style: existing?.style, visibility: existing?.visibility,
+                          styleProvider: existing?.styleProvider)
     }
 
     /// `existing` with `style` unless it already carries one (the inner
@@ -310,14 +325,16 @@ final class PointerAttachment {
     /// (`nil` attaches nothing, `CI-H` item 2).
     static func style(_ style: PointerStyle?, over existing: PointerAttachment?) -> PointerAttachment? {
         guard let style, existing?.style == nil else { return existing }
-        return PointerAttachment(scrollWheel: existing?.scrollWheel, style: style, visibility: existing?.visibility)
+        return PointerAttachment(scrollWheel: existing?.scrollWheel, style: style, visibility: existing?.visibility,
+                          styleProvider: existing?.styleProvider)
     }
 
     /// `existing` with `visibility` unless it already carries one (the inner wins, as a style does);
     /// `existing` itself for `.automatic`, which attaches nothing (`PH-F`).
     static func visibility(_ visibility: Visibility, over existing: PointerAttachment?) -> PointerAttachment? {
         guard visibility != .automatic, existing?.visibility == nil else { return existing }
-        return PointerAttachment(scrollWheel: existing?.scrollWheel, style: existing?.style, visibility: visibility)
+        return PointerAttachment(scrollWheel: existing?.scrollWheel, style: existing?.style, visibility: visibility,
+                          styleProvider: existing?.styleProvider)
     }
 }
 
@@ -480,7 +497,7 @@ extension Window {
         if hoverIsSuppressed || lastPointerStyleRegionCount == 0 {
             // `.default`, visible
         } else if !releasing, let target = pointerStylePressTarget {
-            found = pressedPointer(target)
+            found = pressedPointer(target, at: point)
         } else {
             found = pointerUnderPointer(point)
         }
@@ -502,15 +519,17 @@ extension Window {
     private func pointerUnderPointer(_ point: Point<Pixels>) -> ResolvedPointer {
         guard let cover = topmostHitbox(in: lastHitboxes, at: point, where: {
             $0.opaque || $0.handlers.hover != nil || $0.handlers.pointer?.style != nil
-                || $0.handlers.pointer?.visibility != nil
+                || $0.handlers.pointer?.visibility != nil || $0.handlers.pointer?.styleProvider != nil
         }) else { return ResolvedPointer() }
         let top = lastHitboxes[cover]
         var found = ResolvedPointer()
         for region in lastHitboxes {
             pointerStyleVisits += 1
-            guard let pointer = region.handlers.pointer, pointer.style != nil || pointer.visibility != nil else { continue }
+            guard let pointer = region.handlers.pointer,
+                  pointer.style != nil || pointer.visibility != nil || pointer.styleProvider != nil else { continue }
             if region.layer == top.layer, region.contains(point), top.id.isOrDescends(from: region.id) {
                 if let style = pointer.style { found.style = style }
+                if let provider = pointer.styleProvider, let style = provider(region.elementLocalPoint(point)) { found.style = style }
                 if let visibility = pointer.visibility { found.visibility = visibility }
             }
         }
@@ -519,13 +538,15 @@ extension Window {
 
     /// The innermost style and visibility on the pressed target's layer whose id the
     /// target is or descends from, wherever the pointer is (`CI-H` item 6).
-    private func pressedPointer(_ target: (id: GlobalElementID, layer: Int)) -> ResolvedPointer {
+    private func pressedPointer(_ target: (id: GlobalElementID, layer: Int), at point: Point<Pixels>) -> ResolvedPointer {
         var found = ResolvedPointer()
         for region in lastHitboxes {
             pointerStyleVisits += 1
-            guard let pointer = region.handlers.pointer, pointer.style != nil || pointer.visibility != nil else { continue }
+            guard let pointer = region.handlers.pointer,
+                  pointer.style != nil || pointer.visibility != nil || pointer.styleProvider != nil else { continue }
             if region.layer == target.layer, target.id.isOrDescends(from: region.id) {
                 if let style = pointer.style { found.style = style }
+                if let provider = pointer.styleProvider, let style = provider(region.elementLocalPoint(point)) { found.style = style }
                 if let visibility = pointer.visibility { found.visibility = visibility }
             }
         }

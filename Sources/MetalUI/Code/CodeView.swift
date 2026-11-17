@@ -318,6 +318,12 @@ public struct CodeView: Element, StyledElement {
             }
             return true
         }, over: handlers.pointer)
+        // Region cursors (`CV-BO`): asked on input with the view-local point, answered from this frame's plan.
+        let origin = bounds.origin
+        let linksOnPlainClick = textClick.map { $0.modifiers.isEmpty } ?? false
+        handlers.pointer = PointerAttachment.styleProvider({ [plan] local in
+            plan.regionCursor(at: Point(x: local.x + origin.x, y: local.y + origin.y), plainClickTargets: linksOnPlainClick)
+        }, over: handlers.pointer)
         let buffer = self.buffer
         // The text stage's target: the session does the editing from input (`CV-W`); the caret rect is the input
         // method's area, under the view's own render effects (`GX-I`).
