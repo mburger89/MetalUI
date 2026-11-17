@@ -1,7 +1,7 @@
 import Testing
 @testable import MetalUICodeBuffer
 
-// The selection helpers on `CodeSelectionState` (`CV-BJ`, record 345): add next occurrence, skip, select all, add a caret
+// The selection helpers on `CodeSelectionState` (`CV-BJ`, record 346): add next occurrence, skip, select all, add a caret
 // above or below, collapse to the primary. Buffer-only; the view's reveal is in `CodeViewSelectionHelpersTests`.
 
 @MainActor

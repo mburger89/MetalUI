@@ -4,7 +4,7 @@ import MetalUI
 import MetalUIScene
 import MetalUITesting
 
-// What the selection helpers do in a view (`CV-BJ`, record 345): they reveal the new primary with the least scroll, not
+// What the selection helpers do in a view (`CV-BJ`, record 346): they reveal the new primary with the least scroll, not
 // centred, and cost a frame what a plain selection write costs. PLAIN imports; the harness text system; state, never a clock.
 
 /// 1000 rows `row N`, with `needle` on rows 0, 100 and 500.

@@ -1,4 +1,6 @@
-# 345 - Selection helpers on `CodeSelectionState` (`CV-BJ`)
+# 346 - Selection helpers on `CodeSelectionState` (`CV-BJ`)
+
+Renumbered from 345 because #348 merged first.
 
 Branch `feat/code-selection-helpers` from master `c9b7c7c0`. Class M, no divergence. `MetalUICodeBuffer` plus one reveal line in `CodeViewPlan`; Alloy gap G2. Expect renumbering at merge (a parallel G3 branch may take 345).
 
