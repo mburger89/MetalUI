@@ -192,6 +192,32 @@ struct FocusRegistry {
         focusBindingOwners[FocusBindingKey(slot: slot, value: value)]
     }
 
+    /// Every `@FocusState` binding on `id` or an ancestor of it, **innermost first** (`FW-A`):
+    /// what a focused element implies for the states bound on it and on the containers around
+    /// it. Empty, with no allocation, when nothing on the path carries a binding.
+    func focusBindings(within id: GlobalElementID) -> [(slot: GlobalElementID, value: AnyHashable)] {
+        guard !focusBindings.isEmpty else { return [] }
+        var found: [(slot: GlobalElementID, value: AnyHashable)] = []
+        var cursor: GlobalElementID? = id
+        while let node = cursor {
+            if let binding = focusBindings[node] { found.append(binding) }
+            cursor = node.parent
+        }
+        return found
+    }
+
+    /// The first element in tab order that is `container` or inside it (`FW-B`), or `nil`.
+    func firstFocusable(within container: GlobalElementID) -> GlobalElementID? {
+        for id in tabOrder {
+            var cursor: GlobalElementID? = id
+            while let node = cursor {
+                if node == container { return id }
+                cursor = node.parent
+            }
+        }
+        return nil
+    }
+
     private struct FocusBindingKey: Hashable {
         let slot: GlobalElementID
         let value: AnyHashable

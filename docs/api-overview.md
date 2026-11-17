@@ -435,6 +435,17 @@ are re-rasterized. Not offered: `transformEffect`, `projectionEffect`,
 modifier is `EventModifiers.primary` (M, `SG-B`: `.command` on Apple, `.control`
 elsewhere; SwiftUI's default, `.command`, is the same value on macOS, and SwiftUI has
 no `.primary`, probe `swiftui-shortcut-modifiers.swift`);
+`KeyboardShortcut.displayText` and `displayText(for: KeyboardShortcut.Platform)` (M, `KF-AG`: `⇧⌘P` on
+macOS, `Ctrl+Shift+P` elsewhere, named keys as glyphs or names, one formatter shared with the drawn menu;
+`Platform` is `.macOS`/`.linux`/`.windows` with `current` and `primaryModifiers`; modifiers show as stored);
+`KeyboardShortcut` is `Hashable` (A, `KF-AI`; `"P" != "p"`) and has `conflicts(with:)`,
+`KeyboardShortcut.systemReserved(on:)`, `ClaimedShortcut` (`title`, `shortcut`, `source`, `identifier`,
+`isConditional`, `condition`), and `App.standardMenuShortcuts()` / `App.commandShortcuts()` (M, `KF-AI`: which keys
+the desktop, the standard menu items and the app's `commands` already take; methods, since each evaluates the
+`commands` content once, and recursive when called from inside it);
+`CodeView.builtInKeyBindings(platform:)` (M, `KF-AJ`: the keys a code view takes, as `[ClaimedShortcut]` read from its
+key table, with conditions for Escape, find next/previous and the editing keys);
+`KeyEquivalent.f1`...`.f20` (M, `KF-AH`: AppKit's `U+F704`...`U+F717`; SwiftUI has no spelling; no Fn modifier);
 `@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 

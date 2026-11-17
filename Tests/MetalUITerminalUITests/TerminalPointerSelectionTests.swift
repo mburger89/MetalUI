@@ -145,7 +145,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
 /// link id is the target; ⌘-click opens its URL through `openURL`.
 /// Mutation: skip the OSC 8 fallback; open on hover.
 @MainActor @Test func osc8LinksAreOffered() async throws {
-    let rig = try TermRig()
+    let rig = try TermRig(opens: true)
     await rig.settle()
     rig.feed("\u{1B}]8;;https://osc.test/p\u{07}docs\u{1B}]8;;\u{07} tail\r\n")
     await rig.settle()
@@ -170,34 +170,39 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
 /// drag event is one build and the same requests as a plain redraw, and its surface redraw touches only the selected row.
 /// Mutation: request a redraw on every hover; write the pointer-style state on every query.
 @MainActor @Test func pointerCostsAreThoseOfAnyPointerEvent() async throws {
-    func script(_ rig: TermRig, command: Bool) async -> (frames: Int, builds: Int, draws: Int) {
+    // Cell geometry comes from the terminal rig `geometry`, never from a twin (which has no model: `TermRig.model` would be
+    // whatever view another test built last).
+    func script(_ rig: TermRig, command: Bool, geometry: TermRig) async -> (frames: Int, builds: Int, draws: Int) {
         await rig.settle()
         if command { rig.window.pressModifiers(.command); await rig.settle() }
         rig.window.resetFrameWork()
         let frames = rig.window.framesDrawn, draws = rig.window.surfaceDrawCount
-        for c in 0..<20 { rig.window.hover(at: rig.point(0, c)); await rig.pump() }
-        var p = rig.point(1, 3)
+        for c in 0..<20 { rig.window.hover(at: geometry.point(0, c)); await rig.pump() }
+        var p = geometry.point(1, 3)
         for _ in 0..<5 { p.x = p.x + Pixels(0.5); rig.window.hover(at: p) }
         await rig.pump()
         return (rig.window.framesDrawn - frames, sum(rig, \.builds), rig.window.surfaceDrawCount - draws)
     }
-    let twin = try TermRig(terminal: false)
-    let base = await script(twin, command: false)
     let plain = try TermRig()
     plain.knobs.link = linkTarget
     plain.feed("see http://a.test/x here http://a.test/x\r\nsecond line of text\r\n")
-    let plainResult = await script(plain, command: false)
+    await plain.settle()
+    let twin = try TermRig(terminal: false)
+    let base = await script(twin, command: false, geometry: plain)
+    let plainResult = await script(plain, command: false, geometry: plain)
     #expect(plainResult.frames == base.frames && plainResult.builds == base.builds && plainResult.draws == base.draws,
             "plain hover: \(plainResult) vs the twin \(base)")
     #expect(plain.log.links.isEmpty)
     let twinCommand = try TermRig(terminal: false)
-    let baseCommand = await script(twinCommand, command: true)
+    let baseCommand = await script(twinCommand, command: true, geometry: plain)
     let linked = try TermRig()
     linked.knobs.link = linkTarget
     linked.feed("see http://a.test/x here http://a.test/x\r\nsecond line of text\r\n")
     // Row 0 is the link row: moves within it and onto text, the link entered once.
-    let withCommand = await script(linked, command: true)
-    #expect(withCommand.frames == baseCommand.frames && withCommand.builds == baseCommand.builds,
+    let withCommand = await script(linked, command: true, geometry: plain)
+    // The twin's 25 moves are one frame (the first move; `FP-T` skips the rest). The link's underline is a surface redraw
+    // (entering and leaving the link: 2 surface-only frames, 0 builds), so the frames are the twin's plus the draws.
+    #expect(withCommand.builds == baseCommand.builds && withCommand.frames == baseCommand.frames + withCommand.draws && withCommand.draws == 2,
             "⌘ hover over a link row: \(withCommand) vs \(baseCommand)")
     #expect(linked.log.links.filter { $0.phase == .hover }.count == 21, "one query per cell change: 20 cells of row 0 and the move to row 1, none for 5 nudges within a cell: \(linked.log.links.count)")
     // Moving within the link: no more frames than the twin.
@@ -208,7 +213,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     rig.window.hover(at: rig.point(0, 7)); rig.window.hover(at: rig.point(0, 12)); await rig.pump()
     let move = rig.window.framesDrawn - frames
     let twinFrames = twinCommand.window.framesDrawn
-    twinCommand.window.hover(at: rig.point(0, 7)); twinCommand.window.hover(at: rig.point(0, 12)); await twinCommand.pump()
+    twinCommand.window.hover(at: plain.point(0, 7)); twinCommand.window.hover(at: plain.point(0, 12)); await twinCommand.pump()
     #expect(move == twinCommand.window.framesDrawn - twinFrames, "within a link \(move) frames")
     #expect(sum(rig, \.builds) == move, "each is the plain rebuild: \(sum(rig, \.builds)) builds")
     // A selection drag: one build and the plain redraw's requests per event; the surface redraws the selected row only.
@@ -227,10 +232,8 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     print("TRM-BD cost literals: steady \(steady), plain hover \(plainResult) twin \(base), command hover \(withCommand) twin \(baseCommand)")
 }
 
-/// **14** (`REQUIRED`) The view is `Equatable` over its inputs (source identity, theme, exceptions, flags; not the closures) so
-/// `.equatable()` accepts it, an editor keystroke beside it costs what it does without `.equatable()` (4 requests, 1 build), and
-/// the view still works. A `GPUSurface` subtree is retention-ineligible until surface replay (#362), so nothing is replayed yet:
-/// the test pins that nothing is replayed yet (`retainedHits` 0), so the flip when #362 lands is visible.
+/// **14** (`REQUIRED`) The view is `Equatable` over its inputs (source identity, theme, exceptions, flags; not the closures): the
+/// internal field under the public view's `.equatable()` compares exactly these, so a replay is decided by them alone.
 /// Mutation: compare nothing (every pair equal: a changed theme would replay), or compare the closures (never equal).
 @MainActor @Test func theViewIsEquatableOverItsInputs() async throws {
     let source = TerminalSnapshotSource(emulator: TerminalEmulator(cols: 4, rows: 2), queue: .main)
@@ -242,16 +245,98 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     var other = TerminalPalette.xterm; other.foreground = .red
     #expect(view(other) != view())
     #expect(view(source: TerminalSnapshotSource(emulator: TerminalEmulator(cols: 4, rows: 2), queue: .main)) != view())
-    let rig = try TermRig(extra: true, equatable: true)
+}
+
+/// **16** (`REQUIRED`, cost, `TRM-BD` default retention; a terminal that holds focus, hover or a press is never retained) A caller who never writes `.equatable()` still gets surface replay:
+/// the public `TerminalView`'s content is the internal field under `.equatable()`. An editor keystroke in a window that also
+/// shows an idle terminal costs the elements of the window without it (literal: 2 requests, 1 build, 1 retained hit, the field's
+/// content skipped), a steady rebuilt frame likewise, and output after a replayed frame is still a surface-only frame that
+/// redraws the damaged row. Measured on master `9cccde0a` plus this branch: with 2 requests (4 before replay), without 2.
+/// Mutation: remove the `.equatable()` from `TerminalView.content` (4 requests, 0 hits).
+@MainActor @Test func anIdleTerminalCostsAWindowNothingExtra() async throws {
+    func keyFrame(terminal: Bool) async throws -> FrameWork {
+        let rig = try TermRig(extra: true, terminal: terminal)
+        await rig.settle()
+        try rig.window.focus(rig.window.element(identifier: "ed"))
+        await rig.settle()
+        for _ in 0..<2 { rig.window.window.setNeedsRedraw(); rig.window.tick() }
+        rig.window.typeText("z")
+        return rig.window.lastFrameWork
+    }
+    let with = try await keyFrame(terminal: true), without = try await keyFrame(terminal: false)
+    #expect(without.elementRequests == 2 && without.builds == 1, "\(without.elementRequests) requests, \(without.builds) builds")
+    #expect(with.elementRequests == without.elementRequests && with.builds == without.builds,
+            "with the terminal \(with.elementRequests) requests, \(with.builds) builds; without \(without.elementRequests), \(without.builds)")
+    #expect(with.retainedHits >= 1 && with.contentSkips >= 1, "hits \(with.retainedHits), skips \(with.contentSkips), ineligible \(with.retainedIneligibleReasons)")
+
+    func steady(terminal: Bool) async throws -> Int {
+        let rig = try TermRig(extra: true, terminal: terminal)
+        await rig.settle()
+        try rig.window.focus(rig.window.element(identifier: "ed"))   // a focused view's subtree is never retained: the terminal is idle
+        await rig.settle()
+        for _ in 0..<3 { rig.window.window.setNeedsRedraw(); rig.window.tick() }
+        return rig.window.lastFrameWork.elementRequests
+    }
+    let steadyWith = try await steady(terminal: true), steadyWithout = try await steady(terminal: false)
+    #expect(steadyWith == steadyWithout && steadyWithout == 2, "steady frame \(steadyWith) vs \(steadyWithout)")
+
+    // Output after a replayed frame: surface-only, the damaged row only.
+    let rig = try TermRig(extra: true)
     await rig.settle()
     try rig.window.focus(rig.window.element(identifier: "ed"))
     await rig.settle()
-    for _ in 0..<2 { rig.window.window.setNeedsRedraw(); rig.window.tick() }
     rig.window.typeText("z")
-    let work = rig.window.lastFrameWork
-    #expect(work.elementRequests == 4 && work.builds == 1, "\(work.elementRequests) requests, \(work.builds) builds")
+    #expect(rig.window.lastFrameWork.retainedHits >= 1)
     rig.feed("hi")
     await rig.frame()
-    #expect(rig.model.statistics.snapshotsTaken >= 1 && rig.window.lastFrameWork.builds == 0, "output still draws")
-    #expect(work.retainedHits == 0, "no replay of a GPUSurface subtree yet: \(work.retainedHits)")
+    let output = rig.window.lastFrameWork
+    #expect(output.builds == 0 && output.elementRequests == 0 && output.surfaceOnlyFrames == 1, "\(output.builds) \(output.elementRequests) \(output.surfaceOnlyFrames)")
+    #expect(rig.model.statistics.lastRows == [0], "\(rig.model.statistics.lastRows)")
+}
+
+/// **17** (`REQUIRED`) Replay never hides a change: a palette change redraws every row, a window resize changes the grid
+/// (`onResize` fires), and a focus change draws the solid cursor, each in a frame whose terminal field was not replayed.
+/// Mutation: make the field's `==` ignore the theme (palette red), or the environment-free stamp (focus red).
+@MainActor @Test func resizePaletteAndFocusStillInvalidateAReplayedTerminal() async throws {
+    let rig = try TermRig(extra: true)
+    await rig.settle()
+    try rig.window.focus(rig.window.element(identifier: "ed"))
+    await rig.settle()
+    rig.window.typeText("z")
+    #expect(rig.window.lastFrameWork.retainedHits >= 1, "the replay is on")
+    let rows = rig.model.snapshot?.size.rows ?? 0
+    var other = TerminalPalette.xterm; other.background = .red
+    rig.knobs.palette = other
+    rig.window.window.setNeedsRedraw(); rig.window.tick(); await rig.pump(); rig.window.advance(by: 0.05)
+    #expect(rig.model.statistics.lastRows.count == rows && rows > 0, "a palette change redraws every row: \(rig.model.statistics.lastRows.count) of \(rows)")
+    let before = rig.resizes.count
+    rig.window.resize(to: Size(width: Pixels(rig.size.width.value / 2), height: rig.size.height))
+    rig.window.tick(); await rig.pump()
+    #expect(rig.resizes.count == before + 1, "\(rig.resizes)")
+    let draws = rig.window.surfaceDrawCount
+    await rig.focusTerminal()
+    for _ in 0..<2 { await rig.frame() }
+    #expect(rig.model.focused && rig.window.surfaceDrawCount > draws, "focus draws the solid cursor: \(rig.window.surfaceDrawCount - draws) draws")
+}
+
+/// **15** (`REQUIRED`) `FP-T` skips a frame for an unclaimed move within one hitbox, yet the pointer style still follows the
+/// move: ⌘-hovering onto a link answers `.pointingHand` from input (the `styleProvider`), with no build, and leaving it
+/// restores the arrow; the ⌘ press itself, over the link, does the same. Mutation: resolve the style only in a frame
+/// (the cursor stays an arrow until the next build).
+@MainActor @Test func theCursorFollowsALinkWithoutABuild() async throws {
+    let rig = try TermRig()
+    rig.knobs.link = linkTarget
+    rig.feed("see http://a.test/x here\r\nsecond line of text\r\n")
+    await rig.settle()
+    rig.window.pressModifiers(.command)
+    await rig.settle()
+    rig.window.hover(at: rig.point(1, 2))   // inside the view, off the link
+    await rig.settle()
+    rig.window.resetFrameWork()
+    rig.window.hover(at: rig.point(0, 8))   // onto the link
+    #expect(rig.window.pointerStyle == .pointingHand, "\(String(describing: rig.window.pointerStyle))")
+    await rig.pump()
+    #expect(rig.window.frameWork.map(\.builds).reduce(0, +) == 0, "entering a link builds nothing")
+    rig.window.hover(at: rig.point(1, 2))
+    #expect(rig.window.pointerStyle != .pointingHand)
 }

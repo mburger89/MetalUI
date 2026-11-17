@@ -190,6 +190,12 @@ struct Hitbox {
         // Behind the eye (`PJ-C`) a point has no local position: nothing is hit there, so the window point stands.
         return inverse.apply(point) ?? point
     }
+
+    /// `point` in the element's own space, origin at its bounds' top-leading corner, as `.local` hover reports it.
+    func elementLocalPoint(_ point: Point<Pixels>) -> Point<Pixels> {
+        let local = localPoint(point)
+        return Point(x: Pixels(local.x.value - origin.x.value), y: Pixels(local.y.value - origin.y.value))
+    }
 }
 
 /// Which directions a scroller can still move in, per axis (`XS-E`): a bit for "the offset can fall" and one for "can

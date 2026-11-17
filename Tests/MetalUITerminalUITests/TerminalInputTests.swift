@@ -286,7 +286,9 @@ private let up = "\u{F700}", down = "\u{F701}", left = "\u{F702}", right = "\u{F
 }
 
 /// **11** (`REQUIRED`, cost) An editor keystroke in a window that also holds a terminal costs what it did before
-/// the terminal had input wiring: literal, measured on master `8790e4d9`. Mutation: `TerminalView` adds an element.
+/// the terminal had input wiring and, since the public view is retained by default (`TRM-BD`), what it costs without a terminal:
+/// literal 2 requests, 1 build (4 before the default: the view's own 2, measured on master `8790e4d9`). Mutation: `TerminalView`
+/// adds an element, or loses its `.equatable()` (4).
 @MainActor @Test func anEditorKeystrokeIsUnaffectedByTheTerminalsInputWiring() async throws {
     let rig = try TermRig(extra: true)
     await rig.settle()
@@ -297,7 +299,7 @@ private let up = "\u{F700}", down = "\u{F701}", left = "\u{F702}", right = "\u{F
     rig.window.typeText("z")
     let work = rig.window.lastFrameWork
     #expect(rig.sent.isEmpty, "the terminal heard nothing")
-    #expect(work.elementRequests == 4 && work.builds == 1, "\(work.elementRequests) requests, \(work.builds) builds")
+    #expect(work.elementRequests == 2 && work.builds == 1, "\(work.elementRequests) requests, \(work.builds) builds")
 }
 
 /// **12** The `KeyPress` overload is the core encoder over the press spelled as a `TerminalKey`: modifiers, the key

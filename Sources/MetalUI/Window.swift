@@ -765,12 +765,18 @@ public final class Window {
         for (slot, state) in lastFocusStates {
             guard let write = state.takePendingWrite(in: stateTable, slot: slot) else { continue }
             if write.clears {
-                if let focused = focusedElement, lastFocusRegistry.focusBinding(for: focused)?.slot == slot {
+                // The focused element or a container around it carries the binding (`FW-A`).
+                if let focused = focusedElement,
+                   lastFocusRegistry.focusBindings(within: focused).contains(where: { $0.slot == slot }) {
                     focusedElement = nil
                 }
-            } else if let target = lastFocusRegistry.element(boundTo: slot, value: write.value),
-                      lastFocusRegistry.isFocusable(target) {
-                focusedElement = target
+            } else if let target = lastFocusRegistry.element(boundTo: slot, value: write.value) {
+                if lastFocusRegistry.isFocusable(target) {
+                    focusedElement = target
+                } else if let inner = lastFocusRegistry.firstFocusable(within: target) {
+                    // A container that is not itself focusable: its first focusable descendant (`FW-B`).
+                    focusedElement = inner
+                }
             }
         }
     }
@@ -806,9 +812,11 @@ public final class Window {
     /// this is M3b.
     private func reconcileFocusStates() {
         guard !lastFocusStates.isEmpty else { return }
-        let bound = focusedElement.flatMap { lastFocusRegistry.focusBinding(for: $0) }
+        // The focused element's bindings and those of every container around it, innermost first
+        // (`FW-A`): a state reads the nearest one naming it.
+        let bound = focusedElement.map { lastFocusRegistry.focusBindings(within: $0) } ?? []
         for (slot, state) in lastFocusStates {
-            state.reconcile(in: stateTable, slot: slot, focusedValue: bound?.slot == slot ? bound?.value : nil)
+            state.reconcile(in: stateTable, slot: slot, focusedValue: bound.first { $0.slot == slot }?.value)
         }
     }
 
@@ -1177,6 +1185,8 @@ public final class Window {
             // `nil`, `lastMousePosition` is the release point — which is what
             // a handler that reads either would expect.
             let pressed = self.active
+            let pointerBefore = self.lastMousePosition   // `FP-T`: the move's own comparison
+            let writesBefore = self.stateTable.writeCount
             self.updatePointerState(event)
             // A slider's edit ends here (rulings `LK-B` item 5, `LK-Q`): at the
             // release — or at a press that finds it still open, a lost
@@ -1435,7 +1445,14 @@ public final class Window {
             // already dirtied the window), so it asks for no frame: a keystroke is one frame, not two.
             var isUnclaimedKeyUp = false
             if !handled, case .keyUp = event { isUnclaimedKeyUp = true }
-            if !isUnclaimedKeyUp { self.setNeedsRedraw() }
+            // `FP-T`: an unclaimed pointer move that lands on the same topmost hitbox, with no tooltip pending or shown and
+            // no window `onInput` to have changed something unobserved, changes nothing a frame would show: the hover the
+            // frame resolves is that hitbox, and the pointer style is the platform's. A `withState` write raises no dirty of
+            // its own, so a move whose hover callbacks wrote any state (a text hover's track, whose next frame starts its
+            // delay) still asks for the frame. No frame, so no state write.
+            if !isUnclaimedKeyUp, !self.pointerMoveChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, handled: handled) {
+                self.setNeedsRedraw()
+            }
             return handled
         }
         // Tests pass false so frame counts stay deterministic: a running link
@@ -1462,6 +1479,19 @@ public final class Window {
         // have run first. Weak, so this is not a retain and a window nobody
         // else holds still deallocates — see `liveWindows`.
         Window.register(self)
+    }
+
+    /// Whether `event`, a plain pointer move nothing claimed, leaves every pixel a frame would draw as it was (`FP-T`):
+    /// the pointer stays over the same topmost hitbox as before (`Frame.resolveHover`'s and `pointerOwner`'s one answer),
+    /// the event wrote no state (`withState` raises no dirty itself: a hover callback's write, a text hover's track, is
+    /// shown or timed by the next frame), no tooltip is pending or shown (its timer needs the display link a dirty window starts) and the window has no
+    /// `onInput`, whose fallback could change what a frame reads without a write the window observes.
+    private func pointerMoveChangesNothing(_ event: InputEvent, from before: Point<Pixels>?, writesBefore: Int,
+                                          handled: Bool) -> Bool {
+        guard case .mouseMoved(let mouse) = event, !handled, onInput == nil, let before,
+              stateTable.writeCount == writesBefore else { return false }
+        guard case .idle = tooltipTracker.phase else { return false }
+        return topmostOpaqueHitbox(in: lastHitboxes, at: before) == topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position)
     }
 
     /// Monotonic count of `setNeedsRedraw()` calls across every window, ever.

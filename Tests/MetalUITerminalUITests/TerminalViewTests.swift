@@ -10,6 +10,20 @@ import Testing
 // (every platform). `TermRig` puts a `TerminalView` over the main queue so a feed runs inline and its wake calls the
 // trigger on the main actor. Each test names the mutation it was shown red against.
 
+/// The rig's window content: an optional editor above an optional `TerminalView`.
+@MainActor func rigStack(source: TerminalSnapshotSource, log: TermRig.Log, knobs: TermRig.Knobs, extra: Bool, terminal: Bool,
+                         blink: Bool, stops: Bool) -> some Element {
+    VStack(spacing: 0) {
+        if extra { TextField("t", text: .constant("")).accessibilityIdentifier("ed").frame(width: Pixels(100), height: Pixels(20)) }
+        if knobs.shown && terminal {
+            TerminalView(snapshotSource: source, theme: knobs.palette, keyCaptureExceptions: knobs.exceptions,
+                         optionAsMeta: knobs.optionAsMeta, cursorBlink: blink, blinkStopsAfterIdle: stops,
+                         onInput: { log.inputs.append($0) }, onResize: { log.resizes.append($0) },
+                         onLink: { query in log.links.append(query); return knobs.link(query) })
+        }
+    }
+}
+
 @MainActor final class TermRig {
     final class Log { var resizes: [TerminalSize] = []; var inputs: [[UInt8]] = []; var commands: [String] = []; var links: [TerminalLinkQuery] = []; var opened: [URL] = [] }
     final class Knobs { var palette = TerminalPalette.xterm; var shown = true; var optionAsMeta = false; var exceptions: [KeyboardShortcut] = []; var link: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil } }
@@ -24,26 +38,23 @@ import Testing
 
     init(cols: Int = 80, rows: Int = 24, size: Size<Pixels> = Size(width: Pixels(400), height: Pixels(300)),
          blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true, commands: Bool = false,
-         equatable: Bool = false) throws {
+         opens: Bool = false) throws {
         self.size = size
         emulator = TerminalEmulator(cols: cols, rows: rows)
         source = TerminalSnapshotSource(emulator: emulator, queue: .main)
         let source = self.source, log = self.log, knobs = self.knobs
         let start = Size(width: size.width, height: Pixels(size.height.value + 40))
-        window = try TestWindow(size: start, textSystem: { portableSystem() }) {
-            VStack(spacing: 0) {
-                if extra { TextField("t", text: .constant("")).accessibilityIdentifier("ed").frame(width: Pixels(100), height: Pixels(20)) }
-                if knobs.shown && terminal && equatable {
-                    TerminalView(snapshotSource: source, theme: knobs.palette, onInput: { log.inputs.append($0) },
-                                 onResize: { log.resizes.append($0) }, onLink: { _ in nil }).equatable()
-                } else if knobs.shown && terminal {
-                    TerminalView(snapshotSource: source, theme: knobs.palette, keyCaptureExceptions: knobs.exceptions,
-                                 optionAsMeta: knobs.optionAsMeta, cursorBlink: blink, blinkStopsAfterIdle: stops,
-                                 onInput: { log.inputs.append($0) }, onResize: { log.resizes.append($0) },
-                                 onLink: { query in log.links.append(query); return knobs.link(query) })
-                }
+        // An `OpenURLAction` written at the root is an uncomparable custom key (`LI-C`): a window that writes one refuses
+        // retention, so only a test that reads `log.opened` writes it. (A real app's window stamps an identity reading, `LI-D`.)
+        if opens {
+            window = try TestWindow(size: start, textSystem: { portableSystem() }) {
+                rigStack(source: source, log: log, knobs: knobs, extra: extra, terminal: terminal, blink: blink, stops: stops)
+                    .environment(\.openURL, OpenURLAction { url in log.opened.append(url); return .handled })
             }
-            .environment(\.openURL, OpenURLAction { url in log.opened.append(url); return .handled })
+        } else {
+            window = try TestWindow(size: start, textSystem: { portableSystem() }) {
+                rigStack(source: source, log: log, knobs: knobs, extra: extra, terminal: terminal, blink: blink, stops: stops)
+            }
         }
         window.runsSurfaceDraws = true
         window.resize(to: size)
@@ -300,9 +311,10 @@ import Testing
     #expect(rig.model.statistics.lastRows.count >= 16, "\(rig.model.statistics.lastRows.count)")
 }
 
-/// **14** (`REQUIRED`) An editor key frame in a window that also shows a terminal. The terminal is three elements
-/// (the focus layer over the surface leaf and the geometry scope); a keystroke rebuilds the window, so the frame
-/// costs the editor's requests plus the terminal's, and the terminal's frames in between cost none.
+/// **14** (`REQUIRED`) An editor key frame in a window that also shows a terminal. The public `TerminalView` is retained by
+/// default (`TRM-BD`: its content is the internal field under `.equatable()`, and surface replay, `TRM-BB`, lets that
+/// replay a `GPUSurface`), so the frame costs exactly what the window without the terminal costs: 2 element requests, 1 build
+/// (it was 4 before the default: the terminal's 2). Mutation: remove the `.equatable()` from `TerminalView.content` (4).
 @MainActor @Test func aKeystrokeFrameCostIsPinned() async throws {
     func keyFrame(terminal: Bool) async throws -> (requests: Int, builds: Int) {
         let rig = try TermRig(extra: true, terminal: terminal)
@@ -311,9 +323,9 @@ import Testing
         await rig.settle()
         rig.window.typeText("a")
         await rig.frame()
-        return (rig.window.lastFrameWork.elementRequests, rig.window.lastFrameWork.builds)
+                return (rig.window.lastFrameWork.elementRequests, rig.window.lastFrameWork.builds)
     }
     let with = try await keyFrame(terminal: true), without = try await keyFrame(terminal: false)
-    #expect(with.builds == without.builds && with.requests == without.requests + 2, "with \(with) without \(without)")
-    #expect(with.requests == 4 && without.requests == 2)  // TRM-BD: the pointer input is fields of the keyboard layer and adds none
+    #expect(with.builds == without.builds && with.requests == without.requests, "with \(with) without \(without)")
+    #expect(with.requests == 2 && without.requests == 2 && with.builds == 1)
 }

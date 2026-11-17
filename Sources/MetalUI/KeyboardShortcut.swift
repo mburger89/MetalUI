@@ -63,13 +63,64 @@ public struct KeyEquivalent: Hashable, Sendable, ExpressibleByExtendedGraphemeCl
     public static let clear = KeyEquivalent("\u{f739}")
 }
 
+/// The function keys (`KF-AH`): AppKit's `NSF1FunctionKey`...`NSF20FunctionKey`, `U+F704`...`U+F717`.
+/// SwiftUI has no spelling for them (class M); AppKit already reports them and the SDL backend maps its
+/// F1-F20 keycodes to them. There is no Fn modifier: `Modifiers` has no such bit.
+extension KeyEquivalent {
+    /// The F1 key.
+    public static let f1 = KeyEquivalent("\u{f704}")
+    /// The F2 key.
+    public static let f2 = KeyEquivalent("\u{f705}")
+    /// The F3 key.
+    public static let f3 = KeyEquivalent("\u{f706}")
+    /// The F4 key.
+    public static let f4 = KeyEquivalent("\u{f707}")
+    /// The F5 key.
+    public static let f5 = KeyEquivalent("\u{f708}")
+    /// The F6 key.
+    public static let f6 = KeyEquivalent("\u{f709}")
+    /// The F7 key.
+    public static let f7 = KeyEquivalent("\u{f70a}")
+    /// The F8 key.
+    public static let f8 = KeyEquivalent("\u{f70b}")
+    /// The F9 key.
+    public static let f9 = KeyEquivalent("\u{f70c}")
+    /// The F10 key.
+    public static let f10 = KeyEquivalent("\u{f70d}")
+    /// The F11 key.
+    public static let f11 = KeyEquivalent("\u{f70e}")
+    /// The F12 key.
+    public static let f12 = KeyEquivalent("\u{f70f}")
+    /// The F13 key.
+    public static let f13 = KeyEquivalent("\u{f710}")
+    /// The F14 key.
+    public static let f14 = KeyEquivalent("\u{f711}")
+    /// The F15 key.
+    public static let f15 = KeyEquivalent("\u{f712}")
+    /// The F16 key.
+    public static let f16 = KeyEquivalent("\u{f713}")
+    /// The F17 key.
+    public static let f17 = KeyEquivalent("\u{f714}")
+    /// The F18 key.
+    public static let f18 = KeyEquivalent("\u{f715}")
+    /// The F19 key.
+    public static let f19 = KeyEquivalent("\u{f716}")
+    /// The F20 key.
+    public static let f20 = KeyEquivalent("\u{f717}")
+}
+
 /// A key and the modifiers that must be held with it — SwiftUI's
 /// `KeyboardShortcut`.
 ///
 /// **The modifiers match exactly** (`IX-F` item 2, probe `B4e`–`B4g`): ⌘K fires
 /// a ⌘K shortcut, plain K does not, and a `modifiers: []` shortcut fires on
 /// plain K and not on ⌘K.
-public struct KeyboardShortcut: Equatable, Sendable {
+///
+/// `Hashable` as SwiftUI's is (`KF-AI`, class A, probe `P1`): two shortcuts are
+/// equal when their keys are equal as characters (`"P"` and `"p"` are **not**)
+/// and their modifiers are equal. `conflicts(with:)` is the looser question
+/// "would these two fire on the same keystroke".
+public struct KeyboardShortcut: Hashable, Sendable {
     /// The key that must be pressed, compared case-folded.
     public let key: KeyEquivalent
     /// The modifiers that must be held, matched exactly (`IX-F` item 2).
@@ -87,6 +138,97 @@ public struct KeyboardShortcut: Equatable, Sendable {
     public static let defaultAction = KeyboardShortcut(.return, modifiers: [])
     /// Escape, no modifiers (`B4b`).
     public static let cancelAction = KeyboardShortcut(.escape, modifiers: [])
+
+    /// A desktop whose shortcut spelling `displayText(for:)` produces (`KF-AG`).
+    ///
+    /// MetalUI-only (class M): SwiftUI's menus are drawn by the system, so it has no
+    /// such type. It is public so a settings screen can show a shortcut as
+    /// another desktop would, and has a Windows case that the internal
+    /// `TextEditing.Platform` (`.mac`/`.other`) lacks.
+    public enum Platform: Hashable, Sendable, CaseIterable {
+        /// macOS: glyphs, `⌃⌥⇧⌘K`.
+        case macOS
+        /// Linux: names, `Ctrl+Super+Alt+Shift+K`.
+        case linux
+        /// Windows: names, `Ctrl+Win+Alt+Shift+K`.
+        case windows
+
+        /// The platform this build runs on, decided at compile time by the
+        /// same conditions as `Modifiers.primary`, `TextEditing.platform` and
+        /// the drawn menu's Super/Win name: Apple (macOS) is `.macOS`,
+        /// Windows `.windows`, anything else `.linux`.
+        public static var current: Platform {
+            #if os(macOS) || os(iOS) || os(tvOS) || os(visionOS) || os(watchOS)
+            return .macOS
+            #elseif os(Windows)
+            return .windows
+            #else
+            return .linux
+            #endif
+        }
+
+        /// The modifier `.primary` means on this platform: `.command` on
+        /// macOS, `.control` on Linux and Windows. Use it to build another
+        /// platform's shortcut, since `.primary` itself resolves to the host's
+        /// modifier when the code is compiled.
+        public var primaryModifiers: EventModifiers {
+            switch self {
+            case .macOS: .command
+            case .linux, .windows: .control
+            }
+        }
+    }
+
+    /// The shortcut as the current platform spells it: `⇧⌘P` on macOS,
+    /// `Ctrl+Shift+P` elsewhere (`KF-AG`). Equal to `displayText(for: .current)`.
+    public var displayText: String { displayText(for: .current) }
+
+    /// The shortcut as `platform` spells it (`KF-AG`): on macOS the modifier
+    /// glyphs in ⌃⌥⇧⌘ order then the key (`⇧⌘P`, `⌘↩`, `⌥F12`); on Linux and
+    /// Windows each held key by name joined by `+`, in the order Ctrl, Super
+    /// (Linux) or Win (Windows), Alt, Shift, then the key (`Ctrl+Shift+P`,
+    /// `Alt+Page Up`). Named keys read as glyphs (macOS) or names (elsewhere);
+    /// any other key is upper-cased unless that would change its length.
+    ///
+    /// **Modifiers are shown exactly as stored.** `.primary` resolves when the
+    /// code is compiled, so another platform's text of a `.primary` shortcut
+    /// shows the host's modifier (⌘ on a Mac host reads `Super+P` for
+    /// `.linux`). Build the shortcut with `Platform.primaryModifiers` to get
+    /// another platform's text.
+    public func displayText(for platform: Platform) -> String {
+        ShortcutText.format(key: String(key.character), modifiers: modifiers, mac: platform == .macOS,
+                            superKeyName: platform == .windows ? "Win" : "Super")
+    }
+
+    /// Whether this shortcut and `other` fire on the same keystroke (`KF-AI`): the
+    /// modifiers are equal exactly and the keys are the same key once normalised.
+    ///
+    /// The key is compared lower-cased (`"P"` conflicts with `"p"`, though the two are not `==`),
+    /// AppKit's ⇧Tab character `"\u{19}"` read as Tab (`KF-AL`), and, **when both hold
+    /// Shift**, a shifted key read as its unshifted base key (`KF-AL`'s one form on every platform): `"?"`
+    /// with ⇧ conflicts with `"/"` with ⇧, `"!"` with `"1"`. The base key is the US layout's
+    /// (`? / ! 1 @ 2 # 3 $ 4 % 5 ^ 6 & 7 * 8 ( 9 ) 0 _ - + = { [ } ] | \ : ; " ' < , > . ~ \``); without Shift `"?"`
+    /// and `"/"` are different keys and do not conflict. Symmetric.
+    public func conflicts(with other: KeyboardShortcut) -> Bool {
+        guard modifiers == other.modifiers else { return false }
+        let shifted = modifiers.contains(.shift)
+        return Self.conflictKey(key, shifted: shifted) == Self.conflictKey(other.key, shifted: shifted)
+    }
+
+    /// A key reduced to the one spelling `conflicts(with:)` compares.
+    private static func conflictKey(_ key: KeyEquivalent, shifted: Bool) -> String {
+        let character = String(key.character)
+        if character == "\u{19}" { return "\t" }
+        let lower = character.lowercased()
+        return shifted ? (shiftedBaseKeys[lower] ?? lower) : lower
+    }
+
+    /// The US layout's shifted punctuation and digits, each to its unshifted key.
+    private static let shiftedBaseKeys: [String: String] = [
+        "?": "/", "!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9",
+        ")": "0", "_": "-", "+": "=", "{": "[", "}": "]", "|": "\\", ":": ";", "\"": "'", "<": ",", ">": ".",
+        "~": "`",
+    ]
 
     /// Whether `event` is this shortcut: the key compared lower-cased with
     /// `charactersIgnoringModifiers` (AppKit reports a shifted letter upper-case
@@ -133,5 +275,60 @@ extension Window {
         guard let (id, target) = lastFocusRegistry.shortcut(matching: key) else { return false }
         StateDispatch.dispatching(to: id) { target.action() }   // ID-F: the button that owns it
         return true
+    }
+}
+
+/// The one shortcut formatter (`KF-AG`): `KeyboardShortcut.displayText` and the
+/// drawn menu's `MenuPanel.shortcutText` both call it, so they cannot differ.
+enum ShortcutText {
+    /// `key` and `modifiers` spelled for macOS (`mac`: glyphs, ⌃⌥⇧⌘ order, no
+    /// separators) or elsewhere (names, `Ctrl+<superKeyName>+Alt+Shift+Key`).
+    static func format(key: String, modifiers: EventModifiers, mac: Bool, superKeyName: String) -> String {
+        let keyText = keyName(key, mac: mac)
+        if mac {
+            var s = ""
+            if modifiers.contains(.control) { s += "⌃" }
+            if modifiers.contains(.option) { s += "⌥" }
+            if modifiers.contains(.shift) { s += "⇧" }
+            if modifiers.contains(.command) { s += "⌘" }
+            return s + keyText
+        }
+        var parts: [String] = []
+        if modifiers.contains(.control) { parts.append("Ctrl") }
+        if modifiers.contains(.command) { parts.append(superKeyName) }
+        if modifiers.contains(.option) { parts.append("Alt") }
+        if modifiers.contains(.shift) { parts.append("Shift") }
+        return (parts + [keyText]).joined(separator: "+")
+    }
+
+    /// A key's text: the named keys (AppKit's characters) as glyphs or names,
+    /// F1...F35 (U+F704...U+F726) as `F<n>`, the Menu key (U+F735) as `Menu`, any other key upper-cased only
+    /// when the result is still one character (`ß` stays `ß`).
+    static func keyName(_ key: String, mac: Bool) -> String {
+        let scalars = key.unicodeScalars
+        if scalars.count == 1, let scalar = scalars.first {
+            switch scalar.value {
+            case 0x0D, 0x0A: return mac ? "↩" : "Enter"
+            case 0x1B: return mac ? "⎋" : "Esc"
+            case 0x09, 0x19: return mac ? "⇥" : "Tab"   // AppKit sends ⇧Tab as U+0019
+            case 0x20: return "Space"
+            case 0x7F: return mac ? "⌫" : "Backspace"
+            case 0xF728: return mac ? "⌦" : "Delete"
+            case 0xF700: return mac ? "↑" : "Up"
+            case 0xF701: return mac ? "↓" : "Down"
+            case 0xF702: return mac ? "←" : "Left"
+            case 0xF703: return mac ? "→" : "Right"
+            case 0xF729: return mac ? "↖" : "Home"
+            case 0xF72B: return mac ? "↘" : "End"
+            case 0xF72C: return mac ? "⇞" : "Page Up"
+            case 0xF72D: return mac ? "⇟" : "Page Down"
+            case 0xF739: return mac ? "⌧" : "Clear"
+            case 0xF735: return "Menu"   // the context-menu key (`KF-AI`: the drawn bar claims it)
+            case 0xF704...0xF726: return "F\(scalar.value - 0xF704 + 1)"
+            default: break
+            }
+        }
+        let upper = key.uppercased()
+        return upper.count == 1 ? upper : key
     }
 }

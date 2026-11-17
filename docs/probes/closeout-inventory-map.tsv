@@ -150,6 +150,7 @@ F	gesture-composition-wrappers	A	swiftui-gesture-composition.swift	S6	updatingOn
 F	gesture-drag-velocity	A	swiftui-gesture-composition.swift	D1	aSteadyDragReportsItsVelocityAndAQuarterSecondPrediction	-	GE-D GE-F	DragGesture.Value.time, velocity, predictedEndLocation, predictedEndTranslation and the init that takes time and velocity: derived from the event timestamps (probes D0..D15)
 F	mouse-event-timestamp	M	-	-	-	-	GE-D	MouseEvent.timestamp: the platform's event time, nil for an event built without one; SwiftUI has no event type
 F	keyboard-shortcut	A	swiftui-interaction.swift	B4e	aShortcutFiresItsButtonWithoutFocusOnAnExactModifierMatch	-	IX-F	KeyEquivalent/KeyboardShortcut/EventModifiers: exact, case-folded matching in tree order
+F	function-keys	M	-	-	-	-	KF-AH	KeyEquivalent.f1...f20: AppKit's NSF1FunctionKey...NSF20FunctionKey (U+F704...U+F717); SwiftUI has no spelling (probe P1 -D FKEYS); SDL maps F13-F20; no Fn modifier
 F	key-press	A	swiftui-key-focus.swift	K2v	onKeyPressRunsOutermostFirstAlongTheFocusChain	-	KF-B KF-C KF-Q KF-X	KeyPress/onKeyPress: SwiftUI's family (keys, characters, phases; .handled/.ignored) along the focus chain outermost first, after the Keymap and before a focused field's editing keys; a typed character on a focused field is offered first (KF-Q); a keystroke an app command binds runs the command (KF-X)
 F	focus-interactions	A	swiftui-key-focus.swift	FC3	aPressFocusesAnEditInteractionFocusable	-	KF-F FC-A	FocusInteractions/focusable(_:interactions:): .edit and .automatic (plain focusable()) focus on a primary press as SwiftUI does (FC1, FC3); .activate focuses by Tab only (FC2)
 F	hover-key-region	M	-	-	-	-	KF-D KF-E KF-U	hoverKeyRegion(_:): with nothing focused, keys go to the hovered key region (its onKeyPress and Keymap contexts, not onKey); a press in it clears focus; MetalUI-only (SwiftUI routes no key by hover, K1u/K1v)
@@ -208,6 +209,10 @@ F	shadows	A	swiftui-paths-shadows-transforms.swift	SH5	aShadowIsDrawnBelowEachLe
 F	app-icon	M	-	-	-	-	AI-A AI-B AI-C AI-E AI-G	App.icon/Platform.setApplicationIcon(_:)/the AppKit conformer/demoIcon(): one application-wide icon from ImageBitmaps; SwiftUI has no runtime icon API (bundle asset catalog), so MetalUI-only by design
 F	window-resizability	D	swiftui-window-sizing.swift	W1	contentMinSizeIsTheRootsAnswerAtAZeroProposal	126	SV-L	WindowResizability (.automatic, .contentMinSize, .contentSize): SwiftUI's cases as window state; .contentMinSize's minimum is the root's answer at a zero proposal (W1), .contentSize adds its answer at an infinite proposal (W2); .automatic asks the content nothing, and the limits carry no title-bar inset (126)
 F	window-sizing	M	-	-	-	-	SV-L SV-M	Window.minSize/maxSize/windowResizability and App.openWindow's minSize:/maxSize:/windowResizability: parameters: SwiftUI's .defaultSize/.windowResizability scene modifiers become window state (App is not a Scene); effective limits reach PlatformWindow.setContentSizeLimits only when they change
+F	shortcut-display-text	M	-	-	-	-	KF-AG	KeyboardShortcut.Platform (.macOS/.linux/.windows, CaseIterable; current by compile-time #if, primaryModifiers), KeyboardShortcut.displayText and displayText(for:): one internal formatter shared with the drawn menu's MenuPanel.shortcutText; named keys as glyphs (macOS) or names, F1...F35; SwiftUI has no such API (the system draws menu shortcuts)
+F	shortcut-claims	M	-	-	-	-	KF-AI	KeyboardShortcut.conflicts(with:) (same modifiers, key lower-cased, ⇧Tab U+0019 as Tab, with Shift a shifted key as its US base key), KeyboardShortcut.systemReserved(on:) (a fixed per-platform list of the desktop's default keys), ClaimedShortcut (title, shortcut, source, identifier, isConditional, condition), App.standardMenuShortcuts() and App.commandShortcuts() (the bar walked as PlatformMenuItems in the platform's arrangement; disabled and submenu command items included; each read evaluates the commands content once); SwiftUI has no way to ask which keys are taken
+F	code-key-bindings	M	-	-	-	-	KF-AJ	CodeView.builtInKeyBindings(platform:) (the keys a code view takes on a platform as [ClaimedShortcut], read back from CodeEditing.command(for:platform:) over every key and modifier combination; conditional claims flagged: Escape, find next/previous, the editing keys); SwiftUI has no way to ask
+F	keyboard-shortcut-hashable	A	swiftui-shortcut-modifiers.swift	P1	aShortcutIsHashableAndPAndLowercasePAreDifferent	-	KF-AI	KeyboardShortcut: Hashable as SwiftUI's is; the keys compare as characters, so "P" != "p" (probe P1: Set<KeyboardShortcut> compiles, count 3, "P" != "p")
 F	primary-modifier	M	-	-	-	-	SG-B	Modifiers.primary (EventModifiers.primary): the platform's shortcut modifier, ⌘ (.command) on macOS and Ctrl (.control) on Linux/Windows, the default of KeyboardShortcut(_:modifiers:) and .keyboardShortcut(_:modifiers:); SwiftUI has no such member (probe swiftui-shortcut-modifiers.swift refuses it) and ships only where its default .command is the primary key
 F	design-families	M	-	-	-	-	SG-C SF-B	SystemFonts.designFamilies and resolver(designFamilies:): each system-font design (.monospaced/.serif/.rounded) registered lazily as the first installed family of its per-platform list on the portable text system
 F	drawn-chrome-height	M	-	-	-	-	SG-F MD-K	Window.drawnChromeHeight: the height MetalUI draws above the root (the SDL toolbar strip), 0 where the platform shows its own; an explicit minSize/maxSize is measured below it
@@ -529,6 +534,12 @@ M	MetalUI	AnchoredOverlay.swift	.*	.*	.*	anchored-overlay
 M	MetalUI	GeometryChange.swift	.*	.*	.*	geometry-change
 M	MetalUI	TimelineSchedule.swift	.*	.*	.*	timeline-view
 M	MetalUI	TimelineView.swift	.*	.*	.*	timeline-view
+M	MetalUI	KeyboardShortcut.swift	-	KeyboardShortcut	struct	keyboard-shortcut-hashable
+M	MetalUI	KeyboardShortcut.swift	KeyboardShortcut	(conflicts|systemReserved)	.*	shortcut-claims
+M	MetalUI	ShortcutClaims.swift	.*	.*	.*	shortcut-claims
+M	MetalUI	Code/CodeKeyBindings\.swift	.*	.*	.*	code-key-bindings
+M	MetalUI	KeyboardShortcut.swift	KeyboardShortcut(\.Platform)?	(Platform|current|primaryModifiers|displayText)	.*	shortcut-display-text
+M	MetalUI	KeyboardShortcut.swift	KeyEquivalent	f([1-9]|1[0-9]|20)	.*	function-keys
 M	MetalUI	KeyboardShortcut.swift	.*	.*	.*	keyboard-shortcut
 M	MetalUI	KeyContext.swift	.*	.*	.*	keymap
 M	MetalUI	Keymap.swift	.*	.*	.*	keymap
@@ -790,7 +801,7 @@ M	MetalUICodeBuffer	.*	.*	.*	.*	code-buffer
 M	MetalUIMarkdown	.*	.*	.*	.*	block-markdown
 M	MetalUITerminal	TerminalEncoder.swift	.*	.*	.*	terminal-encoders
 M	MetalUITerminal	TerminalInput.swift	.*	.*	.*	terminal-encoders
-M	MetalUITerminal	PseudoTerminal.swift	.*	.*	.*	terminal-pty
+M	MetalUITerminal	PseudoTerminal.*\.swift	.*	.*	.*	terminal-pty
 M	MetalUITerminal	.*	.*	.*	.*	terminal-emulator
 M	MetalUI	Markdown/.*\.swift	.*	.*	.*	markdown-views
 M	MetalUI	Code/CodeView\.swift	.*	.*	.*	code-view
@@ -822,7 +833,7 @@ F	matched-geometry	A	swiftui-matched-geometry.swift	S1	aNewcomerFliesFromTheLeav
 F	custom-transition	A	swiftui-matched-geometry.swift	TP1	aCustomTransitionInsertsFromItsWillAppearState	898	MG-F	Transition/TransitionPhase/TransitionContent: a custom transition between its willAppear, identity and didDisappear states, opacity/scale/offset only (898)
 F	namespace	A	swiftui-liquid-glass.swift	A10	aNamespaceIdIsStableAcrossFramesAndDistinctPerDeclaration	-	LG-K	@Namespace and Namespace.ID: SwiftUI's property wrapper, a Hashable Sendable id stable across frames and distinct per declaration, carried by an ordinary state slot (no eighth reserved name)
 F	runtime-shader-compile	M	-	-	-	-	HX-A HX-C HX-D HX-E HX-G	RuntimeShaderCompiler, RuntimeShaderTarget, RuntimeShaderDefine, ComputeShaderReflection, CompiledComputeShader, RuntimeShaderSelfTestReport and RuntimeShaderCompileError (product MetalUIShaderRuntime): run-time HLSL compute compile to SPIR-V, MSL or DXIL with reflection, with no SDL trait; SwiftUI and gpui have no run-time shader compiler; shadercross's own SDL3 is preloaded only when the process has none, one load per process shared with SDLGPUShaderCompiler
-F	terminal-pty	M	-	-	-	-	TRM-K TRM-L TRM-M TRM-N TRM-O	MetalUITerminal (record 336, Alloy gap 4, POSIX): TerminalSize, PseudoTerminal (spawn, processID, onReadable, read, write, resize, signalGroup, exitStatus, foregroundProcessGroup, close), PseudoTerminal.Signal and ExitStatus, PseudoTerminalError: a child on a pty with its own session and fds 0-2 only; macOS and Linux (Windows ConPTY follows in Phase 2.3); MetalUI-only, SwiftUI has no process model
+F	terminal-pty	M	-	-	-	-	TRM-K TRM-L TRM-M TRM-N TRM-O TRM-AX TRM-AY	MetalUITerminal (record 336, Alloy gap 4, POSIX; Windows record 350): TerminalSize, PseudoTerminal (spawn, processID, onReadable, read, write, resize, signalGroup, exitStatus, foregroundProcessGroup, close), PseudoTerminal.Signal and ExitStatus, PseudoTerminalError: a child on a pty with its own session and fds 0-2 only; macOS, Linux and Windows (ConPTY, record 348, TRM-AX TRM-AY); MetalUI-only, SwiftUI has no process model
 M	MetalUI	PresentationBackground.swift	.*	.*	.*	presentation-background
 M	MetalUI	WindowInteractionBehavior.swift	Window	backgroundDragBehavior	.*	window-background-drag
 M	MetalUI	WindowInteractionBehavior.swift	(-|WindowInteractionBehavior)	.*	.*	window-interaction-behavior
