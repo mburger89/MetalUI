@@ -113,8 +113,10 @@ private func referenceHeapBytes(forRequest n: Int) -> Int {
         // 20 (64 heap bytes), while CI's x86_64 runner measured 80 for the same row (an allocator rounding that
         // `compact` cannot undo).
         // So the bound is 64 or the reference array's own size, whichever is larger: tight on every platform.
-        #expect(compact.bytes.capacity <= exactRequestCapacity(20))
-        #expect(compact.heapByteCount <= max(64, referenceHeapBytes(forRequest: 20)))
+        // `compact` reallocates only when more than 16 bytes are spare, so the capacity may keep up to 16 spare where the
+        // growth left little (Windows CI: the doubled capacity was within 16 of 20).
+        #expect(compact.bytes.capacity <= max(exactRequestCapacity(20), 20 + 16))
+        #expect(compact.heapByteCount <= max(64, referenceHeapBytes(forRequest: 20), (32 + 20 + 16 + 15) / 16 * 16))
         #expect(compact.columns == 80)
     }
 }
