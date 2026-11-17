@@ -1,5 +1,6 @@
 import Foundation
 import MetalUITesting
+import MetalUIPlatform
 import MetalUITerminal
 import Testing
 @testable import MetalUI
@@ -10,8 +11,8 @@ import Testing
 // trigger on the main actor. Each test names the mutation it was shown red against.
 
 @MainActor final class TermRig {
-    final class Log { var resizes: [TerminalSize] = [] }
-    final class Knobs { var palette = TerminalPalette.xterm; var shown = true }
+    final class Log { var resizes: [TerminalSize] = []; var inputs: [[UInt8]] = []; var commands: [String] = [] }
+    final class Knobs { var palette = TerminalPalette.xterm; var shown = true; var optionAsMeta = false; var exceptions: [KeyboardShortcut] = [] }
     let emulator: TerminalEmulator
     let source: TerminalSnapshotSource
     let log = Log()
@@ -22,7 +23,7 @@ import Testing
     var model: TerminalViewModel { TerminalViewModel.latestForTesting! }
 
     init(cols: Int = 80, rows: Int = 24, size: Size<Pixels> = Size(width: Pixels(400), height: Pixels(300)),
-         blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true) throws {
+         blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true, commands: Bool = false) throws {
         self.size = size
         emulator = TerminalEmulator(cols: cols, rows: rows)
         source = TerminalSnapshotSource(emulator: emulator, queue: .main)
@@ -32,13 +33,15 @@ import Testing
             VStack(spacing: 0) {
                 if extra { TextField("t", text: .constant("")).accessibilityIdentifier("ed").frame(width: Pixels(100), height: Pixels(20)) }
                 if knobs.shown && terminal {
-                    TerminalView(snapshotSource: source, theme: knobs.palette, cursorBlink: blink, blinkStopsAfterIdle: stops,
-                                 onInput: { _ in }, onResize: { log.resizes.append($0) }, onLink: { _ in nil })
+                    TerminalView(snapshotSource: source, theme: knobs.palette, keyCaptureExceptions: knobs.exceptions,
+                                 optionAsMeta: knobs.optionAsMeta, cursorBlink: blink, blinkStopsAfterIdle: stops,
+                                 onInput: { log.inputs.append($0) }, onResize: { log.resizes.append($0) }, onLink: { _ in nil })
                 }
             }
         }
         window.runsSurfaceDraws = true
         window.resize(to: size)
+        if commands { window.testApp.app.commands { CommandMenu("Tools") { Button("Go") { log.commands.append("go") }.keyboardShortcut("k", modifiers: .command) } } }
 
     }
 

@@ -48,8 +48,11 @@ public struct KeyPress: Sendable {
     public let characters: String
     /// The modifier keys held.
     public let modifiers: EventModifiers
+    /// Whether the key is on the numeric keypad (`KeyEvent.isKeypad`, `TRM-BC`). `package`: the terminal's.
+    package let isKeypad: Bool
 
-    init(phase: Phases, key: KeyEquivalent, characters: String, modifiers: EventModifiers) {
+    init(phase: Phases, key: KeyEquivalent, characters: String, modifiers: EventModifiers, isKeypad: Bool = false) {
+        self.isKeypad = isKeypad
         self.phase = phase
         self.key = key
         self.characters = characters

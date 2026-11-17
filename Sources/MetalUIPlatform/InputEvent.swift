@@ -228,6 +228,9 @@ public struct KeyEvent: Sendable {
     /// reports the unshifted "/"; this is "/" on both. `KeyboardShortcut`
     /// matching reads it, with `.shift`, beside the characters.
     public var unshiftedKey: String = ""
+    /// Whether the key is on the numeric keypad (`TRM-BC`): a terminal sends an application-keypad key its own
+    /// sequence. AppKit reports it from the key code; SDL does not report it yet. Default `false`.
+    public var isKeypad: Bool = false
     /// A key event; every construction site states its timestamp.
     public init(charactersIgnoringModifiers: String, characters: String,
                 modifiers: Modifiers = [], isRepeat: Bool = false,

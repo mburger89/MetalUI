@@ -148,6 +148,7 @@ extension Window {
     /// is not a text target or nothing is marked (ruling `IM-D`). Read-only.
     package var testingComposition: TextComposition? {
         guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return nil }
+        if let external = target.external { return external.composition.text.isEmpty ? nil : external.composition }   // `TRM-BC`
         if let session = target.codeSession { return session.composition }   // the code view's, in its own state (`CV-AA`)
         var composition = TextComposition.none
         stateTable.withState(id, initial: TextEditState()) { composition = $0.composition }

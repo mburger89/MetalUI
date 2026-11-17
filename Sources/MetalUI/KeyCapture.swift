@@ -10,6 +10,7 @@ extension Window {
     var isComposingMarkedText: Bool {
         guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
         if let session = target.codeSession { return session.isComposing }
+        if let external = target.external { return !external.composition.text.isEmpty }   // a terminal's (`TRM-BC`)
         return !editState(id).composition.text.isEmpty
     }
 
@@ -29,7 +30,7 @@ extension Window {
         }
         guard let first = key.charactersIgnoringModifiers.first, !isComposingMarkedText else { return false }
         let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
-                             modifiers: key.modifiers)
+                             modifiers: key.modifiers, isKeypad: key.isKeypad)
         for id in focusChain.reversed() {
             guard let capture = lastFocusRegistry.keyCapture(for: id),
                   !capture.exceptions.contains(where: { $0.matches(key) }) else { continue }

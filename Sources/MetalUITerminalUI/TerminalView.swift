@@ -41,10 +41,19 @@ import MetalUITextSystem
 /// box drawing, blocks, braille and Powerline are drawn to the cell; wide characters take two cells; colour emoji
 /// draw monochrome; ligatures are off. A scrolled-back viewport draws the rows the snapshot lists.
 ///
-/// **Inert until later phases.** `onInput`, `keyCaptureExceptions`, `optionAsMeta` and `onLink` are part of the
-/// frozen signature, but the view neither captures keys, reads the pointer, nor sends them yet: key capture and
-/// text input arrive with Phase 5.4, the pointer (selection, wheel, mouse reports, links) with 5.5 and
-/// accessibility with 5.6. The view is focusable now (Tab and a press focus it).
+/// **Keyboard input** (`TRM-BC`, Phase 5.4). While focused the view is a key capture layer
+/// (`keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta)`): every key reaches it before the
+/// keymap, menus and commands; it encodes the key with the newest modes (application cursor keys and keypad) and
+/// sends the bytes to `onInput`. A key that encodes to nothing (every command-modified key) is left to the app, so
+/// ⌘Q, ⌘W and a `CommandMenu`'s ⌘K still run. Typed text, a dead key's result, the emoji picker and an input
+/// method's commit arrive as text and are sent UTF-8 encoded; an input method's marked text is drawn at the
+/// cursor, underlined, and sent only when committed (the candidate window sits at the cursor cell). **Paste** is ⌘V
+/// (and Edit ▸ Paste) on Apple platforms and Ctrl+Shift+V elsewhere, where Ctrl+V is the child's own: the text is
+/// sent through `TerminalEncoder.encodePaste` (bracketed when the program asked, ESC stripped). **Focus** in and out
+/// is reported with `ESC [ I` and `ESC [ O` while the program set mode 1004. Every byte sent restarts the blink's idle clock.
+///
+/// **Inert until later phases.** `onLink` is part of the frozen signature, but the view does not read the pointer
+/// yet: selection, the wheel, mouse reports and links arrive with Phase 5.5 and accessibility with 5.6.
 public struct TerminalView: Component {
     let snapshotSource: TerminalSnapshotSource
     let theme: TerminalPalette
@@ -62,6 +71,8 @@ public struct TerminalView: Component {
     @Environment(\.textMeasurer) private var measurer
     @Environment(\.displayScale) private var displayScale
     @Environment(\.font) private var environmentFont
+    @Environment(\.clipboard) private var clipboard
+    @Environment(\.controlActiveState) private var activeState
 
     /// A terminal over `snapshotSource` drawn in `theme`.
     ///
@@ -69,12 +80,12 @@ public struct TerminalView: Component {
     ///   - snapshotSource: The emulator's hand-off. The view binds its wake and takes its snapshots; nothing else
     ///     may (one view per source).
     ///   - theme: The palette.
-    ///   - keyCaptureExceptions: Shortcuts that skip key capture and reach the app (Phase 5.4; inert).
-    ///   - optionAsMeta: Option sends ESC-prefixed keys (Phase 5.4; inert).
+    ///   - keyCaptureExceptions: Shortcuts that skip key capture and reach the app (`keyCapture(except:)`).
+    ///   - optionAsMeta: Both Option keys send ESC-prefixed keys and skip dead keys (`keyCapture(optionAsMeta:)`).
     ///   - cursorBlink: Whether a blinking cursor style blinks (default true).
     ///   - blinkStopsAfterIdle: Stop blinking 30 s after the last input or output (default true).
     ///   - boldIsBright: Bold ANSI 0-7 draws bright, as the palette's own flag does (default false).
-    ///   - onInput: The bytes a key, paste or focus report encodes to (Phase 5.4; never called yet).
+    ///   - onInput: The bytes a key, committed text, paste or focus report encodes to; the host writes them to the pty.
     ///   - onResize: The grid size, when the cell count changes, after the source was resized.
     ///   - onLink: The link under a ⌘-hovered cell (Phase 5.5; never called yet).
     public init(snapshotSource: TerminalSnapshotSource,
@@ -107,15 +118,23 @@ public struct TerminalView: Component {
         model.cursorBlink = cursorBlink
         model.blinkStopsAfterIdle = blinkStopsAfterIdle
         model.focused = isFocused
+        model.onInput = onInput
+        model.optionAsMeta = optionAsMeta
+        model.exceptions = keyCaptureExceptions
         if let system = measurer.terminalTextSystem {
             model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
         }
         return TerminalSurfaceElement(model: model, palette: theme, boldIsBright: boldIsBright || theme.boldIsBright)
             .focusable()
             .focused($isFocused)
+            .keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta)
+            .onKeyPress { press in model.handle(press, clipboard: clipboard) }
+            .pasteDestination(for: String.self, action: { items in model.paste(items.joined(separator: "\n")) })
+            .externalTextInput(model.input)
             .onGeometryChange(for: TerminalSize.self, of: { proxy in
                 model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
             }, action: { size in model.gridChanged(to: size) })
+            .onChange(of: isFocused && activeState != .inactive) { _, now in model.focusChanged(to: now) }
     }
 }
 
@@ -170,6 +189,7 @@ struct TerminalSurfaceElement: ProposalElement {
                                         boldIsBright: boldIsBright),
             cursor: cursor, cursorText: cursorText, selection: selection, selectionAlpha: alpha)
         model.windowActive = pass.terminalWindowIsActive
+        model.bounds = bounds
         let stamp = Stamp(palette: packed, focused: model.focused, active: model.windowActive, boldIsBright: boldIsBright)
         let model = self.model
         var surface = GPUSurface(redraw: .onDemand, value: stamp, trigger: model.trigger) { context in
