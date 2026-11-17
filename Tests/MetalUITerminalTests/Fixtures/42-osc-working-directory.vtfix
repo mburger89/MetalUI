@@ -1,0 +1,7 @@
+# OSC 7: file URLs with no host or localhost give the (percent-decoded) path; other hosts and schemes are dropped.
+size 10 2
+input "\e]7;file:///Users/me/%7Ex\x07\e]7;file://localhost/tmp\e\\\e]7;file://other.example.invalid/x\x07\e]7;http://localhost/y\x07\e]7;file://localhost\x07z"
+text
+|z|
+||
+events cwd:/Users/me/~x cwd:/tmp

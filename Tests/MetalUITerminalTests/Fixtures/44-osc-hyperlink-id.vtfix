@@ -1,0 +1,12 @@
+# OSC 8 with the same id= and target is the same link; no id (or a different target) is a new one.
+size 12 2
+input "\e]8;id=x;http://a\x07a\e]8;;\x07\e]8;id=x;http://a\x07b\e]8;;\x07\e]8;;http://a\x07c\e]8;;\x07\e]8;id=x;http://z\x07d\e]8;;\x07\e]8;foo=1:id=x:bar=2;http://a\x07e"
+text
+|abcde|
+||
+attr 0 0 link=1
+attr 0 1 link=1
+attr 0 2 link=2
+attr 0 3 link=3
+attr 0 4 link=1
+events link:1:http://a link:2:http://a link:3:http://z
