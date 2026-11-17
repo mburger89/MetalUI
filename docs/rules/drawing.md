@@ -220,4 +220,4 @@ clip key and R8 coverage (P3: pixels and shaders).
 
 **Atlas texture and image cache are per window (`PW-A`, record 305).** A window's glyph-atlas texture, its encoded flag and its image texture cache live in its `MetalWindowRenderer.atlasState`, never on the shared `Renderer`: a `Window` owns its `GlyphAtlas` and its slots are UVs into that atlas only. New renderer-level mutable state that depends on a window's scene or atlas goes in `WindowTextureState`.
 
-**Solid rects in a surface** (`TRM-AU`, record 347). `SurfaceTextSink.fillRect` is a glyph instance over a reserved fully covered atlas slot, in the one pass `drawText` uses; no shader or C change. Keep the margin: whole-slot sampling reads neighbouring texels at the quad's far edges.
+**Solid rects in a surface** (`TRM-AU`, record 348). `SurfaceTextSink.fillRect` is a glyph instance over a reserved fully covered atlas slot, in the one pass `drawText` uses; no shader or C change. Keep the margin: whole-slot sampling reads neighbouring texels at the quad's far edges.

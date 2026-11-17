@@ -323,7 +323,39 @@ Why: xterm and Terminal.app pull from and push to scrollback with the window; a 
 
 A resize that changes only the height does not rewrap: it moves rows. A width change visits every retained row once (one pass to find lines, one to rebuild the ones that change; a row that fits is relabelled, not copied). Measured in release on the macOS arm64 dev machine: reflow of 10 068 retained rows (120 columns, mixed soft and hard lines, some coloured and wide) takes 1 ms best and 3 ms worst over 80, 120, 200 and 120 columns, against a proposed bound of 50 ms (the gated bench `reflowOfTenThousandScrollbackRows`, `METALUI_RUN_TERMINAL_BENCH=1`). Reflow runs on the emulator's queue and `TerminalSnapshotSource.resize` coalesces a drag into one call, so nothing here is on the main thread.
 
-## TRM-AU: the grid sink records rects as glyph instances over a solid atlas slot (Phase 5.1, record 347)
+## TRM-AQ: the selection (Phase 1.6, record 347)
+
+1. `selection` is `.linear` or `.block` over absolute rows (`TRM-AA`); the two ends may come in either order and are stored as given. A linear selection runs from the earlier end to the later in reading order, through whole rows between; a block selection is the rectangle between the ends' rows and columns. Columns are inclusive; a wide cell is selected when either of its columns is.
+2. Setting clamps the ends to the rows that exist (`firstRow` through the screen's last row; a linear end clamped to the top becomes column 0, one clamped to the bottom the last column; columns clamp to the grid) and stores nil when the range is wholly outside them. Reading and every publish re-check the selection.
+3. **Lifecycle.**
+   - A later `reflowGeneration` clears it (`TRM-AM` 3); a height-only resize keeps it.
+   - **Eviction clips, then clears.** When scrollback drops its first rows the selection keeps the rows that remain (the clipped end becomes the first retained row, column 0 for a linear one); once none remain it is cleared. Clamping rather than clearing at the first evicted row keeps a selection alive under steady output at the top of a full scrollback, as Terminal.app does.
+   - **Output that changes the selected text clears it, as xterm does.** Each check compares the selected columns of every selected row that is on the screen against what they held at the previous check (trailing blanks ignored; attributes ignored, so SGR repaints do not clear); rows already in scrollback cannot change. Scrolling alone changes nothing (the rows keep their numbers); ED 2 and any overwrite or erase of selected cells do clear. A row the selection covers beyond the typed text counts: typing into blank selected cells clears it.
+   - Entering or leaving the alternate screen (47, 1047, 1049) and RIS clear it (1048 is not a switch): the rows under it are another buffer.
+4. `selectedText()` is nil without a selection. Per row the stored text of the selected columns is taken, a wide character once. A linear selection joins a row to the next **with no separator when the row is soft-wrapped** (it keeps its trailing blanks, which are text of the longer line, `TRM-AN` 3) and with `"\n"` otherwise, trimming that row's trailing blanks; the last row is trimmed too. A block selection trims every row and joins with `"\n"`, wrapped or not. Blank rows inside a selection yield empty lines; no newline is added at the end.
+5. The snapshot's `selection` is the stored one; a change of selection alone is a new version with no damaged rows (the view repaints the selection from the snapshot).
+
+Why: the frozen spec says the selection is in absolute rows and survives scrolling; the rest is xterm's lifecycle with the one softening (clip on eviction).
+
+## TRM-AR: the viewport offset
+
+1. `scrollViewport(toOffset:)` takes rows back from the live bottom, clamped to `0...scrollback count`; the alternate screen has no scrollback so its offset is 0, and entering or leaving it resets the offset. ED 3 or a resize that shrinks scrollback clamps it at the next publish.
+2. A change makes the next snapshot a full frame with `viewportOffset` set and `damagedRows` listing the rows in view (scrollback rows and screen rows, by viewport index). A repeated offset is not a change.
+3. While `viewportOffset > 0`, output that pushes a row into scrollback increases the offset by one so the same rows stay in view; once the oldest of them is evicted the offset clamps and the view moves. Any screen damage while scrolled back publishes a full frame of the view (a view at `0` keeps the O(damaged rows) rule). The cursor is reported in viewport coordinates (`row + offset`) and is not visible when that row is below the view.
+
+## TRM-AS: search
+
+1. `search(_:from:backwards:)` covers scrollback and the screen. **Case-sensitive**, exact: a match is a run of whole cells (it never starts or ends inside a grapheme cluster, so `e` does not match `e` plus U+0301), and an empty needle or one with CR or LF never matches.
+2. Soft-wrapped rows are one logical line, so a match can span a wrap and the scrollback/screen boundary; a hard break ends a line. The text compared is the stored text, so blanks the program never wrote at a row's end are not matchable.
+3. Forward returns the first match whose `lowerBound` is at or after `from`; backwards the last whose `upperBound` is before `from`. **It does not wrap around**: nil means no match in that direction and the caller starts again from the other end. A `from` before `firstRow` starts at the first retained row; one past the last row finds nothing forward and starts at the end backwards. To step: forward from the previous `lowerBound` advanced one column, backwards from the previous `lowerBound`.
+4. The range returned starts at the first cell's column and ends at the last column of the last cell (a wide character covers two), so it can be assigned as `.linear` and read back.
+
+## TRM-AT: word and line boundaries (package)
+
+1. `wordRange(at:wordCharacters:)` (the Phase 5 double-click): the cell under the position (either column of a wide cell) takes the maximal run of the same kind along the logical line, across soft wraps. Kinds: a **word** cell (any letter or digit, or a character of `wordCharacters`, default `_-.~/:` so paths, URLs and identifiers select whole, as Terminal.app does), a **blank** cell (space, or past the text; the run ends at the last column of a hard line), and any **other** character, which selects the run of that same character. nil off the grid.
+2. `lineRange(at:)` (triple-click): the whole logical line, column 0 of its first row to the last column of its last row; `selectedText()` trims the trailing blanks.
+
+## TRM-AU: the grid sink records rects as glyph instances over a solid atlas slot (Phase 5.1, record 348)
 
 1. `SurfaceTextSink` (`package`, `MetalUIScene`) is also the grid sink: besides `append(_:)` for glyph sprites it records `fillRect(_:color:clip:)`, a solid rectangle in device pixels of the surface's own target, in call order with the glyphs, in the surface's one batch. `fillRect` returns `false` and records nothing when the atlas has no room for the solid slot. No public API (`TerminalView` is 5.3).
 2. **A rect is one `MUIGlyph`** whose source is the reserved solid slot: `GlyphKey` with the font `MetalUI.GridSink.Solid`, packed through the frame's atlas on first use like any glyph (`SurfaceTextSink.solidKey`, `solidSlot`), a 4 x 4 square of coverage 255. The renderers' existing glyph pipelines, the existing `ReplaySurfaceText` pass and the existing atlas upload (`DT-B`) draw it: no C, shader, blob, pipeline or fixture change (`TE-AD`).
@@ -341,5 +373,4 @@ A resize that changes only the height does not rewrap: it moves rows. A width ch
 
 A `GPUSurface` using the grid sink builds no element: the sink is renderer-side and records into the frame's sink, so a surface that records rects and glyphs costs the element requests of a surface that records glyphs (`aGridSurfaceCostsTheElementRequestsOfATextSurface`, per-frame literals equal). A frame with no sink use runs no pass (`DT-A`).
 
-Next unused: `TRM-AX` (`TRM-AQ`..`TRM-AT` belong to the open resize/view work in PR #350).
-
+Next unused: `TRM-AX`.

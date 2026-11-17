@@ -30,6 +30,9 @@ struct CodeViewState: Equatable {
     var revealSeen: UInt64?
     /// The state `revealSeen` is a serial of (`CV-AY`): a view given another state reveals nothing for the change of serial.
     var revealSource: ObjectIdentifier?
+    /// The `nearestRevealSerial` last taken in (`CV-BJ`): a change under the same state reveals the primary with the
+    /// least scroll; the first frame only records it.
+    var nearestSeen: UInt64?
     /// The scroll position last reported to the `CodeScrollState` / `onScroll` (device pixels); `nil` before
     /// the first frame. A frame whose position differs reports it after the build (`CV-T`).
     var reportedTopPx: Int?
@@ -573,6 +576,7 @@ extension CodeView {
         // under the same state, and a swapped state reveals nothing (`CV-AY`).
         let serial = source.revealSerial
         let sourceID = ObjectIdentifier(source)
+        var nearestReveal = false
         if state.revealSeen == nil && (plan.widthPx <= 0 || plan.heightPx <= 0) {
             // not laid out with a real viewport yet: leave the reveal pending for the first frame that has one
         } else {
@@ -590,11 +594,14 @@ extension CodeView {
                 source.revealHandledSerial = serial
                 source.revealHandledFrame = frame
             }
+            let nearest = source.nearestRevealSerial
+            if let seen = state.nearestSeen { nearestReveal = seen != nearest && state.revealSource == sourceID }
+            state.nearestSeen = nearest
             state.revealSeen = serial
             state.revealSource = sourceID
         }
         // A key or an edit asked for the caret to be in view (`CV-X`): the least scroll that shows its row.
-        let revealsCaret = state.revealsCaret
+        let revealsCaret = state.revealsCaret || nearestReveal   // `CV-BJ`: a selection helper asks the same least-scroll reveal
         let headRow = snap.point(at: min(primary.head, snap.utf8Count)).row
         if revealsCaret {
             state.revealsCaret = false

@@ -1,4 +1,5 @@
-# 347 - Terminal grid sink (`TRM-AU`..`TRM-AW`)
+# 348 - Terminal grid sink (`TRM-AU`..`TRM-AW`)
+Renumbered from 347 because #350 merged first.
 
 Renumbered as needed: open PRs #349 and #350 hold 346.
 
