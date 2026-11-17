@@ -670,6 +670,7 @@ public final class CodeBuffer {
             } else {
                 state.setInternal(state.stored.map { Self.mapOtherSelection($0, start: start, end: end, newLength: newLength) }, normalizing: normalizing)
             }
+            if state.snippet != nil { state.moveSnippet(start: start, end: end, newLength: newLength) }   // `CV-BQ`
         }
     }
 
@@ -686,6 +687,17 @@ public final class CodeBuffer {
                 state.setInternal(batch.moveActing(state.stored, sticky: sticky && !isExternal))
             } else {
                 state.setInternal(batch.moveOther(state.stored))
+            }
+            if state.snippet != nil {   // `CV-BQ`: the run's edits one by one, in application order and coordinates
+                if batch.descending {
+                    for k in stride(from: batch.count - 1, through: 0, by: -1) {
+                        state.moveSnippet(start: batch.starts[k], end: batch.ends[k], newLength: batch.lengths[k])
+                    }
+                } else {
+                    for k in 0..<batch.count {
+                        state.moveSnippet(start: batch.starts[k] + batch.prefix[k], end: batch.ends[k] + batch.prefix[k], newLength: batch.lengths[k])
+                    }
+                }
             }
         }
     }
@@ -741,6 +753,8 @@ public final class CodeBuffer {
         guard !isReadOnly, let group = undoStack.popLast() else { return false }
         openKind = nil
         openState = nil
+        // Undoing the step that inserted a snippet ends its session, matched by id, not depth (`CV-BQ`).
+        for entry in selectionStates where entry.state?.snippet?.transaction == group.id { entry.state?.endSnippet() }
         let counterpart = replay(group, origin: .undo(group.id))
         redoStack.append(counterpart)
         actor.setInternal(group.undoSelections, primary: group.undoPrimary)

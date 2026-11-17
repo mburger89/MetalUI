@@ -192,6 +192,8 @@ final class CodeViewPlan {
     /// With several selections (`CV-BG`): the state's sorted array (no copy), the primary's index in it, and the
     /// index range of those touching the shown rows. Empty with one selection, which `selection` and `head` carry.
     var allSelections: [CodeSelection] = []
+    /// The running snippet's placeholders (`CV-BR`); `nil` for a view whose state has no session, which is all a frame pays.
+    var snippet: SnippetSession?
     var primaryIndex = 0
     var visibleSelections = 0..<0
     var spaceAdvance = 0.0
@@ -578,6 +580,8 @@ extension CodeView {
         plan.chevronPx = chevronLane ? max(1, Int((metrics.space * 2 * scaleD).rounded(.up))) : 0
         plan.gutterPx = numbersPx + plan.laneWidthPx + plan.chevronPx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
         let source = selectionSource
+        source.viewIndentSpaces = indentsWithSpaces ? tabColumns : 0   // a snippet inserted with no indent unit takes the view's (`CV-BQ`)
+        if source.isSnippetActive { plan.snippet = source.snippet }   // observed: the session starting or ending redraws (`CV-BR`)
         let all = source.selections   // observed; the state's own array, not a copy
         let primaryIndex = source.primaryIndex
         let primary = all[primaryIndex]
@@ -1289,6 +1293,14 @@ extension CodeView {
                                           color: m == currentMatch ? currentFindColor : findColor)
                             }
                             m += 1
+                        }
+                    }
+                    // 3b. The non-current placeholders of a running snippet (`CV-BR`), found by binary search.
+                    if let snippet = plan.snippet, let tint = theme.snippetPlaceholder, !row.isVirtual {
+                        let color = pass.resolve(tint)
+                        snippet.forEachTinted(in: row.range) { placeholder in
+                            let lo = max(placeholder.lowerBound, row.range.lowerBound), hi = min(placeholder.upperBound, row.range.upperBound)
+                            if lo < hi { pass.fill(rect(x(lo), row.top, x(hi), row.top + plan.pitchPx), color: color) }
                         }
                     }
                     // 4. The selection, with the line break's tail past the end of a selected line (buffer rows only).
