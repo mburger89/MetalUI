@@ -118,6 +118,11 @@ jobs:
       run: |
         swift test --skip-build --no-parallel
         exit $LASTEXITCODE
+    # TRM-AX: the Windows ConPTY `PseudoTerminal` and its tests; they spawn cmd.exe and powershell.exe.
+    - name: Test MetalUITerminal (ConPTY)
+      run: |
+        swift test --skip-build --no-parallel --filter MetalUITerminalTests
+        exit $LASTEXITCODE
     # XP-G21 / WR-D: Windows' 6.4.0+Asserts compiler verified SIL for PaintPass.withRenderEffects in a
     # release-only specialisation and crashed; no debug build sees it. The MetalUI product alone, release.
     - name: Release build of MetalUI (SIL verifier, XP-G21)
