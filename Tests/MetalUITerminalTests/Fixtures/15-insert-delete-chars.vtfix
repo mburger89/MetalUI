@@ -1,0 +1,7 @@
+# ICH pushes the tail right and drops what leaves the row; DCH pulls the tail left.
+size 10 2
+input "0123456789\e[1;4H\e[3@\e[2;1Habcdefghij\e[2;3H\e[2P"
+text
+|012   3456|
+|abefghij|
+cursor 1 2

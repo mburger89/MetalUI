@@ -1,24 +1,40 @@
 /// A terminal emulator: bytes in, a grid of compact rows out.
 ///
-/// Not `Sendable`: confine an emulator to one serial queue chosen by the caller. This is the Phase 1.2 surface:
-/// printing with autowrap and pending wrap, the C0 movement controls, basic cursor movement and the mode flags
-/// a snapshot carries. Everything else a program may send is parsed and dropped until the later phases give it
-/// meaning (`TRM-H`).
+/// Not `Sendable`: confine an emulator to one serial queue chosen by the caller. Phase 1.3 gives the screen its
+/// full semantics (`TRM-Z`, `TRM-AA`..`TRM-AD`): cursor addressing with scroll regions and origin mode, erase,
+/// insert and delete, tab stops, save and restore, the alternate screen, the DEC graphics sets, SGR, and the
+/// replies a program waits on (delivered by ``drainEvents()``). OSC, DCS and APC are parsed and dropped until
+/// Phase 1.4.
 public final class TerminalEmulator {
-    private let cols: Int
-    private let rows: Int
+    let cols: Int
+    let rows: Int
     var screen: [TerminalRow]
-    private var dirty: [Bool]
-    private var needsFullFrame = true
+    /// The screen that is not showing: the primary while the alternate is up, and the alternate otherwise.
+    var offscreen: [TerminalRow]
+    var dirty: [Bool]
+    var needsFullFrame = true
     var scrollback: ScrollbackRing
     /// Rows that have left the screen (kept or evicted): the absolute number of the screen's first row.
-    private var scrolledOff = 0
+    var scrolledOff = 0
 
     var cursorRow = 0
     var cursorCol = 0
     var pendingWrap = false
     var pen = TerminalAttributes()
-    private var currentModes = TerminalModes()
+    var currentModes = TerminalModes()
+    /// The scroll region, 0-based and inclusive.
+    var regionTop = 0
+    var regionBottom: Int
+    var tabStops: [Bool]
+    var charsets: [Charset] = [.ascii, .ascii, .ascii, .ascii]
+    var glSet = 0
+    /// True when the active GL set is not plain ASCII: printable bytes take the slow translating path.
+    var translating = false
+    var insertMode = false
+    var onAlternate = false
+    var lastPrinted: UInt32 = 0
+    var savedCursors: [SavedCursor?] = [nil, nil]
+    var events: [TerminalEvent] = []
 
     var parser: VTParser
     private var version: UInt64 = 0
@@ -31,16 +47,30 @@ public final class TerminalEmulator {
         self.cols = size.cols
         self.rows = size.rows
         screen = Array(repeating: TerminalRow(columns: size.cols), count: size.rows)
+        offscreen = screen
         dirty = Array(repeating: true, count: size.rows)
+        regionBottom = size.rows - 1
+        tabStops = Self.defaultTabStops(size.cols)
         self.scrollback = ScrollbackRing(capacity: scrollback)
         parser = VTParser(payloadCap: payloadCap)
     }
+
+    static func defaultTabStops(_ cols: Int) -> [Bool] { (0..<cols).map { $0 % 8 == 0 && $0 > 0 } }
 
     /// The oldest retained absolute row.
     public var firstRow: Int { scrolledOff - scrollback.count }
 
     /// The modes in force.
     public var modes: TerminalModes { currentModes }
+
+    /// Takes the events raised since the last call, oldest first, and empties the queue. A `.reply` MUST be
+    /// written to the child by the caller (`TRM-C`). At most 1 024 events queue between drains; a host that
+    /// never drains loses the newest.
+    public func drainEvents() -> [TerminalEvent] {
+        let out = events
+        events.removeAll(keepingCapacity: true)
+        return out
+    }
 
     /// Feeds bytes from the child. Any split of a stream into calls gives the same state; a UTF-8 sequence or
     /// escape sequence cut by the end of a call completes on the next.
@@ -50,6 +80,7 @@ public final class TerminalEmulator {
     }
 
     /// The text of absolute row `row` with trailing blanks removed; nil for an evicted or not-yet-existing row.
+    /// While the alternate screen shows, rows below the scrollback answer the alternate screen's.
     public func rowText(_ row: Int) -> String? {
         if row < firstRow { return nil }
         if row < scrolledOff { return scrollback[row - firstRow].text }
@@ -76,31 +107,28 @@ public final class TerminalEmulator {
                                 selection: nil, links: [:])
     }
 
+    func emit(_ event: TerminalEvent) {
+        if events.count >= 1024 { return }
+        if case .bell = event, let last = events.last, last == .bell { return }
+        events.append(event)
+    }
+
+    func reply(_ text: String) { emit(.reply(Array(text.utf8))) }
+
     // MARK: Printing
 
-    private func wrap() {
+    func wrap() {
         screen[cursorRow].wrapsToNext = true
         cursorCol = 0
         pendingWrap = false
         lineFeed()
     }
 
-    func lineFeed() {
-        pendingWrap = false
-        if cursorRow == rows - 1 { scrollUp() } else { cursorRow += 1 }
-    }
-
-    /// Scrolls the whole screen up one line; the top row joins scrollback.
-    private func scrollUp() {
-        var top = screen.removeFirst()
-        top.compact()
-        scrollback.append(top)
-        scrolledOff += 1
-        screen.append(TerminalRow(columns: cols))
-        for index in 0..<rows { dirty[index] = true }
-    }
-
-    private func printASCIIRun(_ buf: UnsafeBufferPointer<UInt8>) {
+    func printASCIIRun(_ buf: UnsafeBufferPointer<UInt8>) {
+        if translating || insertMode {
+            for byte in buf { printScalar(translate(byte)) }
+            return
+        }
         var rest = buf[...]
         while !rest.isEmpty {
             if pendingWrap {
@@ -118,9 +146,10 @@ public final class TerminalEmulator {
                 cursorCol += take
             }
         }
+        if let last = buf.last { lastPrinted = UInt32(last) }
     }
 
-    private func printScalar(_ scalar: Unicode.Scalar) {
+    func printScalar(_ scalar: Unicode.Scalar) {
         let width = CharacterWidth.of(scalar)
         if width == 0 {
             let target = pendingWrap ? cursorCol : cursorCol - 1
@@ -137,8 +166,12 @@ public final class TerminalEmulator {
             guard currentModes.autowrap else { return }
             wrap()
         }
+        if insertMode {
+            screen[cursorRow].insertBlanks(at: cursorCol, count: width, attributes: blankAttributes)
+        }
         screen[cursorRow].put(scalar, width: width, at: cursorCol, attributes: pen)
         dirty[cursorRow] = true
+        lastPrinted = scalar.value
         if cursorCol + width >= cols {
             cursorCol = cols - 1
             pendingWrap = currentModes.autowrap
@@ -149,31 +182,26 @@ public final class TerminalEmulator {
 
     // MARK: Cursor
 
-    private func moveCursor(row: Int? = nil, col: Int? = nil) {
+    func moveCursor(row: Int? = nil, col: Int? = nil) {
         if let row { cursorRow = min(max(row, 0), rows - 1) }
         if let col { cursorCol = min(max(col, 0), cols - 1) }
         pendingWrap = false
     }
 
-    private func count(_ p: CSIParameters, _ index: Int = 0) -> Int {
+    func count(_ p: CSIParameters, _ index: Int = 0) -> Int {
         index < p.values.count && p.values[index] > 0 ? Int(p.values[index]) : 1
     }
 
-    private func setPrivateMode(_ number: Int32, _ on: Bool) {
-        switch number {
-        case 1: currentModes.applicationCursorKeys = on
-        case 7: currentModes.autowrap = on
-        case 25: currentModes.cursorVisible = on
-        case 9: currentModes.mouseTracking = on ? .x10 : .off
-        case 1000: currentModes.mouseTracking = on ? .normal : .off
-        case 1002: currentModes.mouseTracking = on ? .buttonEvent : .off
-        case 1003: currentModes.mouseTracking = on ? .anyEvent : .off
-        case 1004: currentModes.focusEvents = on
-        case 1005: currentModes.mouseEncoding = on ? .utf8 : .legacy
-        case 1006: currentModes.mouseEncoding = on ? .sgr : .legacy
-        case 2004: currentModes.bracketedPaste = on
-        default: break
-        }
+    /// A parameter with its own default (0 for the erase modes), where an omitted or zero one is `fallback`.
+    func parameter(_ p: CSIParameters, _ index: Int = 0, default fallback: Int = 0) -> Int {
+        index < p.values.count && p.values[index] >= 0 ? Int(p.values[index]) : fallback
+    }
+
+    /// Everything beyond the grid that the next byte could depend on, for the chunk-split tests.
+    var debugState: String {
+        "region=\(regionTop)...\(regionBottom) tabs=\(tabStops.enumerated().filter { $0.element }.map(\.offset)) "
+            + "pen=\(pen) charsets=\(charsets)/\(glSet) insert=\(insertMode) alt=\(onAlternate) "
+            + "last=\(lastPrinted) saved=\(savedCursors) events=\(events) offscreen=\(offscreen.map(\.text))"
     }
 
     /// The columns the screen is wide, for tests.
@@ -192,52 +220,6 @@ extension TerminalEmulator: VTParserHandler {
             withUnsafePointer(to: UInt8(scalar.value)) { printASCIIRun(UnsafeBufferPointer(start: $0, count: 1)) }
         } else {
             printScalar(scalar)
-        }
-    }
-
-    func execute(_ code: UInt8) {
-        switch code {
-        case 0x08: moveCursor(col: cursorCol - 1)
-        case 0x09: moveCursor(col: (cursorCol / 8 + 1) * 8)
-        case 0x0A, 0x0B, 0x0C, 0x84: lineFeed()
-        case 0x0D: moveCursor(col: 0)
-        case 0x85:
-            moveCursor(col: 0)
-            lineFeed()
-        default: break
-        }
-    }
-
-    func csi(_ p: CSIParameters, final: UInt8) {
-        if p.prefix == 0x3F && p.intermediates.isEmpty && (final == 0x68 || final == 0x6C) {
-            for value in p.values where value >= 0 { setPrivateMode(value, final == 0x68) }
-            return
-        }
-        guard p.prefix == 0 && p.intermediates.isEmpty else { return }
-        switch final {
-        case 0x41: moveCursor(row: cursorRow - count(p))  // CUU
-        case 0x42: moveCursor(row: cursorRow + count(p))  // CUD
-        case 0x43: moveCursor(col: cursorCol + count(p))  // CUF
-        case 0x44: moveCursor(col: cursorCol - count(p))  // CUB
-        case 0x45: moveCursor(row: cursorRow + count(p), col: 0)  // CNL
-        case 0x46: moveCursor(row: cursorRow - count(p), col: 0)  // CPL
-        case 0x47, 0x60: moveCursor(col: count(p) - 1)  // CHA, HPA
-        case 0x64: moveCursor(row: count(p) - 1)  // VPA
-        case 0x48, 0x66: moveCursor(row: count(p, 0) - 1, col: count(p, 1) - 1)  // CUP, HVP
-        default: break
-        }
-    }
-
-    func esc(intermediates: [UInt8], final: UInt8) {
-        guard intermediates.isEmpty else { return }
-        switch final {
-        case 0x44: lineFeed()  // IND
-        case 0x45:  // NEL
-            moveCursor(col: 0)
-            lineFeed()
-        case 0x3D: currentModes.applicationKeypad = true  // DECKPAM
-        case 0x3E: currentModes.applicationKeypad = false  // DECKPNM
-        default: break
         }
     }
 

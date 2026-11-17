@@ -1,0 +1,8 @@
+# 1047 clears the alternate screen when it is left, so the next visit is blank.
+size 6 2
+input "m\e[?1047hxyz\e[?1047l\e[?1047h"
+text
+||
+||
+cursor 0 4
+modes alternateScreen=on

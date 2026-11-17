@@ -1,0 +1,9 @@
+# Leaving 1049 brings back the primary screen and the cursor that was saved on entry.
+size 6 3
+input "main1\r\nmain2\e[1;2H\e[?1049h alt\e[3;1HZ\e[?1049lx"
+text
+|mxin1|
+|main2|
+||
+cursor 0 2
+modes alternateScreen=off

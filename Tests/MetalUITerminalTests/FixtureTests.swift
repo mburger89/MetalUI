@@ -12,7 +12,13 @@ import Testing
 ///     text                          then one `|row|` line per screen row (trailing blanks are not compared)
 ///     history                       then one `|row|` line per retained scrollback row, oldest first
 ///     cursor <row> <col> [pending]  viewport coordinates
-///     modes <name>=<value> ...      TerminalModes members: on/off, or tracking/encoding names
+///     modes <name>=<value> ...      TerminalModes members: on/off, tracking/encoding names, cursorStyle
+///                                   (`block`, `bar-blinking`, ...)
+///     attr <row> <col> <token> ...  the cell's whole rendition: `plain`, `bold dim italic blink inverse hidden
+///                                   strike`, `underline=single|double|curly|dotted|dashed`, and `fg= bg= ul=`
+///                                   with `default`, an index `N` or `R,G,B`; unlisted members are default
+///     replies "<escaped bytes>"     the concatenated `.reply` events, in order
+///     events <name> ...             the other events, in order (`bell`)
 ///
 /// Escapes in `input` and in `|row|` lines: `\e \r \n \t \\ \"`, `\xHH` (one raw byte), `\u{H...}` (that scalar
 /// as UTF-8). Every fixture is run whole, byte at a time and split at every position; all must agree.
@@ -24,6 +30,40 @@ struct Fixture {
     var history: [String]?
     var cursor: (row: Int, col: Int, pending: Bool)?
     var modes: [String: String] = [:]
+    var attrs: [(row: Int, col: Int, expected: TerminalAttributes)] = []
+    var replies: [UInt8]?
+    var events: [String]?
+
+    static func color(_ text: String) -> TerminalColor {
+        if text == "default" { return .default }
+        let n = text.split(separator: ",").compactMap { UInt8($0) }
+        return n.count == 3 ? .rgb(n[0], n[1], n[2]) : .indexed(n[0])
+    }
+
+    static func attributes(_ tokens: [String]) -> TerminalAttributes {
+        var a = TerminalAttributes()
+        for token in tokens {
+            let kv = token.split(separator: "=").map(String.init)
+            switch kv[0] {
+            case "plain": break
+            case "bold": a.bold = true
+            case "dim": a.dim = true
+            case "italic": a.italic = true
+            case "blink": a.blink = true
+            case "inverse": a.inverse = true
+            case "hidden": a.hidden = true
+            case "strike": a.strikethrough = true
+            case "underline":
+                a.underlineStyle = ["single": .single, "double": .double, "curly": .curly, "dotted": .dotted,
+                                    "dashed": .dashed][kv[1]] ?? .none
+            case "fg": a.foreground = color(kv[1])
+            case "bg": a.background = color(kv[1])
+            case "ul": a.underlineColor = color(kv[1])
+            default: Issue.record("unknown attribute token \(token)")
+            }
+        }
+        return a
+    }
 
     static func unescape(_ s: String) -> [UInt8] {
         var out: [UInt8] = []
@@ -79,6 +119,11 @@ struct Fixture {
             case "cursor":
                 let n = parts[1].split(separator: " ")
                 f.cursor = (Int(n[0])!, Int(n[1])!, n.count > 2 && n[2] == "pending")
+            case "attr":
+                let n = parts[1].split(separator: " ").map(String.init)
+                f.attrs.append((Int(n[0])!, Int(n[1])!, attributes(Array(n.dropFirst(2)))))
+            case "replies": f.replies = unescape(String(parts[1].dropFirst().dropLast()))
+            case "events": f.events = parts.count > 1 ? parts[1].split(separator: " ").map(String.init) : []
             case "modes":
                 for pair in parts[1].split(separator: " ") {
                     let kv = pair.split(separator: "=").map(String.init)
@@ -101,6 +146,9 @@ struct Fixture {
         case "focusEvents": return b(m.focusEvents)
         case "mouseTracking": return "\(m.mouseTracking)"
         case "mouseEncoding": return "\(m.mouseEncoding)"
+        case "originMode": return b(m.originMode)
+        case "alternateScreen": return b(m.alternateScreen)
+        case "cursorStyle": return "\(m.cursorStyle.shape)" + (m.cursorStyle.blinking ? "-blinking" : "")
         default: return nil
         }
     }
@@ -127,6 +175,28 @@ struct Fixture {
             let got = modeValue(e.modes, key)
             if got != want { problems.append("\(tag): mode \(key) = \(got ?? "unknown") != \(want)") }
         }
+        let drained = e.drainEvents()
+        if let replies {
+            let got = drained.flatMap { event -> [UInt8] in if case .reply(let bytes) = event { return bytes } else { return [] } }
+            if got != replies {
+                problems.append("\(tag): replies \(String(decoding: got, as: UTF8.self).debugDescription) != "
+                                + "\(String(decoding: replies, as: UTF8.self).debugDescription)")
+            }
+        }
+        if let events {
+            let got = drained.compactMap { event -> String? in
+                switch event {
+                case .bell: return "bell"
+                case .reply: return nil
+                default: return "other"
+                }
+            }
+            if got != events { problems.append("\(tag): events \(got) != \(events)") }
+        }
+        for check in attrs {
+            let got = e.screen[check.row].cell(at: check.col).attributes
+            if got != check.expected { problems.append("\(tag): attr \(check.row),\(check.col) \(got) != \(check.expected)") }
+        }
         return problems
     }
 }
@@ -144,7 +214,7 @@ private func loadFixtures() -> [Fixture] {
 
 @Suite struct FixtureTests {
     @Test func theCorpusIsPresent() {
-        #expect(loadFixtures().count >= 10)
+        #expect(loadFixtures().count >= 40)
     }
 
     @Test func everyFixtureHoldsWholeByteAtATimeAndSplitAtEveryPosition() {

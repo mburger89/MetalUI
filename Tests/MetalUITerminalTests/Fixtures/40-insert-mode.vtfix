@@ -1,0 +1,6 @@
+# IRM: with insert mode on, printing pushes the rest of the line right.
+size 8 1
+input "abcd\e[1;2H\e[4hXY\e[4lZ"
+text
+|aXYZcd|
+cursor 0 4

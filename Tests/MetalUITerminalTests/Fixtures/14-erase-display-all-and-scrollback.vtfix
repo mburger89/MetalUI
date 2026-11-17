@@ -1,0 +1,8 @@
+# ED 2 clears the screen and leaves the cursor; ED 3 drops the scrollback.
+size 6 2
+input "1\r\n2\r\n3\r\n4\e[2;1H\e[2J\e[3J"
+text
+||
+||
+history
+cursor 1 0

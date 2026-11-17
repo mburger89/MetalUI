@@ -1,0 +1,8 @@
+# 47 keeps the alternate screen between visits and the cursor where it is.
+size 6 2
+input "\e[?47hone\e[?47ltwo\e[?47h"
+text
+|one|
+||
+cursor 0 5 pending
+modes alternateScreen=on

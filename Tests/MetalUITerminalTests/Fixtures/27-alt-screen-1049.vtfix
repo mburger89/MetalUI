@@ -1,0 +1,10 @@
+# 1049: the alternate screen starts blank, scrolls without scrollback, and shows in the modes.
+size 6 3
+input "main1\r\nmain2\e[1;2H\e[?1049halt\e[3;1HZ\n\n"
+text
+|Z|
+||
+||
+history
+cursor 2 1
+modes alternateScreen=on
