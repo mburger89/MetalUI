@@ -321,3 +321,76 @@ private extension ElementGroup {
     let pair = Pair(Box(), Box())
     #expect(type(of: keyPressedInGenericCode(pair)) != type(of: pair))
 }
+
+// MARK: - Two handlers before a frame (ruling `KF-AF`, record 352)
+
+private enum FoldOrder { case keyThenScope, scopeThenKey }
+
+@MainActor private func handledThenFramed<G: ElementGroup>(_ group: G, _ order: FoldOrder) -> some ElementGroup {
+    // Generic code: the call sites resolve to the `ElementGroup` spellings.
+    switch order {
+    case .keyThenScope: return group.onKeyPress(.escape) { .ignored }.onDisappear { }.frame(width: px(60), height: px(60))
+    case .scopeThenKey: return group.onDisappear { }.onKeyPress(.escape) { .ignored }.frame(width: px(60), height: px(60))
+    }
+}
+
+@MainActor private func framedOnly<G: ElementGroup>(_ group: G) -> some ElementGroup {
+    group.frame(width: px(60), height: px(60))
+}
+
+/// **A** A legacy chain and a group with no layer of its own (`Pair`), in generic code: `onKeyPress` and `onDisappear`
+/// in either order before a `.frame` cost what the chain without them costs (the `Pair` against its key alone, whose
+/// wrapper is the one chain the frame joins). Mutation: delete `LifecycleScope._wrap` (the scope takes the default and
+/// the frame starts a second chain): +1 request for both orders.
+@MainActor @Test func twoHandlersBeforeAFrameCostNoRequestOnALegacyChainAndAGroup() throws {
+    let chainWithout = try steadyRequests { Box { framedOnly(Box().padding(2)) } }
+    let keyOnly = try steadyRequests { Box { framedOnly(Pair(Box(), Box()).onKeyPress(.escape) { .ignored }) } }
+    for order in [FoldOrder.keyThenScope, .scopeThenKey] {
+        let chain = try steadyRequests { Box { handledThenFramed(Box().padding(2), order) } }
+        #expect(chain == chainWithout, "legacy chain \(order): without \(chainWithout), with \(chain)")
+        let pair = try steadyRequests { Box { handledThenFramed(Pair(Box(), Box()), order) } }
+        #expect(pair == keyOnly, "pair \(order): key only \(keyOnly), with \(pair)")
+    }
+}
+
+/// **B** A proposal chain: a `.padding` after `onKeyPress` and a scope joins the chain (`LifecycleScope._wrapLayout`).
+/// Mutation: delete that witness: +1 request.
+@MainActor @Test func twoHandlersBeforeAProposalModifierCostNoRequest() throws {
+    let without = try steadyRequests {
+        Box { VStack { Box() }.nativeFrame(width: px(50), height: px(50)).padding(Edges(all: px(2))) }
+    }
+    let keyThenScope = try steadyRequests {
+        Box { VStack { Box() }.nativeFrame(width: px(50), height: px(50)).onKeyPress(.escape) { .ignored }
+            .onDisappear { }.padding(Edges(all: px(2))) }
+    }
+    let scopeThenKey = try steadyRequests {
+        Box { VStack { Box() }.nativeFrame(width: px(50), height: px(50)).onDisappear { }
+            .onKeyPress(.escape) { .ignored }.padding(Edges(all: px(2))) }
+    }
+    #expect(keyThenScope == without && scopeThenKey == without,
+            "without \(without), key then scope \(keyThenScope), scope then key \(scopeThenKey)")
+}
+
+/// **C** (`KF-AF`, `KF-C`) Semantics kept: with a handler and a scope between a chain and its frame, in either order,
+/// a descendant's key still reaches the handler (ancestor first, `.ignored` passes it on), and the scope still
+/// fires its appearance once. Mutation: the rebuilt scope dropping its `write`: no "appear".
+@MainActor @Test func theFoldedChainKeepsHandlerAndLifecycleBehaviour() throws {
+    for order in [FoldOrder.keyThenScope, .scopeThenKey] {
+        let log = CostLog()
+        let (w, p) = try foldWindow { Box {
+            switch order {
+            case .keyThenScope:
+                VStack { leaf(log) }.nativeFrame(width: px(100), height: px(100))
+                    .onKeyPress("q") { log.log.append("outer"); return .ignored }
+                    .onAppear { log.log.append("appear") }.padding(Edges(all: px(2)))
+            case .scopeThenKey:
+                VStack { leaf(log) }.nativeFrame(width: px(100), height: px(100))
+                    .onAppear { log.log.append("appear") }
+                    .onKeyPress("q") { log.log.append("outer"); return .ignored }.padding(Edges(all: px(2)))
+            }
+        } }
+        defer { withExtendedLifetime(w) {} }
+        #expect(p.simulateInput(kd("q")))
+        #expect(log.log == ["appear", "outer", "inner"], "\(order): \(log.log)")
+    }
+}

@@ -43,6 +43,11 @@ public protocol ProposalElementGroup: ElementGroup {
     /// modifiers then silently drop the receiver — `MC-A`'s `_wrap` hole,
     /// mirrored; no access-control spelling closes it.
     func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<ProposalBase, LayoutModifier>
+
+    /// `_wrapLayout(_:)` for a modifier written after a `LifecycleScope` over this group (ruling `KF-AF`): the chain
+    /// with `modifier` added, its base wrapped in the scope. **Not for conformers to implement**; MetalUI-only.
+    func _wrapLayoutInScope(_ modifier: LayoutModifier, scope: LifecycleScopeRegistration)
+        -> ModifiedContent<LifecycleScope<ProposalBase>, LayoutModifier>
 }
 
 extension ProposalElementGroup where ProposalBase == Self {
@@ -50,6 +55,12 @@ extension ProposalElementGroup where ProposalBase == Self {
     /// modifier wraps.
     public func _wrapLayout(_ modifier: LayoutModifier) -> ModifiedContent<Self, LayoutModifier> {
         ModifiedContent(content: self, modifier: modifier)
+    }
+
+    /// Every conformer but a proposal `ModifiedContent` and a `LifecycleScope`.
+    public func _wrapLayoutInScope(_ modifier: LayoutModifier, scope: LifecycleScopeRegistration)
+        -> ModifiedContent<LifecycleScope<Self>, LayoutModifier> {
+        ModifiedContent(content: LifecycleScope(content: self, write: scope.write), modifier: modifier)
     }
 }
 
