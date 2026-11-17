@@ -231,6 +231,39 @@ public struct TerminalRow: Sendable, Hashable {
         setAttributes(attributes, in: column..<end)
     }
 
+    /// A copy with `text` laid over the cells from `column` (an input method's marked text, `TRM-BC`): every grapheme
+    /// one cell, or two when wide, in `attributes`, clipped at the last column (a wide character that does not fit is
+    /// dropped). `caretCharacter` is a character offset into `text`.
+    ///
+    /// - Returns: the row, the columns the text covers and the column `caretCharacter` falls on.
+    package func overlaying(_ text: String, at column: Int, attributes: TerminalAttributes, caretCharacter: Int = 0)
+        -> (row: TerminalRow, covered: Range<Int>, caret: Int) {
+        var copy = self
+        var at = max(0, column)
+        var caret = at
+        var index = 0
+        for character in text {
+            if index == caretCharacter { caret = at }
+            index += 1
+            var first = true
+            var width = 1
+            for scalar in character.unicodeScalars {
+                let w = CharacterWidth.of(scalar)
+                if first {
+                    width = max(w, 1)
+                    guard at + width <= columns else { break }
+                    copy.put(scalar, width: width, at: at, attributes: attributes)
+                    first = false
+                } else if w == 0 {
+                    copy.appendCombining(scalar, toCellAt: at)
+                }
+            }
+            if !first { at += width } else { break }
+        }
+        if index <= caretCharacter { caret = at }
+        return (copy, max(0, column)..<at, caret)
+    }
+
     /// Appends a zero-width scalar to the cell covering `column`. Does nothing when no cell is stored there.
     mutating func appendCombining(_ scalar: Unicode.Scalar, toCellAt column: Int) {
         guard let cell = locate(column) else { return }

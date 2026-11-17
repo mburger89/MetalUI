@@ -91,6 +91,13 @@ public struct KeyboardShortcut: Equatable, Sendable {
     /// Whether `event` is this shortcut: the key compared lower-cased with
     /// `charactersIgnoringModifiers` (AppKit reports a shifted letter upper-case
     /// there), the modifiers compared exactly.
+    /// Whether `press` is this shortcut, by the same rule as a key event's (`TRM-BC`): a handler that shares a layer
+    /// with a `keyCapture(except:)` leaves the excepted keys alone. `package`: the terminal view's.
+    package func matches(_ press: KeyPress) -> Bool {
+        matches(KeyEvent(charactersIgnoringModifiers: String(press.key.character), characters: press.characters,
+                         modifiers: press.modifiers, timestamp: 0))
+    }
+
     func matches(_ event: KeyEvent) -> Bool {
         guard event.modifiers == modifiers else { return false }
         let wanted = String(key.character).lowercased()

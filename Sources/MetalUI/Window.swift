@@ -617,6 +617,10 @@ public final class Window {
                 session.dropComposition()
                 return
             }
+            if let external = lost.external {
+                external.setComposition(.none)   // dropped, nothing committed (`TRM-BC`)
+                return
+            }
             stateTable.withState(old, initial: TextEditState()) { $0.composition = .none }
         }
     }
@@ -2062,6 +2066,7 @@ public final class Window {
             return true
         }
         surfaceRedraw.didPresentSurfaceOnly(requests)
+        updateTextInputArea()   // a terminal's cursor moved with its output (`TRM-BC`)
         timing?.commitFrame()
         framesDrawn += 1
         if drawsImmediatelyOnInput { lastCommitForPacing = immediateInputClock() }
@@ -3739,8 +3744,11 @@ public final class Window {
 
     /// After each frame: text input is on exactly while a field is focused,
     /// with that field's caret as the input method's area.
-    private func updateTextInputArea() {
-        let area = focusedElement.flatMap { lastFocusRegistry.textTarget(for: $0)?.caretRect }
+    func updateTextInputArea() {
+        let area = focusedElement.flatMap { id -> Bounds<Pixels>? in
+            guard let target = lastFocusRegistry.textTarget(for: id) else { return nil }
+            return target.external.map { $0.caret() ?? target.caretRect } ?? target.caretRect   // a terminal's moves with its output (`TRM-BC`)
+        }
         guard area != lastTextInputArea else { return }
         lastTextInputArea = area
         platformWindow.setTextInputArea(area)
@@ -3826,6 +3834,7 @@ public final class Window {
                   let target = lastHitboxes[index].handlers.textInput else { return false }
             let id = lastHitboxes[index].id
             let local = lastHitboxes[index].localPoint(mouse.position)   // `GX-P` item 3
+            if target.external != nil { return false }   // a terminal's press is the view's own (`TRM-BC`)
             focus(id)
             if let session = target.codeSession {
                 StateDispatch.dispatching(to: id) {   // ID-F: the pressed code view
@@ -3842,7 +3851,7 @@ public final class Window {
             return true
         case .mouseDragged(let mouse):
             guard let id = active, let region = lastHitboxes.first(where: { $0.id == id }),
-                  let target = region.handlers.textInput else { return false }
+                  let target = region.handlers.textInput, target.external == nil else { return false }
             let local = region.localPoint(mouse.position)   // `GX-P` item 3
             if let session = target.codeSession {
                 StateDispatch.dispatching(to: id) { session.drag(to: local, at: mouse.timestamp ?? lastTick) }   // ID-F: the dragged code view
@@ -3859,6 +3868,14 @@ public final class Window {
             return false
         case .textInput(let inserted):
             guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
+            if let external = target.external {
+                // A terminal's: the commit ends the marked text and is sent as it is (`TRM-BC`).
+                StateDispatch.dispatching(to: id) {   // ID-F: the typed-into terminal
+                    external.setComposition(.none)
+                    external.commit(inserted)
+                }
+                return true
+            }
             if let session = target.codeSession {
                 StateDispatch.dispatching(to: id) { session.insert(inserted) }   // ID-F: the typed-into code view
                 return true
@@ -3870,6 +3887,10 @@ public final class Window {
             return true
         case .textComposition(let composition):
             guard let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id) else { return false }
+            if let external = target.external {
+                StateDispatch.dispatching(to: id) { external.setComposition(composition) }   // ID-F: the composing terminal
+                return true
+            }
             if let session = target.codeSession {
                 StateDispatch.dispatching(to: id) { session.compose(composition) }   // ID-F: the composing code view
                 return true
@@ -3907,7 +3928,7 @@ public final class Window {
         }
         focus(next)
         // A code view is entered with its caret where it was, never with everything selected (`CV-W`).
-        if let target = lastFocusRegistry.textTarget(for: next), target.codeSession == nil {
+        if let target = lastFocusRegistry.textTarget(for: next), target.codeSession == nil, target.external == nil {
             var state = editState(next)
             state.anchor = 0
             state.head = currentText(next, target).count
@@ -3940,7 +3961,7 @@ public final class Window {
         if case .keyDown = event, lastFocusRegistry.keyPressCount > 0,
            let shortcuts = commandShortcuts?(), shortcuts.contains(where: { $0.0.matches(key) }) { return false }
         let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
-                             modifiers: key.modifiers)
+                             modifiers: key.modifiers, isKeypad: key.isKeypad)
         return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry, skipping: keyCaptureOffered)
     }
 
@@ -3953,7 +3974,7 @@ public final class Window {
     /// reaches `dispatchTextInput` byte for byte as before.
     private func dispatchTypedKeyPress(_ event: InputEvent) -> Bool {
         guard case .textInput(let text) = event, lastFocusRegistry.keyPressCount > 0,
-              let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id),
+              let id = focusedElement, let target = lastFocusRegistry.textTarget(for: id), target.external == nil,
               text.count == 1, let character = text.first,
               target.codeSession.map({ !$0.isComposing }) ?? editState(id).composition.text.isEmpty else { return false }
         let press = KeyPress(phase: .down, key: KeyEquivalent(character), characters: text, modifiers: [])
@@ -3963,7 +3984,7 @@ public final class Window {
     /// The focused field's editing keys (TI-D's table).
     private func dispatchTextKey(_ event: InputEvent) -> Bool {
         guard case .keyDown(let key) = event, let id = focusedElement,
-              let target = lastFocusRegistry.textTarget(for: id) else { return false }
+              let target = lastFocusRegistry.textTarget(for: id), target.external == nil else { return false }
         // A paste destination on the chain is offered ⌘V first (`CB-T`): an image-only clipboard
         // would otherwise find the field's text paste and never reach it.
         if offerPasteToDestinationBeforeTheField(event) { return true }

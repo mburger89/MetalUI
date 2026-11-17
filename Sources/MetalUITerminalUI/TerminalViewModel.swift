@@ -39,6 +39,10 @@ final class TerminalViewModel {
         var snapshotsTaken = 0
         /// Cursor records over all draws.
         var cursorsDrawn = 0
+        /// Rows drawn with marked text laid over them, over all draws.
+        var markedDraws = 0
+        /// The columns the last marked text covered.
+        var lastMarkedColumns: Range<Int>?
     }
 
     /// The blink half period: the cursor toggles every 500 ms, so a blinking cursor costs two surface frames a
@@ -57,6 +61,15 @@ final class TerminalViewModel {
     var onResize: (TerminalSize) -> Void = { _ in }
     var cursorBlink = true
     var blinkStopsAfterIdle = true
+    var onInput: ([UInt8]) -> Void = { _ in }
+    var optionAsMeta = false
+    var exceptions: [KeyboardShortcut] = []
+
+    /// The text target the platform's input method talks to: committed text goes to the child, marked text is drawn
+    /// in place at the cursor (`TRM-BC`).
+    let input = ExternalTextInput()
+    /// The surface's bounds in window points, set by the last paint.
+    var bounds: Bounds<Pixels>?
 
     // The paint's findings.
     var focused = false
@@ -90,6 +103,92 @@ final class TerminalViewModel {
         var row: Int
         var col: Int
         var shape: TerminalRowPainter.CursorShape?
+    }
+
+    init() {
+        input.caret = { [weak self] in self?.caretRect() }
+        input.commit = { [weak self] text in self?.send(Array(text.utf8)) }
+        input.compose = { [weak self] _ in self?.trigger.requestRedraw() }
+    }
+
+    /// The modes a key encodes with: the newest the source has, so a mode the program set a moment ago and the view
+    /// has not drawn yet already applies.
+    var modes: TerminalModes { source?.pendingModes ?? snapshot?.modes ?? TerminalModes() }
+
+    /// Sends `bytes` to the host and counts it as input for the blink's idle clock (`TRM-BC`); nothing for none.
+    func send(_ bytes: [UInt8]) {
+        guard !bytes.isEmpty else { return }
+        onInput(bytes)
+        noteActivity()
+    }
+
+    /// A key press while focused: the paste chord, else the key encoded with the current modes. `.ignored` when it
+    /// encodes to nothing, so ⌘-keys reach menus (`TRM-D`).
+    func handle(_ press: KeyPress, clipboard: Clipboard) -> KeyPress.Result {
+        // The layer's own handler is offered a key the capture skipped (an exception, or marked text composing): those
+        // belong to the app and to the input method, so they are left alone (`TRM-D`, `TRM-V`).
+        if !input.composition.text.isEmpty || exceptions.contains(where: { $0.matches(press) }) { return .ignored }
+        if Self.pastesWithControlShiftV, press.modifiers == [.control, .shift], press.key.character.lowercased() == "v" {
+            if let text = clipboard.read(String.self) { paste(text) }
+            return .handled
+        }
+        let bytes = TerminalEncoder.encodeKey(press, modes: modes, optionAsMeta: optionAsMeta)
+        guard !bytes.isEmpty else { return .ignored }
+        send(bytes)
+        return .handled
+    }
+
+    /// Whether Ctrl+Shift+V is paste: where the platform's primary modifier is not Command, Ctrl+V is the child's
+    /// and ⌘V does not exist (`TRM-BC`).
+    static var pastesWithControlShiftV: Bool { Modifiers.primary != .command }
+
+    /// Pasted text, bracketed when the program asked for it, with every ESC stripped (`encodePaste`).
+    func paste(_ text: String) {
+        guard !text.isEmpty else { return }
+        send(TerminalEncoder.encodePaste(text, modes: modes))
+    }
+
+    /// Focus in or out of the view (or its window): `ESC [ I` or `ESC [ O` when the program set mode 1004.
+    func focusChanged(to focused: Bool) {
+        send(TerminalEncoder.encodeFocus(focused, modes: modes))
+    }
+
+    /// Where the input method's candidate window goes: the cursor's cell (two cells for a wide character, the
+    /// marked text's width while composing), in window points; nil before the first paint and snapshot.
+    func caretRect() -> Bounds<Pixels>? {
+        guard let cache, let snapshot, let bounds else { return nil }
+        let scale = Double(cache.metrics.scale)
+        let cw = Double(cache.metrics.cellWidth) / scale, ch = Double(cache.metrics.cellHeight) / scale
+        let cursor = snapshot.cursor
+        var cells = 1
+        if let marked = markedDraw(for: snapshot) {
+            cells = max(1, marked.cells)
+        } else if cursor.row >= 0, cursor.row < rows.count, let row = rows[cursor.row] {
+            cells = max(1, row.cell(at: min(cursor.col, snapshot.size.cols - 1)).width)
+        }
+        return Bounds(origin: Point(x: Pixels(Float(Double(bounds.origin.x.value) + Double(cursor.col) * cw)),
+                                    y: Pixels(Float(Double(bounds.origin.y.value) + Double(cursor.row) * ch))),
+                      size: Size(width: Pixels(Float(Double(cells) * cw)), height: Pixels(Float(ch))))
+    }
+
+    /// The marked text as it lays over the cursor's row.
+    struct MarkedDraw: Equatable {
+        var composition: TextComposition
+        var row: Int
+        var col: Int
+        var cells: Int
+    }
+
+    private var drawnMarked: MarkedDraw?
+
+    private func markedDraw(for snapshot: TerminalSnapshot) -> MarkedDraw? {
+        let composition = input.composition
+        guard !composition.text.isEmpty, snapshot.cursor.row >= 0, snapshot.cursor.row < snapshot.size.rows else { return nil }
+        let blank = TerminalRow(columns: snapshot.size.cols)
+        let (_, covered, _) = blank.overlaying(composition.text, at: min(snapshot.cursor.col, snapshot.size.cols - 1),
+                                              attributes: TerminalAttributes())
+        return MarkedDraw(composition: composition, row: snapshot.cursor.row,
+                          col: min(snapshot.cursor.col, snapshot.size.cols - 1), cells: covered.count)
     }
 
     /// The cell size in points, once the glyph cache exists.
@@ -213,6 +312,7 @@ final class TerminalViewModel {
             }
         }
         let cursorNow = DrawnCursor(row: cursor.row, col: cursor.col, shape: shape)
+        let markedNow = markedDraw(for: snapshot)
 
         // Which rows.
         var redraw = Set<Int>()
@@ -226,6 +326,10 @@ final class TerminalViewModel {
                 redraw.insert(cursorNow.row)
             } else if drawnCursor == nil {
                 redraw.insert(cursorNow.row)
+            }
+            if drawnMarked != markedNow {
+                if let old = drawnMarked { redraw.insert(old.row) }
+                if let new = markedNow { redraw.insert(new.row) }
             }
             let selection = (snapshot.selection, snapshot.topRow)
             if let old = drawnSelection {
@@ -243,12 +347,40 @@ final class TerminalViewModel {
         let columns = snapshot.size.cols
         let blank = TerminalRow(columns: columns)
         for index in ordered {
-            let row = index < rows.count ? (rows[index] ?? blank) : blank
+            var row = index < rows.count ? (rows[index] ?? blank) : blank
+            var cursorColumn = min(cursor.col, columns - 1)
+            if let marked = markedNow, marked.row == index {
+                // Marked text lies over the cursor's cells, underlined (a thicker underline for the clause the input
+                // method has selected), and is never sent until committed (`TRM-BC`).
+                var attributes = TerminalAttributes()
+                attributes.underlineStyle = .single
+                let text = marked.composition.text
+                let characters = Array(text)
+                let selected = marked.composition.selection
+                let before = String(characters[0..<min(selected.lowerBound, characters.count)])
+                let clause = String(characters[min(selected.lowerBound, characters.count)..<min(selected.upperBound, characters.count)])
+                let after = String(characters[min(selected.upperBound, characters.count)...])
+                var plain = attributes
+                var laid = row.overlaying(before, at: marked.col, attributes: plain)
+                var next = laid.covered.upperBound
+                plain.underlineStyle = .double
+                if !clause.isEmpty {
+                    laid = laid.row.overlaying(clause, at: next, attributes: plain)
+                    next = laid.covered.upperBound
+                }
+                plain.underlineStyle = .single
+                laid = laid.row.overlaying(after, at: next, attributes: plain)
+                row = laid.row
+                statistics.markedDraws += 1
+                statistics.lastMarkedColumns = marked.col..<laid.covered.upperBound
+                cursorColumn = min(marked.col + row.overlaying(before, at: marked.col, attributes: attributes).covered.count,
+                                   columns - 1)
+            }
             if let sink, let painter {
                 let range = selectedColumns(snapshot.selection, top: snapshot.topRow, row: index, columns: columns)
                 painter.draw(row, at: index, columns: columns, origin: (0, 0), into: sink, selection: range)
                 if let shape, cursor.row == index {
-                    painter.drawCursor(shape, row: row, column: min(cursor.col, columns - 1), columns: columns, at: index,
+                    painter.drawCursor(shape, row: row, column: cursorColumn, columns: columns, at: index,
                                        origin: (0, 0), color: colors.cursor, textColor: colors.cursorText, into: sink)
                 }
             }
@@ -262,6 +394,7 @@ final class TerminalViewModel {
         drawnReflow = snapshot.reflowGeneration
         drawnCursor = cursorNow
         drawnSelection = (snapshot.selection, snapshot.topRow)
+        drawnMarked = markedNow
 
         // The next blink toggle: one timed request at the coming half-period boundary, none while unfocused,
         // steady, hidden or past the idle limit (`TRM-BA` item 4).

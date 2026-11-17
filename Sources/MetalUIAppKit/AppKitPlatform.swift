@@ -381,6 +381,9 @@ final class MetalHostView: NSView {
                                               modifiers: modifiers(event), timestamp: event.timestamp)))
     }
 
+    /// The virtual key codes of the numeric keypad's digits, operators, `=`, Clear and Enter (`TRM-BC`).
+    private static let keypadKeyCodes: Set<UInt16> = [65, 67, 69, 71, 75, 76, 78, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92]
+
     private func keyEvent(_ event: NSEvent) -> KeyEvent {
         var key = KeyEvent(charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
                            characters: event.characters ?? "",
@@ -390,6 +393,7 @@ final class MetalHostView: NSView {
         // The layout's unshifted key (`KF-AL`), so a "/" + Shift shortcut matches ⇧/ whose
         // `charactersIgnoringModifiers` is "?". Only read when Shift is held: nothing else needs it.
         if key.modifiers.contains(.shift) { key.unshiftedKey = UnshiftedKey.character(forKeyCode: event.keyCode) }
+        key.isKeypad = Self.keypadKeyCodes.contains(event.keyCode)   // `TRM-BC`
         return key
     }
 

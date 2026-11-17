@@ -112,6 +112,12 @@ public final class TerminalSnapshotSource: @unchecked Sendable {
         }
     }
 
+    /// The modes of the snapshot waiting to be taken, or nil when none is waiting: what a key pressed before the next
+    /// draw encodes with, so DECCKM set by output the view has not drawn yet already applies (`TRM-BC`).
+    package var pendingModes: TerminalModes? {
+        lock.withLock { pending?.latest.modes }
+    }
+
     /// How the source has been used, for tests: snapshots published, merged hand-offs taken, wakes sent and
     /// event batches delivered.
     package var statistics: (publishes: Int, takes: Int, wakes: Int, eventDeliveries: Int) {
