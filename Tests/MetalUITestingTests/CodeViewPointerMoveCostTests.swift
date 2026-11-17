@@ -146,3 +146,30 @@ private let rowText = (0..<80).map { "row\($0) alpha beta gamma\n" }.joined()
     }
     #expect(Set(thumbs.map { $0.first ?? -1 }).count > 2, "the fade actually ramps: \(thumbs.prefix(12))")
 }
+
+/// 7 — the pointer style is resolved on the move from the last frame's hitboxes (`updatePointerStyle`), not in a frame, so a
+/// move that skips its frame still updates the cursor: a style region inside the view's one topmost hitbox (the left 100 points
+/// say `.link`, the rest nothing) sends `link` on entering it and the default on leaving, with no frame drawn for either.
+/// `CodeView` and the scroll chrome set no region-dependent cursor of their own today, so the pin is the mechanism: style regions
+/// are looked up on the move (`PointerStyle.swift`), never per frame. **Mutation:** `pointerMoveChangesNothing` returning `false`
+/// reddens the frame expectation only.
+@Test @MainActor func aMoveWithinOneHitboxStillUpdatesTheCursorWithoutAFrame() async throws {
+    let buffer = CodeBuffer(rowText)
+    let w = try harnessWindow {
+        ZStack(alignment: .topLeading) {
+            CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12).showsLineNumbers(true)
+                .codeCaretBlink(.off).frame(width: Pixels(400), height: Pixels(300))
+            Rectangle(width: Pixels(100), height: Pixels(300), color: .clear).pointerStyle(.link)
+        }
+    }
+    try await w.runUntilIdle()
+    w.hover(at: pt(250, 100))
+    let sends = w.platformWindow.pointerStyles
+    let into = cost(w) { w.hover(at: pt(50, 100)) }
+    let entered = w.platformWindow.pointerStyles
+    #expect(entered.count == sends.count + 1 && entered.last != sends.last, "the link cursor on entering: \(sends) -> \(entered)")
+    let out = cost(w) { w.hover(at: pt(250, 101)) }
+    let left = w.platformWindow.pointerStyles
+    #expect(left.count == entered.count + 1 && left.last == sends.last, "and the old one on leaving: \(left)")
+    #expect(into.frames == 0 && out.frames == 0, "and neither move drew a frame (the skip is live): \(into), \(out)")
+}
