@@ -309,6 +309,9 @@ public final class CodeSelectionState {
         return true
     }
 
+    /// Whether a registered ``CodeFoldState`` hides buffer row `line` (`CV-BK`: a column drag passes hidden rows over).
+    package func isFoldHidden(line: Int) -> Bool { folds.contains { $0.state?.isHidden(line: line) == true } }
+
     /// Keeps only the primary selection (Escape, `CV-BJ`). Undo-neutral.
     public func collapseToPrimary() {
         setSelections([stored[storedPrimary]], primary: 0)

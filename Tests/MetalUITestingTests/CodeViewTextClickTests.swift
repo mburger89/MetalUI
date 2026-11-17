@@ -72,7 +72,7 @@ private struct TextClickFixture {
     #expect(f.buffer.primarySelection == CodeSelection(anchor: 0, head: expected), "shift extends as ever")
 }
 
-/// 3 — a plain click, an option click and a click with only the other modifier place the caret as without a handler.
+/// 3 — a plain click places the caret as without a handler, and an option click is an option click (`CV-BK`), not the handler's.
 @Test @MainActor func aPlainClickStillPlacesTheCaretWithAHandlerSet() throws {
     let f = try textClickFixture()
     let row = f.buffer.snapshot().lineRange(5).lowerBound
@@ -82,9 +82,10 @@ private struct TextClickFixture {
     #expect(f.clicks.value.isEmpty)
     #expect(f.buffer.primarySelection == CodeSelection(caret: expected))
     f.buffer.selections = [CodeSelection(caret: 0)]
-    f.window.click(at: point, modifierFlags: .option)
+    f.window.click(at: point, modifierFlags: .option)   // not the handler's: a ⌥-click (`CV-BK`), which adds a caret there
     #expect(f.clicks.value.isEmpty)
     #expect(f.buffer.primarySelection == CodeSelection(caret: expected))
+    #expect(f.buffer.selections == [CodeSelection(caret: 0), CodeSelection(caret: expected)])
 }
 
 /// 4 — a primary click right of a line's last character is a normal click (answer 5): the caret goes to the line's
