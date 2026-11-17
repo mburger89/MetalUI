@@ -182,6 +182,26 @@ final class CodeEditSession {
             click(hit)
             return
         }
+        // ⌥ (alone, or with modifiers no handler consumed) waits for the release or the drag (`CV-BK`).
+        if modifiers.contains(CodeEditing.caretToggleModifier), !plan.rows.isEmpty, !plan.isInGutter(point) {
+            let offset = plan.offset(at: point)
+            let row = plan.columnRow(at: point, towards: nil)
+            let x = plan.textX(of: point)
+            selectionState.foreignEditHandlers[id] = nil
+            update {
+                $0.optionMode = 1
+                $0.optionOffset = offset
+                $0.optionRow = row
+                $0.optionX = x
+                $0.dragging = true
+                $0.autoscroll = nil
+                $0.composition = .none
+                $0.goalX = nil
+                $0.goalXs = nil
+                $0.revealsCaret = false
+            }
+            return
+        }
         let offset = plan.offset(at: point)
         var origin = offset..<offset
         var granularity: UInt8 = 0
@@ -205,6 +225,7 @@ final class CodeEditSession {
             $0.dragOriginUpper = origin.upperBound
             $0.dragGranularity = granularity
             $0.dragging = true
+            $0.optionMode = 0
             $0.autoscroll = nil
             $0.composition = .none   // a press ends a composition, as a text field's does
             $0.goalX = nil
@@ -232,9 +253,23 @@ final class CodeEditSession {
         let vy = speed(y < top ? y - top : (y > bottom ? y - bottom : 0))
         let vx = speed(x < left ? x - left : (x > right ? x - right : 0))
         let inside = Point(x: point.x, y: Pixels(Float(min(max(y, top), bottom - 1 / scale))))
-        let offset = plan.offset(at: inside)
-        selectionState.selections = [plan.dragSelection(to: offset, origin: st.dragOriginLower..<st.dragOriginUpper,
-                                                granularity: st.dragGranularity)]
+        if st.optionMode != 0 {
+            guard !plan.rows.isEmpty else { return }
+            let hit = plan.hit(at: inside)
+            let row = plan.columnRow(at: inside, towards: st.optionRow)
+            if st.optionMode == 1 {
+                guard hit.offset != st.optionOffset || row != st.optionRow else { return }   // not yet a grapheme or a row away
+                update { $0.optionMode = 2 }
+            }
+            let column = plan.columnSelections(pressRow: st.optionRow, pressX: st.optionX, pointerRow: row,
+                                               pointerX: plan.textX(of: inside), tabColumns: tabColumns,
+                                               limit: CodeSelectionState.selectionLimit, hidden: selectionState.isFoldHidden(line:))
+            selectionState.setSelections(column.selections, primary: column.primary)   // replaces every selection (`CV-BK`)
+        } else {
+            let offset = plan.offset(at: inside)
+            selectionState.selections = [plan.dragSelection(to: offset, origin: st.dragOriginLower..<st.dragOriginUpper,
+                                                    granularity: st.dragGranularity)]
+        }
         let topPx = plan.topPx, scrollXPx = plan.scrollXPx
         update { state in
             if vy == 0 && vx == 0 {
@@ -255,8 +290,29 @@ final class CodeEditSession {
     func endDrag() {
         let st = state()
         guard st.dragging else { return }
-        if st.autoscroll != nil, let selection = plan.liveDragSelection { selectionState.selections = [selection] }
-        update { $0.dragging = false; $0.autoscroll = nil }
+        if st.optionMode == 1 {
+            toggleCaret(at: st.optionOffset)
+        } else if st.optionMode == 2 {
+            if st.autoscroll != nil, let live = plan.liveColumnSelections {
+                selectionState.setSelections(live.selections, primary: live.primary)
+            }
+        } else if st.autoscroll != nil, let selection = plan.liveDragSelection { selectionState.selections = [selection] }
+        update { $0.dragging = false; $0.autoscroll = nil; $0.optionMode = 0 }
+    }
+
+    /// A ⌥-click released where it landed (`CV-BK`): a press inside a selection (a caret counts at its own offset)
+    /// removes it, except the last one; any other adds a caret, which becomes the primary.
+    private func toggleCaret(at offset: Int) {
+        let selections = selectionState.selections
+        let primary = selectionState.primaryIndex
+        if let hit = selections.firstIndex(where: { $0.range.lowerBound <= offset && offset <= $0.range.upperBound }) {
+            guard selections.count > 1 else { return }
+            var rest = selections
+            rest.remove(at: hit)
+            selectionState.setSelections(rest, primary: hit == primary ? max(0, hit - 1) : (hit < primary ? primary - 1 : primary))
+        } else if selections.count < CodeSelectionState.selectionLimit {
+            selectionState.setSelections(selections + [CodeSelection(caret: offset)], primary: selections.count)
+        }
     }
 
     // MARK: Text

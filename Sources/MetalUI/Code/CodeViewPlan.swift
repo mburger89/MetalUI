@@ -55,6 +55,13 @@ struct CodeViewState: Equatable {
     var dragOriginUpper = 0
     /// Whether a press began a drag that has not been released (`CV-AD`).
     var dragging = false
+    /// What a ⌥ press (`CV-BK`) is so far: 0 none, 1 a toggle waiting for the release, 2 a column selection (the
+    /// pointer crossed a grapheme or a row). `optionOffset` and `optionRow` are where the press landed (a buffer
+    /// byte and row), `optionX` its x in points from the text origin, so a horizontal scroll moves it with the text.
+    var optionMode: UInt8 = 0
+    var optionOffset = 0
+    var optionRow = 0
+    var optionX = 0.0
     /// The input method's marked text, shown at `compositionOffset` (a buffer byte as of `compositionVersion`) and
     /// never in the buffer or its edit stream until committed (`CV-AA`).
     var composition = TextComposition.none
@@ -196,6 +203,8 @@ final class CodeViewPlan {
     var caretVisible = true
     /// While a drag autoscrolls, the selection the frame computed from the pointer and the frame time (`CV-AD`).
     var liveDragSelection: CodeSelection?
+    /// The column selection a held ⌥ drag has now (`CV-BK`), as `liveDragSelection` is for a plain drag.
+    var liveColumnSelections: (selections: [CodeSelection], primary: Int)?
 
     init(snapshot: CodeSnapshot, font: FontKey) {
         self.snapshot = snapshot
@@ -212,10 +221,8 @@ final class CodeViewPlan {
     /// row it sits before: it is not text of the buffer.
     func offset(at point: Point<Pixels>) -> Int { hit(at: point).offset }
 
-    /// What is under `point` (bounds space, as ``offset(at:)``): the nearest caret boundary (what a press places), the
-    /// grapheme under the point, the buffer row and the region (`CV-AK`).
-    func hit(at point: Point<Pixels>) -> CodeHit {
-        guard !rows.isEmpty else { return CodeHit(offset: 0, character: nil, row: nil, region: .pastLineEnd) }
+    /// The index in `rows` of the row at `point`'s y: the first row above the first, the last below the last.
+    func rowIndex(at point: Point<Pixels>) -> Int {
         let y = Int((Double(point.y.value) * Double(scale)).rounded(.down))
         var index = 0
         if y >= rows[0].top {
@@ -226,7 +233,14 @@ final class CodeViewPlan {
                 i += 1
             }
         }
-        let row = rows[index]
+        return index
+    }
+
+    /// What is under `point` (bounds space, as ``offset(at:)``): the nearest caret boundary (what a press places), the
+    /// grapheme under the point, the buffer row and the region (`CV-AK`).
+    func hit(at point: Point<Pixels>) -> CodeHit {
+        guard !rows.isEmpty else { return CodeHit(offset: 0, character: nil, row: nil, region: .pastLineEnd) }
+        let row = rows[rowIndex(at: point)]
         let x = Int((Double(point.x.value) * Double(scale)).rounded(.down))
         let local = Double(x - textOriginX) / Double(scale)
         var byte = max(0, row.layout.byte(atX: local))
@@ -322,6 +336,55 @@ final class CodeViewPlan {
         return unit.lowerBound < origin.lowerBound
             ? CodeSelection(anchor: origin.upperBound, head: unit.lowerBound)
             : CodeSelection(anchor: origin.lowerBound, head: max(origin.upperBound, unit.upperBound))
+    }
+
+    /// The x of `point` in points from the text origin: what a ⌥ press remembers (`CV-BK`).
+    func textX(of point: Point<Pixels>) -> Double {
+        (Double(point.x.value) * Double(scale) - Double(textOriginX)) / Double(scale)
+    }
+
+    /// The buffer row a ⌥ gesture means at `point` (`CV-BK`): the row's own; for a virtual row the buffer row before
+    /// it when `towards` is below, the one it sits before otherwise (a virtual row is never selected).
+    func columnRow(at point: Point<Pixels>, towards other: Int?) -> Int {
+        let row = rows[rowIndex(at: point)]
+        let last = max(0, snapshot.lineCount - 1)
+        guard row.isVirtual else { return min(row.buffer, last) }
+        let below = other.map { row.buffer > $0 } ?? false
+        return min(max(0, below ? row.buffer - 1 : row.buffer), last)
+    }
+
+    /// The selections of a column drag (`CV-BK`): one per buffer row from `pressRow` to `pointerRow` that `hidden`
+    /// does not hide (virtual rows are no buffer rows), the anchor at text x `pressX` and the head at `pointerX`, each
+    /// clamped to the line. Rows with a laid-out line use its glyph positions; a row outside the frame's rows counts
+    /// monospace columns. The pointer's row is the primary; past `limit` rows the ones nearest the press are dropped.
+    /// Returned ascending, with the primary's index in that order.
+    @MainActor func columnSelections(pressRow: Int, pressX: Double, pointerRow: Int, pointerX: Double, tabColumns: Int, limit: Int,
+                          hidden: (Int) -> Bool) -> (selections: [CodeSelection], primary: Int) {
+        let step = pointerRow >= pressRow ? 1 : -1
+        var lines: [Int] = []
+        var line = pressRow
+        while true {
+            if !hidden(line) || line == pointerRow { lines.append(line) }
+            if line == pointerRow { break }
+            line += step
+        }
+        if lines.count > limit { lines.removeFirst(lines.count - limit) }
+        var shown: [Int: Int] = [:]
+        for (i, row) in rows.enumerated() where !row.isVirtual { shown[row.buffer] = i }
+        let space = max(spaceAdvance, 0.001)
+        func offset(_ line: Int, _ x: Double) -> Int {
+            if let i = shown[line] {
+                let px = Double(textOriginX) + (x * Double(scale)).rounded() + 0.5
+                return hit(at: Point(x: Pixels(Float(px / Double(scale))), y: Pixels(Float(rows[i].top) / scale))).offset
+            }
+            let range = snapshot.lineRange(line)
+            let column = max(0, Int((x / space).rounded()))
+            return range.lowerBound + CodeSelectionState.byteOffset(ofColumn: column, in: snapshot.text(in: range), tabWidth: max(1, tabColumns))
+        }
+        var out = lines.map { CodeSelection(anchor: offset($0, pressX), head: offset($0, pointerX)) }
+        var primary = out.count - 1
+        if step < 0 { out.reverse(); primary = 0 }
+        return (out, primary)
     }
 
     /// The word, whitespace run or single symbol at `offset`, as a byte range.
@@ -824,7 +887,7 @@ extension CodeView {
             }
         }
         // The selection a held drag has now, from the pointer and the scroll of this frame (`CV-AD`).
-        if autoscroll != nil, state.dragging, let auto = autoscroll {
+        if autoscroll != nil, state.dragging, state.optionMode == 0, let auto = autoscroll {
             let topPoint = Double(plan.originY), bottomPoint = Double(plan.originY + plan.heightPx - 1)
             let y = min(max(auto.pointerY * scaleD, topPoint), bottomPoint) / scaleD
             let offset = plan.offset(at: Point(x: Pixels(Float(auto.pointerX)), y: Pixels(Float(y))))
@@ -833,6 +896,25 @@ extension CodeView {
             plan.liveDragSelection = live
             plan.selection = live.range
             plan.head = live.head
+        }
+        // The column selection a held ⌥ drag has now (`CV-BK`): the same, for every selection of the column.
+        if autoscroll != nil, state.dragging, state.optionMode == 2, let auto = autoscroll, !plan.rows.isEmpty {
+            let topPoint = Double(plan.originY), bottomPoint = Double(plan.originY + plan.heightPx - 1)
+            let y = min(max(auto.pointerY * scaleD, topPoint), bottomPoint) / scaleD
+            let point = Point(x: Pixels(Float(auto.pointerX)), y: Pixels(Float(y)))
+            let live = plan.columnSelections(pressRow: state.optionRow, pressX: state.optionX,
+                                             pointerRow: plan.columnRow(at: point, towards: state.optionRow),
+                                             pointerX: plan.textX(of: point), tabColumns: tabColumns,
+                                             limit: CodeSelectionState.selectionLimit, hidden: source.isFoldHidden(line:))
+            plan.liveColumnSelections = live
+            plan.allSelections = live.selections.count > 1 ? live.selections : []
+            plan.primaryIndex = live.primary
+            plan.selection = live.selections[live.primary].range
+            plan.head = live.selections[live.primary].head
+            plan.visibleSelections = 0..<0
+            if !plan.allSelections.isEmpty {
+                plan.visibleSelections = Self.selections(plan.allSelections, touching: plan.rows[from..<to], visited: &frame.codeWork.selectionsVisited)
+            }
         }
         // The caret's blink restarts when it moves, an edit lands, the marked text changes or the view gains focus (`CV-AC`).
         if caretBlink == .on {
