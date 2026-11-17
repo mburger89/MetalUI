@@ -48,7 +48,15 @@ public final class TerminalEmulator {
 
     var parser: VTParser
     private var version: UInt64 = 0
-    private var published: (cursor: TerminalCursor, modes: TerminalModes)?
+    private var published: (cursor: TerminalCursor, modes: TerminalModes, selection: TerminalSelection?)?
+    /// The selection as stored (``selection`` validates it), the reflow generation it was taken in, and the
+    /// selected rows that were on the screen when it was last checked (`TRM-AQ`).
+    var selectionStorage: TerminalSelection?
+    var selectionGeneration = 0
+    var selectionWitness: [Int: TerminalRow] = [:]
+    /// How many rows the viewport is scrolled back from the live bottom (`TRM-AR`).
+    var viewportOffset = 0
+    private var publishedOffset = 0
 
     /// Creates an emulator of `cols` x `rows` (clamped to at least 2 x 1) that keeps up to `scrollback` rows
     /// and drops OSC, DCS and APC payloads longer than `payloadCap` bytes.
@@ -92,30 +100,50 @@ public final class TerminalEmulator {
     /// The text of absolute row `row` with trailing blanks removed; nil for an evicted or not-yet-existing row.
     /// While the alternate screen shows, rows below the scrollback answer the alternate screen's.
     public func rowText(_ row: Int) -> String? {
+        self.row(at: row)?.text
+    }
+
+    /// The stored row with absolute number `row`: scrollback below the screen, the showing screen from there.
+    func row(at row: Int) -> TerminalRow? {
         if row < firstRow { return nil }
-        if row < scrolledOff { return scrollback[row - firstRow].text }
+        if row < scrolledOff { return scrollback[row - firstRow] }
         let index = row - scrolledOff
-        return index < rows ? screen[index].text : nil
+        return index < rows ? screen[index] : nil
     }
 
     /// Takes the damage since the previous publish. Costs O(damaged rows): rows are copied by sharing storage.
     public func publishSnapshot() -> TerminalSnapshot {
-        let cursor = TerminalCursor(row: cursorRow, col: cursorCol, visible: currentModes.cursorVisible,
+        validateSelection()
+        let offset = clampedViewportOffset(viewportOffset)
+        viewportOffset = offset
+        let cursor = TerminalCursor(row: cursorRow + offset, col: cursorCol,
+                                    visible: currentModes.cursorVisible && cursorRow + offset < rows,
                                     pendingWrap: pendingWrap)
-        let full = needsFullFrame
+        let anyDirty = dirty.contains(true)
+        let full = needsFullFrame || offset != publishedOffset || (offset > 0 && anyDirty)
         var damaged: [TerminalDamagedRow] = []
-        for index in 0..<rows where full || dirty[index] {
-            damaged.append(TerminalDamagedRow(index: index, row: screen[index]))
+        if offset == 0 {
+            for index in 0..<rows where full || dirty[index] {
+                damaged.append(TerminalDamagedRow(index: index, row: screen[index]))
+            }
+        } else if full {
+            let top = scrolledOff - offset
+            for index in 0..<rows {
+                if let row = row(at: top + index) { damaged.append(TerminalDamagedRow(index: index, row: row)) }
+            }
         }
-        let changed = full || !damaged.isEmpty || linksChanged || published?.cursor != cursor || published?.modes != currentModes
+        let selection = selectionStorage
+        let changed = full || !damaged.isEmpty || linksChanged || published?.cursor != cursor
+            || published?.modes != currentModes || published?.selection != selection
         if changed { version += 1 }
-        published = (cursor, currentModes)
+        published = (cursor, currentModes, selection)
+        publishedOffset = offset
         needsFullFrame = false
         linksChanged = false
         for index in 0..<rows { dirty[index] = false }
-        return TerminalSnapshot(version: version, size: TerminalSize(cols: cols, rows: rows), viewportOffset: 0,
+        return TerminalSnapshot(version: version, size: TerminalSize(cols: cols, rows: rows), viewportOffset: offset,
                                 damagedRows: damaged, isFullFrame: full, cursor: cursor, modes: currentModes,
-                                selection: nil, links: links, reflowGeneration: reflowGeneration)
+                                selection: selection, links: links, reflowGeneration: reflowGeneration)
     }
 
     func emit(_ event: TerminalEvent) {

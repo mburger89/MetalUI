@@ -48,6 +48,7 @@ extension TerminalEmulator {
                 out.compact()
                 scrollback.append(out)
                 scrolledOff += 1
+                if viewportOffset > 0 { viewportOffset += 1 }
             }
             screen.insert(newBlankRow(), at: regionBottom)
         }
@@ -265,6 +266,8 @@ extension TerminalEmulator {
         guard !onAlternate else { return }
         swap(&screen, &offscreen)
         onAlternate = true
+        selectionStorage = nil
+        viewportOffset = 0
         currentModes.alternateScreen = true
         if clear { for row in 0..<rows { screen[row] = TerminalRow(columns: cols) } }
         markAllDirty()
@@ -276,6 +279,8 @@ extension TerminalEmulator {
         if clear { for row in 0..<rows { screen[row] = TerminalRow(columns: cols) } }
         swap(&screen, &offscreen)
         onAlternate = false
+        selectionStorage = nil
+        viewportOffset = 0
         currentModes.alternateScreen = false
         markAllDirty()
         needsFullFrame = true
@@ -306,6 +311,8 @@ extension TerminalEmulator {
         let alternate = onAlternate
         if alternate { swap(&screen, &offscreen) }
         onAlternate = false
+        selectionStorage = nil
+        viewportOffset = 0
         screen = Array(repeating: TerminalRow(columns: cols), count: rows)
         offscreen = screen
         currentModes = TerminalModes()
