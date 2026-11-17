@@ -1619,9 +1619,10 @@ public final class SDLWindow: PlatformWindow {
             // KF-AB: while the input method composes, its keys are its own.
             if Self.suppressesKey(composing: isComposing, modifiers: modifiers) { return }
             let keys = SDLKeys.characters(forKeycode: event.keycode, modifiers: modifiers)
-            let key = KeyEvent(charactersIgnoringModifiers: keys.ignoringModifiers,
+            var key = KeyEvent(charactersIgnoringModifiers: keys.ignoringModifiers,
                                characters: keys.characters, modifiers: modifiers,
                                isRepeat: event.repeat, timestamp: event.timestamp)
+            key.unshiftedKey = keys.ignoringModifiers   // SDL's keycode is the unshifted key (`KF-AL`)
             _ = onInput?(Int(event.kind) == Int(MUI_EVENT_KEY_DOWN) ? .keyDown(key) : .keyUp(key))
         default:
             break
