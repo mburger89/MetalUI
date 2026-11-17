@@ -39,3 +39,17 @@ extension ScrollbackRing {
         self = ScrollbackRing(capacity: capacity)
     }
 }
+
+extension ScrollbackRing {
+    /// Every retained row, oldest first.
+    var rows: [TerminalRow] {
+        guard !storage.isEmpty else { return [] }
+        return (0..<storage.count).map { self[$0] }
+    }
+
+    /// A ring of `capacity` holding the newest `rows` that fit.
+    init(capacity: Int, keeping rows: [TerminalRow]) {
+        self.init(capacity: capacity)
+        for row in rows.suffix(self.capacity) { append(row) }
+    }
+}

@@ -279,10 +279,11 @@ public struct TerminalRow: Sendable, Hashable {
     }
 
     /// Drops trailing default blanks and shrinks both arrays to a tight size, in place. Called when a row leaves
-    /// the screen for scrollback (`TRM-F`); an array that already wastes under 16 bytes is kept as it is.
+    /// the screen for scrollback (`TRM-F`); an array that already wastes under 16 bytes is kept as it is. A row
+    /// that wraps to the next keeps its blanks: they are text of a longer line (`TRM-AN`).
     mutating func compact() {
         var end = bytes.count
-        if runs.isEmpty { while end > 0 && bytes[end - 1] == 0x20 { end -= 1 } }
+        if runs.isEmpty && !wrapsToNext { while end > 0 && bytes[end - 1] == 0x20 { end -= 1 } }
         used -= Int32(bytes.count - end)
         if bytes.capacity - end > 16 {
             var tight: [UInt8] = []

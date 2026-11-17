@@ -4,7 +4,7 @@ import MetalUI
 import MetalUIScene
 import MetalUITesting
 
-// Motion and editing over every selection (`CV-BH`, `CV-BI`, record 345): each motion maps every selection's head and
+// Motion and editing over every selection (`CV-BH`, `CV-BI`, record 349): each motion maps every selection's head and
 // normalizes, vertical motion keeps a goal x per selection, delete / newline / indent / outdent / cut / paste are one
 // edit over all of them, copy joins them, and Escape collapses to the primary. PLAIN imports; the harness text
 // system; counters, never a clock (the gated timing aside).

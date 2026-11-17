@@ -27,4 +27,7 @@ public struct TerminalSnapshot: Sendable {
     public let selection: TerminalSelection?
     /// The hyperlink targets by id (``TerminalAttributes/hyperlink``).
     public let links: [UInt32: String]
+    /// Counts the resizes that changed the width: an absolute row number held from an earlier generation names
+    /// a different line now (`TRM-AM`). A snapshot of a new generation is always a full frame.
+    public let reflowGeneration: Int
 }

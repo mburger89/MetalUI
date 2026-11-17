@@ -1,6 +1,6 @@
-# 345 - Motion and editing over every selection (`CV-BH`, `CV-BI`)
+# 349 - Motion and editing over every selection (`CV-BH`, `CV-BI`)
 
-Branch `feat/codeview-multi-motion` from master `c9b7c7c0`. Class M, no divergence (labels untouched). PR 4 of the editor-essentials plan for Alloy (G3); builds on the primary selection and batched edits of record 333 and the multi-caret drawing of record 344. Numbering: a parallel G2 branch may take 345 too; the later merge renumbers.
+Branch `feat/codeview-multi-motion` from master `c9b7c7c0`. Class M, no divergence (labels untouched). PR 4 of the editor-essentials plan for Alloy (G3); builds on the primary selection and batched edits of record 333 and the multi-caret drawing of record 344. Renumbered from 345 because #348 and #349 merged first.
 
 **What landed.**
 - Every motion maps each selection's head (extend keeps the anchor; a plain horizontal motion over a range goes to its edge), then `setSelections(_:primary: primaryIndex)` normalises and tracks the primary. One selection runs the old path (`moveOne`).

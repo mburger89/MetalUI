@@ -6,8 +6,8 @@
 /// replies a program waits on (delivered by ``drainEvents()``). Phase 1.4 adds OSC 0/2/7/8/10/11 (`TRM-AE`..
 /// `TRM-AH`); DCS and APC are parsed and dropped.
 public final class TerminalEmulator {
-    let cols: Int
-    let rows: Int
+    var cols: Int
+    var rows: Int
     var screen: [TerminalRow]
     /// The screen that is not showing: the primary while the alternate is up, and the alternate otherwise.
     var offscreen: [TerminalRow]
@@ -16,6 +16,8 @@ public final class TerminalEmulator {
     var scrollback: ScrollbackRing
     /// Rows that have left the screen (kept or evicted): the absolute number of the screen's first row.
     var scrolledOff = 0
+    /// Counts the resizes that changed the width and so renumbered absolute rows (`TRM-AM`).
+    public internal(set) var reflowGeneration = 0
 
     var cursorRow = 0
     var cursorCol = 0
@@ -113,7 +115,7 @@ public final class TerminalEmulator {
         for index in 0..<rows { dirty[index] = false }
         return TerminalSnapshot(version: version, size: TerminalSize(cols: cols, rows: rows), viewportOffset: 0,
                                 damagedRows: damaged, isFullFrame: full, cursor: cursor, modes: currentModes,
-                                selection: nil, links: links)
+                                selection: nil, links: links, reflowGeneration: reflowGeneration)
     }
 
     func emit(_ event: TerminalEvent) {

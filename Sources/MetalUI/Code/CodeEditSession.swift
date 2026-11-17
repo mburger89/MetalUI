@@ -299,7 +299,7 @@ final class CodeEditSession {
             // Escape (`CV-BI`): with several selections only the primary stays, keeping its range, and the key is
             // claimed; with one it is not the view's, so it keeps travelling to an app's own Escape.
             guard selectionState.selections.count > 1 else { return CodeKeyOutcome(handled: false) }
-            selectionState.selections = [selection]   // `CodeSelectionState.collapseToPrimary()` once G2 lands
+            selectionState.collapseToPrimary()
             update { $0.goalX = nil; $0.goalXs = nil; $0.revealsCaret = true }
             return CodeKeyOutcome(handled: true)
         case .findNext, .findPrevious:
