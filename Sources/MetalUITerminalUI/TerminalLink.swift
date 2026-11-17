@@ -1,7 +1,7 @@
 import MetalUITerminal
 
 /// What the view asks the host about the cell under the pointer while ⌘ is held (`TRM-BA`; Phase 5.5 wires it, so
-/// the type is frozen now and the view sends nothing yet).
+/// the type is frozen now and the view sends them from Phase 5.5).
 public struct TerminalLinkQuery: Sendable, Equatable {
     /// The pointer's phase over a link.
     public enum Phase: Sendable, Equatable {
