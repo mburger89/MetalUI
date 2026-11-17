@@ -355,4 +355,22 @@ Why: the frozen spec says the selection is in absolute rows and survives scrolli
 1. `wordRange(at:wordCharacters:)` (the Phase 5 double-click): the cell under the position (either column of a wide cell) takes the maximal run of the same kind along the logical line, across soft wraps. Kinds: a **word** cell (any letter or digit, or a character of `wordCharacters`, default `_-.~/:` so paths, URLs and identifiers select whole, as Terminal.app does), a **blank** cell (space, or past the text; the run ends at the last column of a hard line), and any **other** character, which selects the run of that same character. nil off the grid.
 2. `lineRange(at:)` (triple-click): the whole logical line, column 0 of its first row to the last column of its last row; `selectedText()` trims the trailing blanks.
 
-Next unused: `TRM-AU`.
+## TRM-AU: the grid sink records rects as glyph instances over a solid atlas slot (Phase 5.1, record 348)
+
+1. `SurfaceTextSink` (`package`, `MetalUIScene`) is also the grid sink: besides `append(_:)` for glyph sprites it records `fillRect(_:color:clip:)`, a solid rectangle in device pixels of the surface's own target, in call order with the glyphs, in the surface's one batch. `fillRect` returns `false` and records nothing when the atlas has no room for the solid slot. No public API (`TerminalView` is 5.3).
+2. **A rect is one `MUIGlyph`** whose source is the reserved solid slot: `GlyphKey` with the font `MetalUI.GridSink.Solid`, packed through the frame's atlas on first use like any glyph (`SurfaceTextSink.solidKey`, `solidSlot`), a 4 x 4 square of coverage 255. The renderers' existing glyph pipelines, the existing `ReplaySurfaceText` pass and the existing atlas upload (`DT-B`) draw it: no C, shader, blob, pipeline or fixture change (`TE-AD`).
+3. **The sampled square is the slot's inner 2 x 2** (`solidInset` 1): `glyph_fragment` samples with `filter::linear`, and a quad stretched over a rect larger than its source reads `atlasPosition` anywhere in the source rectangle, so a source that is the whole slot reads the neighbouring texels at the quad's right and bottom edges (the atlas packs slots flush, so they are other glyphs' or empty). With a one-texel margin the filter's footprint (the sampled square grown by one texel) is inside the slot at every pixel of any rect size, edge pixels included. Measured on Metal (arm64) with `solidInset` 0, the whole slot as the source: the last columns and rows of a rect read short of coverage (a 17 x 9 red rect's pixel at x 19 reads 217 of 255, a 1-wide blue column's bottom pixel 170, a white 8 x 8 cell's bottom row 191), and the SDL tests go red the same way; with 1 every pixel of 1 x 1, 1 x 12 and 17 x 9 rects, and of adjacent 8 x 8 cells, is the exact colour at scale factors 1 and 2. **So the quad path (`ReplaySurfaceQuads`) is not built**: the bleed was real but is removed by the margin alone.
+4. Colours are `MUIHsla` (`Scene` is platform-free); primaries, black, white and greys read back byte-exact, other colours within the GPU's one-step rounding.
+5. The mask defaults to the rect itself; an explicit `clip` is for the cursor, a selection or a row clipped to the view's bounds.
+
+## TRM-AV: a retained target and damaged rows
+
+1. A surface's target persists between frames: the renderer's `SurfaceTargetTable` keeps the texture for as long as the scene references the surface at the same device-pixel size and clears it to transparent only when it is new (a first frame or a resize; `isNewTarget`, `MV-E`). Neither renderer clears a surface it redraws: the app's draw runs first and then the grid's pass, load op `.load` (Metal `Renderer.encodeSurfaceText`; SDL `mui_renderer_finish`, `LOADOP_LOAD`).
+2. So a view redraws only the damaged rows by recording, for each such row, an **opaque** background rect over the row's whole cell span and then the row's glyphs, cursor and decorations in call order; everything else keeps the previous frame's pixels exactly. A translucent background would composite over the old row, so a row redraw must use an opaque background (the default background is drawn as one too). A new or resized target must be redrawn in full (`isNewTarget`).
+3. The sink does not choose rows; it records what it is given. The one-pass-per-surface order (`DT-A`) is the paint order within the frame.
+
+## TRM-AW: cost
+
+A `GPUSurface` using the grid sink builds no element: the sink is renderer-side and records into the frame's sink, so a surface that records rects and glyphs costs the element requests of a surface that records glyphs (`aGridSurfaceCostsTheElementRequestsOfATextSurface`, per-frame literals equal). A frame with no sink use runs no pass (`DT-A`).
+
+Next unused: `TRM-AX`.
