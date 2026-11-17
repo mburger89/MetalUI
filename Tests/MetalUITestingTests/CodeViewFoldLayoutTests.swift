@@ -457,3 +457,74 @@ private let fiveFolds = [2..<5, 8..<11, 22..<25, 27..<30, 32..<35]
     #expect(w.framesDrawn == frames && totalWork(w).elementRequests == 0 && !w.window.hasActiveAnimations,
             "frames \(w.framesDrawn - frames), requests \(totalWork(w).elementRequests)")
 }
+
+@MainActor private func bmVirtuals(_ b: CodeBuffer, _ d: CodeDecorations) {
+    virtualRows(d, [CodeVirtualRow(anchor: .before(line: 2), lines: ["A"]),
+                    CodeVirtualRow(anchor: .before(line: 5), lines: ["B1", "B2"]),
+                    CodeVirtualRow(anchor: .before(line: 8), lines: ["C"])])
+}
+
+/// **17** `scrollRow(forLine:)` and `line(forScrollRow:)` over a fold with virtual rows: shown rows are `l0 l1 A l2 C l8
+/// ...`. A shown line round-trips; a hidden line maps to its header's row; a virtual row maps to the line it sits before
+/// (the fold's hidden ones are not rows); out of range is `nil`. **Mutation:** `scrollRow` answering the unfolded
+/// display row (line 8 -> 12), or `line(forScrollRow:)` ignoring the fold (row 5 -> a hidden line).
+@Test @MainActor func scrollRowAndLineConvertOverAFoldAndVirtualRows() throws {
+    let fx = try fixture(folds: [2..<8], height: 300, setup: bmVirtuals)
+    defer { withExtendedLifetime(fx.window) {} }
+    let g = fx.geometry
+    for line in [0, 1, 2, 8, 9, 39] {
+        let row = try #require(g.scrollRow(forLine: line))
+        #expect(g.line(forScrollRow: row) == line, "line \(line) row \(row)")
+    }
+    #expect(g.scrollRow(forLine: 8) == 5 && g.scrollRow(forLine: 0) == 0 && g.scrollRow(forLine: 2) == 3)
+    for hidden in 3..<8 { #expect(g.scrollRow(forLine: hidden) == 3, "hidden line \(hidden) is its header's row") }
+    #expect(g.line(forScrollRow: 2) == 2, "A sits before line 2")
+    #expect(g.line(forScrollRow: 4) == 8, "C sits before line 8")
+    #expect(g.scrollRow(forLine: -1) == nil && g.scrollRow(forLine: 40) == nil)
+    #expect(g.line(forScrollRow: -1) == nil && g.line(forScrollRow: 37) == nil)
+    #expect(g.line(forScrollRow: 36) == 39)
+    fx.fold.unfoldAll()
+    fx.redraw()
+    #expect(g.scrollRow(forLine: 8) == 12, "unfolded, all four virtual lines count")
+}
+
+/// **18** With no fold state, the row map alone answers. **Mutation:** the fold branch taken without a layout (crash or
+/// a wrong row).
+@Test @MainActor func scrollRowAndLineWithNoFoldState() throws {
+    let buffer = CodeBuffer(foldText(10))
+    let decorations = CodeDecorations(buffer: buffer)
+    bmVirtuals(buffer, decorations)
+    let geometry = CodeViewGeometry()
+    let window = try harnessWindow(size: sz(400, 300)) {
+        CodeView(buffer: buffer, decorations: decorations).font(size: 12).geometry(geometry)
+    }
+    defer { withExtendedLifetime(window) {} }
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(geometry.scrollRow(forLine: 2) == 3 && geometry.scrollRow(forLine: 5) == 8 && geometry.scrollRow(forLine: 8) == 12)
+    #expect(geometry.line(forScrollRow: 2) == 2 && geometry.line(forScrollRow: 5) == 4 && geometry.line(forScrollRow: 6) == 5 && geometry.line(forScrollRow: 7) == 5)
+    #expect(geometry.line(forScrollRow: 11) == 8 && geometry.line(forScrollRow: 13) == 9 && geometry.line(forScrollRow: 14) == nil)
+    #expect(CodeViewGeometry().scrollRow(forLine: 0) == nil && CodeViewGeometry().line(forScrollRow: 0) == nil)
+}
+
+/// **19** Two views with different folds synced by line show the same top line; synced by raw row they do not.
+/// **Mutation:** the destination copying the row (`b.scroll = a.scroll`): the top line differs.
+@Test @MainActor func twoViewsWithDifferentFoldsSyncedByLineShowTheSameTopLine() throws {
+    let a = try fixture(folds: [2..<8], height: 200, setup: bmVirtuals)
+    let b = try fixture(folds: [10..<20], height: 200)
+    defer { withExtendedLifetime((a.window, b.window)) {} }
+    a.scroll.position = CodeScrollPosition(row: 5)   // shown rows: l0 l1 A l2 C l8 -> line 8 on top
+    a.redraw()
+    let top = try #require(a.geometry.line(forScrollRow: Int(a.scroll.position.row)))
+    #expect(top == 8)
+    let row = try #require(b.geometry.scrollRow(forLine: top))
+    b.scroll.position = CodeScrollPosition(row: Double(row))
+    b.redraw()
+    #expect(b.y(top) == 0 && a.y(top) == 0, "both show line \(top) on top: \(String(describing: b.y(top))) \(String(describing: a.y(top)))")
+    // The same line past b's fold: a's row 20 is line 23 in a, but row 20 in b is line 30.
+    a.scroll.position = CodeScrollPosition(row: 20)
+    a.redraw()
+    let far = try #require(a.geometry.line(forScrollRow: 20))
+    b.scroll.position = CodeScrollPosition(row: 20)
+    b.redraw()
+    #expect(b.y(far) != 0, "copying the row shows another line")
+}

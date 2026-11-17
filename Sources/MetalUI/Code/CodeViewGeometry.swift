@@ -93,6 +93,32 @@ public final class CodeViewGeometry {
         return nil
     }
 
+    /// The scroll row (``CodeScrollPosition/row``: a **shown** display row, hidden rows of a ``CodeView/foldState(_:)``
+    /// excluded, virtual rows counted) of buffer line `line` (0-based), the row of the line's own text (virtual rows
+    /// attached before it are the rows above); a line hidden in a fold maps to its header's row; `nil` out of range
+    /// or before the view has drawn. O(log F + log G) from the cached layout; with no fold state, the row map alone
+    /// (`CV-BM`). To sync two views' scroll copy the line, not the row: `b.scrollRow(forLine: a.line(forScrollRow: r)!)`.
+    public func scrollRow(forLine line: Int) -> Int? {
+        guard let plan, let map = plan.rowMap, line >= 0, line < map.rowCount else { return nil }
+        return CodeRowSpace(map, fold: plan.foldLayout).displayRow(ofBufferRow: line)
+    }
+
+    /// The buffer line (0-based) shown at scroll row `row` (see ``scrollRow(forLine:)``); a virtual row maps to the line
+    /// it sits before (the row map's attachment, ``CodeVirtualRow/anchor``), one after the last line to the last line,
+    /// and a result the fold hides to its header, so the line is always a shown one. `nil` out of range or before the
+    /// view has drawn. O(log F + log G) (`CV-BM`).
+    public func line(forScrollRow row: Int) -> Int? {
+        guard let plan, let map = plan.rowMap, map.rowCount > 0 else { return nil }
+        let space = CodeRowSpace(map, fold: plan.foldLayout)
+        guard row >= 0, row < space.displayRowCount else { return nil }
+        let line: Int
+        switch space.row(atDisplay: row) {
+        case .buffer(let b): line = b
+        case .virtual(_, _, let gap): line = min(gap, map.rowCount - 1)
+        }
+        return plan.foldLayout?.spans.shownLine(line) ?? line
+    }
+
     /// The buffer rows that intersect the view, partially visible ones included; `nil` before a frame or when only
     /// virtual rows are shown.
     public var visibleRows: Range<Int>? {

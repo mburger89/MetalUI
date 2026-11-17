@@ -201,6 +201,8 @@ final class CodeViewPlan {
     /// The hidden-row overlay and its fold state (`CV-BM`); `nil` for a view with none folded.
     var foldLayout: CodeFoldLayout?
     var foldState: CodeFoldState?
+    /// The row map the frame laid out over, for the scroll row <-> line conversions of `CodeViewGeometry` (`CV-BM`).
+    var rowMap: CodeRowMap?
 
     init(snapshot: CodeSnapshot, font: FontKey) {
         self.snapshot = snapshot
@@ -536,6 +538,7 @@ extension CodeView {
             plan.foldState = foldState
             plan.foldLayout = foldLayout
         }
+        plan.rowMap = decorations.rowMap
         let map = CodeRowSpace(decorations.rowMap, fold: foldLayout)
         let bufferRows = snap.lineCount
         let displayRows = map.displayRowCount
