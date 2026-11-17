@@ -76,6 +76,10 @@ public final class CodeBuffer {
     /// The built-in selection state; the buffer's own selection API forwards to it (`CV-AV`).
     @ObservationIgnored public lazy var selectionState = CodeSelectionState(defaultFor: self)
     @ObservationIgnored private var selectionStates: [WeakSelectionState] = []
+    /// The fold states that follow edits by line deltas (`CV-BL`); empty for a buffer nobody folds.
+    @ObservationIgnored var foldStates: [WeakFold] = []
+    /// The line edits of a batch run, in application order, collected while the run's states are not yet moved.
+    @ObservationIgnored private var pendingFoldEdits: [FoldLineEdit] = []
     /// The state whose API call is running an edit (`nil` outside one and during external edits).
     @ObservationIgnored private weak var acting: CodeSelectionState?
     @ObservationIgnored private weak var openState: CodeSelectionState?
@@ -455,6 +459,7 @@ public final class CodeBuffer {
             inverses = steps.map { applyEvent($0.range, $0.text, origin: origin, transaction: tx, movesStates: false) }
         }
         moveStates(CodeEditRun(steps: shape, descending: descending), origin: origin)
+        moveFoldsOverRun(descending: descending)
         return inverses
     }
 
@@ -502,6 +507,7 @@ public final class CodeBuffer {
         for e in edits.reversed() {
             log.append(e)
             logBytes += e.newText.utf8.count + 96
+            if !foldStates.isEmpty { pendingFoldEdits.append(FoldLineEdit(e)) }
         }
         trimLog()
         // `inverses` was built ascending; the events ran highest first.
@@ -618,6 +624,10 @@ public final class CodeBuffer {
         logBytes += length + 96
         trimLog()
         if movesStates { moveStates(start: lo, end: hi, newLength: length, origin: origin, normalizing: normalizing) }
+        if !foldStates.isEmpty {
+            let fold = FoldLineEdit(startRow: ps.newlines, startColumn: ps.lastLineBytes, endRow: pe.newlines, addedBreaks: newlines, isInsertion: hi == lo)
+            if movesStates { moveFolds([fold]) } else { pendingFoldEdits.append(fold) }
+        }
         return CodeInverse(range: lo..<lo + length, text: old)
     }
 
@@ -660,6 +670,38 @@ public final class CodeBuffer {
         }
     }
 
+    /// Moves every live fold state over `edits` (ascending, in the coordinates before the first).
+    private func moveFolds(_ edits: [FoldLineEdit]) {
+        for entry in foldStates { entry.state?.apply(edits) }
+    }
+
+    /// Moves the fold states once over the run `pendingFoldEdits` holds (application order): a descending run is
+    /// already in the coordinates before it, an ascending one is taken back over the line changes of the edits
+    /// below each (`CV-BL`).
+    private func moveFoldsOverRun(descending: Bool) {
+        defer { pendingFoldEdits.removeAll(keepingCapacity: true) }
+        guard !pendingFoldEdits.isEmpty else { return }
+        var edits = pendingFoldEdits
+        if descending {
+            edits.reverse()
+        } else {
+            var shift = 0
+            for i in edits.indices {
+                edits[i].startRow -= shift
+                edits[i].endRow -= shift
+                shift += edits[i].delta
+            }
+        }
+        moveFolds(edits)
+    }
+
+    /// The edits since `version` as line edits, in application order, each in the coordinates at that moment;
+    /// nil when the log does not reach back to `version`.
+    func lineEdits(since version: UInt64) -> [FoldLineEdit]? {
+        guard version <= self.version, version >= logBase else { return nil }
+        return log[(logHead + Int(version - logBase))...].map(FoldLineEdit.init)
+    }
+
     // MARK: Undo and redo
 
     /// Whether `undo()` has a step to revert.
@@ -682,6 +724,7 @@ public final class CodeBuffer {
         let counterpart = replay(group, origin: .undo(group.id))
         redoStack.append(counterpart)
         actor.setInternal(group.undoSelections, primary: group.undoPrimary)
+        actor.openFolds()
         return true
     }
 
@@ -699,6 +742,7 @@ public final class CodeBuffer {
         undoStack.append(counterpart)
         trimUndo()
         actor.setInternal(group.redoSelections, primary: group.redoPrimary)
+        actor.openFolds()
         return true
     }
 
@@ -835,6 +879,7 @@ public final class CodeBuffer {
     private func trimLog() {
         cursors.removeAll { $0.cursor == nil }
         selectionStates.removeAll { $0.state == nil }
+        if !foldStates.isEmpty { foldStates.removeAll { $0.state == nil } }
         var keepAfter = version > UInt64(editLogMinimumEvents) ? version - UInt64(editLogMinimumEvents) : 0
         if let slowest = cursors.compactMap({ $0.cursor?.version }).min() { keepAfter = min(keepAfter, slowest) }
         let available = log.count - logHead
