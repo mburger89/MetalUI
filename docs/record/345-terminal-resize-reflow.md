@@ -1,6 +1,8 @@
-# 342 - Terminal resize and reflow (`TRM-AM`..`TRM-AP`)
+# 345 - Terminal resize and reflow (`TRM-AM`..`TRM-AP`)
 
-Branch `feat/terminal-resize-reflow` from master `6dd74dac`; Phase 1.5 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Ids `TRM-AM`..`TRM-AP`: `TRM-AI`..`TRM-AL` are held by `feat/terminal-encoders` (PR #345), so master's "next unused" line (`TRM-AI`) is skipped over; the decisions doc's "next unused" line now says `TRM-AQ` and must be reconciled with that branch on merge. Record number 342 is the next free on master; reconcile if #344, #345 or #347 land first.
+Renumbered from 342 because #345 and #347 merged first (and #344 holds 344).
+
+Branch `feat/terminal-resize-reflow` from master `6dd74dac`; Phase 1.5 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Ids `TRM-AM`..`TRM-AP`: `TRM-AI`..`TRM-AL` are the terminal encoders' (record 342, merged), so these follow them; the decisions doc's "next unused" line says `TRM-AQ`. Record number 345 is the next free after #344, #345 and #347.
 
 **What landed.** `TerminalEmulator.resize(cols:rows:)` (frozen signature, clamps to 2 x 1, a no-op at the same size). The primary screen and its scrollback are rewrapped by the soft-wrap flag; the alternate screen clips. `TerminalSnapshotSource`'s default `resizeHandler` calls it (a newer pending resize still replaces an older one). New public surface: `TerminalEmulator.reflowGeneration` and `TerminalSnapshot.reflowGeneration`, the one integer a selection compares (Phase 1.6).
 

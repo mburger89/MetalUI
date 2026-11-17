@@ -7,11 +7,15 @@ public struct CodeGutterMarker: Hashable, Sendable {
     public var text: String
     /// Its colour; `nil` uses the theme's gutter colour.
     public var color: Color?
+    /// How severe the marker is: a folded header shows the hidden rows' marker with the highest severity
+    /// (`CV-BL`). Default 0.
+    public var severity: Int
 
-    /// A marker showing `text` in `color`.
-    public init(_ text: String, color: Color? = nil) {
+    /// A marker showing `text` in `color`, with `severity` for a folded header to pick by.
+    public init(_ text: String, color: Color? = nil, severity: Int = 0) {
         self.text = text
         self.color = color
+        self.severity = severity
     }
 }
 

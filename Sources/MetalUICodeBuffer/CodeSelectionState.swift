@@ -15,6 +15,8 @@ public final class CodeSelectionState {
     @ObservationIgnored private var retainedBuffer: CodeBuffer?
     @ObservationIgnored var stored = [CodeSelection(caret: 0)]
     @ObservationIgnored var storedPrimary = 0
+    /// The fold states over this state (`CV-BL`); an explicit selection write opens the folds hiding its ends.
+    @ObservationIgnored var folds: [WeakFold] = []
 
     /// The most selections a helper (add next occurrence, select all occurrences, a column selection) will
     /// make (`CV-BE`). Assigning more is not refused.
@@ -69,6 +71,7 @@ public final class CodeSelectionState {
             (stored, storedPrimary) = CodeBuffer.normalize(selections, limit: buffer.rope.summary.utf8, primary: p)
         }
         buffer.breakUndoCoalescing()
+        openFolds()
     }
 
     /// The index in `selections` of the primary selection: the one assigned first, or the one an edit
