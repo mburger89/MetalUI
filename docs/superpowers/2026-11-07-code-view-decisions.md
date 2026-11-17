@@ -1,6 +1,6 @@
 # Code view - decisions (prefix `CV-`)
 
-Rulings for Alloy gap G1, a code view (Alloy is an LLM-first code editor targeting Zed-level typing latency and scroll frame times). Plan: four PRs, `MetalUICodeBuffer` first. Branch `feat/code-buffer` from master `4d4c59db`; record 225. Class `M` (MetalUI-only): no divergence added or retired (labels untouched). **Next unused id: `CV-BN`** (`CV-BH`, `CV-BI` G3, `CV-BK` G4, `CV-BM` G5; `CV-BJ` the selection helpers, record 346; `CV-BL` the fold model, record 343; stale below: `CV-BE`) (`CV-BB` is another open branch's; `CV-BC`, `CV-BD` chained text anchors, record 332) (`CV-AV`..`CV-AZ`, per-view selections: buffer lane record 327, view lane record 329). `CV-A`..`CV-I` are PR 1, the buffer module (record 225); `CV-J`..`CV-R` are PR 2 run 1, the read-only `CodeView` (record 227, branch `feat/code-view`); `CV-S`..`CV-V` are PR 2 run 2 (virtual rows, scroll sync, the accessibility node, allocation rules, same record); `CV-W`..`CV-Z` are PR 3 run 1, editing (record 228, branch `feat/code-edit`); IME, the caret blink, drag autoscroll, the gutter-bar callbacks and find painting append their own rulings. Public API (PR 1): `CodeBuffer`, `CodeSnapshot`, `CodeEditCursor`, `CodeEdit`, `CodeEditBatch`, `CodeEditOrigin`, `CodeTextEdit`, `CodeSelection`, `CodePoint`, `CodeTransactionID`, `CodeBufferError`, `CodeBias`, `CodeLineEnding`, `CodeFindOptions`. No guide in PR 1 (a guide needs compiled mirrors in `MetalUITestingTests`); usage is in `docs/api-overview.md` and record 225.
+Rulings for Alloy gap G1, a code view (Alloy is an LLM-first code editor targeting Zed-level typing latency and scroll frame times). Plan: four PRs, `MetalUICodeBuffer` first. Branch `feat/code-buffer` from master `4d4c59db`; record 225. Class `M` (MetalUI-only): no divergence added or retired (labels untouched). **Next unused id: `CV-BY`** (`CV-BP`..`CV-BS` and `CV-BX` are reserved by the wave-2 design and not yet present; `CV-BT` is landed, record 370, `CV-BU`, record 372, `CV-BV`, record 373, and `CV-BW`, record 371) (`CV-BH`, `CV-BI` G3, `CV-BK` G4, `CV-BM` G5; `CV-BJ` the selection helpers, record 346; `CV-BL` the fold model, record 343; stale below: `CV-BE`) (`CV-BB` is another open branch's; `CV-BC`, `CV-BD` chained text anchors, record 332) (`CV-AV`..`CV-AZ`, per-view selections: buffer lane record 327, view lane record 329). `CV-A`..`CV-I` are PR 1, the buffer module (record 225); `CV-J`..`CV-R` are PR 2 run 1, the read-only `CodeView` (record 227, branch `feat/code-view`); `CV-S`..`CV-V` are PR 2 run 2 (virtual rows, scroll sync, the accessibility node, allocation rules, same record); `CV-W`..`CV-Z` are PR 3 run 1, editing (record 228, branch `feat/code-edit`); IME, the caret blink, drag autoscroll, the gutter-bar callbacks and find painting append their own rulings. Public API (PR 1): `CodeBuffer`, `CodeSnapshot`, `CodeEditCursor`, `CodeEdit`, `CodeEditBatch`, `CodeEditOrigin`, `CodeTextEdit`, `CodeSelection`, `CodePoint`, `CodeTransactionID`, `CodeBufferError`, `CodeBias`, `CodeLineEnding`, `CodeFindOptions`. No guide in PR 1 (a guide needs compiled mirrors in `MetalUITestingTests`); usage is in `docs/api-overview.md` and record 225.
 
 ## CV-A: a pure portable target that imports only Observation
 
@@ -372,7 +372,46 @@ Pinned by `aPressOnAChevronTogglesItsRangeAndCallsOnToggle`, `theInnermostRangeS
 
 **Costs.** Counted, no clock. Steady and keystroke literals are those of `CV-BN`/`CV-BG` on master, unchanged (`aFoldGutterCostsWhatNoFoldGutterCosts`): steady 2 requests, 0 hits, 1 miss, 0 ineligible, 1 frame; keystroke the same (Apple platforms; per frame elsewhere). A move within a region: 0 frames, 0 requests to the platform.
 
-Pinned by `movingTextToGutterToTextChangesTheCursorWithoutAFrame`, `movesWithinARegionCostNoFrameAndNoRequest`, `aChevronAndAFoldPlaceholderAreThePointingHand`, `textIsTheHandOnlyWhenOnTextClickActsOnAPlainClick`, `regionCursorsRespectHorizontalScrolling` (`Tests/MetalUITestingTests/CodeViewRegionCursorTests.swift`). Next unused: `CV-BP`.
+Pinned by `movingTextToGutterToTextChangesTheCursorWithoutAFrame`, `movesWithinARegionCostNoFrameAndNoRequest`, `aChevronAndAFoldPlaceholderAreThePointingHand`, `textIsTheHandOnlyWhenOnTextClickActsOnAPlainClick`, `regionCursorsRespectHorizontalScrolling` (`Tests/MetalUITestingTests/CodeViewRegionCursorTests.swift`).
+
+## CV-BT: `gutterHelp`, the tooltip of a gutter bar or marker (landed, record 370; class M, no divergence)
+
+**Rule.** `CodeView.gutterHelp(_ text: @escaping @MainActor (CodeGutterHit) -> String?) -> CodeView` is the view's `MN-AJ` model-driven `.help`. A point in the gutter (a bar or a marker, wherever `gutterHit(at:)` hits) is answered by `text(hit)` from the last frame's plan; any other point is answered by the view's own `.help` (static or model-driven) if it has one, and has no tooltip otherwise. `nil` and empty are no tooltip (`MN-AM`). The `MN-AJ` rules for same text (the bubble stays) and changed text (it hides and the delay restarts) apply unchanged, so moving from one bar to another restarts the delay.
+- **Input only.** The provider is asked on each pointer move over the view, in the view's dispatch; nothing is asked at build or on a steady frame.
+- **Order.** Applied after an app's own `.help` on the view, `gutterHelp` wraps it as the fallback; a later `.help` replaces it, as `MN-AJ` says for any two. The context menu and a `List` selection menu are kept.
+- **Change bars.** The change lane (`CV-BS`) reuses this: its hits are `gutterHit`s.
+
+**Costs.** Counted. A view with `gutterHelp` has the steady and keystroke literals of one without (`gutterHelpCostsNothingOnSteadyAndKeystrokeFrames`; per frame off Apple platforms).
+
+Pinned by `gutterHelpAnswersPerHitAndFallsBackToViewHelp`, `withoutAViewHelpTheTextAreaHasNoTooltip`, `theTooltipFollowsTheBarUnderThePointer`, `gutterHelpRunsInInputOnly` and the cost test (`Tests/MetalUITestingTests/CodeViewGutterHelpTests.swift`).
+
+## CV-BU: the marker lane's width (landed, record 372; class M, no divergence; Alloy wave 2)
+
+**API.** `CodeView.gutterMarkerLane(width: Int) -> CodeView`: the lane's width in space advances, clamped to 1...16. It reserves the lane like `gutterMarkerLane(true)` (the text never moves). Not called, the width stays two advances, so every existing view is byte-identical. Alloy's answer 8: markers stay **centred**; MetalUI adds no leading alignment (the face is monospaced, so an app pads its text for a column look).
+
+- **Clip.** A marker wider than the lane is cut to the lane's rectangle on its row (a clip pushed only for such a marker; a marker that fits draws as before, with no clip).
+- **Hits.** `gutterHit` already tests the lane by `laneWidthPx`, so the hit area is the whole widened lane.
+- **Clamp.** Out-of-range widths clamp (0 and below to 1, above 16 to 16); no trap.
+
+**Costs.** Counted, no clock. The lane width is a plan integer: a keystroke frame of the bare test view 0 requests, 0 hits, 0 misses, 0 ineligible, 1 frame (`costLiteralsAreUnchangedByTheWidth`), as without the call (Apple platforms; per frame elsewhere).
+
+Pinned by `markerLaneWidthMovesTextOnceAndClips`, `defaultWidthIsByteIdentical`, `widthClampsToOneThroughSixteen`, `hitAreaFollowsTheWidth`, `costLiteralsAreUnchangedByTheWidth` (`Tests/MetalUITestingTests/CodeViewMarkerWidthTests.swift`).
+
+## CV-BV: owner-keyed range highlights (record 373, Alloy plugins #1)
+
+Class `M`, no divergence. Alloy's binding answer 10: the merge is **per field by priority** (sub-layers), not the whole style of the winning owner.
+
+`CodeDecorations.setHighlights(_:in:layer:asOf:owner:)` and `CodeDecorations.highlights(in:layer:owner:)`. A language server's diagnostics and a plugin's underlines no longer replace each other in one layer.
+
+- **Rule.** Each (layer, named owner) is a **sub-layer** tree. The sources `stylingOfLine`/`underlinesOfLine` walk are ordered by (layer, priority, name); a tie goes to the later name, as `CV-AO`. The default owner's tree is priority 0, name empty, so it sits among the named ones by its priority. Within a layer the higher priority wins each field (foreground, underline; backgrounds paint in order), with no blending; a field the winner leaves unset comes from a lower sub-layer. A higher layer still beats a lower one whatever the priorities.
+- **Default owner.** `owner: .default` (or any empty name) is the call without `owner:`: the provider and staleness semantics of `CV-K`, `CV-AG` are unchanged, and `rowsNeedingHighlights` reads only the default syntax tree.
+- **Named owners** are push-only and always valid: the provider is never asked for them, an edit splices their runs and never stales them, a `.resync` empties them. A call that changes nothing (empty range, no runs over a sub-layer with none or already empty) creates no sub-layer and does not redraw (`CV-AG`). `asOf` maps like the existing overload (an empty run that underlines keeps its one-character minimum, `CV-AM`).
+- **Removal and priority.** `removeDecorations(of:)` drops the owner's sub-layers in every layer, with its line decorations and virtual rows. Re-registering an owner with a new priority (on any set, line or highlight) re-sorts the sub-layers on the next highlight set.
+- **Unchanged.** The overloads without `owner:`, `paintedRuns(in:)` and `highlights(in:layer:)` (default owner).
+
+**Cost.** With no named highlight owner the source list is the layers array and every counter (`runsVisited`, `stylingComputations`, `needingHighlightScans`, the frame literals) equals master's. A sub-layer adds one tree walk per line read and O(log n) per edit, only while it exists; the source list is rebuilt at a set and at a removal, never per frame or edit.
+
+Pinned by `noNamedOwnerStylingIsByteIdentical`, `pluginUnderlineDoesNotReplaceLanguageServers`, `higherPriorityWinsPerField`, `removeDecorationsClearsHighlights`, `namedOwnerNeverAsksProvider`, `subLayerFollowsEdits`, `setThatChangesNothingDoesNotRedraw` (`Tests/MetalUITestingTests/CodeViewOwnerHighlightsTests.swift`).
 
 ## CV-BW: a focused `TextField` in the text-anchored popover, pinned (landed, record 371; class M, no divergence, no public API; Alloy code-intel request, Alloy's rename field)
 
@@ -387,4 +426,4 @@ Tests only; no product change. What the code does today with a `TextField` insid
 
 **Probe** `docs/probes/swiftui-popover-focus.swift` (compiles; SA-O). **Arms PF1 (does the popover's `TextField` become first responder on open with no `@FocusState`), PF2 (is the presenter's focused view first responder again after dismiss, and does its `@FocusState` read true) and PF3 (does `onKeyPress(.escape)` on the field run before the popover closes) are UNRESOLVED**: the screen was locked (`CGSSessionScreenIsLocked = true`), no window became key (`main window key=false appActive=false keyWindow=nil`), the same failure as `MN-N` P3, and the probe prints `UNRESOLVED` rather than guess. Human checks `CV31`..`CV33`. Follow-ups wait on them: if PF1 is yes, "a presented popover seats focus on its first `TextField`"; if PF3 is yes, a divergence or reordered stages.
 
-Pinned by `aTextFieldInAnItemPopoverTakesKeysAwayFromTheView`, `onSubmitFiresAndDismissingFromItClosesThePopover`, `escapeDismissesWithTheFieldFocused`, `aWriteInTheOpeningHandlerIsDropped_onAppearWorks` and `focusAfterDismissIsNil` (`Tests/MetalUITestingTests/CodeViewTextAnchorTests.swift`). Next unused: `CV-BY` (wave 2 reserves `CV-BP`..`CV-BV` and `CV-BX`, none landed).
+Pinned by `aTextFieldInAnItemPopoverTakesKeysAwayFromTheView`, `onSubmitFiresAndDismissingFromItClosesThePopover`, `escapeDismissesWithTheFieldFocused`, `aWriteInTheOpeningHandlerIsDropped_onAppearWorks` and `focusAfterDismissIsNil` (`Tests/MetalUITestingTests/CodeViewTextAnchorTests.swift`). Next unused: `CV-BY` (wave 2 reserves `CV-BP`..`CV-BX`; `CV-BT`, `CV-BU`, `CV-BV` and `CV-BW` have landed, so `CV-BP`..`CV-BS` and `CV-BX` are not yet present).

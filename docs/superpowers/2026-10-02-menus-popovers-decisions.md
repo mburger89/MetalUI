@@ -1512,7 +1512,6 @@ an extra `.accessibilityLabel` wrapper reddens the cost literal.
 
 **Mutation.** `counted: true` in the two entries reddens the five closed-equals-twin tests; deleting the count in `layOutPopover` reddens `theOpenCasesCostWhatTheyDid` and the two open literals of `CodeViewTextAnchorCostTests`.
 
-Next unused: `MN-AT`.
 
 ## MN-AS — A popover returns focus on dismiss (amends `MN-N` item 3; Alloy; record 374; class `M`, no divergence)
 
