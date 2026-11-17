@@ -44,6 +44,11 @@ struct CodeViewState: Equatable {
     var revealsCaret = false
     /// The x, in points from the text origin, a run of vertical moves keeps returning to across short lines.
     var goalX: Double?
+    /// The vertical motion's remembered x for each selection (`CV-BH`), parallel to the selections; allocated only
+    /// while there is more than one, `nil` otherwise. `Double.nan` is a selection with none (the motion hit a document edge).
+    var goalXs: [Double]?
+    /// The selection state's `mutationSerial` when `goalXs` was written: any other write to the selections ends the run.
+    var goalXsSerial: UInt64 = 0
     /// The unit the last press selected (0 character, 1 word, 2 line) and its range, which a drag keeps (`CV-Y`).
     var dragGranularity: UInt8 = 0
     var dragOriginLower = 0

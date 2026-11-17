@@ -86,3 +86,15 @@ private let left = TextEditing.leftArrow, right = TextEditing.rightArrow, up = T
     #expect(CodeEditing.command(for: key("g", [.control, .shift]), platform: other) == .findPrevious)
     #expect(CodeEditing.command(for: key("g", .command), platform: other) == nil)
 }
+
+/// 11.x — Escape with no modifiers is the collapse command on both platforms (`CV-BI`); with any modifier it is not
+/// the view's. **Mutation:** `mods.isEmpty` dropped (⇧⎋ and ⌘⎋ collapse too).
+@Test func escapeIsTheCollapseCommandOnlyWithNoModifiers() {
+    for platform in [TextEditing.Platform.mac, .other] {
+        #expect(CodeEditing.command(for: key("\u{1B}"), platform: platform) == .collapseSelections)
+        #expect(CodeEditing.command(for: key("\u{1B}", .shift), platform: platform) == nil)
+        #expect(CodeEditing.command(for: key("\u{1B}", .command), platform: platform) == nil)
+        #expect(CodeEditing.command(for: key("\u{1B}", .control), platform: platform) == nil)
+        #expect(CodeEditing.command(for: key("\u{1B}", .option), platform: platform) == nil)
+    }
+}

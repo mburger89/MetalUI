@@ -416,6 +416,26 @@ public final class CodeBuffer {
         return tx
     }
 
+    /// Applies `edits` (ascending, non-overlapping, in the current coordinates) as one edit of the acting state
+    /// (`CV-BH`): a single edit is `performReplace` (it coalesces as a lone replacement does), several are one
+    /// batch whose undo step merges into the open run of the same kind, as a batch of typed text does. The
+    /// selections move with the edits; none is placed.
+    func performEdits(_ edits: [(range: Range<Int>, text: String)], origin: CodeEditOrigin) -> CodeTransactionID {
+        if edits.count == 1 { return performReplace(edits[0].range, with: edits[0].text, origin: origin) }
+        if transactionDepth > 0 {
+            applyBatchInTransaction(edits, origin: origin)
+            return currentTransaction
+        }
+        let tx = newTransaction()
+        if isReadOnly { return tx }
+        let state = actor
+        let before = state.stored, beforePrimary = state.storedPrimary
+        let inverses = applyBatch(live(edits), origin: origin, transaction: tx)
+        if inverses.isEmpty { return tx }
+        recordBatchUndo(inverses, origin: origin, transaction: tx, before: before, beforePrimary: beforePrimary)
+        return tx
+    }
+
     /// The edits that change anything, highest first.
     private func live(_ edits: [(range: Range<Int>, text: String)]) -> [(range: Range<Int>, text: String)] {
         var previousEnd = 0
