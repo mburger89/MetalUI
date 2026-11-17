@@ -1,6 +1,6 @@
-# 348 - Terminal ConPTY, `PseudoTerminal` on Windows (`TRM-AX`, `TRM-AY`)
+# 350 - Terminal ConPTY, `PseudoTerminal` on Windows (`TRM-AX`, `TRM-AY`)
 
-Branch `feat/terminal-conpty` from master `a9827471`; Phase 2.3 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Ids `TRM-AX`, `TRM-AY` (`TRM-AQ`..`TRM-AW` are open PRs' #350 and #351). Record number 348 is the next free after #349, #350 (346) and #351 (347); expect renumbering.
+Renumbered from 348 because #350 and #351 merged first (#352 holds 349). Branch `feat/terminal-conpty`, merged with master `49630aaf`; Phase 2.3 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Ids `TRM-AX`, `TRM-AY` (after `TRM-AW`).
 
 **What landed.** The frozen `PseudoTerminal` API on Windows, no API change: `spawn`, `processID`, `onReadable`, `read`, `write`, `resize`, `signalGroup`, `foregroundProcessGroup` (always nil), `exitStatus`, `close`. The engine is C (`Sources/CPseudoTerminal/CPseudoTerminalWindows.c`, `cpw_*`, under `_WIN32`) and `PseudoTerminal+Windows.swift` is a thin Swift core around it; the POSIX file is unchanged apart from `Signal`, `ExitStatus` and `PseudoTerminalError` moving to `PseudoTerminalTypes.swift` (shared). Why C: `STARTUPINFOEX`, attribute lists, overlapped structures and a thread-pool callback are all plain in C and awkward through WinSDK (the `PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE` macro does not even import).
 
