@@ -443,6 +443,10 @@ macOS, `Ctrl+Shift+P` elsewhere, named keys as glyphs or names, one formatter sh
 `isConditional`, `condition`), and `App.standardMenuShortcuts()` / `App.commandShortcuts()` (M, `KF-AI`: which keys
 the desktop, the standard menu items and the app's `commands` already take; methods, since each evaluates the
 `commands` content once, and recursive when called from inside it);
+`ShortcutRecorder(_:onRecord:onClear:onCancel:)` (M, `KF-AK`: a field that records the next key chord as a
+`KeyboardShortcut` in one form on every platform, the unshifted base key lower-cased plus the modifiers held;
+recording is having focus; bare Escape cancels, bare ⌫/⌦ clears, ⌘Q records instead of quitting; `Equatable`, so
+`.equatable()` replays it);
 `@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 

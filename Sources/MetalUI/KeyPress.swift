@@ -49,7 +49,12 @@ public struct KeyPress: Sendable {
     /// The modifier keys held.
     public let modifiers: EventModifiers
 
-    init(phase: Phases, key: KeyEquivalent, characters: String, modifiers: EventModifiers) {
+    /// The key's character with no modifier applied (`KeyEvent.unshiftedKey`, `KF-AL`), or empty when the platform
+    /// cannot say. Internal: `ShortcutRecorder` reads it to record `⇧/` as `"/"` + Shift on every platform (`KF-AK`).
+    let unshiftedKey: String
+
+    init(phase: Phases, key: KeyEquivalent, characters: String, modifiers: EventModifiers, unshiftedKey: String = "") {
+        self.unshiftedKey = unshiftedKey
         self.phase = phase
         self.key = key
         self.characters = characters

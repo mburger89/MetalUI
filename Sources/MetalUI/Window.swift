@@ -3970,7 +3970,7 @@ public final class Window {
         if case .keyDown = event, lastFocusRegistry.keyPressCount > 0,
            let shortcuts = commandShortcuts?(), shortcuts.contains(where: { $0.0.matches(key) }) { return false }
         let press = KeyPress(phase: phase, key: KeyEquivalent(first), characters: key.characters,
-                             modifiers: key.modifiers)
+                             modifiers: key.modifiers, unshiftedKey: key.unshiftedKey)
         return MetalUI.dispatchKeyPress(press, along: chain, in: lastFocusRegistry, skipping: keyCaptureOffered)
     }
 
