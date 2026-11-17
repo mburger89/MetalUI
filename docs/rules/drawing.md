@@ -130,6 +130,8 @@ frame commits, and clears a new target. A `FixtureRun` cannot record a surface.
 A draw's counter or state must be passed in, never a `@State` the draw writes (a phase
 write is silently stale; before `FV-A` a never-written default was also re-seeded every build).
 
+**Surface-scoped redraw** (`TRM-P`..`TRM-R`, record 337). A `GPUSurface` made with a `SurfaceRedrawTrigger` draws, when only the trigger asked, in a **surface-only frame**: `Window` re-encodes `lastScene` and passes the renderer just the invalidated surfaces' requests with `isForced` set (the one thing the table's `update` learned; Metal and SDL need nothing of their own); builds and element requests are 0. Any other reason for a frame takes the full path and forces the same requests, so a trigger is never lost. A surface-only frame is refused (full frame instead) when no scene was presented or the scale, content size, resize count or atlas `layoutGeneration` moved. Frame-path code reads `Window.surfaceRedraw`; `Frame.drawSurface` still taints retention with `"surface"` (Phase 3.3 is not here).
+
 **Backdrop blur (`BB-`, record §94).** A `Material` is one scene primitive, `PrimitiveKind.backdrop`
 (`MUIBackdrop`, 96 bytes, `Scene.backdrops`): the blurred backdrop and the tint together,
 `c · o · (T + (1 − T.a) · B)`, so an opacity is a half-weight composite over the **sharp** backdrop

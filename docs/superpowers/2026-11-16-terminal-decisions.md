@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-AE` (`TRM-K`..`TRM-T` are reserved by parallel branches).
+Next unused id: `TRM-AE` (`TRM-K`..`TRM-O` are reserved by open PR #341).
 
 ## TRM-A: module split
 
@@ -91,6 +91,45 @@ Line-oriented, `#` comments: `size`, `scrollback`, `input "<escaped>"` (`\e \r \
 Chunk-split invariance (every two-way cut, byte at a time, seeded partitions, over the parser event log and the whole emulator state), seeded fuzz (random bytes never trap, the cursor stays in the grid, ring and screen sizes hold), the counted census (4 MB) and the gated bench `METALUI_RUN_TERMINAL_BENCH=1` (release, plain ASCII, proposal 300 MB/s). The bench measures through the public API only, so it needs no `-enable-testing`.
 
 Why: spec sections 7 and 8.
+
+## TRM-P: the surface-only frame (Phase 3.1, gap 5 draft)
+
+(Appended by `feat/surface-only-redraw`. Ids `TRM-P`..`TRM-T` are this branch's; `TRM-F`..`TRM-J` are record 335's; `TRM-K`..`TRM-O` stay reserved by parallel branches.)
+
+1. `SurfaceRedrawTrigger.requestRedraw()` draws one `GPUSurface` in a **surface-only frame**: `Window.drawFrameIfNeeded` takes the branch only when the window is not dirty, not animating, has no gesture or tooltip timer, and a surface is pending. It re-encodes `lastScene` (kept since `HT-` and unchanged) with the same atlas and hands the renderer **only the pending surfaces' requests**, rebuilt from the last full frame's, at the display link's time. The renderers' table keeps every other referenced surface, undrawn (its existing keep rule), so they composite as they were. 0 builds, 0 element requests, no body, no `@State` or observation read, no accessibility or hover work (nothing it reads moved).
+2. Any other reason for a frame (dirty, an animation, a timer) takes the full path, which **forces the pending surfaces' requests** instead (item 3), so a trigger is never lost to a frame that happened first and a surface draws once per request however many frames passed.
+3. Forcing is `SurfaceDrawRequest.isForced` (`package`; the public initialiser is unchanged) read by `SurfaceTargetTable.update`: a forced request draws whatever its policy, `value:` and scale say. This is the only change the Metal and SDL renderers see, and they see it without a line of their own (both call the table).
+4. A surface-only frame needs the last scene to stand. A full frame is taken instead when none was presented, or the scale, the content size, the platform's resize count or the glyph atlas's `layoutGeneration` moved since it, or the atlas wants a reclaim (`SurfaceRedrawState.canReuseScene`). A scale or size change also dirties the window, so the guard is a second line of defence for the atlas case, which dirties nothing.
+5. After a full frame the window keeps its requests (without the force), rebinds the triggers of the surfaces it painted and unbinds those it did not (item `TRM-Q`.2), and drops deadlines of surfaces it did not paint. A surface-only frame whose drawable is not available leaves the surfaces pending and the display link awake; one whose pending surfaces all left the last frame pauses the link.
+6. `HeadlessWindowRenderer` runs the requests through a `SurfaceTargetTable` every frame, as the GPU renderers do, and calls the `draw`s only while `runsSurfaceDraws` is on (default off, so the recorded-never-run contract of `HT-Q` stands); `TestWindow.runsSurfaceDraws` and `surfaceDrawCount` expose it, and `FrameWork.surfaceOnlyFrames` is 1 for a surface-only frame, 0 otherwise. `TestWindow`'s idle check counts a pending surface as work, so `runUntilIdle()` draws it.
+
+Why: today a surface redraw is a full window build (the value is read in paint and `drawSurface` taints retention), which is the cost Alloy's terminal cannot pay per output chunk or blink. Rejected: a second `Scene` kept per surface (the scene is already the composite); skipping the build by making the surface's value an observation (it still builds, and reads in paint stay untracked, `MV-F`); drawing the surface from the trigger's thread (draws run on the main actor inside `finishFrame`, `MV-F`).
+
+## TRM-Q: the trigger's contract
+
+1. `SurfaceRedrawTrigger` is `@unchecked Sendable` (a lock around a bound wake closure and what was collected), not a plain `Sendable` as the draft spelled it: a final class with mutable state cannot be checked. Callable from any thread; on the main thread the window hears it synchronously, elsewhere through one `Task { @MainActor }` hop per drain.
+2. **Coalescing** is per drain and per window: the trigger hops once until the window drains it, the window's pending set holds an id once, and a frame draws it once. 100 calls before a tick are one frame and one draw.
+3. **A trigger whose surface was not painted by the last presented frame does nothing**: it is bound at the end of a full frame to the surfaces that frame painted (after the clip, size and opacity guards of `Frame.drawSurface`) and unbound the first frame that does not paint them, so requests of a hidden panel are dropped on the calling thread, with no hop, no frame and no timer. A trigger used before its surface's first presented frame is the same.
+4. One trigger serves one surface in one window.
+
+Why: spec §6 of the design ("a hidden panel starts no timer").
+
+## TRM-R: timed requests
+
+1. `requestRedraw(after:)` joins a per-window deadline set (`SurfaceRedrawState.deadlines`, one date per surface), the **earliest winning** whether the calls land in one hop or several. An immediate request does not cancel a later deadline, and a draw in between does not consume it.
+2. The date is the **frame clock's** (`TW-A`) now plus the delay: the timeline store's date at the last display-link tick under the harness's simulated clock (`DX-A`), the wall clock in an app (the display link may have been paused for a long while, so the last tick would be stale). A test therefore drives the deadline with `advance(by:)`; nothing sleeps.
+3. Due deadlines move into the pending set at the head of the display-link tick, before `drawFrameIfNeeded`. In an app (no simulated clock) one `Task` sleeps until the earliest deadline (the timeline's `taskScheduler`), moves the due ones into the pending set and wakes the display link; no second wake exists while there is no deadline.
+4. A full frame drops the deadlines of surfaces it did not paint, so a deadline stops with its surface.
+
+Why: spec §6 ("timed requests anchor on the frame clock"); the cursor blink is one deadline per half period, a surface-only frame each.
+
+## TRM-S: the initialisers, and where gap 5 differs from the draft
+
+The draft spelled one initialiser, `GPUSurface(redraw:value:trigger:draw:)`. This branch adds `GPUSurface(redraw:trigger:draw:)` beside it, with no `value:`, because a trigger-driven surface such as the terminal has nothing to compare and `value: 0` would be noise. `SurfaceRedrawTrigger` is `@unchecked Sendable` (`TRM-Q` item 1). Both stay draft until Phase 5 and Alloy's confirmation. Surface replay (`TRM-` Phase 3.3, removing the `"surface"` retention taint) is not here: a surface is still painted every full frame.
+
+## TRM-T: cost
+
+An app that never uses a trigger pays nothing. `GPUSurface`'s `paint` passes one more (nil) argument; `Frame.drawSurface` appends to `surfaceTriggers` only when there is one; `SurfaceRedrawState` holds empty collections; the display-link tick tests `deadlineCount > 0`; the drawFrameIfNeeded guard reads `pending.isEmpty`. Literals, on master ff73af7c and on this branch: see record 337 (test `aSurfaceWithoutATriggerCostsWhatItDidOnMaster`, `anAppWithNoSurfaceCostsWhatItDidOnMaster`). A frame owed by a trigger costs 0 builds and 0 element requests (`aTriggerDrawsItsSurfaceInAFrameWithNoBuild`).
 ## TRM-U: the capture stage - where it sits and what it offers (Phase 4.1, record 338)
 
 1. `keyCapture(except:optionAsMeta:)` marks the keyboard layer it joins (the layer of the `onKeyPress` it is written beside, in either order). While the focus chain holds a marked layer, `Window.dispatchKeyCapture` runs as the first key stage, ahead of `dispatchAction` (the Keymap), and offers the key to that layer's `onKeyPress` handlers: outermost capture layer first, each layer's handlers last-written first (`KF-C`), under `StateDispatch.dispatching(to:)` the layer's element (`ID-F`).

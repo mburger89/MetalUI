@@ -33,6 +33,11 @@ import MetalUIPlatform
 /// (`MV-G` item 2; divergence 103 — SwiftUI's `Canvas` also re-runs whenever
 /// its declaring body re-runs). `.continuous` draws every frame it paints.
 ///
+/// **A redraw with no window build** (Alloy gap 5, `TRM-P`; draft): give the surface a ``SurfaceRedrawTrigger``
+/// and call `requestRedraw()` from any thread — the window re-encodes its last scene and runs only the
+/// invalidated surfaces' `draw`s, with 0 builds and 0 element requests. `requestRedraw(after:)` is the timed
+/// spelling (a caret's blink).
+///
 /// **No GPU work** while it is not painted, has a zero-sized target, lies
 /// wholly outside the clip or is fully transparent (`MV-G` item 4).
 ///
@@ -44,6 +49,7 @@ import MetalUIPlatform
 public struct GPUSurface: ProposalElement {
     let policy: RedrawPolicy
     let value: AnyHashable?
+    let trigger: SurfaceRedrawTrigger?
     let draw: @MainActor (any GPUSurfaceContext) -> Void
 
     /// A surface that redraws per `redraw` — `.onDemand` only on a new or
@@ -52,6 +58,7 @@ public struct GPUSurface: ProposalElement {
                 draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
         self.policy = redraw
         self.value = nil
+        self.trigger = nil
         self.draw = draw
     }
 
@@ -61,6 +68,28 @@ public struct GPUSurface: ProposalElement {
                              draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
         self.policy = redraw
         self.value = AnyHashable(value)
+        self.trigger = nil
+        self.draw = draw
+    }
+
+    /// A surface that, besides `.onDemand`'s own reasons and `value`'s, redraws when `trigger` asks — **without a
+    /// window build** (`TRM-P`): the window re-encodes its last scene and runs only the invalidated surfaces'
+    /// `draw`s. See ``SurfaceRedrawTrigger``.
+    public init<V: Hashable>(redraw: RedrawPolicy = .onDemand, value: V, trigger: SurfaceRedrawTrigger,
+                             draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
+        self.policy = redraw
+        self.value = AnyHashable(value)
+        self.trigger = trigger
+        self.draw = draw
+    }
+
+    /// ``init(redraw:value:trigger:draw:)`` for a surface with no `value:`: it redraws on a new or resized target
+    /// and when `trigger` asks (`TRM-S`).
+    public init(redraw: RedrawPolicy = .onDemand, trigger: SurfaceRedrawTrigger,
+                draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
+        self.policy = redraw
+        self.value = nil
+        self.trigger = trigger
         self.draw = draw
     }
 
@@ -80,6 +109,6 @@ public struct GPUSurface: ProposalElement {
     /// One quad over `bounds` and this frame's draw request (`Frame.drawSurface`).
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
-        pass.frame.drawSurface(id: id, bounds: bounds, policy: policy, value: value, draw: draw)
+        pass.frame.drawSurface(id: id, bounds: bounds, policy: policy, value: value, trigger: trigger, draw: draw)
     }
 }

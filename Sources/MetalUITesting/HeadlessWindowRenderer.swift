@@ -33,6 +33,15 @@ public final class HeadlessWindowRenderer: WindowRenderer {
     /// recorded, never run (`HT-Q` item 2).
     public private(set) var lastSurfaceRequests: [SurfaceDrawRequest] = []
 
+    /// When `true`, each presented frame calls the `draw` of every request a `SurfaceTargetTable` says to draw (the table runs every frame, as the GPU renderers' do; `TRM-P` item 6), with a GPU-less context: how a test
+    /// counts a surface's draws. Off by default — the default records requests and runs nothing (`HT-Q` item 2).
+    public var runsSurfaceDraws = false
+
+    /// Draws run by ``runsSurfaceDraws``, over the renderer's life.
+    public private(set) var surfaceDrawCount = 0
+
+    private var surfaceTable = SurfaceTargetTable<Int>()
+
     /// The glyph-atlas texels the last presented frame uploaded: the area of
     /// the atlas's dirty rect, 0 when nothing changed (a work counter).
     public private(set) var lastAtlasUploadPixels = 0
@@ -166,6 +175,7 @@ public final class HeadlessWindowRenderer: WindowRenderer {
         lastNewTextures = newCount
         lastNewTexturePixels = newPixels
         lastSurfaceRequests = surfaces
+        runSurfaceDraws(scene: scene, surfaces: surfaces)
         framesPresented += 1
         if reportsPresentation, presentationObserver != nil {
             undelivered.append(observedFrames)
@@ -178,4 +188,31 @@ public final class HeadlessWindowRenderer: WindowRenderer {
         onFramePresented?(self)
         return true
     }
+
+    private func runSurfaceDraws(scene: Scene, surfaces: [SurfaceDrawRequest]) {
+        let toDraw = surfaceTable.update(references: scene.allSurfaceTargets(), requests: surfaces,
+                                         create: { _ in 0 }, release: { _ in })
+        for (request, _, isNew) in toDraw {
+            // The table always runs, so what it has drawn is the same whenever a test turns the flag on.
+            guard runsSurfaceDraws else { surfaceTable.didDraw(request); continue }
+            let context = HeadlessSurfaceContext(
+                pixelSize: Size(width: DevicePixels(Int32(request.target.width)),
+                                height: DevicePixels(Int32(request.target.height))),
+                scaleFactor: request.scaleFactor, time: request.time,
+                frameIndex: UInt64(framesPresented), isNewTarget: isNew)
+            request.draw(context)
+            surfaceTable.didDraw(request)
+            surfaceDrawCount += 1
+        }
+    }
+}
+
+/// The context ``HeadlessWindowRenderer/runsSurfaceDraws`` hands a draw: sizes and time, no GPU.
+private struct HeadlessSurfaceContext: GPUSurfaceContext {
+    let pixelSize: Size<DevicePixels>
+    let scaleFactor: Float
+    let time: Double
+    let frameIndex: UInt64
+    let isNewTarget: Bool
+    func clear(red: Float, green: Float, blue: Float, alpha: Float) {}
 }
