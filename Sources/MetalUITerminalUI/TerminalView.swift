@@ -18,6 +18,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
     let cursorBlink: Bool
     let blinkStopsAfterIdle: Bool
     let boldIsBright: Bool
+    let cursorStyle: TerminalCursorStyle
     let onInput: ([UInt8]) -> Void
     let onResize: (TerminalSize) -> Void
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
@@ -35,6 +36,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
 
     init(snapshotSource: TerminalSnapshotSource, theme: TerminalPalette, keyCaptureExceptions: [KeyboardShortcut],
          optionAsMeta: Bool, cursorBlink: Bool, blinkStopsAfterIdle: Bool, boldIsBright: Bool,
+         cursorStyle: TerminalCursorStyle,
          onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (TerminalSize) -> Void,
          onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?, openURL: OpenURLAction, clipboard: Clipboard) {
         self.snapshotSource = snapshotSource
@@ -44,6 +46,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
         self.cursorBlink = cursorBlink
         self.blinkStopsAfterIdle = blinkStopsAfterIdle
         self.boldIsBright = boldIsBright
+        self.cursorStyle = cursorStyle
         self.onInput = onInput
         self.onResize = onResize
         self.onLink = onLink
@@ -63,13 +66,13 @@ struct TerminalViewField: Component, @MainActor Equatable {
     /// a replay keeps the closures of the build that last ran. With surface replay (#362) a retained field replays
     /// its surface, so an idle terminal costs no element request.
     static func == (l: TerminalViewField, r: TerminalViewField) -> Bool {
-        same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright,
-             r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright)
+        same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle,
+             r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle)
     }
 
-    static func same(_ ls: TerminalSnapshotSource, _ lt: TerminalPalette, _ le: [KeyboardShortcut], _ lo: Bool, _ lc: Bool, _ lb: Bool, _ lbb: Bool,
-                     _ rs: TerminalSnapshotSource, _ rt: TerminalPalette, _ re: [KeyboardShortcut], _ ro: Bool, _ rc: Bool, _ rb: Bool, _ rbb: Bool) -> Bool {
-        ls === rs && lt == rt && le == re && lo == ro && lc == rc && lb == rb && lbb == rbb
+    static func same(_ ls: TerminalSnapshotSource, _ lt: TerminalPalette, _ le: [KeyboardShortcut], _ lo: Bool, _ lc: Bool, _ lb: Bool, _ lbb: Bool, _ lcs: TerminalCursorStyle,
+                     _ rs: TerminalSnapshotSource, _ rt: TerminalPalette, _ re: [KeyboardShortcut], _ ro: Bool, _ rc: Bool, _ rb: Bool, _ rbb: Bool, _ rcs: TerminalCursorStyle) -> Bool {
+        ls === rs && lt == rt && le == re && lo == ro && lc == rc && lb == rb && lbb == rbb && lcs == rcs
     }
 
     /// The view's content: the surface leaf under a focus layer and a geometry scope. Not for callers.
@@ -80,6 +83,9 @@ struct TerminalViewField: Component, @MainActor Equatable {
         model.cursorBlink = cursorBlink
         model.blinkStopsAfterIdle = blinkStopsAfterIdle
         model.focused = isFocused
+        model.setDefaultCursorStyle(cursorStyle)
+        let focusBinding = $isFocused
+        model.requestFocus = { if !focusBinding.wrappedValue { focusBinding.wrappedValue = true } }
         model.onInput = onInput
         model.optionAsMeta = optionAsMeta
         model.exceptions = keyCaptureExceptions
@@ -138,7 +144,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
 /// only the rows they change. A new or resized target, a palette, font or scale change and a reflow redraw every
 /// row. A view that is not painted starts no frame and no timer.
 ///
-/// **The cursor** takes the program's shape (block, bar, underline). Unfocused, or in an inactive window, it is a
+/// **The cursor** takes the program's shape (block, bar, underline), or `cursorStyle`'s until the program sets one (`TRM-BE`). Unfocused, or in an inactive window, it is a
 /// hollow block, as in Terminal.app. It blinks when the view's `cursorBlink` is on and the program asked for a
 /// blinking style (`CSI 0-5 SP q` or mode 12): it toggles every 500 ms (two surface frames a second) and, when
 /// `blinkStopsAfterIdle`, stops 30 s after the last output or input with the cursor drawn solid. An unfocused
@@ -181,6 +187,7 @@ public struct TerminalView: Component, @MainActor Equatable {
     let cursorBlink: Bool
     let blinkStopsAfterIdle: Bool
     let boldIsBright: Bool
+    let cursorStyle: TerminalCursorStyle
     let onInput: ([UInt8]) -> Void
     let onResize: (TerminalSize) -> Void
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
@@ -199,6 +206,9 @@ public struct TerminalView: Component, @MainActor Equatable {
     ///   - cursorBlink: Whether a blinking cursor style blinks (default true).
     ///   - blinkStopsAfterIdle: Stop blinking 30 s after the last input or output (default true).
     ///   - boldIsBright: Bold ANSI 0-7 draws bright, as the palette's own flag does (default false).
+    ///   - cursorStyle: The cursor's default style (`TRM-BE`): the shape, and whether it asks to blink, until the program sets
+    ///     one with DECSCUSR 1-6; `CSI 0 SP q`, DECSTR and RIS return to it. Default a steady block. A blinking style blinks
+    ///     only while `cursorBlink` is on. Changing it redraws the cursor.
     ///   - onInput: The bytes a key, committed text, paste or focus report encodes to; the host writes them to the pty.
     ///   - onResize: The grid size, when the cell count changes, after the source was resized.
     ///   - onLink: The link under a ⌘-hovered cell: asked `.hover` once per cell change, `.exit` on leaving, `.activate` on ⌘-click.
@@ -209,6 +219,7 @@ public struct TerminalView: Component, @MainActor Equatable {
                 cursorBlink: Bool = true,
                 blinkStopsAfterIdle: Bool = true,
                 boldIsBright: Bool = false,
+                cursorStyle: TerminalCursorStyle = TerminalCursorStyle(shape: .block, blinking: false),
                 onInput: @escaping ([UInt8]) -> Void,
                 onResize: @escaping (TerminalSize) -> Void,
                 onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?) {
@@ -219,6 +230,7 @@ public struct TerminalView: Component, @MainActor Equatable {
         self.cursorBlink = cursorBlink
         self.blinkStopsAfterIdle = blinkStopsAfterIdle
         self.boldIsBright = boldIsBright
+        self.cursorStyle = cursorStyle
         self.onInput = onInput
         self.onResize = onResize
         self.onLink = onLink
@@ -226,15 +238,15 @@ public struct TerminalView: Component, @MainActor Equatable {
 
     /// Whether two views draw and behave alike: the same source object, theme, exceptions and flags; closures are not compared.
     public static func == (l: TerminalView, r: TerminalView) -> Bool { 
-        TerminalViewField.same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright,
-                               r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright)
+        TerminalViewField.same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle,
+                               r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle)
     }
 
     /// The field under `.equatable()`. Not for callers.
     public var content: some ElementGroup {
         TerminalViewField(snapshotSource: snapshotSource, theme: theme, keyCaptureExceptions: keyCaptureExceptions,
                           optionAsMeta: optionAsMeta, cursorBlink: cursorBlink, blinkStopsAfterIdle: blinkStopsAfterIdle,
-                          boldIsBright: boldIsBright, onInput: onInput, onResize: onResize, onLink: onLink,
+                          boldIsBright: boldIsBright, cursorStyle: cursorStyle, onInput: onInput, onResize: onResize, onLink: onLink,
                           openURL: openURL, clipboard: clipboard)
             .equatable()
     }

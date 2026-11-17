@@ -294,7 +294,8 @@ extension TerminalEmulator {
         currentModes.autowrap = true
         currentModes.applicationCursorKeys = false
         currentModes.applicationKeypad = false
-        currentModes.cursorStyle = TerminalCursorStyle(shape: .block, blinking: false)
+        programSetsCursorStyle = false
+        currentModes.cursorStyle = userCursorStyle
         insertMode = false
         regionTop = 0
         regionBottom = rows - 1
@@ -316,6 +317,8 @@ extension TerminalEmulator {
         screen = Array(repeating: TerminalRow(columns: cols), count: rows)
         offscreen = screen
         currentModes = TerminalModes()
+        programSetsCursorStyle = false
+        currentModes.cursorStyle = userCursorStyle
         insertMode = false
         cursorRow = 0
         cursorCol = 0

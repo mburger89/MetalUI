@@ -160,6 +160,9 @@ extension TerminalViewModel {
     }
 
     private func press(_ value: DragGesture.Value, button: TerminalMouseEvent.Button) {
+        // Any primary press focuses the terminal (`TRM-BE`), whatever it then does: the pointer gesture claims the press
+        // ahead of the focusable's own click-to-focus, so the model asks for focus itself, also for a reported or ⌘-link press.
+        if button == .left { requestFocus() }
         guard let cell = hitTest(value.location) else { return }
         let mods = value.modifiers
         let absoluteCell = absolute(cell)

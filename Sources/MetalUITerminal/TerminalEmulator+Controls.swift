@@ -133,8 +133,14 @@ extension TerminalEmulator {
             let value = parameter(p)
             guard value <= 6 else { return }
             let shape: TerminalCursorStyle.Shape = value <= 2 ? .block : value <= 4 ? .underline : .bar
-            // 0 and 1 are both the blinking block (xterm ctlseqs, VT520; `TRM-AD`); odd values blink, even are steady.
-            currentModes.cursorStyle = TerminalCursorStyle(shape: shape, blinking: value % 2 == 1 || value == 0)
+            // 1-6: odd values blink, even are steady. 0 is the host's default style, no longer a blinking block (`TRM-BE`).
+            if value == 0 {
+                programSetsCursorStyle = false
+                currentModes.cursorStyle = userCursorStyle
+            } else {
+                programSetsCursorStyle = true
+                currentModes.cursorStyle = TerminalCursorStyle(shape: shape, blinking: value % 2 == 1)
+            }
         case (0x21, 0x70):  // DECSTR
             softReset()
         case (0x24, 0x70):  // DECRQM
@@ -169,7 +175,9 @@ extension TerminalEmulator {
             currentModes.originMode = on
             home()
         case 7: currentModes.autowrap = on
-        case 12: currentModes.cursorStyle.blinking = on
+        case 12:
+            programSetsCursorStyle = true
+            currentModes.cursorStyle.blinking = on
         case 25: currentModes.cursorVisible = on
         case 9: currentModes.mouseTracking = on ? .x10 : .off
         case 1000: currentModes.mouseTracking = on ? .normal : .off

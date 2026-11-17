@@ -218,7 +218,7 @@ Why: vttest's character-set screens and the spec's list; keeping the fast path u
 
 1. `TerminalAttributes` gains `underlineStyle` (`TerminalUnderlineStyle`: none, single, double, curly, dotted, dashed), `underlineColor` and `blink`; `underline` stays and reads `underlineStyle != .none` (writing sets single or none), so frozen readers compile unchanged.
 2. SGR handles 0-9, 21-29, 30-37, 38, 39, 40-47, 48, 49, 58, 59, 90-97 and 100-107, with `;` and `:` forms (`38;5;n`, `38;2;r;g;b`, `38:5:n`, `38:2:r:g:b`, `38:2::r:g:b`, `38:2:cs:r:g:b`; `4:0`-`4:5`). 5 and 6 both set blink. A malformed or out-of-range extended colour changes nothing and ends the sequence there; what came before applies.
-3. DECSCUSR 1-6 are blinking and steady block, underline and bar; 0 is a blinking block like 1 (xterm ctlseqs and VT520; Alloy's review). The power-on style stays the steady block (`TRM-F`) and DECSTR returns to it; only an explicit `CSI 0 SP q` blinks.
+3. DECSCUSR 1-6 are blinking and steady block, underline and bar; 0 is a blinking block like 1 (xterm ctlseqs and VT520; Alloy's review). The power-on style stays the steady block (`TRM-F`) and DECSTR returns to it; only an explicit `CSI 0 SP q` blinks. **Amended by `TRM-BF` (2026-11-17, Alloy's new direction): `CSI 0 SP q` returns to the host's default style (a steady block until the host sets another), no longer a blinking block; 1-6 are unchanged.**
 4. DA1 answers `CSI ? 62 ; 22 c` (VT220 class, ANSI colour), DA2 `CSI > 1 ; 0 ; 0 c`; DSR 5 answers `CSI 0 n`, DSR 6 `CSI r ; c R`, `CSI ? 6 n` `CSI ? r ; c ; 1 R`. A request with any other parameter is not answered.
 
 Why: spec section 2.1 rule 3 (SGR in all forms) and the replies the spec requires the owner to write.
@@ -451,4 +451,21 @@ Why: Alloy's answers 3 and 4 (2026-11-16) and the spec's sections 3 and 5.
 
 Why: the spec's wheel and command-hover lines, xterm's ⇧ convention, Terminal.app's block and word rules.
 
-Next unused: `TRM-BE`.
+## TRM-BE: click-to-focus (record 369)
+
+1. **Cause.** Since 5.4 a pointer press on a `TerminalView` did not focus it. The view's `pointerInput` is applied after `focusable` in the modifier chain, so its hitbox is the cover under the press and an ancestor of the focusable's hitbox; `Window.focusOnPress` only focuses a click-focusable box that the cover is or descends from (`KF-F`, `KF-E`), so the focusable was never the one chosen. #371 (5.5) did not fix it (the tests are red there). Reordering the modifiers loses the pointer hitbox, so the fix is in the view, not the framework.
+2. **Fix.** A primary (left) press calls the model's `requestFocus`, which writes true to the view's `@FocusState` (the one `.focused($isFocused)` binds); it runs before the press does anything else, so a press that mouse reporting sends to the program, a ⌘-press on a link and a plain selection press all focus. It is a write of an already-true value that does nothing. A press elsewhere in the window moves no focus to the terminal, and a container's `.focused` binding (`FW-`) sees the press as it sees any focus change. Middle and secondary presses do not focus (as Terminal.app's right-click menu does not).
+3. **Cost.** No new element and no new frame: a press frame costs what a press on any plain `.focusable()` costs (the same builds and element requests, pinned against a plain focusable box).
+
+Why: Alloy's report (2026-11-17): Terminal.app and NSTextView focus on any primary press.
+
+## TRM-BF: the default cursor style (record 369; additive to gap 2)
+
+1. **Parameter.** `TerminalView(…, cursorStyle: TerminalCursorStyle = TerminalCursorStyle(shape: .block, blinking: false), …)`, after `boldIsBright`: the style the cursor has until the program sets one, and the one `CSI 0 SP q`, DECSTR and RIS return to. It is the existing public `TerminalCursorStyle` (shape and whether it asks to blink), not a shape-only enum, so a host may default to a blinking bar; a blinking style still blinks only while `cursorBlink` is on and stops at the idle limit (`TRM-BA` item 4). The default equals the power-on style (`TRM-F`), so a call that passes nothing is unchanged. Part of the view's `Equatable`.
+2. **Emulator.** `TerminalEmulator.defaultCursorStyle` (public, additive, set on the owning queue): the emulator keeps it and whether a program has set a style (DECSCUSR 1-6 or mode 12). DECSCUSR 0, DECSTR and RIS set `modes.cursorStyle` to it and clear that flag; setting it changes `modes.cursorStyle` at once unless the program holds a style. The view hands it over with `TerminalSnapshotSource.perform`. **Why in the emulator and not a view mapping:** the view cannot tell a program's `CSI 2 SP q` (a steady block it asked for) from "no request", and a mapping would also report `modes.cursorStyle` (and mode 12 to DECRQM) as the old default while the view drew another; with the emulator holding it the reported modes are what is drawn.
+3. **Cost.** A view whose parameter is the default never calls `perform` (the model tracks what it handed over per source, starting at the default), so an idle terminal costs nothing extra; a change costs one publish and redraws the cursor's row only (the cursor's old and new cell are the same row).
+4. **Amends `TRM-AD` item 3** (record 369, Alloy 2026-11-17): DECSCUSR 0 is the host's default style, not a blinking block. With the default left alone (steady block) a program that sent `CSI 0 SP q` to get a blinking cursor now gets a steady one; it sends `CSI 1 SP q` for that. Fixture 34 now expects `cursorStyle=block`.
+
+Why: Alloy's request (2026-11-17): the user's preferred cursor shape, overridden by a program, restored by 0 and by reset.
+
+Next unused: `TRM-BG`.

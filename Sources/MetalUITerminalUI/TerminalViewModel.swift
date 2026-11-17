@@ -62,6 +62,22 @@ final class TerminalViewModel {
     var cursorBlink = true
     var blinkStopsAfterIdle = true
     var onInput: ([UInt8]) -> Void = { _ in }
+    private var appliedCursorStyle = TerminalCursorStyle(shape: .block, blinking: false)
+    private var appliedSource: ObjectIdentifier?
+
+    /// Hands the host's default cursor style to the emulator on its queue when it differs from what the source has: a view
+    /// left at the default never touches the emulator (`TRM-BE`).
+    func setDefaultCursorStyle(_ style: TerminalCursorStyle) {
+        guard let source else { return }
+        let id = ObjectIdentifier(source)
+        if appliedSource != id { appliedSource = id; appliedCursorStyle = TerminalCursorStyle(shape: .block, blinking: false) }
+        guard style != appliedCursorStyle else { return }
+        appliedCursorStyle = style
+        source.perform { $0.defaultCursorStyle = style }
+    }
+
+    /// Focuses the terminal's surface: a primary press calls it (`TRM-BE`).
+    var requestFocus: () -> Void = {}
     var optionAsMeta = false
     var exceptions: [KeyboardShortcut] = []
     var onLink: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil }
@@ -103,6 +119,9 @@ final class TerminalViewModel {
     private var drawnLink: TerminalLinkHit?
     private var activityTime: Double?
     private(set) var statistics = Statistics()
+
+    /// The shape the last draw gave the cursor, or nil when none was drawn (tests).
+    var drawnCursorShape: TerminalRowPainter.CursorShape? { drawnCursor?.shape }
 
     private struct DrawnCursor: Equatable {
         var row: Int
