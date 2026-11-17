@@ -93,6 +93,22 @@ public final class CodeViewGeometry {
         return nil
     }
 
+    /// The fold chevron cell of buffer line `line` (0-based), view-local: the whole lane of that row, whether or not the
+    /// chevron is drawn at the moment (an open one is drawn only while the gutter is hovered); `nil` when the line starts no
+    /// foldable range, is not shown in the last frame, or the view has no ``CodeView/foldGutter(showsOnHover:onToggle:)``
+    /// with a ``CodeView/foldState(_:)`` (`CV-BN`).
+    public func foldChevronRect(line: Int) -> Bounds<Pixels>? {
+        guard let plan else { return nil }
+        var i = plan.shownFrom
+        while i < plan.shownTo {
+            let row = plan.rows[i]
+            i += 1
+            guard !row.isVirtual, row.buffer == line, let b = plan.foldChevronBounds(row) else { continue }
+            return Bounds(origin: Point(x: b.origin.x - origin.x, y: b.origin.y - origin.y), size: b.size)
+        }
+        return nil
+    }
+
     /// The scroll row (``CodeScrollPosition/row``: a **shown** display row, hidden rows of a ``CodeView/foldState(_:)``
     /// excluded, virtual rows counted) of buffer line `line` (0-based), the row of the line's own text (virtual rows
     /// attached before it are the rows above); a line hidden in a fold maps to its header's row; `nil` out of range

@@ -168,6 +168,13 @@ final class CodeEditSession {
     /// or a press in the gutter); shift extends from the current anchor.
     func press(at point: Point<Pixels>, clickCount: Int, extend: Bool, modifiers: EventModifiers = []) {
         hover?.hardEnd()   // a press ends a hover (`CV-AS`)
+        // A press on a fold chevron toggles its range, calls the app and is consumed (`CV-BN`).
+        if let line = plan.foldChevronLine(at: point) {
+            update { $0.dragging = false }
+            plan.toggleFold(atLine: line)
+            plan.foldToggle?(line)
+            return
+        }
         // A press on a folded header's `⋯` unfolds it and is consumed (`CV-BM`).
         if let state = plan.foldState, let lines = plan.foldedLines(at: point) {
             update { $0.dragging = false }
