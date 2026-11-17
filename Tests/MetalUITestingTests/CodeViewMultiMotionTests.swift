@@ -146,11 +146,18 @@ private let ragged = "abcdefghij\nab\nabcdefghij\nabcde\nabcdefghij\nx\n"
     w.typeKey(.pageDown)
     let moved = heads(buffer)
     #expect(moved.count == 2 && moved[0][0] > 2 && moved[1][0] - moved[0][0] == 5, "the same rows for both: \(moved)")
-    // Row 1 of `codeText` starts with a tab; row 3 has emoji: both are laid out, never an ASCII column.
+    // Row 1 of `codeText` starts with a tab and row 3 has emoji: both are laid out, never read as ASCII columns, so
+    // several carets land where one caret does.
     carets(buffer, [(0, 4), (2, 4)])
     w.typeKey(.downArrow)
-    let rows = heads(buffer).map { $0[0] }
-    #expect(rows == [1, 3], "\(heads(buffer))")
+    let several = buffer.selections.map(\.head)
+    var alone: [Int] = []
+    for row in [0, 2] {
+        carets(buffer, [(row, 4)])
+        w.typeKey(.downArrow)
+        alone.append(buffer.primarySelection.head)
+    }
+    #expect(several == alone, "\(several) vs \(alone)")
 }
 
 // MARK: Editing
