@@ -3531,14 +3531,18 @@ public final class Frame {
     func drawSurface(id: GlobalElementID, bounds: Bounds<Pixels>, policy: RedrawPolicy,
                      value: AnyHashable?, trigger: SurfaceRedrawTrigger? = nil,
                      draw: @escaping @MainActor (any GPUSurfaceContext) -> Void) {
-        retainLog?.taint("surface")
         // Counted before the guards, so a skipped sibling sharing one `.id`
         // keeps its place (`MV-M` item 5).
         let occurrence = surfaceRegistry.occurrence(for: id)
+        // `TRM-BB`: every call is noted for a retained record, the skipped ones too (they hold an occurrence), and
+        // replayed by ``replaySurfaces(_:)``; the `"surface"` taint is gone.
+        func note(_ request: SurfaceDrawRequest?) {
+            retainLog?.surfaces.append(RetainLog.SurfaceNote(element: id, occurrence: occurrence, request: request, trigger: trigger))
+        }
         let width = min(Self.maxSurfaceTargetSide, Int((bounds.size.width.value * scaleFactor).rounded()))
         let height = min(Self.maxSurfaceTargetSide, Int((bounds.size.height.value * scaleFactor).rounded()))
-        guard width > 0, height > 0 else { return }
-        guard activeOpacity > 0 else { return }
+        guard width > 0, height > 0 else { note(nil); return }
+        guard activeOpacity > 0 else { note(nil); return }
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
@@ -3550,7 +3554,7 @@ public final class Frame {
         let overlapHeight = min(translated.origin.y.value + translated.size.height.value,
                                 clip.origin.y.value + clip.size.height.value)
             - max(translated.origin.y.value, clip.origin.y.value)
-        guard overlapWidth > 0, overlapHeight > 0 else { return }
+        guard overlapWidth > 0, overlapHeight > 0 else { note(nil); return }
 
         let target = SurfaceTarget(id: surfaceRegistry.id(for: id, occurrence: occurrence), width: width, height: height)
         let quad = MUIImage(bounds: translated.scaled(by: scaleFactor),
@@ -3558,10 +3562,31 @@ public final class Frame {
                             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
                             opacity: activeOpacity, filter: .linear, order: 0)
         insertThroughScopes(.surface(quad, target: target, layer: activeLayer, innerMask: false))
-        surfaceRequests.append(SurfaceDrawRequest(target: target, scaleFactor: scaleFactor, time: timestamp,
-                                                  policy: policy, value: value, draw: draw))
+        let request = SurfaceDrawRequest(target: target, scaleFactor: scaleFactor, time: timestamp,
+                                         policy: policy, value: value, draw: draw)
+        surfaceRequests.append(request)
+        note(request)
         if let trigger { surfaceTriggers.append((target.id, trigger)) }
+        // A `.continuous` surface taints by `noteActiveAnimation` itself (`activeAnimation`): it is never retained.
         if policy == .continuous { noteActiveAnimation() }
+    }
+
+    /// Replays the surface calls a retained record made (`TRM-BB`): each one counts its occurrence, and a drawn one
+    /// keeps its id, appends its draw request **at this frame's timestamp** (the one field a request reads from the
+    /// frame; the scale, policy, value and closure are the record's, which its key and content serial hold) and its
+    /// trigger, exactly as ``drawSurface(id:bounds:policy:value:trigger:draw:)`` would. The quad itself is a leaf of the
+    /// record's scene. The caller has checked ``SurfaceRegistry/replays(_:)``.
+    func replaySurfaces(_ notes: [RetainLog.SurfaceNote]) {
+        for note in notes {
+            let occurrence = surfaceRegistry.occurrence(for: note.element)
+            guard let old = note.request else { retainLog?.surfaces.append(note); continue }
+            let target = SurfaceTarget(id: surfaceRegistry.id(for: note.element, occurrence: occurrence),
+                                       width: old.target.width, height: old.target.height)
+            surfaceRequests.append(SurfaceDrawRequest(target: target, scaleFactor: old.scaleFactor, time: timestamp,
+                                                      policy: old.policy, value: old.value, draw: old.draw))
+            if let trigger = note.trigger { surfaceTriggers.append((target.id, trigger)) }
+            retainLog?.surfaces.append(note)
+        }
     }
 
     /// Emits one glyph sprite, taking its bitmap from the atlas and rasterizing
