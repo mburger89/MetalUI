@@ -116,8 +116,17 @@ final class RetainLog {
         let depth: Int
     }
 
+    /// One `Frame.drawSurface` call (`TRM-BB`): the element and the occurrence it counted, the draw request it made
+    /// (`nil` when a no-GPU-work guard skipped it, which still holds its occurrence) and its trigger.
+    struct SurfaceNote {
+        let element: GlobalElementID
+        let occurrence: Int
+        let request: SurfaceDrawRequest?
+        let trigger: SurfaceRedrawTrigger?
+    }
+
     struct Marks: Equatable {
-        var scene = 0, marks = 0, touches = 0, lives = 0
+        var scene = 0, marks = 0, touches = 0, lives = 0, surfaces = 0
     }
 
     var recorders: [SubtreeRecorder] = []
@@ -126,9 +135,11 @@ final class RetainLog {
     var touches: [Touch] = []
     /// Entries a read-only access kept live (`RW-E`): replayed through `StateTable.touchLive`.
     var lives: [GlobalElementID] = []
+    /// The surface calls of paint (`TRM-BB`).
+    var surfaces: [SurfaceNote] = []
 
     var current: Marks {
-        Marks(scene: scene.count, marks: marks.count, touches: touches.count, lives: lives.count)
+        Marks(scene: scene.count, marks: marks.count, touches: touches.count, lives: lives.count, surfaces: surfaces.count)
     }
 
     /// Whether any open recorder can still leave a record: one that is already tainted wants nothing
@@ -191,13 +202,12 @@ final class SubtreeRecorder {
 
 /// The counts a recorder reads before and after a paint (`SB-E`).
 struct LedgerSnapshot {
-    var surfaceRequests = 0, timeNotes = 0, interpolations = 0
+    var timeNotes = 0, interpolations = 0
     /// Work a replay stands for: element paints run, plus those nested hits stood for.
     var work = 0
 
     /// The first pinned channel that moved from `self` to `other`, or `nil`.
     func movedChannel(to other: LedgerSnapshot) -> String? {
-        if surfaceRequests != other.surfaceRequests { return "surfaceRequests" }
         if timeNotes != other.timeNotes { return "timeNotes" }
         if interpolations != other.interpolations { return "interpolations" }
         return nil
@@ -346,6 +356,8 @@ final class RetainedRecord {
     var touches: [RetainLog.Touch] = []
     /// The entries read-only accesses kept live under the paint (`RW-E`).
     var lives: [GlobalElementID] = []
+    /// The surface calls the paint made (`TRM-BB`), replayed by `Frame.replaySurfaces`.
+    var surfaces: [RetainLog.SurfaceNote] = []
     var paintWork = 0
     /// The default-fade unit ranges the occurrence's paint noted, relative to the sequence its window opened at, and how
     /// many primitives it emitted (`XF-H` item 8): a replay re-notes them at the current sequence, and drops them when it
@@ -572,7 +584,6 @@ extension Frame {
     /// A snapshot of the ledger channels (`SB-E`).
     func ledgerSnapshot() -> LedgerSnapshot {
         var s = LedgerSnapshot()
-        s.surfaceRequests = surfaceRequests.count
         s.timeNotes = timeVaryingNotes
         s.interpolations = animationStore.interpolationsSoFar
         let retained = stateTable.contentMemos.retained
@@ -721,6 +732,7 @@ extension Frame {
         }
         for id in r.marks { stateTable.mark(id) }
         for id in r.lives { stateTable.touchLive(id); retainLog?.lives.append(id); prepaintLog?.lives.append(id) }
+        if !r.surfaces.isEmpty { replaySurfaces(r.surfaces) }
         for (id, _) in r.versions { stateTable.noteRead(id) }
         for touch in r.touches { animationStore.replay(touch) }
         // A replay re-notes the unit ranges its paint stood for, at the sequence it started at (`XF-H` item 8); another
@@ -815,7 +827,7 @@ extension Frame {
                 }
             }
             let translated = effectTranslated || moved != nil
-            if valid && (old.key == key || translated) {
+            if valid && (old.key == key || translated) && surfaceRegistry.replays(old.surfaces) {
                 refreshLedger(of: old, from: phase)
                 memos.retained.hits += 1
                 if translated { memos.retained.translated += 1; phase.translatedPaint = true }
@@ -940,6 +952,7 @@ extension Frame {
         }
         record.marks = Array(log.marks[from.marks..<to.marks])
         record.lives = Array(log.lives[from.lives..<to.lives])
+        record.surfaces = Array(log.surfaces[from.surfaces..<to.surfaces])
         record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
         record.emitted = scene.nextEmissionSequence - recorder.sequenceFrom
@@ -995,7 +1008,7 @@ extension RetainedRecord {
         let copy = RetainedRecord(key: key)
         copy.contentSerial = contentSerial; copy.versions = versions
         copy.scene = scene; copy.finalScene = nil
-        copy.marks = marks; copy.touches = touches; copy.lives = lives
+        copy.marks = marks; copy.touches = touches; copy.lives = lives; copy.surfaces = surfaces
         copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
         copy.ranges = ranges; copy.emitted = emitted; copy.matched = matched
@@ -1040,6 +1053,11 @@ extension RetainedRecord {
             for (a, b) in zip(x, y) where describe(a) != describe(b) { return "final op \(describe(a)) vs \(describe(b))" }
         }
         if marks != other.marks { return "marks" }
+        if !surfaces.elementsEqual(other.surfaces, by: {
+            $0.element == $1.element && $0.occurrence == $1.occurrence && $0.trigger === $1.trigger
+                && $0.request?.target == $1.request?.target && $0.request?.policy == $1.request?.policy
+                && $0.request?.value == $1.request?.value && $0.request?.scaleFactor == $1.request?.scaleFactor
+        }) { return "surfaces \(surfaces.count) vs \(other.surfaces.count)" }
         if emitted != other.emitted { return "emitted \(emitted) vs \(other.emitted)" }
         if ranges != other.ranges { return "unit ranges \(ranges.count) vs \(other.ranges.count)" }
         if !matched.elementsEqual(other.matched, by: { $0.key == $1.key && $0.range == $1.range }) { return "matched groups \(matched.count) vs \(other.matched.count)" }
