@@ -34,6 +34,9 @@ enum CodeCommand: Equatable {
 }
 
 enum CodeEditing {
+    /// The modifier of the caret-toggle click and the column drag (`CV-BK`): ⌥ on a Mac and Alt elsewhere, as in VS Code.
+    static let caretToggleModifier: Modifiers = .option
+
     /// The command `key` is on `platform`, or `nil` when the view does not claim the key (so it keeps
     /// travelling: a Tab with ⌃ or ⌘ is not an indent and can still move focus, `KF-C`).
     ///

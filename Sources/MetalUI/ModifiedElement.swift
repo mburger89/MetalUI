@@ -115,6 +115,12 @@ extension ElementGroup where LayerBase == Self {
     public func _wrap(_ layer: ModifierLayer) -> ModifiedElement<Self> {
         ModifiedElement(content: self, layer: layer)
     }
+
+    /// Every conformer but `ModifiedContent` and `LifecycleScope`: the scope wraps this group, the layer wraps the scope.
+    public func _wrapInScope(_ layer: ModifierLayer, scope: LifecycleScopeRegistration)
+        -> ModifiedElement<LifecycleScope<Self>> {
+        ModifiedElement(content: LifecycleScope(content: self, write: scope.write), layer: layer)
+    }
 }
 
 extension ElementGroup {
