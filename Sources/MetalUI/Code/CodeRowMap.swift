@@ -83,6 +83,8 @@ final class CodeRowMap {
     private var seed: UInt32 = 0x85EB_CA6B
     /// The buffer rows.
     private(set) var rowCount: Int
+    /// Rises with every change to the rows or the groups (`CV-BM`: a fold layout is cached against it).
+    private(set) var revision: UInt64 = 0
 
     init(rowCount: Int) { self.rowCount = rowCount }
 
@@ -151,6 +153,7 @@ final class CodeRowMap {
     func build(rowCount: Int, groups: [(position: Int, group: VirtualGroup)]) {
         self.rowCount = rowCount
         root = nil
+        revision &+= 1
         var previous = 0
         // O(groups), not O(groups log): a Cartesian tree over the random priorities by one pass with a stack (`CV-AO`).
         var stack: [RowMapNode] = []
@@ -194,6 +197,7 @@ final class CodeRowMap {
     func reset(rowCount: Int) {
         self.rowCount = rowCount
         root = nil
+        revision &+= 1
     }
 
     /// An edit replaced `removing` buffer rows after `position - 1` with `inserting` new ones (rows
@@ -201,6 +205,7 @@ final class CodeRowMap {
     /// removed rows is dropped with them; later gaps move by the difference.
     func splice(at position: Int, removing removed: Int, inserting added: Int) {
         guard removed > 0 || added > 0 else { return }
+        revision &+= 1
         let (left, rest) = split(root, base: 0, at: position)
         var right = rest
         if removed > 0 {

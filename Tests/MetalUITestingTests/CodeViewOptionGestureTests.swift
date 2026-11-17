@@ -16,6 +16,7 @@ private struct OptionFixture {
     var geometry: CodeViewGeometry
     var pitch: Float
     var advance: Float
+    var folds: CodeFoldState?
 
     /// A point on `row` at `column` characters from the text origin (past a short line's end too, monospace).
     @MainActor func point(_ row: Int, _ column: Float) -> Point<Pixels> {
@@ -27,8 +28,9 @@ private struct OptionFixture {
 
 @MainActor private func optionFixture(_ text: String = shortLines, lines: Int? = nil, height: Float = 200,
                                       virtual: [CodeVirtualRow] = [], clicks: Cell<Int>? = nil,
-                                      handler: EventModifiers? = nil) throws -> OptionFixture {
+                                      handler: EventModifiers? = nil, folded: [Range<Int>] = []) throws -> OptionFixture {
     let buffer = CodeBuffer(lines.map { codeText(lines: $0) } ?? text)
+    let folds = folded.isEmpty ? nil : CodeFoldState(selectionState: buffer.selectionState, folded: folded)
     let decorations = CodeDecorations(buffer: buffer)
     if !virtual.isEmpty { decorations.setVirtualRows(virtual, asOf: buffer.version) }
     let geometry = CodeViewGeometry()
@@ -36,6 +38,9 @@ private struct OptionFixture {
         if let handler, let clicks {
             CodeView(buffer: buffer, decorations: decorations).font(size: 12).showsLineNumbers(false).codeCaretBlink(.off)
                 .geometry(geometry).onTextClick(modifiers: handler) { _ in clicks.value += 1 }
+        } else if let folds {
+            CodeView(buffer: buffer, decorations: decorations).font(size: 12).showsLineNumbers(false).codeCaretBlink(.off)
+                .geometry(geometry).foldState(folds)
         } else {
             CodeView(buffer: buffer, decorations: decorations).font(size: 12).showsLineNumbers(false).codeCaretBlink(.off)
                 .geometry(geometry)
@@ -46,7 +51,7 @@ private struct OptionFixture {
     window.window.setNeedsRedraw(); window.tick()
     let a = geometry.rects(for: 0..<0)[0].origin.x.value
     let b = geometry.rects(for: 1..<1)[0].origin.x.value
-    return OptionFixture(window: window, buffer: buffer, geometry: geometry, pitch: codePitch(scale: 1), advance: b - a)
+    return OptionFixture(window: window, buffer: buffer, geometry: geometry, pitch: codePitch(scale: 1), advance: b - a, folds: folds)
 }
 
 // MARK: Toggle
@@ -227,16 +232,15 @@ private struct OptionFixture {
     #expect(f.buffer.selections == [CodeSelection(caret: f.offset(4, 5))])
 }
 
-/// **13** Rows a registered fold state hides are no rows of the column (`CV-BL`'s `isHidden`). **Mutation:** the
-/// hidden test dropped (a selection on each hidden row).
+/// **13** Rows a fold hides are no rows of the column: the view lays out its fold state (`CV-BM`), so the pointer maps
+/// through the shown rows and a one-jump drag never lands on a hidden row (nor opens the fold). **Mutation:** the
+/// hidden test dropped (a selection on each hidden row), or the pointer mapped through the unfolded row map.
 @Test @MainActor func aColumnDragPassesOverRowsAFoldHides() throws {
-    let f = try optionFixture()
-    let folds = CodeFoldState(selectionState: f.buffer.selectionState, folded: [1..<4])   // rows 2 and 3 are hidden
-    withExtendedLifetime(folds) {   // one jump: until the layout hides them the pointer would otherwise pass over (and open) the fold
-        f.window.drag(from: f.point(0, 4), to: f.point(4, 4), steps: 1, modifierFlags: .option)
-    }
+    let f = try optionFixture(folded: [1..<4])   // rows 2 and 3 are hidden
+    f.window.drag(from: f.point(0, 4), to: f.point(4, 4), steps: 1, modifierFlags: .option)
     let rows = f.buffer.selections.map { f.buffer.snapshot().point(at: $0.head).row }
     #expect(rows == [0, 1, 4], "\(rows)")
+    #expect(f.folds?.folded == [1..<4], "the fold stays closed")
 }
 
 // MARK: Cost
