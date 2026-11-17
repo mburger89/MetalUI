@@ -1,4 +1,3 @@
-#if !os(Windows)
 import Dispatch
 import Foundation
 @testable import MetalUITerminal
@@ -11,6 +10,7 @@ import Glibc
 import Musl
 #endif
 
+#if !os(Windows)
 /// Both spawn mechanisms run every behaviour test: `posix_spawn` where the platform has it, and the fork path.
 let mechanisms: [PseudoTerminal.Mechanism] = [.automatic, .fork]
 
@@ -22,6 +22,8 @@ func shell(_ script: String, cols: Int = 80, rows: Int = 24, cwd: String = "/",
     try PseudoTerminal.spawn(executable: "/bin/sh", argv: ["sh", "-c", script], env: env, cwd: cwd,
                              size: TerminalSize(cols: cols, rows: rows), mechanism: mechanism)
 }
+
+#endif
 
 /// Reads a pty on its own serial queue and lets a test wait, with a bound, for what it expects.
 final class Capture: @unchecked Sendable {
@@ -119,6 +121,7 @@ func exitStatus(of pty: PseudoTerminal, timeout: Double = 30) async -> PseudoTer
     }
 }
 
+#if !os(Windows)
 /// POSIX `cksum`'s CRC over `bytes` (what `cksum` prints first).
 func posixCRC(_ bytes: [UInt8]) -> UInt32 {
     var table = [UInt32](repeating: 0, count: 256)
@@ -137,9 +140,10 @@ func posixCRC(_ bytes: [UInt8]) -> UInt32 {
     return ~crc
 }
 
+#endif
+
 /// Always runs: a test that fails mid-way must not leave a child behind.
 func finish(_ pty: PseudoTerminal) {
     pty.signalGroup(.kill)
     pty.close()
 }
-#endif

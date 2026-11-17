@@ -24,7 +24,9 @@ Rulings: `docs/superpowers/2026-11-16-terminal-decisions.md`; frozen and draft s
 
 **Pty I/O** (`TRM-M`, `TRM-N`). `read` is >0, 0 would block or -1 end of file (a 0-byte read, EIO, or after `close`), latched so the level-triggered source stops firing; `write` queues on an internal queue, never blocks, never drops, never reorders.
 
-**Pty lifetime** (`TRM-O`). No SIGCHLD handler: macOS process source, Linux pidfd (shared poll fallback); one reap under the lock that `signalGroup` takes, so a reaped pid is never signalled; `close()` stops callbacks, not reaping; Windows has no `PseudoTerminal` yet.
+**Pty lifetime** (`TRM-O`). No SIGCHLD handler: macOS process source, Linux pidfd (shared poll fallback); one reap under the lock that `signalGroup` takes, so a reaped pid is never signalled; `close()` stops callbacks, not reaping.
+
+**Windows ConPTY** (`TRM-AX`, `TRM-AY`, record 348). `PseudoTerminal` on Windows is a C engine over overlapped named pipes, one thread-pool IO per direction (no thread per pty), the child suspended into a kill-on-close job and then resumed, an exit wait, `.interrupt` as `0x03` and every other signal as `TerminateJobObject` (`.exited(1)`); the stream ends only because the exit starts `ClosePseudoConsole` on a short-lived thread while reading goes on, and `close()` does the same with the output discarded, so it cannot deadlock. The command line is quoted by `CommandLineToArgvW` rules, the environment block is sorted UTF-16, and Windows tests assert on the emulated screen, never raw bytes.
 
 **Phase 1.3 screen** (`TRM-Z`..`TRM-AD`). The emulator executes cursor motion within margins and origin mode, erase with background colour, insert/delete, scroll regions, tab stops, DECSC/DECRC per screen, the alternate screen (47/1047/1049), DECSTR/RIS, DEC graphics, REP, SGR in `;` and `:` forms and the DA/DSR/CPR/DECRQM replies; DECSLRM is skipped. Rows reach scrollback only from a full-screen scroll on the primary screen; every reply is a `TerminalEvent.reply` from `drainEvents()` that the owner MUST write, and only `.reply` and `.bell` are emitted before OSC (1.4).
 
