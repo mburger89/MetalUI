@@ -203,9 +203,13 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let pty = try cmd(["ping", "-n", "300", "127.0.0.1"])
         defer { finish(pty) }
         let out = Capture(pty)
-        #expect(out.screenContains("Pinging"))
+        // Not before ping is running and has answered: Ctrl+C sent while cmd is still starting is lost.
+        #expect(out.screenContains("Reply from"))
+        let before = out.count
         pty.signalGroup(.interrupt)
-        #expect(await exitStatus(of: pty) == .exited(Int32(bitPattern: 0xC000013A)))
+        let status = await exitStatus(of: pty, timeout: 15)
+        #expect(status == .exited(Int32(bitPattern: 0xC000013A)),
+                "after the interrupt: status \(String(describing: status)), alive=\(processIsAlive(UInt32(pty.processID))), \(out.count - before) more bytes; \(out.describe); tail raw: \(out.data.suffix(300).map { String(format: "%02x", $0) }.joined(separator: " "))")
     }
 
     @Test func thereIsNoForegroundGroup() throws {
