@@ -50,6 +50,9 @@ let package = Package(
                                                            .product(name: "MetalUIShaderRuntime", package: "MetalUI"),
                                                            .product(name: "MetalUI", package: "MetalUI"),
                                                            .product(name: "MetalUIScene", package: "MetalUI"),
+                                                           // The terminal view's cell glyphs on SDL (TRM-AZ).
+                                                           .product(name: "MetalUITerminal", package: "MetalUI"),
+                                                           .product(name: "MetalUITerminalUI", package: "MetalUI"),
                                                            .product(name: "MetalUIPortableText", package: "MetalUI")]),
         .executableTarget(name: "PortableReplay", dependencies: ["SDLReplay", "ReplayFixture"]),
         // The demo on this platform, checked against macOS (ruling DC-B).

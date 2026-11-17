@@ -50,6 +50,7 @@ public struct CodeView: Element, StyledElement {
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
     var geometryObject: CodeViewGeometry?
+    var foldStateObject: CodeFoldState?
     /// Where each chained text-anchored popover or suggestion overlay points, resolved in prepaint (`CV-AQ`, `CV-BC`).
     /// Empty (no allocation) for a view with none.
     var textAnchorBoxes: [CodeTextAnchorBox] = []
@@ -124,6 +125,19 @@ public struct CodeView: Element, StyledElement {
         precondition(state.buffer === buffer, "CodeView.selectionState: the state belongs to another buffer")
         var copy = self
         copy.selectionStateObject = state
+        return copy
+    }
+
+    /// Hides the lines `state` folds (`CV-BM`): a folded range's header stays and the rest of its rows are not laid
+    /// out, nor drawn, nor reached by the up and down keys; the header ends in a `⋯` placeholder a press on which
+    /// unfolds it (`CodeHit/foldedLines`, the press is consumed), and its gutter marker is the strongest
+    /// (`CodeGutterMarker/severity`) of the hidden rows'. Virtual rows between the hidden rows are hidden with them.
+    /// The vertical scroll position is in the **shown** display rows. `state.buffer` must be this view's buffer. A view
+    /// with no fold state pays one check and nothing else.
+    public func foldState(_ state: CodeFoldState) -> CodeView {
+        precondition(state.buffer === buffer, "CodeView.foldState: the fold state belongs to another buffer")
+        var copy = self
+        copy.foldStateObject = state
         return copy
     }
 
@@ -297,6 +311,7 @@ public struct CodeView: Element, StyledElement {
         // One `.textArea` node, built only while an accessibility client is present (`CV-U`).
         if frame.collectsAccessibility {
             handlers.axNode.fillControl(role: .textArea, label: nil, value: plan.accessibilityText())
+            if plan.foldLayout != nil { plan.recordFoldPlaceholders(id, frame: frame) }   // `CV-BM`: `fold-placeholder-<line>` buttons
         }
         layout.plan = plan
         if let geometry = geometryObject {   // unobserved, like `CodeDecorations.sync()` (`CV-K`)
