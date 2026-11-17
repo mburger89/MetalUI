@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AH`.**
+**Next unused id: `KF-AM`.**
 
 ## The final spellings (what an app writes)
 
@@ -1114,8 +1114,6 @@ Next unused id: `KF-AH` (`KF-AH` and `KF-AK` are reserved by the later PRs of th
 
 ## KF-AJ — the keys a code view takes, as claims: `CodeView.builtInKeyBindings(platform:)` (Alloy; record 364)
 
-Next unused id: `KF-AH` (`KF-AH` and `KF-AK` are reserved by the later PRs of the shortcut design; `KF-AJ` is this ruling).
-
 1. **The finding.** Alloy binds its own shortcuts next to a code view's keys and needs to know which the view already takes. The table is `CodeEditing.command(for:platform:)`, a pure function with no list form. All MetalUI-only (class M).
 2. **API.** `public nonisolated static func CodeView.builtInKeyBindings(platform: KeyboardShortcut.Platform = .current) -> [ClaimedShortcut]`, source `.codeView`, English titles by command (`Move Word Left`, `Select to Line Start`, `Delete Word Backward`, `Insert Newline`, `Indent`, `Outdent`, `Undo`, `Find Next`, `Collapse Selections` ...). `.macOS` runs the table's `.mac` convention, `.linux` and `.windows` its `.other`, so the two give one list.
 3. **Built by asking the table**, not by a second hand-written list, so it cannot drift: every named `KeyEquivalent` (Return, Escape, Space, Tab, Delete, forward delete, the four arrows, Home, End, Page Up/Down, Clear), `a`-`z`, `0`-`9`, the 32 ASCII punctuation characters, in that order, each with the 16 modifier combinations in ascending bit order; a key the table answers `nil` is skipped. Computed once per platform family into a static (about 1,300 table calls, once). Shortcuts are in the base-key form of `KF-AL` item 3: letters lower-cased, ⇧Tab as Tab with ⇧ (the AppKit `U+0019` is the table's own spelling and never listed). The table claims no punctuation or digit, so they add no entries today and keep the list correct if it ever does.
@@ -1125,3 +1123,13 @@ Next unused id: `KF-AH` (`KF-AH` and `KF-AK` are reserved by the later PRs of th
 7. **Not done:** `TextField`'s keys (Ctrl+Y, word motions); a later `TextField.builtInKeyBindings`.
 8. **Tests.** `CodeKeyBindingsTests`: fixed counts per platform, round trip through the table, a sweep over a wider key set against the list, macOS and Linux landmarks, `.windows == .linux`, the conditions. Mutations are named on the tests.
 
+## KF-AH — named function keys, F1 to F20 (Alloy; record 367)
+
+Next unused id: `KF-AM` (`KF-AK` is the recorder PR's; `KF-AJ` and `KF-AL` are above).
+
+1. **API.** `KeyEquivalent.f1`...`.f20`, public statics holding AppKit's `NSF1FunctionKey`...`NSF20FunctionKey`, `U+F704`...`U+F717`. Class M: SwiftUI has no spelling (probe `P1` arm `-D FKEYS`, `swiftui-shortcut-modifiers.swift`: `KeyEquivalent.f1` is refused by the compiler).
+2. **Platforms.** AppKit already reports these characters. SDL mapped F1 to F12 (`U+F704`...`U+F70F`); `SDLKeys.named` now adds `SDLK_F13`...`SDLK_F20` (`0x4000_0068`...`0x4000_006F`) to `U+F710`...`U+F717`. F21 and up stay unmapped: Alloy's `NamedKey` stops at F20. `Keymap.namedKeys` gains `f13`...`f20` (`"ctrl-shift-f20"` parses).
+3. **Already consistent.** `ShortcutText` names `U+F704`...`U+F726` `F1`...`F35` on every platform (`KF-AG`); `TerminalEncoder.specialKey` encodes `U+F704`...`U+F717` as F1...F20 (the xterm tilde numbers), so no change in either.
+4. **No Fn modifier.** `Modifiers` has no Fn bit, so AppKit's `.function` flag never reaches matching; a shortcut cannot require or exclude it.
+5. **Cost.** Constants only; no view structure changes. No divergence.
+6. **Tests.** `FunctionKeysTests` (root), `sdlFunctionKeysMapToAppKitsCodes` (SDL package); mutations are named on each.
