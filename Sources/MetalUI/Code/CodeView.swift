@@ -50,6 +50,7 @@ public struct CodeView: Element, StyledElement {
     var gutterHelpText: (@MainActor (CodeGutterHit) -> String?)?
     var caretBlink = CodeCaretBlink.on
     var markerLane: Bool?
+    var markerLaneAdvances = 2
     var geometryObject: CodeViewGeometry?
     var foldStateObject: CodeFoldState?
     var foldGutterConfig: CodeFoldGutter?
@@ -225,6 +226,17 @@ public struct CodeView: Element, StyledElement {
     public func gutterMarkerLane(_ reserved: Bool) -> CodeView {
         var copy = self
         copy.markerLane = reserved
+        return copy
+    }
+
+    /// The marker lane's width in space advances (`CV-BU`), clamped to 1...16; two by default, so a view that never
+    /// calls this is byte-identical. Reserves the lane like ``gutterMarkerLane(_:)`` with `true` (the text never
+    /// moves). Markers stay centred in the lane and are clipped to it; the face is monospaced, so an app pads its
+    /// text for a column look. A press anywhere in the wider lane hits the row's marker.
+    public func gutterMarkerLane(width: Int) -> CodeView {
+        var copy = self
+        copy.markerLane = true
+        copy.markerLaneAdvances = min(16, max(1, width))
         return copy
     }
 
