@@ -49,6 +49,17 @@ extension TerminalEmulator {
         needsFullFrame = true
     }
 
+    /// Scrolls the viewport `rows` further back (positive) or forward (negative) from where it is now, clamped as
+    /// ``scrollViewport(toOffset:)`` is. The relative form is the one the wheel needs: it is applied on the emulator's
+    /// queue, so several events before a publish add up (`TRM-BD`).
+    package func scrollViewport(byRows rows: Int) {
+        scrollViewport(toOffset: viewportOffset + rows)
+    }
+
+    /// The absolute row of the first viewport row now (what the next snapshot's `topRow` will be): selection edits made
+    /// on the queue after a scroll need it (`TRM-BD`).
+    package var viewportTopRow: Int { scrolledOff - clampedViewportOffset(viewportOffset) }
+
     func clampedViewportOffset(_ rows: Int) -> Int {
         onAlternate ? 0 : min(max(rows, 0), scrollback.count)
     }

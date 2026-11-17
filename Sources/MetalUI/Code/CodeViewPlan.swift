@@ -594,7 +594,7 @@ extension CodeView {
         // default), or never (`false`, markers replace numbers). A pure function of the view and the decorations'
         // sticky flag, so the text moves by the lane's width at most once. Never read when the view is measured.
         let laneOn = markerLane == true || (markerLane == nil && decorations.markersEverSet)
-        plan.laneWidthPx = laneOn ? max(1, Int((metrics.space * 2 * scaleD).rounded(.up))) : 0
+        plan.laneWidthPx = laneOn ? max(1, Int((metrics.space * Double(markerLaneAdvances) * scaleD).rounded(.up))) : 0
         plan.markersReplaceNumbers = markerLane == false
         let numbersPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
         // The fold chevron lane (`CV-BN`): two space advances between the numbers and the text, reserved only when the
@@ -1457,11 +1457,23 @@ extension CodeView {
                         if let marker = row.laneMarker {   // a marker in the lane, centred (`CV-AP`)
                             let color = row.laneMarkerColor.map { pass.resolve($0) } ?? numbers
                             let dx = plan.originX + (plan.laneWidthPx - row.laneMarkerWidthPx) / 2
-                            var g = 0
-                            while g < marker.glyphs.count {
-                                let glyph = marker.glyphs[g]
-                                pass.draw(TextGlyph(key: glyph.key, pixelX: glyph.pixelX + dx, baselineY: glyph.baselineY + row.top), color: color)
-                                g += 1
+                            let cut = row.laneMarkerWidthPx > plan.laneWidthPx   // `CV-BU`: a long marker is cut to the lane
+                            if cut {
+                                pass.clipped(to: rect(plan.originX, row.top, plan.originX + plan.laneWidthPx, row.top + plan.pitchPx), offsetBy: zero) {
+                                    var g = 0
+                                    while g < marker.glyphs.count {
+                                        let glyph = marker.glyphs[g]
+                                        pass.draw(TextGlyph(key: glyph.key, pixelX: glyph.pixelX + dx, baselineY: glyph.baselineY + row.top), color: color)
+                                        g += 1
+                                    }
+                                }
+                            } else {
+                                var g = 0
+                                while g < marker.glyphs.count {
+                                    let glyph = marker.glyphs[g]
+                                    pass.draw(TextGlyph(key: glyph.key, pixelX: glyph.pixelX + dx, baselineY: glyph.baselineY + row.top), color: color)
+                                    g += 1
+                                }
                             }
                         }
                         if row.chevron != 0, row.chevron == 2 || plan.chevronsShown,

@@ -264,6 +264,26 @@ struct HighlightPayload: Equatable {
     static let unknown = HighlightPayload(style: nil, state: .unknown)
 }
 
+/// One named owner's runs in one layer (`CV-BV`).
+final class HighlightSubLayer {
+    let layer: Int
+    let ownerID: UInt16
+    let tree: RunTree<HighlightPayload>
+    var hasStyles = false
+    init(layer: Int, ownerID: UInt16, tree: RunTree<HighlightPayload>) {
+        self.layer = layer
+        self.ownerID = ownerID
+        self.tree = tree
+    }
+}
+
+/// A tree styling reads, with the layer it belongs to and its sub-layer (`nil` for the default owner's tree).
+struct HighlightSource {
+    let tree: RunTree<HighlightPayload>
+    let layer: Int
+    let sub: HighlightSubLayer?
+}
+
 /// What the line-decoration tree holds for a stretch of rows.
 package struct LineDecorationPayload: Equatable {
     package var gutterBar: Color?
@@ -314,6 +334,11 @@ public final class CodeDecorations {
     /// Whether a layer has ever been given a styled run since its last reset: a layer that has not is skipped.
     @ObservationIgnored private var layerHasStyles: [Bool]
     @ObservationIgnored private var anyLayerHasStyles = false
+    /// The named owners' highlight sub-layers (`CV-BV`): empty until an owner pushes runs, so the default-only
+    /// path reads `layers` exactly as before.
+    @ObservationIgnored private var subLayers: [HighlightSubLayer] = []
+    /// What styling reads, in paint order (layer, priority, name): the default trees and the sub-layers merged.
+    @ObservationIgnored private var sources: [HighlightSource] = []
     /// Whether any layer has ever been given a run whose style underlines: until then no line asks for underlines.
     @ObservationIgnored private var anyLayerHasUnderlines = false
     /// What painting and hit-testing read: the one owner's tree itself while only one owner has line decorations,
@@ -376,6 +401,9 @@ public final class CodeDecorations {
         }
         layers = made
         layerHasStyles = styled
+        var initial: [HighlightSource] = []
+        for tree in made { initial.append(HighlightSource(tree: tree, layer: initial.count, sub: nil)) }
+        sources = initial
         let initialLines = RunTree(total: buffer.lineCount, payload: LineDecorationPayload())
         lines = initialLines
         lineTrees = [(0, initialLines)]
@@ -412,6 +440,7 @@ public final class CodeDecorations {
             for edit in edits { apply(edit) }
         case .resync(let snapshot):
             for layer in layers { layer.reset(total: snapshot.utf8Count, payload: .unknown) }
+            for sub in subLayers { sub.tree.reset(total: snapshot.utf8Count, payload: Self.validEmpty); sub.hasStyles = false }
             layerHasStyles = layerHasStyles.map { _ in false }
             anyLayerHasStyles = false
             anyLayerHasUnderlines = false
@@ -429,6 +458,9 @@ public final class CodeDecorations {
     private func apply(_ edit: CodeEdit) {
         let removed = edit.range.count, added = edit.newText.utf8.count
         mapFindMatches(through: edit, removed: removed, added: added)
+        for sub in subLayers {   // pushed runs are always valid: they follow the edit and never go stale (`CV-BV`)
+            sub.tree.splice(at: edit.range.lowerBound, removing: removed, inserting: added, empty: Self.validEmpty)
+        }
         for layer in layers {
             layer.splice(at: edit.range.lowerBound, removing: removed, inserting: added, empty: .unknown)
             // The run an edit lands in is stale; it keeps its colour until the provider answers.
@@ -669,6 +701,105 @@ public final class CodeDecorations {
         revision &+= 1
     }
 
+    private static let validEmpty = HighlightPayload(style: nil, state: .valid)
+
+    /// Sets the highlights `owner` gave to `range` of `layer`, all as of `version`, mapped forward like
+    /// ``setHighlights(_:in:layer:asOf:)`` (`CV-BV`). A named owner has a sub-layer of its own in each layer,
+    /// ordered by (layer, priority, name; a tie goes to the later name): where sub-layers overlap the higher
+    /// priority wins each field (foreground, underline; backgrounds paint in order), with no blending. A named
+    /// owner's runs are push-only and always valid: the provider is never asked for them and an edit never
+    /// stales them. The default owner (name empty) is the call without `owner:`. A call that changes nothing
+    /// neither redraws nor creates a sub-layer. O(log n) per run set, and per edit only while the sub-layer exists.
+    public func setHighlights(_ runs: [CodeStyleRun], in range: Range<Int>, layer: CodeHighlightLayer = .syntax,
+                              asOf version: UInt64, owner: CodeDecorationOwner) {
+        if owner.name.isEmpty { setHighlights(runs, in: range, layer: layer, asOf: version); return }
+        sync()
+        let existing = subLayers.first { $0.layer == layer.rawValue && $0.ownerID == ownerIDs[owner.name] }
+        let id = ownerIDs[owner.name]
+        let reprioritised = id.map { ownerTable[Int($0)].priority != owner.priority } ?? false
+        let total = layers[0].total
+        guard let lower = buffer.map(range.lowerBound, from: version, bias: .after),
+              let upper = buffer.map(range.upperBound, from: version, bias: .before) else { return }
+        let mapped = lower..<max(lower, min(upper, total))
+        var changed = false
+        if reprioritised { _ = register(owner); changed = true }
+        if !mapped.isEmpty {
+            let empty = runs.isEmpty
+            if !(empty && (existing == nil || existing!.tree.runs(in: mapped).allSatisfy { $0.payload == Self.validEmpty })) {
+                let sub: HighlightSubLayer
+                if let existing { sub = existing } else {
+                    sub = HighlightSubLayer(layer: layer.rawValue, ownerID: register(owner), tree: RunTree(total: total, payload: Self.validEmpty))
+                    subLayers.append(sub)
+                }
+                sub.tree.set(mapped, to: Self.validEmpty)
+                if !empty { sub.hasStyles = true; anyLayerHasStyles = true }
+                var snapshot: CodeSnapshot?
+                for run in runs {
+                    guard let a = buffer.map(run.range.lowerBound, from: version, bias: .after),
+                          let b = buffer.map(run.range.upperBound, from: version, bias: .before) else { continue }
+                    let underlines = style(run.style).underline != nil
+                    if underlines { anyLayerHasUnderlines = true }
+                    let clipped = max(a, mapped.lowerBound)..<min(max(a, b), mapped.upperBound)
+                    if !clipped.isEmpty {
+                        sub.tree.set(clipped, to: HighlightPayload(style: run.style, state: .valid))
+                    } else if underlines, run.range.isEmpty {
+                        let text = snapshot ?? buffer.snapshot()
+                        snapshot = text
+                        if let width = Self.minimumUnderline(at: a, in: text, total: total) {
+                            sub.tree.set(width, to: HighlightPayload(style: run.style, state: .valid))
+                        }
+                    }
+                }
+                changed = true
+            }
+        }
+        if changed { rebuildSources(); revision &+= 1 }
+    }
+
+    /// The runs `owner` holds in `layer` over `range`, as ``highlights(in:layer:)`` answers for the default owner:
+    /// mapped through every edit since they were set; `[]` for an owner with none (`CV-BV`).
+    public func highlights(in range: Range<Int>, layer: CodeHighlightLayer, owner: CodeDecorationOwner) -> [CodeStyleRun] {
+        if owner.name.isEmpty { return highlights(in: range, layer: layer) }
+        sync()
+        guard let id = ownerIDs[owner.name],
+              let sub = subLayers.first(where: { $0.layer == layer.rawValue && $0.ownerID == id }), sub.hasStyles else { return [] }
+        let lower = max(0, range.lowerBound), upper = min(range.upperBound, sub.tree.total)
+        let clamped = lower..<max(lower, upper)
+        guard !clamped.isEmpty else { return [] }
+        return sub.tree.runs(in: clamped).compactMap { run in
+            run.payload.style.map { CodeStyleRun(range: run.range, style: $0) }
+        }
+    }
+
+    /// Orders the sources by (layer, priority, name); the default trees are priority 0, name empty.
+    private func rebuildSources() {
+        var made: [HighlightSource] = []
+        for layer in 0..<layers.count {
+            var inLayer = [HighlightSource(tree: layers[layer], layer: layer, sub: nil)]
+            for sub in subLayers where sub.layer == layer {
+                inLayer.append(HighlightSource(tree: sub.tree, layer: layer, sub: sub))
+            }
+            if inLayer.count > 1 {
+                inLayer.sort { a, b in
+                    let (pa, na) = rank(a), (pb, nb) = rank(b)
+                    return pa != pb ? pa < pb : na < nb
+                }
+            }
+            made.append(contentsOf: inLayer)
+        }
+        sources = made
+    }
+
+    private func rank(_ source: HighlightSource) -> (Int, String) {
+        guard let sub = source.sub else { return (0, "") }
+        let owner = ownerTable[Int(sub.ownerID)]
+        return (owner.priority, owner.name)
+    }
+
+    private func isStyled(_ source: HighlightSource) -> Bool {
+        source.sub?.hasStyles ?? layerHasStyles[source.layer]
+    }
+
     /// The bytes an empty underlined run at `offset` occupies: the character there (a line break counts as one
     /// byte, so the run sits at the line's end), else the last character of the text; `nil` for an empty text.
     private static func minimumUnderline(at offset: Int, in text: CodeSnapshot, total: Int) -> Range<Int>? {
@@ -765,6 +896,11 @@ public final class CodeDecorations {
                 lineTrees.remove(at: slot)
             }
             rebuildLines()
+            changed = true
+        }
+        if id != 0, subLayers.contains(where: { $0.ownerID == id }) {
+            subLayers.removeAll { $0.ownerID == id }
+            rebuildSources()
             changed = true
         }
         if virtualOwners.contains(id) {
@@ -1189,10 +1325,10 @@ public final class CodeDecorations {
         var tail: CodeUnderline?
         let total = layers[0].total
         var layerIndex = 0
-        while layerIndex < layers.count {
+        while layerIndex < sources.count {
             var found: [(range: Range<Int>, underline: CodeUnderline)] = []
-            if layerHasStyles[layerIndex] {
-                for run in layers[layerIndex].runs(in: range) {
+            if isStyled(sources[layerIndex]) {
+                for run in sources[layerIndex].tree.runs(in: range) {
                     guard let id = run.payload.style, let underline = style(id).underline else { continue }
                     found.append((run.range, underline))
                     cuts.append(run.range.lowerBound)
@@ -1201,7 +1337,7 @@ public final class CodeDecorations {
                 // The line break's first byte: an underlined run that ends there and does not go on into the
                 // next line is a run with no characters at the line's end.
                 if range.upperBound < total {
-                    let after = layers[layerIndex].runs(in: range.upperBound..<min(total, range.upperBound + 2))
+                    let after = sources[layerIndex].tree.runs(in: range.upperBound..<min(total, range.upperBound + 2))
                     if let first = after.first, first.range.lowerBound == range.upperBound, first.range.count == 1,
                        let id = first.payload.style, let underline = style(id).underline,
                        after.count == 2 || range.upperBound + 1 >= total {
@@ -1253,9 +1389,9 @@ public final class CodeDecorations {
         var perLayer: [[(range: Range<Int>, payload: HighlightPayload)]] = []
         var cuts: [Int] = [range.lowerBound, range.upperBound]
         var layerIndex = 0
-        while layerIndex < layers.count {
-            let runs: [(range: Range<Int>, payload: HighlightPayload)] = layerHasStyles[layerIndex]
-                ? layers[layerIndex].runs(in: range).filter { $0.payload.style != nil } : []
+        while layerIndex < sources.count {
+            let runs: [(range: Range<Int>, payload: HighlightPayload)] = isStyled(sources[layerIndex])
+                ? sources[layerIndex].tree.runs(in: range).filter { $0.payload.style != nil } : []
             runsVisited += runs.count
             perLayer.append(runs)
             var r = 0
