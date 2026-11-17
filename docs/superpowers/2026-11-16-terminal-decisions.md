@@ -323,7 +323,7 @@ Why: xterm and Terminal.app pull from and push to scrollback with the window; a 
 
 A resize that changes only the height does not rewrap: it moves rows. A width change visits every retained row once (one pass to find lines, one to rebuild the ones that change; a row that fits is relabelled, not copied). Measured in release on the macOS arm64 dev machine: reflow of 10 068 retained rows (120 columns, mixed soft and hard lines, some coloured and wide) takes 1 ms best and 3 ms worst over 80, 120, 200 and 120 columns, against a proposed bound of 50 ms (the gated bench `reflowOfTenThousandScrollbackRows`, `METALUI_RUN_TERMINAL_BENCH=1`). Reflow runs on the emulator's queue and `TerminalSnapshotSource.resize` coalesces a drag into one call, so nothing here is on the main thread.
 
-## TRM-AQ: the selection (Phase 1.6, record 346)
+## TRM-AQ: the selection (Phase 1.6, record 347)
 
 1. `selection` is `.linear` or `.block` over absolute rows (`TRM-AA`); the two ends may come in either order and are stored as given. A linear selection runs from the earlier end to the later in reading order, through whole rows between; a block selection is the rectangle between the ends' rows and columns. Columns are inclusive; a wide cell is selected when either of its columns is.
 2. Setting clamps the ends to the rows that exist (`firstRow` through the screen's last row; a linear end clamped to the top becomes column 0, one clamped to the bottom the last column; columns clamp to the grid) and stores nil when the range is wholly outside them. Reading and every publish re-check the selection.

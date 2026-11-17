@@ -1,4 +1,5 @@
-# 346 - Terminal selection, text, search and viewport (`TRM-AQ`..`TRM-AT`)
+# 347 - Terminal selection, text, search and viewport (`TRM-AQ`..`TRM-AT`)
+Renumbered from 346 because #349 merged first.
 
 Branch `feat/terminal-selection-search` from master `a9827471`; Phase 1.6 of `docs/superpowers/plans/2026-11-16-terminal.md`. Class M, no divergence label. Record number 346 is the next free after 345; a parallel branch may take it (renumber at merge).
 
