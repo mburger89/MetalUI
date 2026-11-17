@@ -29,9 +29,14 @@ enum CodeCommand: Equatable {
     case selectAll, copy, cut, paste, undo, redo
     /// ⌘G / ⇧⌘G: the next or previous find match (`CV-AE`).
     case findNext, findPrevious
+    /// Escape: with several selections, keep only the primary (`CV-BI`); with one the key is not the view's.
+    case collapseSelections
 }
 
 enum CodeEditing {
+    /// The modifier of the caret-toggle click and the column drag (`CV-BK`): ⌥ on a Mac and Alt elsewhere, as in VS Code.
+    static let caretToggleModifier: Modifiers = .option
+
     /// The command `key` is on `platform`, or `nil` when the view does not claim the key (so it keeps
     /// travelling: a Tab with ⌃ or ⌘ is not an indent and can still move focus, `KF-C`).
     ///
@@ -94,6 +99,8 @@ enum CodeEditing {
             return held.isEmpty ? (shift ? .outdent : .indent) : nil
         case "\u{19}":   // AppKit's backtab character
             return held.isEmpty ? .outdent : nil
+        case "\u{1B}":   // Escape, no modifiers (`CV-BI`)
+            return mods.isEmpty ? .collapseSelections : nil
         default:
             break
         }

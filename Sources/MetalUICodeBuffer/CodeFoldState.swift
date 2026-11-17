@@ -184,6 +184,88 @@ struct FoldRangeSet {
 
 struct WeakFold { weak var state: CodeFoldState? }
 
+/// The outermost folded spans of a `CodeFoldState`, with prefix sums of the hidden buffer rows (`CV-BM`): a
+/// buffer row to its index among the shown rows and back in O(log F), for motion that skips hidden rows and for
+/// the view's layout. Nested folds are inside their outermost; folds that overlap are one span.
+package struct FoldSpans: Equatable {
+    /// The header line of each span, ascending.
+    package private(set) var headers: [Int] = []
+    /// The exclusive end line of each span: lines `header + 1 ..< end` are hidden.
+    package private(set) var ends: [Int] = []
+    /// The longest folded range starting at each header (what an unfold of the span's placeholder removes).
+    package private(set) var folds: [Range<Int>] = []
+    /// `hiddenBefore[i]` is the number of rows hidden by spans `0..<i` (`count == headers.count + 1`).
+    package private(set) var hiddenBefore: [Int] = [0]
+
+    package init() {}
+
+    /// The spans of `ranges` (sorted by start, longer first, as `CodeFoldState.folded` is).
+    package init(ranges: [Range<Int>]) {
+        for r in ranges {
+            if let last = ends.last, r.lowerBound < last {
+                ends[ends.count - 1] = Swift.max(last, r.upperBound)
+            } else {
+                headers.append(r.lowerBound); ends.append(r.upperBound); folds.append(r)
+            }
+        }
+        var sum = 0
+        hiddenBefore.reserveCapacity(headers.count + 1)
+        for i in headers.indices { sum += ends[i] - headers[i] - 1; hiddenBefore.append(sum) }
+    }
+
+    package var isEmpty: Bool { headers.isEmpty }
+    package var count: Int { headers.count }
+
+    /// The number of spans whose header is before `line`.
+    private func headersBefore(_ line: Int) -> Int {
+        var lo = 0, hi = headers.count
+        while lo < hi { let mid = (lo + hi) / 2; if headers[mid] < line { lo = mid + 1 } else { hi = mid } }
+        return lo
+    }
+
+    /// The span hiding `line`, if any.
+    package func spanIndex(hiding line: Int) -> Int? {
+        let k = headersBefore(line)
+        return k > 0 && line < ends[k - 1] ? k - 1 : nil
+    }
+
+    /// The span whose header is `line`, if any.
+    package func spanIndex(headedBy line: Int) -> Int? {
+        let k = headersBefore(line)
+        return k < headers.count && headers[k] == line ? k : nil
+    }
+
+    package func hides(_ line: Int) -> Bool { spanIndex(hiding: line) != nil }
+
+    /// `line`, or its header when it is hidden.
+    package func shownLine(_ line: Int) -> Int { spanIndex(hiding: line).map { headers[$0] } ?? line }
+
+    /// The index of `line` among the shown rows (a hidden line counts as its header).
+    package func shownIndex(of line: Int) -> Int {
+        let row = shownLine(line)
+        return row - hiddenBefore[headersBefore(row)]
+    }
+
+    /// The line at shown index `index`.
+    package func line(atShownIndex index: Int) -> Int {
+        var lo = 0, hi = headers.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if headers[mid] - hiddenBefore[mid] < index { lo = mid + 1 } else { hi = mid }
+        }
+        return index + hiddenBefore[lo]
+    }
+
+    /// How many of `lineCount` lines are shown.
+    package func shownCount(lineCount: Int) -> Int { lineCount - hiddenBefore[headers.count] }
+
+    /// The shown line `step` shown lines from `line`; `nil` past either end of the `lineCount` lines.
+    package func shownLine(from line: Int, by step: Int, lineCount: Int) -> Int? {
+        let target = shownIndex(of: line) + step
+        return target >= 0 && target < shownCount(lineCount: lineCount) ? self.line(atShownIndex: target) : nil
+    }
+}
+
 /// Which lines of a `CodeBuffer` are folded: a header line stays shown and the lines after it, up to the end
 /// of the range, are hidden (`CV-BL`). The model only; a view draws it in a later change.
 ///
@@ -206,6 +288,17 @@ public final class CodeFoldState {
     @ObservationIgnored package var foldsVisited: Int { foldedSet.visited }
     /// Edit events (or batches) that moved this state.
     @ObservationIgnored package private(set) var moveCount = 0
+    @ObservationIgnored private var spansCache: (revision: UInt64, spans: FoldSpans)?
+    /// What a view caches about this state's layout, keyed by `foldRevision` and its row map's revision (`CV-BM`).
+    @ObservationIgnored package var layoutCache: AnyObject?
+
+    /// The outermost spans, rebuilt only when the folded set changed; reading registers no observation.
+    package var spans: FoldSpans {
+        if let cache = spansCache, cache.revision == foldRevision { return cache.spans }
+        let built = FoldSpans(ranges: foldedSet.ranges)
+        spansCache = (foldRevision, built)
+        return built
+    }
 
     /// A fold state over `selectionState`'s buffer, starting with `folded` (normalised). The buffer and the
     /// selection state hold it weakly: keep it alive as long as the view uses it.

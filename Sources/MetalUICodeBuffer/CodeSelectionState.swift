@@ -131,6 +131,15 @@ public final class CodeSelectionState {
         return buffer.asActing(self) { buffer.performTransaction { $0.applyBatchInTransaction(edits, origin: origin) } }
     }
 
+    /// Replaces each of `edits` (ascending, non-overlapping, in the current text's coordinates) as one edit
+    /// that coalesces by its `origin` like a keystroke's (`CV-BH`): the deletion of several carets is one undo
+    /// step, and the next deletion joins it. Unlike `replaceBatch` it is not wrapped in a transaction.
+    @discardableResult
+    package func replaceEach(_ edits: [(range: Range<Int>, text: String)], origin: CodeEditOrigin) -> CodeTransactionID {
+        let buffer = buffer
+        return buffer.asActing(self) { buffer.performEdits(edits, origin: origin) }
+    }
+
     /// `CodeBuffer.replace(_:with:origin:)` with this state as the acting state.
     @discardableResult
     public func replace(_ range: Range<Int>, with text: String, origin: CodeEditOrigin = .programmatic) -> CodeTransactionID {
@@ -299,6 +308,9 @@ public final class CodeSelectionState {
         nearestRevealSerial &+= 1
         return true
     }
+
+    /// Whether a registered ``CodeFoldState`` hides buffer row `line` (`CV-BK`: a column drag passes hidden rows over).
+    package func isFoldHidden(line: Int) -> Bool { folds.contains { $0.state?.isHidden(line: line) == true } }
 
     /// Keeps only the primary selection (Escape, `CV-BJ`). Undo-neutral.
     public func collapseToPrimary() {
