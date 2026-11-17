@@ -3,7 +3,11 @@ import MetalUITesting
 import MetalUIPlatform
 import MetalUITerminal
 import Testing
+
 @testable import MetalUI
+
+/// Copy is ⌘C on Apple platforms and Ctrl+Shift+C elsewhere (TRM-BD); the link modifier is `.primary` (⌘ / Ctrl).
+private let copyModifiers: Modifiers = Modifiers.primary == .command ? .command : [.control, .shift]
 @testable import MetalUITerminalUI
 
 // Terminal phase 5.5 (`TRM-BD`), selection, copy, links and cost. Each test names the mutation it was shown red against.
@@ -66,11 +70,11 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     await rig.settle()
     rig.feed("hello world\r\n")
     await rig.settle()
-    rig.window.typeKey("c", modifierFlags: .command)
+    rig.window.typeKey("c", modifierFlags: copyModifiers)
     #expect(rig.window.clipboardRepresentations.isEmpty)
     rig.window.drag(from: rig.point(0, 6), to: rig.point(0, 10))
     await rig.settle()
-    rig.window.typeKey("c", modifierFlags: .command)
+    rig.window.typeKey("c", modifierFlags: copyModifiers)
     #expect(rig.window.platformWindow.clipboard == "world", "\(String(describing: rig.window.platformWindow.clipboard))")
     #expect(rig.sent.isEmpty)
 }
@@ -111,7 +115,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     await rig.settle()
     rig.window.hover(at: rig.point(0, 6))
     #expect(rig.log.links.isEmpty, "no ⌘, no query")
-    rig.window.pressModifiers(.command)
+    rig.window.pressModifiers(Modifiers.primary)
     let top = rig.model.snapshot?.topRow ?? 0
     func cell(_ c: Int) -> TerminalPosition { TerminalPosition(row: top, col: c) }
     let text = "see http://a.test/x here"
@@ -126,7 +130,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     #expect(rig.model.pointer.link?.columns == 4..<19)
     #expect(rig.window.pointerStyle == .pointingHand, "\(String(describing: rig.window.pointerStyle))")
     rig.log.links = []
-    rig.window.click(at: rig.point(0, 8), modifierFlags: .command)
+    rig.window.click(at: rig.point(0, 8), modifierFlags: Modifiers.primary)
     #expect(rig.log.links.last?.phase == .activate && rig.log.links.last?.cell == cell(8), "\(rig.log.links)")
     rig.log.links = []
     rig.window.hover(at: rig.point(0, 1))
@@ -135,7 +139,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     rig.log.links = []
     rig.window.pressModifiers([])
     #expect(rig.log.links.map(\.phase) == [.exit], "releasing ⌘: \(rig.log.links)")
-    rig.window.pressModifiers(.command)
+    rig.window.pressModifiers(Modifiers.primary)
     rig.log.links = []
     rig.window.exitPointer()
     #expect(rig.log.links.map(\.phase) == [.exit], "leaving: \(rig.log.links)")
@@ -149,14 +153,14 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     await rig.settle()
     rig.feed("\u{1B}]8;;https://osc.test/p\u{07}docs\u{1B}]8;;\u{07} tail\r\n")
     await rig.settle()
-    rig.window.pressModifiers(.command)
+    rig.window.pressModifiers(Modifiers.primary)
     rig.window.hover(at: rig.point(0, 2))
     await rig.settle()
     #expect(rig.log.links.map(\.phase) == [.hover], "the host was asked")
     #expect(rig.model.pointer.link == TerminalLinkHit(row: rig.model.snapshot?.topRow ?? 0, columns: 0..<4,
                                                       payload: "https://osc.test/p", fromHost: false))
     #expect(rig.log.opened.isEmpty)
-    rig.window.click(at: rig.point(0, 2), modifierFlags: .command)
+    rig.window.click(at: rig.point(0, 2), modifierFlags: Modifiers.primary)
     #expect(rig.log.opened == [URL(string: "https://osc.test/p")!], "\(rig.log.opened)")
     rig.window.hover(at: rig.point(0, 6))
     await rig.settle()
@@ -174,7 +178,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     // whatever view another test built last).
     func script(_ rig: TermRig, command: Bool, geometry: TermRig) async -> (frames: Int, builds: Int, draws: Int) {
         await rig.settle()
-        if command { rig.window.pressModifiers(.command); await rig.settle() }
+        if command { rig.window.pressModifiers(Modifiers.primary); await rig.settle() }
         rig.window.resetFrameWork()
         let frames = rig.window.framesDrawn, draws = rig.window.surfaceDrawCount
         for c in 0..<20 { rig.window.hover(at: geometry.point(0, c)); await rig.pump() }
@@ -328,7 +332,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     rig.knobs.link = linkTarget
     rig.feed("see http://a.test/x here\r\nsecond line of text\r\n")
     await rig.settle()
-    rig.window.pressModifiers(.command)
+    rig.window.pressModifiers(Modifiers.primary)
     await rig.settle()
     rig.window.hover(at: rig.point(1, 2))   // inside the view, off the link
     await rig.settle()
