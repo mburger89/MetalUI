@@ -207,11 +207,46 @@ private let modifierRows: [(TerminalModifiers, String)] = [
         }
     }
 
-    @Test func applicationKeypadDoesNotChangeKeys() {
-        var m = modes()
-        m.applicationKeypad = true
-        #expect(TerminalEncoder.encodeKey(key("5", "5"), modes: m, optionAsMeta: false) == bytes("5"))
-        #expect(TerminalEncoder.encodeKey(key("\r"), modes: m, optionAsMeta: false) == bytes("\r"))
+    private func pad(_ k: Character, _ m: TerminalModifiers = [], keypad: Bool, isKeypad: Bool = true) -> [UInt8] {
+        let chars = k == "\r" ? "\r" : String(k)
+        return TerminalEncoder.encodeKey(TerminalKey(key: k, characters: chars, modifiers: m, isKeypad: isKeypad),
+                                         modes: modes(keypad: keypad), optionAsMeta: false)
+    }
+
+    /// xterm ctlseqs keypad rows, literal: key, SS3 final in application mode.
+    private static let keypadRows: [(Character, String)] = [
+        ("0", "p"), ("1", "q"), ("2", "r"), ("3", "s"), ("4", "t"), ("5", "u"), ("6", "v"), ("7", "w"), ("8", "x"), ("9", "y"),
+        ("*", "j"), ("+", "k"), (",", "l"), ("-", "m"), (".", "n"), ("/", "o"), ("\r", "M"), ("=", "X"),
+    ]
+
+    @Test func applicationKeypadSendsSS3() {
+        for (k, f) in Self.keypadRows {
+            #expect(pad(k, keypad: true) == bytes("\(E)O\(f)"), "\(k)")
+            for (m, p) in modifierRows.dropFirst() {
+                #expect(pad(k, m, keypad: true) == bytes("\(E)O\(p)\(f)"), "\(k) \(m.rawValue)")
+            }
+            #expect(pad(k, [.command], keypad: true) == [])
+        }
+    }
+
+    @Test func numericKeypadSendsItsCharacters() {
+        for (k, _) in Self.keypadRows where k != "\r" {
+            #expect(pad(k, keypad: false) == bytes(String(k)), "\(k)")
+        }
+        #expect(pad("\r", keypad: false) == [0x0D])
+        #expect(pad("\r", [.shift], keypad: false) == [0x0D])
+    }
+
+    @Test func keysOffTheKeypadIgnoreApplicationKeypad() {
+        for (k, _) in Self.keypadRows where k != "\r" {
+            #expect(pad(k, keypad: true, isKeypad: false) == bytes(String(k)), "\(k)")
+        }
+        #expect(pad("\r", keypad: true, isKeypad: false) == [0x0D])
+    }
+
+    @Test func keypadKeyWithoutARowFallsThrough() {
+        #expect(pad("a", keypad: true) == bytes("a"))
+        #expect(TerminalKey(key: "5", characters: "5", modifiers: []).isKeypad == false)
     }
 }
 
@@ -224,7 +259,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
     }
 
     @Test func trackingOffReportsNothing() {
-        for k: TerminalMouseEvent.Kind in [.press, .release, .move, .wheelUp, .wheelDown] {
+        for k: TerminalMouseEvent.Kind in [.press, .release, .move, .wheelUp, .wheelDown, .wheelLeft, .wheelRight] {
             #expect(enc(k, .left, [], .off) == [])
         }
     }
@@ -242,6 +277,8 @@ private let modifierRows: [(TerminalModifiers, String)] = [
             (.move, .none, false, false, false, true),
             (.wheelUp, .none, false, true, true, true),
             (.wheelDown, .none, false, true, true, true),
+            (.wheelLeft, .none, false, true, true, true),
+            (.wheelRight, .none, false, true, true, true),
         ]
         for (k, b, x10, normal, button, any) in rows {
             for (t, expected) in [(MouseTracking.x10, x10), (.normal, normal), (.buttonEvent, button), (.anyEvent, any)] {
@@ -257,6 +294,8 @@ private let modifierRows: [(TerminalModifiers, String)] = [
             (.release, .left, [], "0;10;5m"), (.release, .middle, [], "1;10;5m"), (.release, .right, [], "2;10;5m"),
             (.move, .left, [], "32;10;5M"), (.move, .right, [], "34;10;5M"), (.move, .none, [], "35;10;5M"),
             (.wheelUp, .none, [], "64;10;5M"), (.wheelDown, .none, [], "65;10;5M"),
+            (.wheelLeft, .none, [], "66;10;5M"), (.wheelRight, .none, [], "67;10;5M"),
+            (.wheelLeft, .none, [.shift], "70;10;5M"), (.wheelRight, .none, [.control, .option], "91;10;5M"),
             (.press, .left, [.shift], "4;10;5M"), (.press, .left, [.option], "8;10;5M"), (.press, .left, [.control], "16;10;5M"),
             (.press, .left, [.shift, .option, .control], "28;10;5M"), (.press, .left, [.command], "0;10;5M"),
             (.release, .right, [.control], "18;10;5m"), (.wheelUp, .none, [.shift], "68;10;5M"),
@@ -284,6 +323,9 @@ private let modifierRows: [(TerminalModifiers, String)] = [
         #expect(legacy(.wheelUp, .none) == [0x1B, 0x5B, 0x4D, 96] + tail)
         #expect(legacy(.wheelDown, .none, [.shift]) == [0x1B, 0x5B, 0x4D, 32 + 65 + 4] + tail)
         #expect(legacy(.press, .left, [.shift, .option, .control]) == [0x1B, 0x5B, 0x4D, 32 + 28] + tail)
+        #expect(legacy(.wheelLeft, .none) == [0x1B, 0x5B, 0x4D, 98] + tail)
+        #expect(legacy(.wheelRight, .none, [.shift]) == [0x1B, 0x5B, 0x4D, 32 + 67 + 4] + tail)
+        #expect(legacy(.wheelLeft, .none, [.option, .control]) == [0x1B, 0x5B, 0x4D, 32 + 66 + 24] + tail)
         // X10 reports presses only and carries no modifiers.
         #expect(legacy(.press, .left, [.shift, .control], .x10) == [0x1B, 0x5B, 0x4D, 32] + tail)
     }
@@ -312,6 +354,13 @@ private let modifierRows: [(TerminalModifiers, String)] = [
         #expect(u(row: 0, col: 2015) == [])
         #expect(u(row: 2015, col: 0) == [])
         #expect(u(row: 0, col: 0, .release) == [0x1B, 0x5B, 0x4D, 35, 33, 33])
+        func w(_ k: TerminalMouseEvent.Kind, _ m: TerminalModifiers = []) -> [UInt8] {
+            enc(k, .none, m, row: 4, col: 9, .normal, .utf8)
+        }
+        #expect(w(.wheelLeft) == [0x1B, 0x5B, 0x4D, 98, 42, 37])
+        #expect(w(.wheelRight) == [0x1B, 0x5B, 0x4D, 99, 42, 37])
+        #expect(w(.wheelLeft, [.shift, .option, .control]) == [0x1B, 0x5B, 0x4D, 32 + 66 + 28, 42, 37])
+        #expect(w(.wheelRight, [.control]) == [0x1B, 0x5B, 0x4D, 32 + 67 + 16, 42, 37])
     }
 
     @Test func negativeCellsAreDropped() {

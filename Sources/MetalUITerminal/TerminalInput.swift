@@ -21,8 +21,9 @@ public struct TerminalModifiers: OptionSet, Hashable, Sendable {
 /// Arrows, Home, End, the page keys, Insert, forward delete and the function keys use the private-use
 /// codes `U+F700...` (`"\u{F700}"` up, `"\u{F701}"` down, `"\u{F702}"` left, `"\u{F703}"` right,
 /// `"\u{F704}"`...`"\u{F717}"` F1-F20, `"\u{F727}"` Insert, `"\u{F728}"` forward delete, `"\u{F729}"` Home,
-/// `"\u{F72B}"` End, `"\u{F72C}"` Page Up, `"\u{F72D}"` Page Down); Backspace is `"\u{7F}"`. The keypad has
-/// no spelling, so `applicationKeypad` has no effect on keys (`TRM-AI`).
+/// `"\u{F72B}"` End, `"\u{F72C}"` Page Up, `"\u{F72D}"` Page Down); Backspace is `"\u{7F}"`. A keypad key sets `isKeypad`
+/// and spells `key` as its character: `"0"`...`"9"`, `"*"`, `"+"`, `","`, `"-"`, `"."`, `"/"`, `"="`, and `"\r"` for Enter
+/// (`TRM-AI`, amended 2026-11-16).
 public struct TerminalKey: Sendable {
     /// The key, with modifiers ignored.
     public var key: Character
@@ -30,12 +31,15 @@ public struct TerminalKey: Sendable {
     public var characters: String
     /// The modifiers held.
     public var modifiers: TerminalModifiers
+    /// Whether the key is on the numeric keypad. With DECKPAM (`applicationKeypad`) a keypad key sends an `SS3` sequence.
+    public var isKeypad: Bool
 
     /// Creates a key press.
-    public init(key: Character, characters: String, modifiers: TerminalModifiers) {
+    public init(key: Character, characters: String, modifiers: TerminalModifiers, isKeypad: Bool = false) {
         self.key = key
         self.characters = characters
         self.modifiers = modifiers
+        self.isKeypad = isKeypad
     }
 }
 
@@ -53,6 +57,10 @@ public struct TerminalMouseEvent: Sendable {
         case wheelUp
         /// The wheel scrolled down.
         case wheelDown
+        /// The wheel scrolled left (button 66).
+        case wheelLeft
+        /// The wheel scrolled right (button 67).
+        case wheelRight
     }
 
     /// The button involved.

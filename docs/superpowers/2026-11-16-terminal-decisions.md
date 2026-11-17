@@ -227,10 +227,10 @@ Why: spec section 2.1 rule 3 (SGR in all forms) and the replies the spec require
 
 
 
-## TRM-AI: the encoder surface and what `TerminalKey` cannot say
+## TRM-AI: the encoder surface (amended 2026-11-16: keypad and horizontal wheel)
 
 1. `TerminalEncoder` is the four frozen statics; `TerminalKey`, `TerminalModifiers` (`.shift .control .option .command`) and `TerminalMouseEvent` (with `init(kind:button:modifiers:)`, button and modifiers defaulted) live in `MetalUITerminal` and import no UI module. `TerminalKey.key` is `KeyEquivalent`'s spelling: U+F700-F703 up, down, left, right; U+F704-F717 F1-F20; U+F727 Insert; U+F728 forward delete; U+F729 Home; U+F72B End; U+F72C and U+F72D the page keys; U+007F Backspace.
-2. The frozen `TerminalKey` has no keypad spelling, so `applicationKeypad` changes no key's bytes; keypad keys arrive as their digits, symbols and CR. The frozen `TerminalMouseEvent.Kind` has no horizontal wheel, so buttons 66 and 67 are not produced. Both would need a spec amendment.
+2. **Amendment 2026-11-16 (Alloy approved, binding), both additive.** `TerminalKey.isKeypad` (default false; the init parameter is defaulted, so existing calls compile) marks a numeric-keypad key, spelled in `key` as `0`-`9`, `*`, `+`, `,`, `-`, `.`, `/`, `=` or CR for Enter. With `applicationKeypad` (DECKPAM) such a key sends `ESC O` plus a final: `0`-`9` are `p q r s t u v w x y`, `*` `j`, `+` `k`, `,` `l`, `-` `m`, `.` `n`, `/` `o`, Enter `M`, `=` `X`; a Shift, Option or Control key inserts the xterm parameter (`1 + shift + 2 alt + 4 ctrl`) before the final (Control+Enter `ESC O 5 M`). With DECKPNM (or `isKeypad` false) the key is an ordinary key and sends its character (Enter is CR). Command still encodes to `[]`. NumLock state is not modelled (the spec does not cover it). `TerminalMouseEvent.Kind` gains `wheelLeft` and `wheelRight`, buttons 66 and 67 in legacy, UTF-8 and SGR, with wheel up and down's rules (not in x10, no release, modifier bits added).
 3. `encodeMouse`'s cell is the viewport cell, row and column from 0 (the caller subtracts the first visible row from a `TerminalPosition`); a negative row or column reports nothing.
 4. A private-use code in U+F700-U+F8FF with no row in the table (F21 and up, Begin, Clear) encodes to nothing.
 

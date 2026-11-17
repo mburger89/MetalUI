@@ -10,6 +10,7 @@ public enum TerminalEncoder {
     /// - Parameters:
     ///   - key: The press.
     ///   - modes: DECCKM (`applicationCursorKeys`) picks `SS3` over `CSI` for unmodified arrows, Home, End and F1-F4.
+    ///   - modes: `applicationKeypad` (DECKPAM) makes a `isKeypad` key send its `SS3` sequence.
     ///   - optionAsMeta: Option sends an ESC prefix on the unmodified character instead of composing (`TRM-AJ`).
     public static func encodeKey(_ key: TerminalKey, modes: TerminalModes, optionAsMeta: Bool) -> [UInt8] {
         let mods = key.modifiers
@@ -19,6 +20,11 @@ public enum TerminalEncoder {
 
         // xterm modifier parameter: 1 + shift + 2 alt + 4 ctrl.
         let param = 1 + (shift ? 1 : 0) + (alt ? 2 : 0) + (ctrl ? 4 : 0)
+
+        if key.isKeypad, modes.applicationKeypad, let final = keypadFinal(key.key) {
+            // DECKPAM: SS3 final, or SS3 m final with the xterm modifier parameter.
+            return param == 1 ? [esc, 0x4F, final] : [esc, 0x4F] + Array("\(param)".utf8) + [final]
+        }
 
         if let special = specialKey(code) {
             switch special {
@@ -65,6 +71,31 @@ public enum TerminalEncoder {
         }
         if !key.characters.isEmpty { return Array(key.characters.utf8) }
         return []
+    }
+
+    /// The final byte after `SS3` for a keypad key in application mode (xterm ctlseqs, "PC-Style Function Keys" keypad rows).
+    private static func keypadFinal(_ key: Character) -> UInt8? {
+        switch key {
+        case "0": 0x70
+        case "1": 0x71
+        case "2": 0x72
+        case "3": 0x73
+        case "4": 0x74
+        case "5": 0x75
+        case "6": 0x76
+        case "7": 0x77
+        case "8": 0x78
+        case "9": 0x79
+        case "*": 0x6A
+        case "+": 0x6B
+        case ",": 0x6C
+        case "-": 0x6D
+        case ".": 0x6E
+        case "/": 0x6F
+        case "\r", "\n", "\r\n": 0x4D
+        case "=": 0x58
+        default: nil
+        }
     }
 
     private enum Special {
@@ -148,6 +179,12 @@ public enum TerminalEncoder {
         case .wheelDown:
             guard tracking != .x10 else { return [] }
             base = 65
+        case .wheelLeft:
+            guard tracking != .x10 else { return [] }
+            base = 66
+        case .wheelRight:
+            guard tracking != .x10 else { return [] }
+            base = 67
         }
 
         var code = base
