@@ -2,7 +2,7 @@
 
 Rulings for Alloy's integrated terminal, built as `docs/superpowers/specs/2026-11-16-terminal-design.md` lays out; plan `docs/superpowers/plans/2026-11-16-terminal.md`; record 334 (Phase 0). `TRM-` is distinct from `TM-` (`Text` view modifiers and dash patterns) and has no relation to any other prefix. "Alloy's answer" below means the binding answers sent on 2026-11-16 to the ten questions of the plan; where an answer and the plan differ, the answer wins. Divergence labels 1095-1104 are reserved for `TRM-`; every declaration in this work is class `M`, so none is expected to be used.
 
-Next unused id: `TRM-AE`.
+Next unused id: `TRM-AI`.
 
 ## TRM-A: module split
 
@@ -225,4 +225,32 @@ Why: vttest's character-set screens and the spec's list; keeping the fast path u
 
 Why: spec section 2.1 rule 3 (SGR in all forms) and the replies the spec requires the owner to write.
 
+## TRM-AE: OSC 0/2/8 and the link table (Phase 1.4, record 341)
+
+1. An OSC is `number ; text`; a payload with no `;` after the number, or no number, is dropped, as is every number not listed here (OSC 1, 4, 52 and the rest: spec section 2.1 rule 2 keeps the clipboard off). OSC 0 and 2 emit `.title(text)` with the text cut to 256 characters (not bytes; a `;` inside a title is kept); an empty title is a title.
+2. OSC 8 is `params ; uri` (the uri is everything after the second `;`). A non-empty uri registers a link and puts its id in the pen (`TerminalAttributes.hyperlink`), so every cell printed until the link ends carries it; an empty uri ends it. A link is registered, and `.hyperlink(id:uri:)` raised, once per new id. Ids count from 1.
+3. With `id=` among the colon-separated params, a link with the same id and the same target keeps its numeric id, so separated runs are one link; the same id with another target is a new link. Without `id=` every opening is a new link.
+4. SGR 0 (and a bare `CSI m`) keeps the link; only OSC 8, DECSTR, RIS, or DECRC of a pen saved without one ends it. `TerminalSnapshot.links` is the whole table, and a publish whose only change is a new link bumps the version.
+
+Why: spec sections 2 and 2.1; hyperlink survival over SGR 0 is what `ls --hyperlink` and `delta` rely on.
+
+## TRM-AF: OSC 7, OSC 10/11 and what is not answered
+
+1. OSC 7 accepts a `file` URL whose host is empty, `localhost` or this machine's host name (full or first label, case-folded) and whose path is absolute; the path is percent-decoded into `.workingDirectory(URL(fileURLWithPath:))`. Any other scheme or host, a relative path or no path is dropped, so a remote machine's `cwd` cannot point the host at a local directory.
+2. The emulator has no theme colours of its own (the palette lives in `MetalUITerminalUI`). `package var queryColors` is where the owner puts the default foreground and background; with it set, `OSC 10 ; ?` and `OSC 11 ; ?` answer `.reply(ESC ] n ; rgb:rrrr/gggg/bbbb ESC \)`, the 8-bit value doubled to 16 bits. With it nil (the initial state) a query is not answered, which a program treats as an unthemed terminal; a wrong answer would make vim pick the wrong background. The reply always ends in ST (xterm mirrors the query's terminator; the parser does not carry it). Setting a colour (`OSC 10 ; spec`) is ignored.
+
+Why: spec section 2.1 rule 4 (queries are `.reply` events) and rule 2 (no sequence opens a file).
+
+## TRM-AG: `TerminalSnapshotSource`
+
+1. The frozen signatures are as the spec has them. `feed` runs on `queue` (at once when already there, else a copy of the bytes is queued), feeds the emulator, publishes and merges the snapshot into one pending value: rows listed later override earlier ones, a full frame or a size change makes the result a full frame, the latest version, cursor, modes, selection and links win. `resize` keeps the newest pending size and applies it once on `queue`; `perform` runs its body on `queue` and publishes after it.
+2. After each publish the source drains the emulator's events: every `.reply` goes to `onReply`, on `queue`, in order, at once; everything else queues (1 024 at most) for `onEvents`, delivered on the main actor in one batch per hop (a hop is scheduled only when none is outstanding, so a burst is one call). Events raised while `onEvents` is nil wait for the next hop after it is set.
+3. The bound view attaches through `package var onWake` (called on `queue` when a snapshot is waiting and none was before; the view binds it to its `SurfaceRedrawTrigger`) and `package func takeSnapshot()` (the merged snapshot, then re-arms the wake). A flood of N feeds is N publishes and one wake, and the take is one merge result. `package var statistics` and `package var eventHop` exist for the counted tests. Nothing in `MetalUITerminalUI` exists yet; no public API is added beyond the frozen one.
+4. `resize` applies through `package var resizeHandler`, which does nothing until Phase 1.5 gives `TerminalEmulator` its `resize(cols:rows:)` and sets the default; a test supplies a recording handler.
+
+Why: spec section 2 (the queue/main hand-off) and rule 6 (a flood costs one merge and one draw), and the Phase 5 hook in draft gap 2.
+
+## TRM-AH: bounds
+
+Titles 256 characters; OSC strings by `payloadCap` (an overlong one is dropped whole, with no event and no link); distinct links 65 536 per emulator (a link past it is not attached to cells and raises no event); queued events 1 024 in the emulator and 1 024 in the source. A flood of links, titles or directories therefore cannot grow memory without bound.
 
