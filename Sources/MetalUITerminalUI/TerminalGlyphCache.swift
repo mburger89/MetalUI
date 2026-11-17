@@ -67,11 +67,11 @@ package final class TerminalGlyphCache {
 
     /// A cache over `family` at `size` points and `scale`. `family` names a monospace face (`nil`: the system's
     /// default face, which is rarely monospace, so a caller passes one); bold uses weight 0.4 (SwiftUI's `.bold`).
-    package init(system: any TextSystem, family: String?, size: Double, scale: Float) {
+    package init(system: any TextSystem, family: String?, size: Double, scale: Float, design: FontDesign = .default) {
         self.system = system
         let styles: [(Double?, Bool)] = [(nil, false), (0.4, false), (nil, true), (0.4, true)]
         fonts = styles.map { weight, italic in
-            system.resolveFont(FontDescriptor(family: family, size: size, weight: weight, italic: italic))
+            system.resolveFont(FontDescriptor(family: family, size: size, weight: weight, italic: italic, design: design))
         }
         metrics = TerminalCellMetrics.measure(fonts[0], in: system, scale: scale)
     }

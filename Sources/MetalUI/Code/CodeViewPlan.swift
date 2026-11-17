@@ -81,6 +81,9 @@ struct CodeViewState: Equatable {
     var autoscroll: Autoscroll?
     /// The text hover's timers and phase (`CV-AS`); idle for a view with no handler.
     var hover = CodeHoverTrack()
+    /// Whether the pointer is over the gutter (`CV-BN`): what shows the open fold chevrons. A draw parameter, written
+    /// from input only when it changes and only by a view with a fold gutter that shows on hover.
+    var gutterHovered = false
 
     /// Scrolling while a drag is held outside the view: from `baseTopPx` and `baseXPx` at `start`, at `vy` and `vx`
     /// points a second. The pointer (window points) keeps the selection's head under it.
@@ -137,6 +140,8 @@ final class CodeViewPlan {
         var hasMarker = false
         /// The `⋯` placeholder of a folded header (`CV-BM`); `nil` for every other row.
         var fold: CodeFoldMark? = nil
+        /// The fold chevron lane's state for a buffer row (`CV-BN`): 0 none, 1 open (▾), 2 folded (▸).
+        var chevron: UInt8 = 0
 
         /// The marked text inserted into this row's layout for display.
         struct Marked {
@@ -210,6 +215,13 @@ final class CodeViewPlan {
     /// The hidden-row overlay and its fold state (`CV-BM`); `nil` for a view with none folded.
     var foldLayout: CodeFoldLayout?
     var foldState: CodeFoldState?
+    /// The fold chevron lane (`CV-BN`): its width in device pixels (0 when none is reserved), the two glyphs shaped once
+    /// per font, whether open ones are shown (the pointer is over the gutter) and the app's `onToggle`.
+    var chevronPx = 0
+    var chevronOpen: CodeLineLayout?
+    var chevronFolded: CodeLineLayout?
+    var chevronsShown = false
+    var foldToggle: (@MainActor (Int) -> Void)?
     /// The row map the frame laid out over, for the scroll row <-> line conversions of `CodeViewGeometry` (`CV-BM`).
     var rowMap: CodeRowMap?
 
@@ -560,7 +572,11 @@ extension CodeView {
         plan.laneWidthPx = laneOn ? max(1, Int((metrics.space * 2 * scaleD).rounded(.up))) : 0
         plan.markersReplaceNumbers = markerLane == false
         let numbersPx = showsNumbers ? digits * digitPx + 2 * plan.padPx : 0
-        plan.gutterPx = numbersPx + plan.laneWidthPx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
+        // The fold chevron lane (`CV-BN`): two space advances between the numbers and the text, reserved only when the
+        // view has both a fold gutter and a fold state; a pure function of the view, so the text never moves with hover.
+        let chevronLane = foldGutterConfig != nil && foldStateObject != nil
+        plan.chevronPx = chevronLane ? max(1, Int((metrics.space * 2 * scaleD).rounded(.up))) : 0
+        plan.gutterPx = numbersPx + plan.laneWidthPx + plan.chevronPx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
         let source = selectionSource
         let all = source.selections   // observed; the state's own array, not a copy
         let primaryIndex = source.primaryIndex
@@ -603,6 +619,16 @@ extension CodeView {
             foldLayout = CodeFoldLayout.of(foldState, map: decorations.rowMap)
             plan.foldState = foldState
             plan.foldLayout = foldLayout
+        }
+        var foldable: [Range<Int>] = []
+        if let config = foldGutterConfig, let foldState = foldStateObject {   // `CV-BN`
+            foldable = foldState.foldableRanges   // observed: new ranges redraw
+            plan.foldToggle = config.onToggle
+            plan.chevronsShown = stored.gutterHovered
+            if !foldable.isEmpty {
+                plan.chevronOpen = cache.marker("\u{25BE}", font: font, system: system, scale: scale, spaceAdvance: metrics.space)
+                plan.chevronFolded = cache.marker("\u{25B8}", font: font, system: system, scale: scale, spaceAdvance: metrics.space)
+            }
         }
         plan.rowMap = decorations.rowMap
         let map = CodeRowSpace(decorations.rowMap, fold: foldLayout)
@@ -832,6 +858,10 @@ extension CodeView {
                                             offsetPx: Int((endPoints * scaleD).rounded()) + gap / 2, gapPx: gap,
                                             glyphWidthPx: Int((glyphs.width * scaleD).rounded()))
                 }
+                var chevron: UInt8 = 0
+                if !foldable.isEmpty, plan.chevronPx > 0, CodeViewPlan.foldableIndex(startingAt: row, in: foldable) != nil {   // `CV-BN`
+                    chevron = foldLayout?.spans.spanIndex(headedBy: row) != nil ? 2 : 1
+                }
                 let marker = payload?.marker.flatMap { $0.text.isEmpty ? nil : $0 }
                 var laneMarker: CodeLineLayout?
                 var laneMarkerWidth = 0
@@ -859,7 +889,7 @@ extension CodeView {
                                        tag: payload?.tag, anchorLine: row, marked: rowMarked, owner: payload?.owner ?? 0,
                                        laneMarker: laneMarker, laneMarkerWidthPx: laneMarkerWidth, laneMarkerColor: marker?.color,
                                        markerTag: payload?.markerTag, markerOwner: payload?.markerOwner ?? 0,
-                                       hasMarker: marker != nil && (plan.laneWidthPx > 0 || plan.markersReplaceNumbers), fold: foldMark))
+                                       hasMarker: marker != nil && (plan.laneWidthPx > 0 || plan.markersReplaceNumbers), fold: foldMark, chevron: chevron))
             case .virtual(let group, let lineIndex, let gap):
                 let line = group.lines[lineIndex]
                 let layout = lineLayout(bytes: line.bytes, knownHash: line.hash, parts: line.styling.foreground, digest: line.styling.digest,
@@ -1394,9 +1424,20 @@ extension CodeView {
                                 g += 1
                             }
                         }
+                        if row.chevron != 0, row.chevron == 2 || plan.chevronsShown,
+                           let glyphs = row.chevron == 2 ? plan.chevronFolded : plan.chevronOpen {   // `CV-BN`: drawn by translation
+                            let widthPx = Int((glyphs.width * scaleD).rounded())
+                            let cx = textLeft - plan.chevronPx + (plan.chevronPx - widthPx) / 2
+                            var g = 0
+                            while g < glyphs.glyphs.count {
+                                let glyph = glyphs.glyphs[g]
+                                pass.draw(TextGlyph(key: glyph.key, pixelX: glyph.pixelX + cx, baselineY: glyph.baselineY + row.top), color: numbers)
+                                g += 1
+                            }
+                        }
                         guard let label = row.label else { continue }
                         let color = row.labelColor.map { pass.resolve($0) } ?? numbers
-                        let dx = textLeft - plan.padPx - row.labelWidthPx
+                        let dx = textLeft - plan.chevronPx - plan.padPx - row.labelWidthPx
                         var g = 0
                         while g < label.glyphs.count {
                             let glyph = label.glyphs[g]

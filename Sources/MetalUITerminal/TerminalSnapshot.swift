@@ -30,4 +30,7 @@ public struct TerminalSnapshot: Sendable {
     /// Counts the resizes that changed the width: an absolute row number held from an earlier generation names
     /// a different line now (`TRM-AM`). A snapshot of a new generation is always a full frame.
     public let reflowGeneration: Int
+    /// The absolute row number (``TerminalPosition/row``) of viewport row 0, so a selection's absolute rows
+    /// map to viewport rows (`TRM-BA`). `package`: the view's.
+    package let topRow: Int
 }
