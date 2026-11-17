@@ -316,7 +316,7 @@ private func replies(_ e: TerminalEmulator) -> String {
 
     @Test func aBellInsideAnOscIsATerminatorNotAnEvent() {
         let e = emulator(4, 1, feed: "\u{1B}]0;t\u{07}")
-        #expect(e.drainEvents() == [])
+        #expect(e.drainEvents() == [.title("t")])
     }
 
     @Test func theQueueIsBoundedAtAThousandAndTwentyFourEvents() {

@@ -13,6 +13,13 @@ private struct Cost: Equatable, CustomStringConvertible {
     init(requests: Int, hits: Int, misses: Int, ineligible: Int, frames: Int) {
         self.requests = requests; self.hits = hits; self.misses = misses; self.ineligible = ineligible; self.frames = frames
     }
+    /// The same work per frame (off Darwin the number of frames a keystroke spans depends on the main-actor hop and
+    /// the blink timer, so totals are compared per frame there).
+    func perFrameEquals(_ o: Cost) -> Bool {
+        frames > 0 && o.frames > 0
+            && requests * o.frames == o.requests * frames && hits * o.frames == o.hits * frames
+            && misses * o.frames == o.misses * frames && ineligible * o.frames == o.ineligible * frames
+    }
     var description: String { "requests \(requests) hits \(hits) misses \(misses) ineligible \(ineligible) frames \(frames)" }
     init(_ f: FrameWork, frames: Int) {
         requests = f.elementRequests; hits = f.retainedHits; misses = f.retainedMisses; ineligible = f.retainedIneligible
@@ -104,8 +111,13 @@ private struct Card: Component, @MainActor Equatable {
     #endif
     for n in [3, 50] {
         let off = try await keystroke(carets: n), on = try await keystroke(carets: n, blink: .on)
+        #if canImport(Darwin)
         #expect(off == baseOff, "\(n) carets, blink off: \(off) vs one caret \(baseOff)")
         #expect(on == baseOn, "\(n) carets, blink on: \(on) vs one caret \(baseOn)")
+        #else
+        #expect(off.perFrameEquals(baseOff), "\(n) carets, blink off: \(off) vs one caret \(baseOff)")
+        #expect(on.perFrameEquals(baseOn), "\(n) carets, blink on: \(on) vs one caret \(baseOn)")
+        #endif
     }
 }
 

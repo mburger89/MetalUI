@@ -15,6 +15,8 @@ public final class CodeSelectionState {
     @ObservationIgnored private var retainedBuffer: CodeBuffer?
     @ObservationIgnored var stored = [CodeSelection(caret: 0)]
     @ObservationIgnored var storedPrimary = 0
+    /// The fold states over this state (`CV-BL`); an explicit selection write opens the folds hiding its ends.
+    @ObservationIgnored var folds: [WeakFold] = []
 
     /// Rises each time the stored selections or the primary change (`CV-BG`): what a view compares to restart its
     /// caret blink when any selection moved, where comparing the array would cost O(n) a frame. Never observed.
@@ -74,6 +76,7 @@ public final class CodeSelectionState {
             mutationSerial &+= 1
         }
         buffer.breakUndoCoalescing()
+        openFolds()
     }
 
     /// The index in `selections` of the primary selection: the one assigned first, or the one an edit

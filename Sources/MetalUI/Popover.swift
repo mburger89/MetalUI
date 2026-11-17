@@ -51,6 +51,18 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         var slotPrepaint: PopoverSlot<PopoverContent>.GroupPrepaint?
     }
 
+    /// The wrapper's identity level is entered as every element's is, but **not counted as a request**
+    /// (`Frame.elementRequests`) while the popover is closed: `layOutPopover` counts it once it presents
+    /// (ruling `MN-AR`). The anchor's id, `@State` and node are the same open or closed, so opening never remounts it.
+    public mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,
+                                            pass: inout LayoutPass)
+        -> ([LayoutNodeID], SingleElementLayout<Self>) {
+        let id = GlobalElementID.enteringGroupMember(self, name: elementID, under: parent,
+                                                     at: &cursor, pass: &pass, counted: false)
+        let (node, state) = requestLayout(id, pass: &pass)
+        return ([node], SingleElementLayout(id: id, node: node, state: state))
+    }
+
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var cursor = 0
@@ -72,6 +84,7 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         let frame = pass.frame
         var slot = PopoverSlot<PopoverContent>(nil)
         if let (name, body) = presented() {
+            frame.elementRequests += 1   // a presenting wrapper is a request; a closed one is not (`MN-AR`)
             let previous = frame.previousPresentationAnchors[id]
             switch kind {
             case .popover(let attachment, let edge):
@@ -207,6 +220,16 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
 }
 
 extension PopoverModifier: ProposalElementGroup, ProposalElement where Content: ProposalElementGroup {
+    /// `requestGroupLayout`'s proposal twin: the identity level uncounted while closed (`MN-AR`).
+    public mutating func requestProposalGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,
+                                                    pass: inout LayoutPass)
+        -> ([ProposalNodeID], SingleElementLayout<Self>) {
+        let id = GlobalElementID.enteringGroupMember(self, name: elementID, under: parent,
+                                                     at: &cursor, pass: &pass, counted: false)
+        let (node, state) = requestProposalLayout(id, pass: &pass)
+        return ([node], SingleElementLayout(id: id, node: node.layoutNodeID, state: state))
+    }
+
     public mutating func requestProposalLayout(_ id: GlobalElementID,
                                                pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0

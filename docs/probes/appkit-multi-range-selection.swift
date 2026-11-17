@@ -1,6 +1,6 @@
 // AppKit probe: what `NSTextView.setSelectedRanges(_:affinity:stillSelecting:)` keeps and what it draws when given
 // several ranges: three zero-length ranges (three carets), a mix of non-empty and zero-length ranges, and three
-// non-empty ranges. Settles that drawing every caret is MetalUI-only (class M, `CV-BG`, record 340): the question
+// non-empty ranges. Settles that drawing every caret is MetalUI-only (class M, `CV-BG`, record 344): the question
 // is whether AppKit keeps zero-length ranges among several and paints a caret for each.
 //
 // What is printed: `selectedRanges` after the call (what survived), `selectedRange` (the first), and, per case, the

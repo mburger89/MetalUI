@@ -125,11 +125,12 @@ public struct TerminalKey: Sendable {                  // [A] in the core, in Ke
     public var key: Character
     public var characters: String                      // the characters the key produced (empty for non-text keys)
     public var modifiers: TerminalModifiers
-    public init(key: Character, characters: String, modifiers: TerminalModifiers)
+    public var isKeypad: Bool                          // AMENDMENT 2026-11-16 (Alloy): additive keypad location, default false
+    public init(key: Character, characters: String, modifiers: TerminalModifiers, isKeypad: Bool = false)
 }
 public struct TerminalModifiers: OptionSet, Hashable, Sendable { /* .shift .control .option .command */ }
 public struct TerminalMouseEvent: Sendable {
-    public enum Kind: Sendable { case press, release, move, wheelUp, wheelDown }
+    public enum Kind: Sendable { case press, release, move, wheelUp, wheelDown, wheelLeft, wheelRight }  // AMENDMENT 2026-11-16 (Alloy): wheelLeft/wheelRight are buttons 66/67
     public enum Button: Sendable { case left, middle, right, none }
     public var kind: Kind, button: Button
     public var modifiers: TerminalModifiers
@@ -161,9 +162,9 @@ public final class TerminalSnapshotSource: @unchecked Sendable {
 7. **Selection and text.** `selection` is in absolute rows and survives scrolling; `selectedText()` trims trailing blanks per row and joins linear rows with `\n`; block selection joins by row. `search` covers scrollback and the screen.
 8. **Scrollback.** A ring of compact rows, default 10 000. A full 10 000 x 120 ASCII scrollback MUST stay at or under 4 MB per pane.
 9. **Encoders.**
-   - Keys: Control combinations (Ctrl+@ and Ctrl+Space give NUL; Ctrl+\` also NUL; Ctrl+[ ESC; Ctrl+\\ ] ^ _ and Ctrl+? per the C0 table); Option as meta with `optionAsMeta` is an ESC prefix on the unmodified character; xterm modifier parameters (`1;<m>`) on arrows, Home, End, Insert, Delete, Page keys and F1-F20; application cursor and application keypad forms.
+   - Keys: Control combinations (Ctrl+@ and Ctrl+Space give NUL; Ctrl+\` also NUL; Ctrl+[ ESC; Ctrl+\\ ] ^ _ and Ctrl+? per the C0 table); Option as meta with `optionAsMeta` is an ESC prefix on the unmodified character; xterm modifier parameters (`1;<m>`) on arrows, Home, End, Insert, Delete, Page keys and F1-F20; application cursor and application keypad forms. **Amendment 2026-11-16 (Alloy, `TRM-AI`):** `TerminalKey.isKeypad`; with DECKPAM a keypad digit, operator, `.`, `=` or Enter sends `SS3` plus xterm's final (`ESC O p`..`y`, `j k l m n o`, `M`, `X`; `ESC O <m> final` when modified), with DECKPNM its character.
    - A key that encodes to nothing returns `[]` (this is what `TerminalView` declines on, `TRM-D`).
-   - Mouse: x10, normal, button-event and any-event tracking in legacy, UTF-8 and SGR encodings; coordinates beyond the legacy limit are dropped, not wrapped.
+   - Mouse: x10, normal, button-event and any-event tracking in legacy, UTF-8 and SGR encodings (**amendment 2026-11-16, Alloy, `TRM-AI`:** `wheelLeft` and `wheelRight` are buttons 66 and 67 with the same rules as wheel up and down); coordinates beyond the legacy limit are dropped, not wrapped.
    - Paste: strips every C0 control except tab, CR and LF, including every ESC (so `ESC[201~` cannot end a bracketed paste early); wraps in `ESC[200~ ... ESC[201~` only when `bracketedPaste`.
    - Focus: `ESC[I` or `ESC[O` only when `focusEvents`, else `[]`.
 

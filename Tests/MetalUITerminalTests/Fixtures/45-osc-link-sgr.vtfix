@@ -1,0 +1,10 @@
+# SGR 0 does not end a link; it keeps its target across attribute changes.
+size 10 2
+input "\e]8;;http://a\x07\e[1ma\e[0mb\e[mc\e]8;;\x07d"
+text
+|abcd|
+||
+attr 0 0 bold link=1
+attr 0 1 link=1
+attr 0 2 link=1
+attr 0 3 plain

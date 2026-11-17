@@ -3,8 +3,8 @@
 /// Not `Sendable`: confine an emulator to one serial queue chosen by the caller. Phase 1.3 gives the screen its
 /// full semantics (`TRM-Z`, `TRM-AA`..`TRM-AD`): cursor addressing with scroll regions and origin mode, erase,
 /// insert and delete, tab stops, save and restore, the alternate screen, the DEC graphics sets, SGR, and the
-/// replies a program waits on (delivered by ``drainEvents()``). OSC, DCS and APC are parsed and dropped until
-/// Phase 1.4.
+/// replies a program waits on (delivered by ``drainEvents()``). Phase 1.4 adds OSC 0/2/7/8/10/11 (`TRM-AE`..
+/// `TRM-AH`); DCS and APC are parsed and dropped.
 public final class TerminalEmulator {
     let cols: Int
     let rows: Int
@@ -35,6 +35,14 @@ public final class TerminalEmulator {
     var lastPrinted: UInt32 = 0
     var savedCursors: [SavedCursor?] = [nil, nil]
     var events: [TerminalEvent] = []
+    /// OSC 8 state (`TRM-AE`): the targets by id, the ids of explicit-id links, and the next id.
+    var links: [UInt32: String] = [:]
+    var linkIDs: [LinkKey: UInt32] = [:]
+    var nextLinkID: UInt32 = 1
+    /// Set when `links` gained an entry since the last publish.
+    var linksChanged = false
+    /// The colours an OSC 10/11 query is answered with; nil leaves a query unanswered (`TRM-AF`).
+    package var queryColors: (foreground: (UInt8, UInt8, UInt8), background: (UInt8, UInt8, UInt8))?
 
     var parser: VTParser
     private var version: UInt64 = 0
@@ -97,14 +105,15 @@ public final class TerminalEmulator {
         for index in 0..<rows where full || dirty[index] {
             damaged.append(TerminalDamagedRow(index: index, row: screen[index]))
         }
-        let changed = full || !damaged.isEmpty || published?.cursor != cursor || published?.modes != currentModes
+        let changed = full || !damaged.isEmpty || linksChanged || published?.cursor != cursor || published?.modes != currentModes
         if changed { version += 1 }
         published = (cursor, currentModes)
         needsFullFrame = false
+        linksChanged = false
         for index in 0..<rows { dirty[index] = false }
         return TerminalSnapshot(version: version, size: TerminalSize(cols: cols, rows: rows), viewportOffset: 0,
                                 damagedRows: damaged, isFullFrame: full, cursor: cursor, modes: currentModes,
-                                selection: nil, links: [:])
+                                selection: nil, links: links)
     }
 
     func emit(_ event: TerminalEvent) {
@@ -201,7 +210,8 @@ public final class TerminalEmulator {
     var debugState: String {
         "region=\(regionTop)...\(regionBottom) tabs=\(tabStops.enumerated().filter { $0.element }.map(\.offset)) "
             + "pen=\(pen) charsets=\(charsets)/\(glSet) insert=\(insertMode) alt=\(onAlternate) "
-            + "last=\(lastPrinted) saved=\(savedCursors) events=\(events) offscreen=\(offscreen.map(\.text))"
+            + "last=\(lastPrinted) saved=\(savedCursors) events=\(events) links=\(links.sorted { $0.key < $1.key }) "
+            + "offscreen=\(offscreen.map(\.text))"
     }
 
     /// The columns the screen is wide, for tests.
@@ -223,7 +233,7 @@ extension TerminalEmulator: VTParserHandler {
         }
     }
 
-    func osc(_ payload: [UInt8]) {}
+    func osc(_ payload: [UInt8]) { handleOSC(payload) }
     func dcs(_ parameters: CSIParameters, final: UInt8, payload: [UInt8]) {}
     func apc(_ payload: [UInt8]) {}
 }

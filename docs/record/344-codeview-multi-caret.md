@@ -1,4 +1,6 @@
-# 340 - Drawing every caret (`CV-BG`)
+# 344 - Drawing every caret (`CV-BG`)
+
+Renumbered from 340 because #343, #346, #345 and #347 merged first.
 
 Branch `feat/codeview-multi-caret` from master `66cfba26`. Class M, no divergence (labels untouched). PR 3 of the editor-essentials plan for Alloy (G1, multi-caret drawing); builds on the primary selection and batched edits of record 333.
 
