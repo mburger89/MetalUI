@@ -87,27 +87,14 @@ enum MenuPanel {
     /// A shortcut as shown: `⌃⌥⇧⌘K` on Apple; elsewhere each held key by its
     /// own name, `Ctrl+Super+Alt+Shift+K` (ruling `SG-B` item 5) — `.command`
     /// is `superKeyName`, never "Ctrl", so a default (`.primary`, Ctrl off
-    /// Apple) shortcut reads `Ctrl+S` and is Ctrl+S.
+    /// Apple) shortcut reads `Ctrl+S` and is Ctrl+S. Named keys read as names
+    /// or glyphs (`KF-AG`); the one formatter, `ShortcutText.format`, is shared
+    /// with `KeyboardShortcut.displayText`.
     static func shortcutText(_ shortcut: PlatformKeyEquivalent?, platform: TextEditing.Platform,
                              superKeyName: String = MenuPanel.superKeyName) -> String? {
         guard let shortcut else { return nil }
-        let key = shortcut.key.uppercased()
-        switch platform {
-        case .mac:
-            var s = ""
-            if shortcut.modifiers.contains(.control) { s += "⌃" }
-            if shortcut.modifiers.contains(.option) { s += "⌥" }
-            if shortcut.modifiers.contains(.shift) { s += "⇧" }
-            if shortcut.modifiers.contains(.command) { s += "⌘" }
-            return s + key
-        case .other:
-            var parts: [String] = []
-            if shortcut.modifiers.contains(.control) { parts.append("Ctrl") }
-            if shortcut.modifiers.contains(.command) { parts.append(superKeyName) }
-            if shortcut.modifiers.contains(.option) { parts.append("Alt") }
-            if shortcut.modifiers.contains(.shift) { parts.append("Shift") }
-            return (parts + [key]).joined(separator: "+")
-        }
+        return ShortcutText.format(key: shortcut.key, modifiers: shortcut.modifiers, mac: platform == .mac,
+                                   superKeyName: superKeyName)
     }
 
     /// The rows and size of a panel showing `items`: 22-pt item rows, 9-pt
