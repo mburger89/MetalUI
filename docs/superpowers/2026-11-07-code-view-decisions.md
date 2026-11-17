@@ -373,3 +373,18 @@ Pinned by `aPressOnAChevronTogglesItsRangeAndCallsOnToggle`, `theInnermostRangeS
 **Costs.** Counted, no clock. Steady and keystroke literals are those of `CV-BN`/`CV-BG` on master, unchanged (`aFoldGutterCostsWhatNoFoldGutterCosts`): steady 2 requests, 0 hits, 1 miss, 0 ineligible, 1 frame; keystroke the same (Apple platforms; per frame elsewhere). A move within a region: 0 frames, 0 requests to the platform.
 
 Pinned by `movingTextToGutterToTextChangesTheCursorWithoutAFrame`, `movesWithinARegionCostNoFrameAndNoRequest`, `aChevronAndAFoldPlaceholderAreThePointingHand`, `textIsTheHandOnlyWhenOnTextClickActsOnAPlainClick`, `regionCursorsRespectHorizontalScrolling` (`Tests/MetalUITestingTests/CodeViewRegionCursorTests.swift`). Next unused: `CV-BP`.
+
+## CV-BW: a focused `TextField` in the text-anchored popover, pinned (landed, record 371; class M, no divergence, no public API; Alloy code-intel request, Alloy's rename field)
+
+Tests only; no product change. What the code does today with a `TextField` inside `CodeView.popover(item:attachmentAnchor:)`:
+
+- **The field takes the keys.** The popover content is the `PopoverModifier`'s child, a sibling of the view (`Popover.swift`). With the field focused, typed text goes to it; the view's `onKeyPress` and buffer see nothing. A click on the field focuses it (`FC-A`).
+- **`onSubmit` works.** Return fires it and not the view's handler; the popover stays until the app sets the item to nil.
+- **Escape dismisses through the popover key stage** (`MN-N` item 2, `CV-AR`), **before** the field's own `onKeyPress(.escape)`, which does NOT run (and the view's handler does not see that Escape). NSPopover differs: the field sees Escape first. Pins the order; the PF3 probe arm decides whether SwiftUI differs (open).
+- **A `@FocusState` write in the handler that opens the popover is dropped**: the field was not registered in the last frame (`IX-J`, `IX-S`). `.onAppear { focused = true }` inside the content works: the field is focused after the first tick, the cost being the one extra frame the write requests. MetalUI has no `defaultFocus`.
+- **Focus after the dismissal is nil** (`IX-I`). `MN-AS` (a popover returns focus on dismiss, through `KF-AM`'s restoring scope) will change this; `focusAfterDismissIsNil` is the test that flips.
+- **Not wired for the editor:** an app's `.focused($codeFocused)` on the `CodeView` does not read true while the field has focus (the field is not inside the view, FW-A).
+
+**Probe** `docs/probes/swiftui-popover-focus.swift` (compiles; SA-O). **Arms PF1 (does the popover's `TextField` become first responder on open with no `@FocusState`), PF2 (is the presenter's focused view first responder again after dismiss, and does its `@FocusState` read true) and PF3 (does `onKeyPress(.escape)` on the field run before the popover closes) are UNRESOLVED**: the screen was locked (`CGSSessionScreenIsLocked = true`), no window became key (`main window key=false appActive=false keyWindow=nil`), the same failure as `MN-N` P3, and the probe prints `UNRESOLVED` rather than guess. Human checks `CV31`..`CV33`. Follow-ups wait on them: if PF1 is yes, "a presented popover seats focus on its first `TextField`"; if PF3 is yes, a divergence or reordered stages.
+
+Pinned by `aTextFieldInAnItemPopoverTakesKeysAwayFromTheView`, `onSubmitFiresAndDismissingFromItClosesThePopover`, `escapeDismissesWithTheFieldFocused`, `aWriteInTheOpeningHandlerIsDropped_onAppearWorks` and `focusAfterDismissIsNil` (`Tests/MetalUITestingTests/CodeViewTextAnchorTests.swift`). Next unused: `CV-BY` (wave 2 reserves `CV-BP`..`CV-BV` and `CV-BX`, none landed).
