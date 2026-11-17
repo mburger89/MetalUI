@@ -13,7 +13,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
-  `2026-10-02-menus-popovers-decisions.md`, next `MN-AS`), `CR-` (colour, colour scheme, palette:
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AT`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AE`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AQ`), `PE-` (controls in
@@ -28,7 +28,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   (rich text: `2026-10-08-rich-text-decisions.md`, next `RT-U`), `LK-` (controls and looks:
   `2026-10-08-controls-looks-decisions.md`, next `LK-Y`), `AS-` (app shell:
   `2026-10-08-app-shell-decisions.md`, next `AS-U`), `KF-` (key and focus:
-  `2026-10-08-key-focus-decisions.md`, next `KF-AM`), `PF-` (shadow cache, `compositingGroup()`:
+  `2026-10-08-key-focus-decisions.md`, next `KF-AN`), `PF-` (shadow cache, `compositingGroup()`:
   `2026-10-09-shadow-cache-decisions.md`, next `PF-O`), `SG-` (SMK port gaps: the drawn menu bar,
   `EventModifiers.primary`, design families, `Window.drawnChromeHeight`:
   `2026-10-09-smk-gaps-decisions.md`, next `SG-N`), `TK-` (test hygiene: sheet-test skip, Linux flake, SDL launch drops:

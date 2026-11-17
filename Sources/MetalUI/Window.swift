@@ -607,6 +607,7 @@ public final class Window {
     public private(set) var focusedElement: GlobalElementID? {
         didSet {
             syncRawOptionKeys()   // `TRM-X`
+            if lastFocusRegistry.hasRestoreScopes, !suppressRestoreTracking { noteRestoreTransition(from: oldValue) }
             // A composition does not survive its field losing focus (ruling
             // `IM-I`): AppKit discards the input context's marked text and
             // sends nothing, so the stored composition is dropped here.
@@ -623,6 +624,21 @@ public final class Window {
             }
             stateTable.withState(old, initial: TextEditState()) { $0.composition = .none }
         }
+    }
+
+    /// What each live restoring scope recorded: the element focused when focus entered it (`KF-AM`, `MN-AS`). Empty
+    /// while no scope has seen focus enter. Pruned after each frame to the scopes that frame produced.
+    var restoreRecords: [RestoreScopeKey: GlobalElementID] = [:]
+    /// Set while the frame's own focus decision is applied, which settles `restoreRecords` itself.
+    private var suppressRestoreTracking = false
+
+    /// A focus move between frames: scopes the new element is in and the old one was not record the old element (or
+    /// nothing, when none was focused); scopes the old one was in and the new one is not forget theirs (`KF-AM`).
+    private func noteRestoreTransition(from old: GlobalElementID?) {
+        let oldChain = old.map { lastFocusRegistry.scopeChain(of: $0) } ?? []
+        let newChain = focusedElement.map { lastFocusRegistry.scopeChain(of: $0) } ?? []
+        for key in oldChain where !newChain.contains(key) { restoreRecords[key] = nil }
+        for key in newChain where !oldChain.contains(key) { restoreRecords[key] = old }
     }
 
     /// The focus registry the most recent frame's prepaint built, captured
@@ -2290,6 +2306,9 @@ public final class Window {
             frame.windowBackdropFallback = shell.backdropFallback   // WB-C
             frame.menuBarOpen = { [weak self] index in self?.openMenuBarMenu(index: index, highlightFirst: false) }
             frame.windowControls = windowControlsSpec()   // the drawn window buttons (CW-C)
+            if !restoreRecords.isEmpty, let held = focusHandedIn {   // `KF-AM`: what a drop restores from
+                frame.restoreInput = RestoreInput(chain: lastFocusRegistry.scopeChain(of: held), records: restoreRecords)
+            }
             withObservationTracking {
                 // Reading the sentinel arms the next frame's flush; see ordering
                 // note 3 above. Everything the element tree reads during all three
@@ -2384,6 +2403,7 @@ public final class Window {
         frameCapacityHints = frame.capacityHints()   // `HP-K` (G33 (b)): the next frame reserves this much
         lastFrameStartCapacities = frame.startCapacities
         lastNativeLayoutDeepestLevel = frame.tree.lastNativeLayoutDeepestLevel
+        let restoreChainAtHandIn = frame.restoreInput?.chain ?? []
         lastFocusRegistry = frame.focusRegistry
         syncRawOptionKeys()   // `TRM-X`
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
@@ -2426,7 +2446,19 @@ public final class Window {
         // from both sides by `focusingFromInsideAFrameSurvivesThatFrame` and
         // `focusingFromInsideAFrameIsStillValidatedByTheNextFrame`.
         if focusedElement == focusHandedIn {
-            focusedElement = frame.focusedElement
+            if restoreRecords.isEmpty && !lastFocusRegistry.hasRestoreScopes {
+                focusedElement = frame.focusedElement
+            } else {
+                // `KF-AM`: the frame's own decision (a drop, or a restore to a record) settles the records itself.
+                restoreRecords = restoreRecords.filter { lastFocusRegistry.producedScopes.contains($0.key) }
+                suppressRestoreTracking = true
+                focusedElement = frame.focusedElement
+                suppressRestoreTracking = false
+                if focusedElement != focusHandedIn {
+                    let into = focusedElement.map { lastFocusRegistry.scopeChain(of: $0) } ?? []
+                    for key in restoreChainAtHandIn where !into.contains(key) { restoreRecords[key] = nil }
+                }
+            }
         }
         // Every `@FocusState` the frame bound follows the focus it settled on —
         // between frames, never in a phase, and writing only a changed value

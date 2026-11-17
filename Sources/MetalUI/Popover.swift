@@ -202,7 +202,13 @@ public struct PopoverModifier<Content: ElementGroup, PopoverContent: ElementGrou
         }
         var slot = layout.slot
         var slotLayout = layout.slotLayout
-        let slotPrepaint = slot.prepaintGroup(layout: &slotLayout, pass: &pass)
+        // A presented popover's content is a restoring scope (`MN-AS`): its focusables register under it, so a dismissal
+        // that drops the focused field returns focus to the element focused when focus entered the popover.
+        let slotPrepaint = slot.wrapped == nil
+            ? slot.prepaintGroup(layout: &slotLayout, pass: &pass)
+            : frame.withRestoreScope(RestoreScopeKey(owner: id, at: -1, depth: 0), taints: false) {
+                slot.prepaintGroup(layout: &slotLayout, pass: &pass)
+            }
         layout.slot = slot
         layout.slotLayout = slotLayout
         layout.slotPrepaint = slotPrepaint
