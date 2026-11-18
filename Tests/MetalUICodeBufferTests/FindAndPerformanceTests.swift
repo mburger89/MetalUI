@@ -172,6 +172,7 @@ private func naiveFind(_ hay: [UInt8], _ query: String, fold: Bool, whole: Bool,
     }
 
     @Test func aSnapshotTakeIsConstantWork() throws {
+        _ = Self.large   // build the lazy fixture outside the count, so the test passes when run alone
         let v = visits { for _ in 0..<1000 { _ = Self.large.snapshot() } }
         #expect(v == 0)
     }

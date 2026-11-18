@@ -64,6 +64,18 @@ package final class TerminalGlyphCache {
     private var syntheticEntries: [SyntheticEntry] = []
     private var syntheticIndex: [UInt32: Int32] = [:]
     private var seenGeneration: Int?
+    private weak var seenAtlas: GlyphAtlas?
+
+    /// A placed glyph with its atlas slot (`TRM-BL`).
+    package struct Sprite {
+        package let pixelX: Int
+        package let baselineY: Int
+        package let packed: PackedGlyph
+    }
+    /// Per entry: the drawable sprites in this atlas layout, or nil until first drawn, and the atlas frame whose
+    /// `packed(for:)` stamp last covered them.
+    private var sprites: [[Sprite]?] = []
+    private var stamps: [Int] = []
 
     /// A cache over `family` at `size` points and `scale`. `family` names a monospace face (`nil`: the system's
     /// default face, which is rarely monospace, so a caller passes one); bold uses weight 0.4 (SwiftUI's `.bold`).
@@ -78,10 +90,13 @@ package final class TerminalGlyphCache {
 
     /// Empties the cache if `atlas` was rebuilt since the last call (`layoutGeneration` moved).
     package func prepare(for atlas: GlyphAtlas) {
-        guard seenGeneration != atlas.layoutGeneration else { return }
+        guard seenGeneration != atlas.layoutGeneration || seenAtlas !== atlas else { return }
         if seenGeneration != nil { rebuilds += 1 }
         seenGeneration = atlas.layoutGeneration
+        seenAtlas = atlas
         entries.removeAll(keepingCapacity: true)
+        sprites.removeAll(keepingCapacity: true)
+        stamps.removeAll(keepingCapacity: true)
         for i in asciiIndex.indices { asciiIndex[i] = -1 }
         clusterIndex.removeAll(keepingCapacity: true)
         syntheticEntries.removeAll(keepingCapacity: true)
@@ -118,6 +133,35 @@ package final class TerminalGlyphCache {
     /// The placements of entry `index`.
     package func glyphs(at index: Int) -> [Placed] { entries[index] }
 
+    /// The sprites of entry `index` in `atlas` (those with ink), packing them on first use. The atlas probe, a hash of the
+    /// glyph key, is made once per entry per layout and once more per atlas frame (the stamp that keeps a glyph live,
+    /// `GL-A`), not once per cell (`TRM-BL`). An entry the atlas could not hold is not kept, so it is retried.
+    package func sprites(at index: Int, in atlas: GlyphAtlas) -> [Sprite] {
+        if let kept = sprites[index] {
+            if stamps[index] != atlas.currentGeneration {
+                for placed in entries[index] { _ = atlas.packed(for: placed.key, rasterize: { system.rasterize(placed.key) }) }
+                stamps[index] = atlas.currentGeneration
+            }
+            return kept
+        }
+        var out: [Sprite] = []
+        var complete = true
+        for placed in entries[index] {
+            guard let packed = atlas.packed(for: placed.key, rasterize: { system.rasterize(placed.key) }) else {
+                complete = false
+                continue
+            }
+            if packed.slot.width > 0, packed.slot.height > 0 {
+                out.append(Sprite(pixelX: placed.pixelX, baselineY: placed.baselineY, packed: packed))
+            }
+        }
+        if complete {
+            sprites[index] = out
+            stamps[index] = atlas.currentGeneration
+        }
+        return out
+    }
+
     /// The synthesised glyph of entry `index`.
     package func synthetic(at index: Int) -> SyntheticEntry { syntheticEntries[index] }
 
@@ -126,6 +170,8 @@ package final class TerminalGlyphCache {
         let placed = system.placeGlyphs(cluster, font: fonts[style], wrappingAt: nil, options: TextLayoutOptions(),
                                         origin: (x: 0, y: 0), scaleFactor: metrics.scale)
         entries.append(placed.map { Placed(key: $0.key, pixelX: $0.pixelX, baselineY: $0.baselineY) })
+        sprites.append(nil)
+        stamps.append(-1)
         return entries.count - 1
     }
 
