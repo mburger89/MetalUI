@@ -53,7 +53,7 @@ package final class WindowTextureState {
 public final class Renderer {
     /// Gamma-encoded sRGB compositing (spec 7.8). NOT `_sRGB`: that format makes
     /// the hardware blend in linear space, which is the opposite of the decision.
-    public static let pixelFormat: MTLPixelFormat = .bgra8Unorm
+    public nonisolated static let pixelFormat: MTLPixelFormat = .bgra8Unorm
 
     /// The glyph atlas's texture format. R8: coverage, no colour (spec 7.8 —
     /// "glyph coverage (`r8Unorm`) is used as a blend weight directly,
@@ -194,16 +194,47 @@ public final class Renderer {
 
     /// A renderer on `device`; throws if the queue, shader library or a
     /// pipeline cannot be created.
-    public init(device: any MTLDevice) throws {
+    public convenience init(device: any MTLDevice) throws {
+        try self.init(device: device, pipelines: Renderer.makePipelines(device: device))
+    }
+
+    /// A renderer on `device` over `pipelines` built earlier, possibly on
+    /// another thread (``makePipelines(device:)``; `SO-A`).
+    package init(device: any MTLDevice, pipelines: RendererPipelines) throws {
         self.device = device
         self.activeTextures = defaultTextureState
         guard let queue = device.makeCommandQueue() else {
             throw RendererError.commandQueueUnavailable
         }
         self.commandQueue = queue
+        self.library = pipelines.library
+        self.rectPipeline = pipelines.rect
+        self.continuousRectPipeline = pipelines.continuousRect
+        self.glyphPipeline = pipelines.glyph
+        self.imagePipeline = pipelines.image
 
+        // Unit quad as a triangle strip: 4 vertices, no index buffer.
+        var unitVertices: [SIMD2<Float>] = [
+            SIMD2(0, 0), SIMD2(1, 0), SIMD2(0, 1), SIMD2(1, 1),
+        ]
+        guard let buffer = device.makeBuffer(
+            bytes: &unitVertices,
+            length: MemoryLayout<SIMD2<Float>>.stride * unitVertices.count,
+            options: .storageModeShared
+        ) else { throw RendererError.bufferAllocationFailed }
+        self.unitVertexBuffer = buffer
+        guard let zero = device.makeBuffer(length: MemoryLayout<MUITransform>.stride,
+                                           options: .storageModeShared) else {
+            throw RendererError.bufferAllocationFailed
+        }
+        self.zeroTransformBuffer = zero
+    }
+
+    /// The shader library and the four eager pipelines of a ``Renderer``.
+    /// Metal device, library and pipeline creation are thread-safe, so this
+    /// is built off the main actor while AppKit starts up (`SO-A`).
+    package static nonisolated func makePipelines(device: any MTLDevice) throws -> RendererPipelines {
         let library = try ShaderLibrary.make(device: device)
-        self.library = library
 
         /// Both pipelines are premultiplied source-over into the same
         /// gamma-encoded target, and they must stay identical in that respect:
@@ -222,7 +253,7 @@ public final class Renderer {
             descriptor.vertexFunction = vertexFn
             descriptor.fragmentFunction = fragmentFn
             let attachment = descriptor.colorAttachments[0]!
-            attachment.pixelFormat = Self.pixelFormat
+            attachment.pixelFormat = Renderer.pixelFormat
             // Premultiplied source-over, matching the shaders' premultiplied output.
             attachment.isBlendingEnabled = true
             attachment.rgbBlendOperation = .add
@@ -234,26 +265,12 @@ public final class Renderer {
             return try device.makeRenderPipelineState(descriptor: descriptor)
         }
 
-        self.rectPipeline = try makePipeline(vertex: "rect_vertex", fragment: "rect_fragment")
-        self.continuousRectPipeline = try makePipeline(vertex: "rect_vertex", fragment: "rect_continuous_fragment")
-        self.glyphPipeline = try makePipeline(vertex: "glyph_vertex", fragment: "glyph_fragment")
-        self.imagePipeline = try makePipeline(vertex: "image_vertex", fragment: "image_fragment")
-
-        // Unit quad as a triangle strip: 4 vertices, no index buffer.
-        var unitVertices: [SIMD2<Float>] = [
-            SIMD2(0, 0), SIMD2(1, 0), SIMD2(0, 1), SIMD2(1, 1),
-        ]
-        guard let buffer = device.makeBuffer(
-            bytes: &unitVertices,
-            length: MemoryLayout<SIMD2<Float>>.stride * unitVertices.count,
-            options: .storageModeShared
-        ) else { throw RendererError.bufferAllocationFailed }
-        self.unitVertexBuffer = buffer
-        guard let zero = device.makeBuffer(length: MemoryLayout<MUITransform>.stride,
-                                           options: .storageModeShared) else {
-            throw RendererError.bufferAllocationFailed
-        }
-        self.zeroTransformBuffer = zero
+        return RendererPipelines(
+            library: library,
+            rect: try makePipeline(vertex: "rect_vertex", fragment: "rect_fragment"),
+            continuousRect: try makePipeline(vertex: "rect_vertex", fragment: "rect_continuous_fragment"),
+            glyph: try makePipeline(vertex: "glyph_vertex", fragment: "glyph_fragment"),
+            image: try makePipeline(vertex: "image_vertex", fragment: "image_fragment"))
     }
 
     /// Encode one view's worth of the scene into an existing command buffer,
@@ -1394,4 +1411,15 @@ public final class Renderer {
         }
         return pixels
     }
+}
+
+/// What ``Renderer/makePipelines(device:)`` builds: the library and the four
+/// eager pipeline states. Metal objects are thread-safe, so the value crosses
+/// from the background thread to the main actor (`SO-A`).
+package struct RendererPipelines: @unchecked Sendable {
+    package let library: any MTLLibrary
+    package let rect: any MTLRenderPipelineState
+    package let continuousRect: any MTLRenderPipelineState
+    package let glyph: any MTLRenderPipelineState
+    package let image: any MTLRenderPipelineState
 }

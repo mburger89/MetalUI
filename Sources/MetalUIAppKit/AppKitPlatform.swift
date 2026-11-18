@@ -1534,6 +1534,13 @@ public final class AppKitPlatform: Platform {
     /// (an `NSMenu`'s delegate and an item's target are weak).
     private var installedMenuBar: AppKitMenuBar?
 
+    /// Forces `NSApplication.shared` (about 50 ms the first time) and nothing
+    /// else — the first thing ``setMenuBar(_:)`` does — so `App.init()` can pay
+    /// it while Metal is set up on another thread (`SO-A`).
+    @MainActor package static func prepareApplication() {
+        _ = NSApplication.shared
+    }
+
     /// Installs `NSApp.mainMenu` built from `menuBar` (ruling `MN-I` item 3):
     /// each top-level menu rebuilt from fresh content when it opens, standard
     /// items on AppKit's own selectors (the application menu's targeting
