@@ -845,3 +845,10 @@ above delivers it. No command here was run on Windows (human check AS10).
 A Linux or Windows job with no display can open the real SDL window and run a
 `.task` in its first frame with `SDLPlatform(options: .headless)`; the recipe is
 in [`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window).
+
+## Releasing the `metalui` CLI (`SC-J`)
+
+1. Set `metaluiVersion` in `Sources/MetalUIScaffold/Version.swift` to the new `X.Y.Z` and merge it.
+2. Tag the merge commit `vX.Y.Z` and push the tag. `.github/workflows/release.yml` fails unless the tag is `v` + `metaluiVersion`, then builds `metalui`, smoke-tests it and creates the GitHub release with `metalui-X.Y.Z-macos-arm64.tar.gz` and its `.sha256`.
+3. In the tap (`mburger89/homebrew-metalui`), update `Formula/metalui.rb`: `url` is the release's source archive (`https://github.com/mburger89/MetalUI/archive/refs/tags/vX.Y.Z.tar.gz`) and `sha256` its checksum (`curl -L <url> | shasum -a 256`). The formula builds from source (`swift build -c release --product metalui`), so apps it scaffolds depend on the release (`.upToNextMinor(from: "X.Y.Z")` while 0.x), not on `master`.
+4. After the release, set `metaluiVersion` to the next `-dev` value if development should stop writing a version requirement.

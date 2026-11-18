@@ -10,7 +10,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `LR-`, `GR-`, `ID-`, `DD-`, `TE-`, `IX-`, `AN-`, `CX-`, `DN-`, `AI-` (app
   icon, next `AI-O`; own decisions doc
   `2026-10-01-app-icon-decisions.md`), `MV-` (MetalView:
-  `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-J`;
+  `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-K`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AT`), `CR-` (colour, colour scheme, palette:

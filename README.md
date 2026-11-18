@@ -19,6 +19,14 @@ Website: <https://mburger89.github.io/MetalUI/> · [API reference](https://mburg
 ## Quick start
 
 ```sh
+brew install mburger89/metalui/metalui
+metalui new MyApp
+cd MyApp && swift run MyApp
+```
+
+Or, without Homebrew, from a clone:
+
+```sh
 git clone https://github.com/mburger89/MetalUI.git
 swift run --package-path MetalUI metalui new MyApp
 cd MyApp && swift run MyApp
