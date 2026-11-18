@@ -919,6 +919,11 @@ public final class Window {
     /// synchronously on its own thread, so this identity recognises it there.
     private nonisolated let flushingThread = FlushingThread()
 
+    /// How many observed changes have been reported, from any thread (`FP-U` item 6): bumped synchronously in
+    /// `markDirtyFromObservation`, before its hop, so an input event can tell that it changed observed state although its
+    /// dirty mark has not arrived yet.
+    private nonisolated let observationChanges = ObservationChangeCount()
+
     /// Whether `drainLifecycle()` is running (ruling `LC-E` item 4).
     private var isDrainingLifecycle = false
 
@@ -1222,6 +1227,7 @@ public final class Window {
             let pressed = self.active
             let pointerBefore = self.lastMousePosition   // `FP-T`: the move's own comparison
             let writesBefore = self.stateTable.writeCount
+            let observationBefore = self.observationChanges.value   // `FP-U` item 6
             self.updatePointerState(event)
             // A slider's edit ends here (rulings `LK-B` item 5, `LK-Q`): at the
             // release — or at a press that finds it still open, a lost
@@ -1332,7 +1338,7 @@ public final class Window {
             // hitbox and wrote no state (its callbacks invalidate on their own); the rest of its events (a press, a
             // release, a move onto another hitbox) still ask for the frame.
             if self.dispatchButtonArena(event) {
-                if !self.pointerEventChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, checksOnInput: false) {
+                if !self.pointerEventChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, observationBefore: observationBefore, checksOnInput: false) {
                     self.setNeedsRedraw()
                 }
                 return true
@@ -1495,7 +1501,7 @@ public final class Window {
             // raises no dirty of its own, so an event whose callbacks wrote any state (a text hover's track, whose next
             // frame starts its delay) still asks for the frame. No frame, so no state write. A drag's own callbacks
             // invalidate through what they write (`@State`, `@GestureState`, a binding, observation, a surface trigger).
-            if !isUnclaimedKeyUp, handled || !self.pointerEventChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, checksOnInput: true) {
+            if !isUnclaimedKeyUp, handled || !self.pointerEventChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, observationBefore: observationBefore, checksOnInput: true) {
                 self.setNeedsRedraw()
             }
             return handled
@@ -1529,12 +1535,13 @@ public final class Window {
     /// Whether `event`, a pointer move or drag, leaves every pixel a frame would draw as it was (`FP-T`, `FP-U`): a
     /// `.mouseMoved`, an unclaimed `.mouseDragged`, or a `.rightMouseDragged` or `.otherMouseDragged` the button arena claimed.
     /// The pointer stays over the same topmost hitbox as before (`Frame.resolveHover`'s and `pointerOwner`'s one answer),
-    /// the event wrote no state (`withState` raises no dirty itself: a hover callback's write, a text hover's track, is
+    /// the event wrote no state and changed nothing observed (`observationChanges`: off the main thread an observed change's
+    /// dirty mark arrives after a hop, so it is counted when reported, `FP-U` item 6; `withState` raises no dirty itself: a hover callback's write, a text hover's track, is
     /// shown or timed by the next frame), no tooltip is pending or shown (its timer needs the display link a dirty window
     /// starts) and, when `checksOnInput`, the window has no `onInput`, whose fallback could change what a frame reads
     /// without a write the window observes (a claimed arena event never reached it). Any other event answers `false`.
     private func pointerEventChangesNothing(_ event: InputEvent, from before: Point<Pixels>?, writesBefore: Int,
-                                            checksOnInput: Bool) -> Bool {
+                                            observationBefore: Int, checksOnInput: Bool) -> Bool {
         let position: Point<Pixels>
         switch event {
         case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse), .otherMouseDragged(let mouse):
@@ -1542,7 +1549,7 @@ public final class Window {
         default:
             return false
         }
-        guard let before, stateTable.writeCount == writesBefore else { return false }
+        guard let before, stateTable.writeCount == writesBefore, observationChanges.value == observationBefore else { return false }
         if checksOnInput, onInput != nil { return false }
         guard case .idle = tooltipTracker.phase else { return false }
         return topmostOpaqueHitbox(in: lastHitboxes, at: before) == topmostOpaqueHitbox(in: lastHitboxes, at: position)
@@ -1753,6 +1760,7 @@ public final class Window {
         // dirty, whether or not that thread is the process's main thread
         // (`RU-A`). Another thread's write still hops below.
         if flushingThread.isCurrent { return }
+        observationChanges.bump()   // `FP-U` item 6: before the hop, so an event in flight sees it
         if Thread.isMainThread {
             MainActor.assumeIsolated {
                 guard !self.isFlushing else { return }
@@ -4142,6 +4150,25 @@ private final class FlushingThread: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return thread === Thread.current
+    }
+}
+
+/// A count of observed changes, bumped from any thread and read on the main actor (`FP-U` item 6). A lock, like
+/// `FlushingThread`: `markDirtyFromObservation` is `nonisolated`.
+private final class ObservationChangeCount: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func bump() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
     }
 }
 

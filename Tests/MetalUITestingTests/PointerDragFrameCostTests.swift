@@ -306,3 +306,39 @@ private struct WriterChip: Component {
         #expect(builds(w) == 1 && requests(w) == steady, "step \(step): \(builds(w)) builds, \(requests(w)) requests vs \(steady)")
     }
 }
+
+@Observable @MainActor private final class DragModel { var dx: Float = 0 }
+
+private struct ObservedChip: Component {
+    let model: DragModel
+    let log: DxLog
+    var content: some ElementGroup {
+        let _ = { log.lastBuiltDx = model.dx; log.builds += 1 }()
+        VStack(spacing: 0) {
+            Rectangle().frame(width: Pixels(200), height: Pixels(200))
+                .gesture(DragGesture(minimumDistance: Pixels(0)).onChanged { v in model.dx = Float(v.translation.width.value) })
+            Rectangle().frame(width: Pixels(20 + model.dx), height: Pixels(10))
+        }
+    }
+}
+
+/// **R6** (`FP-U` item 6) A drag that writes an observed model a build reads asks for its frame before any hop: off Darwin the
+/// observation's dirty mark reaches the window through a Task, after the event returned, so the event itself must count the
+/// change. Read right after the send, with no await, and drawn with synchronous `tick()` only (as `TestWindow.drag` does).
+/// Mutation: drop the `observationChanges` guard in `pointerEventChangesNothing`. **Red on Linux and Windows** (the dirty hops;
+/// the bracket tests failed there); **stays green on macOS**, where `markDirtyFromObservation` runs on the main thread and
+/// dirties synchronously, so this is a pin for the portable path, not a macOS detector.
+@Test @MainActor func aDragWritingAnObservedModelAsksForItsFrameBeforeTheHop() async throws {
+    let model = DragModel(), log = DxLog()
+    let w = try harnessWindow { Column { ObservedChip(model: model, log: log) } }
+    try await w.runUntilIdle()
+    w.send(down(pt(200, 150)))
+    try await w.runUntilIdle()
+    for step in 1...4 {
+        let builds = log.builds
+        w.send(dragged(pt(200 + Float(step * 5), 150)))
+        #expect(w.window.needsRedraw, "step \(step): the event asked for its frame before any hop")
+        w.tick()
+        #expect(log.builds == builds + 1 && log.lastBuiltDx == Float(step * 5), "step \(step): built \(log.builds - builds), dx \(log.lastBuiltDx)")
+    }
+}
