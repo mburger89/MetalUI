@@ -246,7 +246,7 @@ var targets: [Target] = [
         // portable, outside the `SDL` trait (PC-A). No MetalUI product depends on it.
         .target(name: "CPseudoTerminal"),
         .target(name: "MetalUITerminal", dependencies: ["CPseudoTerminal"]),
-        .testTarget(name: "MetalUITerminalTests", dependencies: ["MetalUITerminal"]),
+        .testTarget(name: "MetalUITerminalTests", dependencies: ["MetalUITerminal", "MetalUITestSupport"]),
 
         // The C structs shared with the shaders; MetalUIScene imports them.
         .target(name: "MetalUIShaderTypes"),

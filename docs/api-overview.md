@@ -839,6 +839,42 @@ dirtied the window, an animation or timer runs, or the scale, size or glyph-atla
 `TestWindow`). A trigger whose surface the last frame did not paint does nothing and starts no timer.
 `TestWindow.runsSurfaceDraws` makes a headless frame call the draws it would run; `surfaceDrawCount` counts them.
 
+## `MetalUITerminal` — M
+
+The UI-free terminal core (M; `TRM-A`; Foundation and Dispatch only, so it builds on macOS, Linux and Windows and a host can
+use it without MetalUI). Alloy's gaps 1, 3, 4 and 5 are **frozen** (`TRM-B`).
+
+- **`TerminalEmulator(cols:rows:scrollback:payloadCap:)`** (`TRM-F`..`TRM-J`, `TRM-Z`..`TRM-AH`): the in-house VT parser
+  and screen. `feed(_:)` takes bytes in any chunking and gives the same state; `rowText(_:)`, `firstRow`, `modes`,
+  `resize(cols:rows:)` (soft-wrap reflow, `TRM-AM`..`TRM-AP`), `selection`, `selectedText()`, `search(_:from:backwards:)`
+  (`TRM-AQ`..`TRM-AT`), `scrollViewport(toOffset:)`, `defaultCursorStyle` (`TRM-BF`), `drainEvents()` and
+  `publishSnapshot()`. It is not thread-safe: one owning queue. Scrollback is compact (10 000 x 120 ASCII columns is 1.9 MB,
+  `TRM-BK`).
+- **`TerminalSnapshot`** (immutable, `Sendable`): `version`, `size`, `viewportOffset`, `damagedRows` (`TerminalDamagedRow`:
+  index and `TerminalRow`), `isFullFrame`, `cursor` (`TerminalCursor`), `modes` (`TerminalModes`), `selection`, `links` and
+  `reflowGeneration`. Undamaged rows are not listed and share their storage by identity with the emulator's, so a publish
+  costs O(damaged rows). `TerminalRow` exposes `text`, `cell(at:)` and `graphemes` (`TerminalCell`, `TerminalAttributes`,
+  `TerminalColor`, `TerminalUnderlineStyle`).
+- **`TerminalSnapshotSource(emulator:queue:)`** (`TRM-AE`..`TRM-AH`): owns the feed, the merge-and-publish of damage, the
+  view's wake and the hand-off between the emulator's queue and the main actor: `feed(_:)`, `resize(_:)`,
+  `perform(_:)`, `onReply` (bytes to write back to the pty) and `onEvents` (`TerminalEvent`: titles, working directory,
+  bell, links, and the like).
+- **`PseudoTerminal`** (`TRM-K`..`TRM-O`, `TRM-AX`, `TRM-AY`): `spawn(executable:argv:env:cwd:cols:rows:)` (a POSIX pty with
+  `posix_spawn`, or ConPTY on Windows), `onReadable(queue:_:)`, `read(into:)`, `write(_:)`, `resize(cols:rows:)`,
+  `signalGroup(_:)`, `foregroundProcessGroup()`, `processID`, `exitStatus` and `close()` (drain-safe, no callback after).
+  Errors are `PseudoTerminalError`.
+- **Input encoders** (`TRM-AI`..`TRM-AL`): `TerminalEncoder.encodeKey(_:modes:optionAsMeta:)` (`TerminalKey` with
+  `TerminalModifiers`), `encodeMouse(_:at:modes:)` (`TerminalMouseEvent`), `encodePaste(_:modes:)` and
+  `encodeFocus(_:modes:)`. Pure functions of their arguments and the program's modes.
+- **Geometry**: `TerminalSize`, `TerminalPosition`, `TerminalRange`, `TerminalSelection` (linear and block).
+
+**Costs and budgets** (`TRM-BK`, record 381). Counted CI guards: an output, blink or selection frame of a `TerminalView` is 0
+builds and 0 element requests and one surface draw whatever the number of feeds; glyph instances are at most damaged rows
+x columns plus rects; a snapshot lists only damaged rows; `onResize` fires only on a change in cell count; idle (unfocused,
+steady or past the blink idle limit) is 0 timers and 0 frames; the scrollback census fits its budget; a steady `feed`
+allocates nothing (release, macOS). The timed targets are measured by the gated bench, not asserted
+(`METALUI_RUN_TERMINAL_BENCH=1 swift test -c release --filter TerminalBench`).
+
 ## `TerminalView` — M
 
 `TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:onInput:onResize:onLink:onPaste:)`
@@ -849,7 +885,7 @@ real change. Output is a surface-only frame (0 builds, 0 element requests) that 
 opaque background. The cursor is a block, bar or underline, a hollow block when unfocused, blinks every 500 ms for a
 blinking style and stops 30 s after the last activity (`blinkStopsAfterIdle`). `TerminalPalette` (`ansi` x 16,
 `foreground`, `background`, `cursor`, `cursorText`, `selection`, `boldIsBright`, `.xterm`); `TerminalLinkQuery` and
-`TerminalLinkTarget`. `onInput`, `keyCaptureExceptions`, `optionAsMeta` and `onLink` are inert until Phases 5.4 and 5.5. `onPaste` (`TRM-BG`, record 378, default nil) is called with the clipboard text and the
+`TerminalLinkTarget`. `onInput` (the encoded bytes for the pty), `keyCaptureExceptions`, `optionAsMeta` (both ⌥ keys), `onLink` and `cursorStyle` (`TRM-BF`) are live since Phases 5.4 and 5.5 (`TRM-BC`, `TRM-BD`); a primary press focuses the view (`TRM-BE`). `onPaste` (`TRM-BG`, record 378, default nil) is called with the clipboard text and the
 newest `TerminalModes` before the default paste on every route; `true` means the host handled it and nothing is sent.
 
 ## Application icon — M
