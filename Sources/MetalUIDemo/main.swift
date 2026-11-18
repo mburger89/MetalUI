@@ -1,5 +1,6 @@
 import MetalUI
 import MetalUIDemoContent
+import MetalUITerminalDemo
 import Foundation
 #if canImport(AppKit)
 import AppKit
@@ -116,6 +117,10 @@ func runDemo() throws {
     // 100 000 paths in Alloy's shape, with buttons that rename, add and expand through the `@Observable` model.
     let outlineDemo = ProcessInfo.processInfo.environment["METALUI_OUTLINE_DEMO"] == "1"
 
+    // The terminal (`TRM-BI`, record 379, human checks group TRM): a `TerminalView` running `$SHELL` (else /bin/sh), the window
+    // titled by the program's title. macOS only; the SDL demo does not carry it.
+    let terminalDemo = ProcessInfo.processInfo.environment["METALUI_TERMINAL_DEMO"] == "1"
+
     // Liquid Glass (`LG-P`, `LG-V`, spec `2026-10-23-liquid-glass-design.md` section 6, human checks group LG):
     // regular, clear and tinted capsules, `.glass` and `.glassProminent` buttons and a container of three circles
     // with a spacing control, over a striped backdrop.
@@ -128,7 +133,12 @@ func runDemo() throws {
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
-    if accessibilityDemo {
+    if terminalDemo {
+        let session = try TerminalDemoSession()
+        window = try app.openWindow(title: "MetalUI — Terminal",
+                                    size: Size(width: Pixels(900), height: Pixels(560)),
+                                    content: { terminalDemoContent(session) })
+    } else if accessibilityDemo {
         window = try app.openWindow(title: "MetalUI — Accessibility Display",
                                     size: Size(width: Pixels(560), height: Pixels(260)),
                                     content: accessibilityDisplayDemoContent)
