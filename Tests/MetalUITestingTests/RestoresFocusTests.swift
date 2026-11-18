@@ -236,8 +236,8 @@ private struct PlainPage: Component {
 
 /// The restore costs one extra frame (its ring), then the window is idle; a plain drop costs none.
 /// **Mutation:** no `requestAnotherFrame()` in `dropFocus` and the restore frame count equals the drop's.
-@Test @MainActor func restoreCostsOneExtraFrame() throws {
-    func frames(restores: Bool) throws -> (Int, String?) {
+@Test @MainActor func restoreCostsOneExtraFrame() async throws {
+    func frames(restores: Bool) async throws -> (Int, String?) {
         let plain = Plain(); plain.restores = restores
         let w = try harnessWindow(size: sz(300, 300)) { VStack(spacing: 0) { PlainPage(plain: plain) } }
         settle(w); w.window.focus(nil); settle(w)
@@ -245,11 +245,12 @@ private struct PlainPage: Component {
         settle(w)
         let before = w.framesDrawn
         plain.show = false
-        for _ in 0..<6 { w.tick() }
+        // Off Darwin the write's dirty mark hops through a task, so wait for idle rather than tick a fixed count.
+        try await w.runUntilIdle()
         return (w.framesDrawn - before, try focused(w))
     }
-    let (restoreFrames, restored) = try frames(restores: true)
-    let (dropFrames, dropped) = try frames(restores: false)
+    let (restoreFrames, restored) = try await frames(restores: true)
+    let (dropFrames, dropped) = try await frames(restores: false)
     #expect(restored == "A" && dropped == nil)
     #expect(restoreFrames == dropFrames + 1, "restore \(restoreFrames) vs drop \(dropFrames)")
 }
