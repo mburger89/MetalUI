@@ -209,6 +209,18 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
         }
     }
 
+    /// `keyCapture(except:optionAsMeta:)` that also asks the platform to deliver the numeric keypad's character keys as
+    /// keys while `keypadAsKeys()` is true (`TRM-BM`), asked on a focus change, a frame's registry swap and a
+    /// surface-only frame. `package`: the terminal view's.
+    package func keyCapture(except shortcuts: [KeyboardShortcut], optionAsMeta: Bool,
+                            keypadAsKeys: @escaping @MainActor () -> Bool) -> Self {
+        handling {
+            $0.keyboard = KeyboardAttachment.adding(
+                KeyCapture(exceptions: shortcuts, optionAsMeta: optionAsMeta, keypadAsKeys: keypadAsKeys).marker,
+                to: $0.keyboard)
+        }
+    }
+
     /// Makes this layer a text target whose text lives outside MetalUI (`TRM-BC`): while it is focused the platform's
     /// input method is on at `input.caret()`, committed text reaches `input.commit` and marked text `input.compose`.
     /// `Self`, so the chain stays one layer. `package`: the terminal view's.

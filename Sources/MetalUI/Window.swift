@@ -607,6 +607,7 @@ public final class Window {
     public private(set) var focusedElement: GlobalElementID? {
         didSet {
             syncRawOptionKeys()   // `TRM-X`
+            syncRawKeypadKeys()   // `TRM-BM`
             if lastFocusRegistry.hasRestoreScopes, !suppressRestoreTracking { noteRestoreTransition(from: oldValue) }
             // A composition does not survive its field losing focus (ruling
             // `IM-I`): AppKit discards the input context's marked text and
@@ -703,6 +704,8 @@ public final class Window {
 
     /// The last `setRawOptionKeys` hint sent to the platform (`TRM-X`).
     var sentRawOptionKeys = false
+    /// The last `setRawKeypadKeys` hint sent to the platform (`TRM-BM`).
+    var sentRawKeypadKeys = false
 
     /// An action nothing along the focus chain handled.
     ///
@@ -2113,6 +2116,7 @@ public final class Window {
         }
         surfaceRedraw.didPresentSurfaceOnly(requests)
         updateTextInputArea()   // a terminal's cursor moved with its output (`TRM-BC`)
+        syncRawKeypadKeys()   // the output may have set or reset DECKPAM (`TRM-BM`)
         timing?.commitFrame()
         framesDrawn += 1
         if drawsImmediatelyOnInput { lastCommitForPacing = immediateInputClock() }
@@ -2406,6 +2410,7 @@ public final class Window {
         let restoreChainAtHandIn = frame.restoreInput?.chain ?? []
         lastFocusRegistry = frame.focusRegistry
         syncRawOptionKeys()   // `TRM-X`
+        syncRawKeypadKeys()   // `TRM-BM`
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastContextMenus = frame.contextMenuRecords
         lastPresentationAnchors = frame.presentationAnchors

@@ -418,6 +418,10 @@ final class MetalHostView: NSView {
     /// then skips the input context, so dead keys and the character palette never see it.
     var rawOptionKeys = false
 
+    /// Whether the numeric keypad's keys are keys, never text (`TRM-BM`, `PlatformWindow.setRawKeypadKeys`): a keypad
+    /// key (no ⌘) skips the input context, so it arrives as a `keyDown` with `isKeypad`, unless marked text composes.
+    var rawKeypadKeys = false
+
     /// The input method's current marked text, for `hasMarkedText`.
     private(set) var markedText = ""
 
@@ -434,7 +438,8 @@ final class MetalHostView: NSView {
         // hands the same event here after the main menu passed on it.
         if event === lastOfferedKeyEquivalent { return }
         if textInputCaret != nil, !event.modifierFlags.contains(.command),
-           !(rawOptionKeys && event.modifierFlags.contains(.option) && markedText.isEmpty) {
+           !(rawOptionKeys && event.modifierFlags.contains(.option) && markedText.isEmpty),
+           !(rawKeypadKeys && Self.keypadKeyCodes.contains(event.keyCode) && markedText.isEmpty) {
             keyInFlight = event
             defer { keyInFlight = nil }
             if inputContext?.handleEvent(event) == true { return }
@@ -1054,6 +1059,8 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     /// Ruling TI-A: the host view becomes a live text-input client while a
     /// caret is set.
     func setRawOptionKeys(_ raw: Bool) { hostView.rawOptionKeys = raw }
+
+    func setRawKeypadKeys(_ raw: Bool) { hostView.rawKeypadKeys = raw }
 
     func setTextInputArea(_ caret: Bounds<Pixels>?) {
         let changed = hostView.textInputCaret != caret

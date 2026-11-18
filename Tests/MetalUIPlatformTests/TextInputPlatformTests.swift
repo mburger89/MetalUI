@@ -86,6 +86,38 @@ private let caret = Bounds(origin: Point(x: Pixels(40), y: Pixels(10)), size: Si
     #expect(log.described == ["key(61)"], "off again")
 }
 
+/// `TRM-BM`: with the keypad hint on, a keypad key (virtual key code 87, a `5` on the numeric keypad) skips the input
+/// context and is a key event with `isKeypad`; off, it is text like any key; the main-row 5 and a ⌘-keypad key are
+/// unchanged either way. Mutation: ignore `rawKeypadKeys` in `keyDown` (the "on" row is text), or drop the key-code
+/// test (the main-row 5 becomes a key).
+@MainActor
+@Test func theKeypadHintMakesKeypadKeysKeysNotText() throws {
+    let (window, view, log) = try hostWindow()
+    func describe() -> [String] {
+        log.events.map {
+            switch $0 {
+            case .textInput(let text): "text(\(text))"
+            case .keyDown(let key): "key(\(key.characters),\(key.isKeypad ? "kp" : "-"))"
+            default: "other"
+            }
+        }
+    }
+    window.setTextInputArea(caret)
+    view.keyDown(with: try keyEvent("5", keyCode: 87, modifiers: .numericPad, in: window))
+    #expect(describe() == ["text(5)"], "hint off: text: \(describe())")
+    log.events = []
+    window.setRawKeypadKeys(true)
+    #expect(view.rawKeypadKeys)
+    view.keyDown(with: try keyEvent("5", keyCode: 87, modifiers: .numericPad, in: window))
+    view.keyDown(with: try keyEvent("5", keyCode: 23, in: window))
+    view.keyDown(with: try keyEvent("5", keyCode: 87, modifiers: [.numericPad, .command], in: window))
+    #expect(describe() == ["key(5,kp)", "text(5)", "key(5,kp)"], "hint on: \(describe())")
+    log.events = []
+    window.setRawKeypadKeys(false)
+    view.keyDown(with: try keyEvent("5", keyCode: 87, modifiers: .numericPad, in: window))
+    #expect(describe() == ["text(5)"], "off again: \(describe())")
+}
+
 @MainActor
 @Test func stoppingTextInputDropsAnUnfinishedComposition() throws {
     let (window, view, _) = try hostWindow()
