@@ -62,8 +62,8 @@ private struct WriterChip: Component {
 }
 
 /// **G1** A drag whose handler writes `@State` that a build reads costs one build per event and shows the new value: the skip
-/// must not swallow a dirty the state raised itself. Mutation: implement the skip by clearing `needsRedraw` after the handler
-/// (the writer's own dirty is lost: 0 builds, a stale `dx`).
+/// must not swallow a dirty the state raised itself. Mutation: implement the skip by clearing `needsRedraw` when the helper
+/// says nothing changed, with its `writeCount` guard dropped (the writer's own dirty is lost: 0 builds, a stale `dx`).
 @Test @MainActor func aDragWhoseHandlerWritesStateRedrawsOncePerEvent() async throws {
     let log = DxLog()
     let w = try harnessWindow { Column { WriterChip(log: log, button: .primary) } }
@@ -228,7 +228,8 @@ private struct WriterChip: Component {
 
 /// **R3** A text field's selection drag is claimed (`dispatchTextInput`) and keeps one frame per step: the selection is
 /// window-owned and raises no dirty of its own. The selection grows (read by copying). Mutation: apply the skip to the
-/// `dispatchTextInput` claim (no frame per step; the selection highlight lags).
+/// `dispatchTextInput` claim with the `writeCount` guard ignored (no frame per step; the highlight lags). With the guard intact the
+/// skip is harmless here: the field's edit state is a `withState` write, which the guard sees.
 @Test @MainActor func aTextFieldSelectionDragStillDrawsEachStep() async throws {
     let m = FieldModel()
     let w = try harnessWindow {
@@ -260,7 +261,8 @@ private struct WriterChip: Component {
 
 /// **R4** A slider dragged over a binding on plain, unobserved storage keeps its frame per step: the value-track claim writes
 /// through the binding and nothing else would dirty. The thumb (the accessibility value) follows. Mutation: apply the skip to
-/// the `dispatchValueTrack` claim (no frame; the value reads stale).
+/// the `dispatchValueTrack` claim (no frame; the value reads stale). The binding writes plain storage, so the `writeCount` guard
+/// cannot save it.
 @Test @MainActor func aSliderDragOverUnobservedStorageStillMovesTheThumb() async throws {
     let p = Plain()
     let w = try harnessWindow {
