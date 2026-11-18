@@ -297,27 +297,34 @@ final class PointerAttachment {
     /// Package, for ``CodeView``'s region cursors (`CV-BO`): the answer is read from the element's last frame, so a move
     /// within one region resolves to the same style and the platform is not asked again.
     let styleProvider: (@MainActor (Point<Pixels>) -> PointerStyle?)?
+    /// Told the window's held modifiers each time they change (`TRM-BO`), wherever the pointer is: from `modifiersChanged`
+    /// and the modifiers of a key, pointer or scroll event, and on leaving key. Called from input, before the pointer style
+    /// is resolved again at the last pointer location, so a provider that reads what this stored answers for the new
+    /// modifiers with no pointer move. No frame, no element request, no build of its own; package, for ``TerminalView``.
+    let modifiersChanged: (@MainActor (EventModifiers) -> Void)?
 
     init(scrollWheel: (@MainActor (ScrollEvent) -> Bool)?, style: PointerStyle?, visibility: Visibility? = nil,
-         styleProvider: (@MainActor (Point<Pixels>) -> PointerStyle?)? = nil) {
+         styleProvider: (@MainActor (Point<Pixels>) -> PointerStyle?)? = nil,
+         modifiersChanged: (@MainActor (EventModifiers) -> Void)? = nil) {
         self.scrollWheel = scrollWheel
         self.style = style
         self.visibility = visibility
         self.styleProvider = styleProvider
+        self.modifiersChanged = modifiersChanged
     }
 
     /// `existing` with its style provider replaced by `provider`.
     static func styleProvider(_ provider: @escaping @MainActor (Point<Pixels>) -> PointerStyle?,
                               over existing: PointerAttachment?) -> PointerAttachment {
         PointerAttachment(scrollWheel: existing?.scrollWheel, style: existing?.style, visibility: existing?.visibility,
-                          styleProvider: provider)
+                          styleProvider: provider, modifiersChanged: existing?.modifiersChanged)
     }
 
     /// `existing` with its wheel handler replaced by `action`.
     static func wheel(_ action: @escaping @MainActor (ScrollEvent) -> Bool,
                       over existing: PointerAttachment?) -> PointerAttachment {
         PointerAttachment(scrollWheel: action, style: existing?.style, visibility: existing?.visibility,
-                          styleProvider: existing?.styleProvider)
+                          styleProvider: existing?.styleProvider, modifiersChanged: existing?.modifiersChanged)
     }
 
     /// `existing` with `style` unless it already carries one (the inner
@@ -326,7 +333,7 @@ final class PointerAttachment {
     static func style(_ style: PointerStyle?, over existing: PointerAttachment?) -> PointerAttachment? {
         guard let style, existing?.style == nil else { return existing }
         return PointerAttachment(scrollWheel: existing?.scrollWheel, style: style, visibility: existing?.visibility,
-                          styleProvider: existing?.styleProvider)
+                          styleProvider: existing?.styleProvider, modifiersChanged: existing?.modifiersChanged)
     }
 
     /// `existing` with `visibility` unless it already carries one (the inner wins, as a style does);
@@ -334,7 +341,7 @@ final class PointerAttachment {
     static func visibility(_ visibility: Visibility, over existing: PointerAttachment?) -> PointerAttachment? {
         guard visibility != .automatic, existing?.visibility == nil else { return existing }
         return PointerAttachment(scrollWheel: existing?.scrollWheel, style: existing?.style, visibility: visibility,
-                          styleProvider: existing?.styleProvider)
+                          styleProvider: existing?.styleProvider, modifiersChanged: existing?.modifiersChanged)
     }
 }
 
@@ -507,6 +514,15 @@ extension Window {
         guard style != resolvedPointerStyle else { return }
         resolvedPointerStyle = style
         sendPointerStyle(resolvedPlatformStyle(style))
+    }
+
+    /// Hands the held modifiers to every pointer attachment that asked (`TRM-BO`): a frame with no pointer-style region
+    /// has none, so an app without a terminal or a `CodeView` pays nothing. Never draws and never asks for a frame.
+    func tellPointerRegionsOfModifiers() {
+        guard lastPointerStyleRegionCount > 0 else { return }
+        for region in lastHitboxes {
+            region.handlers.pointer?.modifiersChanged?(currentModifiers)
+        }
     }
 
     /// What the pointer regions at a point say: the innermost style and the innermost visibility.
