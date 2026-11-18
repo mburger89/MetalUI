@@ -15,7 +15,7 @@ The default dependency is **pinned** (`SC-I`): `revision:` the merge base of
 HEAD and `origin/master` in the checkout `#filePath` names, falling back to
 `branch: "master"` with a note; the lookup is injected, so a test never runs
 git on the checkout's history. **A refused name is a measured build failure**
-(`SC-H`): add one only after generating and building a package with it.
+(`SC-H`): add one only after generating and building a package with it. **A release build with no checkout asks for its own release** (`SC-J`): `metaluiVersion` in `Sources/MetalUIScaffold/Version.swift` is the single source; the order is checkout pin, then `.upToNextMinor(from:)` (0.x) or `from:` for a `MAJOR.MINOR.PATCH` version on the default URL, then the branch; a tag `vX.Y.Z` must equal `v` + `metaluiVersion` (`.github/workflows/release.yml`).
 
 **Sample app (`EX-`, record §136, `Examples/Jotter/README.md`).** `Examples/Jotter` is the repo's one real app: a notes app in **its own SwiftPM
 package** (library `JotterKit`, executable, `JotterTests`) depending on the checkout by path with the scaffold's products and traits (`EX-A`, `EX-B`;

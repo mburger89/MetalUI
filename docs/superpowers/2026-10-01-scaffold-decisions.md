@@ -6,7 +6,7 @@ user chose, up front: a CLI in this package; macOS by default with an opt-in
 SDL path; a git-URL dependency overridable to a local path; `.app` packaging
 generated, built on the app-icon line's `docs/packaging.md` (PR #38).
 
-Next unused: `SC-J`.
+Next unused: `SC-K`.
 
 ## SC-A — a portable `metalui` executable over a `package`-access library
 
@@ -178,3 +178,36 @@ real ones. Pinned by `theCommandLineDefaultsToTheGitURLPinnedAndTheWorkingDirect
 `thePinIsTheMergeBaseOfHeadAndOriginMasterInACloneOfTheURL`,
 `gitRunsFromThePathAndAFailureIsNil`,
 `runningTheCommandSaysWhatItPinnedOrWhyItDidNot`.
+
+## SC-J — a release build asks for its own release; amends SC-I
+
+Homebrew builds `metalui` from the release's source archive in a temporary
+directory that is deleted afterwards, so SC-I's git lookup (`#filePath`, three
+levels up) finds no repository and the default fell to the unpinned
+`branch: "master"`. `Sources/MetalUIScaffold/Version.swift` now holds
+`metaluiVersion` (`"0.1.0"`, the single source of truth; the release workflow
+fails unless the pushed tag is `v` + it), and the default dependency is the
+first of:
+
+1. **(a) a checkout** — SC-I unchanged: the scaffolder's own checkout is a
+   clone of the URL with an `origin/master` merge base → `revision:` that
+   commit (framework developers, whatever the version).
+2. **(b) a release** — otherwise, when `metaluiVersion` is `MAJOR.MINOR.PATCH`
+   (no `-dev` or other suffix; `isReleaseVersion`) **and the URL is the
+   default repository** (a fork has no such tag) → `GitReference.release`:
+   `.package(url:, .upToNextMinor(from: "0.1.0"))` while the major version is 0,
+   `from: "X.Y.Z"` from 1.0, with the traits as before.
+3. **(c) the branch** — otherwise the SC-I fallback and its note.
+
+`--local`, `--revision` and `--branch` still win and are never looked up.
+**`.upToNextMinor` for 0.x, not `from:`.** `from: "0.1.0"` is `0.1.0..<1.0.0`,
+so a breaking 0.2 would reach apps generated against 0.1 on their next
+`swift package update`; the API is experimental, so a 0.x app moves minor
+versions by editing its manifest. The generated README's `## Updating MetalUI`
+says so; the manifest gets a comment pointing at it. The CLI says what it
+did: (a) "pinned to <commit>", (b) "set to release 0.1.0
+(`.upToNextMinor(from: "0.1.0")`)" and no warning (it is the intended
+route), (c) the SC-I note. `metalui --version` / `-V` prints
+`metalui <version>`; the usage lists it. `parseScaffoldCommand` and
+`runScaffold` take `version:` (default `metaluiVersion`) so each case is a
+pure test. Pinned by `ReleaseTests` (record 385).

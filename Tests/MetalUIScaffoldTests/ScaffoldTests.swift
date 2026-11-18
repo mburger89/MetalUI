@@ -487,7 +487,7 @@ private func noLookup(_ url: String) -> PinLookup {
 
 /// SC-I: no commit to pin → the branch, and a note saying why and what to do.
 @Test func withNoCommitToPinThePackageFollowsMasterAndSaysWhy() throws {
-    let command = try parseScaffoldCommand(["new", "MyApp"], workingDirectory: "/w") { _ in
+    let command = try parseScaffoldCommand(["new", "MyApp"], workingDirectory: "/w", version: "0.2.0-dev") { _ in
         .unavailable("no git here")
     }
     #expect(command == .new(ScaffoldOptions(name: "MyApp", source: .remote(
@@ -569,7 +569,8 @@ private func noLookup(_ url: String) -> PinLookup {
         + "\nMetalUI is pinned to \(pinned); README.md says how to update it.\n"])
     #expect(errors.isEmpty)
     output = []
-    #expect(runScaffold(["new", "Floating"], workingDirectory: root.path, pinLookup: { _ in .unavailable("why") },
+    #expect(runScaffold(["new", "Floating"], workingDirectory: root.path, version: "0.2.0-dev",
+                        pinLookup: { _ in .unavailable("why") },
                         output: { output.append($0) }, error: { errors.append($0) }) == 0)
     #expect(errors == ["metalui: note: MetalUI is not pinned to a commit: why. The package follows branch master "
         + "instead; pin it with --revision <commit> (README.md, \"Updating MetalUI\")."])

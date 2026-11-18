@@ -1787,3 +1787,9 @@ Verbatim from `CLAUDE.md` "Reference tables", as of `1b093b8` plus record §65; 
   so nothing here reopens or closes the demo-layout look or any other
   earlier task's own; the lock probe read locked at every one of those
   checks, so `capture.sh` was never run this task.
+
+## Appendix: the counts line replaced on 2026-11-18
+
+Moved verbatim from `CLAUDE.md` when its counts line was cut to one dated fact:
+
+- **Counts (2026-11-15, `feat/split-divider-ax` on master f9e2af33 + record 324): root 6206 tests in 32 suites (full run green, `--build-system native`, `--no-parallel`); the SDL package's 380 tests green but `windowServerTrafficNeverStopsTheMainRunLoop`, which fails the same on master; divergences 226 live, next label 243 (206 amended); the previous line, `feat/menu-item-labels` on master ccd6cc3a + record 322: root 6192 tests in 32 suites; the rest of this line is lane 8's and not re-counted: root 6155 tests in 32 suites (`--build-system native`, unfiltered, `--no-parallel`), all green; the gated 100k outline test run once and green; guards not re-counted; the portable image not re-run; divergences 224 live, next label 242.**

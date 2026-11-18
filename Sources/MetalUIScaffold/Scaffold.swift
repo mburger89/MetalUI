@@ -12,6 +12,10 @@ package enum GitReference: Equatable, Sendable {
     case branch(String)
     /// `.package(url:, revision:)`: one commit, until the user changes it.
     case revision(String)
+    /// A release (SC-J): `.package(url:, from:)`, or `.upToNextMinor(from:)`
+    /// while the major version is 0, so a breaking 0.N+1 never reaches an app
+    /// that was generated against 0.N.
+    case release(String)
 }
 
 /// Where the generated package finds MetalUI.
@@ -217,6 +221,18 @@ private func swiftString(_ value: String) -> String {
     "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
 }
 
+/// Whether `version` is `MAJOR.MINOR.PATCH` and nothing else (SC-J).
+package func isReleaseVersion(_ version: String) -> Bool {
+    let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+    return parts.count == 3 && parts.allSatisfy { !$0.isEmpty && $0.unicodeScalars.allSatisfy { ("0"..."9").contains($0) } }
+}
+
+/// The SwiftPM requirement for a release (SC-J): `from:` (up to the next
+/// major) from 1.0, `.upToNextMinor(from:)` for 0.x.
+func releaseRequirement(_ version: String) -> String {
+    version.hasPrefix("0.") ? ".upToNextMinor(from: \(swiftString(version)))" : "from: \(swiftString(version))"
+}
+
 func manifest(_ options: ScaffoldOptions) -> String {
     let name = options.name
     // Cross-platform: MetalUI's SDL traits, on Linux and Windows only (PX-J
@@ -231,6 +247,11 @@ func manifest(_ options: ScaffoldOptions) -> String {
     case let .remote(url, .revision(revision)):
         dependencies = "        // One commit of MetalUI, until you move it: README.md, \"Updating MetalUI\".\n"
             + "        .package(url: \(swiftString(url)), revision: \(swiftString(revision))\(traits)),\n"
+        metalUIPackage = "MetalUI"
+    case let .remote(url, .release(version)):
+        let requirement = releaseRequirement(version)
+        dependencies = "        // A release of MetalUI, until you move it: README.md, \"Updating MetalUI\".\n"
+            + "        .package(url: \(swiftString(url)), \(requirement)\(traits)),\n"
         metalUIPackage = "MetalUI"
     case let .local(path):
         dependencies = "        .package(path: \(swiftString(path))\(traits)),\n"
@@ -530,6 +551,24 @@ private func updatingSection(_ source: MetalUISource) -> String {
             `Package.resolved` records the commit you built; commit it with the app.
 
             """
+    case let .remote(url, .release(version)):
+        return """
+
+            ## Updating MetalUI
+
+            `Package.swift` asks for MetalUI release \(version) of <\(url)>, and SwiftPM
+            takes the newest release \(version.hasPrefix("0.") ? "of that minor version" : "of that major version"),
+            so a breaking release never arrives by itself. To move to another one, change
+            the version in `Package.swift`, then:
+
+            ```sh
+            swift package update
+            swift build
+            ```
+
+            `Package.resolved` records the release you built; commit it with the app.
+
+            """
     case let .remote(url, .branch(branch)):
         return """
 
@@ -789,6 +828,8 @@ package func writeScaffold(_ files: [ScaffoldFile], to directory: URL) throws {
 
 package enum ScaffoldCommand: Equatable {
     case help
+    /// `metalui --version` (SC-J).
+    case version
     /// `note` is printed to standard error: why the dependency was left
     /// unpinned (SC-I).
     case new(ScaffoldOptions, parentDirectory: String, note: String? = nil)
@@ -799,6 +840,7 @@ package enum ScaffoldCommand: Equatable {
 
 package let scaffoldUsage = """
     usage: metalui new <Name> [options]
+           metalui --version
            metalui bundle --product <Product> --bundle-id <id> [options]   (macOS; --help for its options)
 
     Creates <Name>/ — a SwiftPM package with an executable that opens a MetalUI
@@ -811,13 +853,15 @@ package let scaffoldUsage = """
       --url <git URL>       MetalUI's repository (default: \(MetalUISource.defaultURL))
       --revision <commit>   pin MetalUI to this commit (default: the newest commit
                             of origin/\(MetalUISource.defaultBranch) that the checkout this metalui was
-                            built from contains; no such commit: follow \(MetalUISource.defaultBranch))
+                            built from contains; no such checkout: the release \(metaluiVersion)
+                            of a release build, else follow \(MetalUISource.defaultBranch))
       --branch <branch>     follow a branch instead of pinning a commit
       --cross-platform      also run on Linux and Windows through MetalUI's SDL
                             backend (its SDL and AccessKit traits)
       --no-accesskit        with --cross-platform: no screen-reader bridge on
                             Linux and Windows (the SDL trait alone)
       -h, --help            show this help
+      -V, --version         print the metalui version
     """
 
 /// What looking for a commit to pin found (SC-I).
@@ -908,12 +952,15 @@ package func runGit(_ arguments: [String]) -> String? {
 /// Parses `arguments` (without the program name). `workingDirectory` resolves
 /// a relative `--local` or `--path`; `pinLookup` is asked for a commit of the
 /// URL only when neither `--revision` nor `--branch` (nor `--local`) is given
-/// (SC-I).
+/// (SC-I); with no pin, a release `version` is a version requirement and
+/// anything else follows the branch (SC-J).
 package func parseScaffoldCommand(_ arguments: [String], workingDirectory: String,
+                                  version: String = metaluiVersion,
                                   pinLookup: (String) -> PinLookup) throws -> ScaffoldCommand {
     var remaining = arguments[...]
     guard let verb = remaining.popFirst() else { throw ScaffoldError.usage(scaffoldUsage) }
     if verb == "-h" || verb == "--help" || verb == "help" { return .help }
+    if verb == "-V" || verb == "--version" { return .version }
     if verb == "bundle" {
         switch try parseBundleCommand(Array(remaining), workingDirectory: workingDirectory) {
         case .help: return .bundleHelp
@@ -981,10 +1028,15 @@ package func parseScaffoldCommand(_ arguments: [String], workingDirectory: Strin
             case let .revision(commit):
                 source = .remote(url: url, reference: .revision(commit))
             case let .unavailable(why):
-                let fallback = MetalUISource.defaultBranch
-                source = .remote(url: url, reference: .branch(fallback))
-                note = "MetalUI is not pinned to a commit: \(why). The package follows branch \(fallback) "
-                    + "instead; pin it with --revision <commit> (README.md, \"Updating MetalUI\")."
+                if isReleaseVersion(version),
+                   normalizedRepository(url) == normalizedRepository(MetalUISource.defaultURL) {
+                    source = .remote(url: url, reference: .release(version))
+                } else {
+                    let fallback = MetalUISource.defaultBranch
+                    source = .remote(url: url, reference: .branch(fallback))
+                    note = "MetalUI is not pinned to a commit: \(why). The package follows branch \(fallback) "
+                        + "instead; pin it with --revision <commit> (README.md, \"Updating MetalUI\")."
+                }
             }
         }
     }
@@ -1020,13 +1072,18 @@ package func validateCheckout(_ path: String) throws {
 /// Returns the process's exit status. `pinLookup` defaults to git in the
 /// checkout this executable was built from (SC-I).
 package func runScaffold(_ arguments: [String], workingDirectory: String,
+                         version: String = metaluiVersion,
                          pinLookup: (String) -> PinLookup = { lookUpPin(of: $0, in: scaffolderCheckout, git: runGit) },
                          processRunner: BundleProcessRunner = runProcess,
                          output: (String) -> Void, error: (String) -> Void) -> Int32 {
     do {
-        switch try parseScaffoldCommand(arguments, workingDirectory: workingDirectory, pinLookup: pinLookup) {
+        switch try parseScaffoldCommand(arguments, workingDirectory: workingDirectory,
+                                         version: version, pinLookup: pinLookup) {
         case .help:
             output(scaffoldUsage)
+            return 0
+        case .version:
+            output("metalui \(version)")
             return 0
         case .bundleHelp:
             output(bundleUsage)
@@ -1042,6 +1099,8 @@ package func runScaffold(_ arguments: [String], workingDirectory: String,
             var message = "Created \(destination.path)\n\n  cd \(destination.path)\n  swift run \(options.name)\n"
             if case let .remote(_, .revision(commit)) = options.source {
                 message += "\nMetalUI is pinned to \(commit); README.md says how to update it.\n"
+            } else if case let .remote(_, .release(release)) = options.source {
+                message += "\nMetalUI is set to release \(release) (\(releaseRequirement(release))); README.md says how to update it.\n"
             }
             output(message)
             return 0
