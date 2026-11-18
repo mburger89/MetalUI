@@ -212,6 +212,9 @@ public struct CodeTheme: Equatable, Sendable {
     public var currentFindMatch: Color
     /// A tint across the row of the caret while nothing is selected; `nil` (the default) draws none.
     public var currentLine: Color?
+    /// The tint of the placeholders of a running snippet other than the current one (``CodeSelectionState/isSnippetActive``,
+    /// `CV-BR`); a faint wash by default, `nil` draws none. The current placeholder is the selection.
+    public var snippetPlaceholder: Color?
 
     /// The default ``inactiveSelection``: AppKit's `unemphasizedSelectedTextBackgroundColor` as the probe
     /// `appkit-inactive-selection.swift` recorded it (`CV-BB`), on every platform.
@@ -227,7 +230,9 @@ public struct CodeTheme: Equatable, Sendable {
                 findMatch: Color = Color.yellow.opacity(0.35),
                 currentFindMatch: Color = Color.orange.opacity(0.65),
                 currentLine: Color? = nil,
-                inactiveSelection: Color = CodeTheme.defaultInactiveSelection) {
+                inactiveSelection: Color = CodeTheme.defaultInactiveSelection,
+                snippetPlaceholder: Color? = Color.textPrimary.opacity(0.12)) {
+        self.snippetPlaceholder = snippetPlaceholder
         self.inactiveSelection = inactiveSelection
         self.findMatch = findMatch
         self.currentFindMatch = currentFindMatch

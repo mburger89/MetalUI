@@ -45,6 +45,17 @@ public final class CodeSelectionState {
     /// add searches whole words only (`CV-BJ`).
     @ObservationIgnored private var wordSearchSerial: UInt64?
 
+    /// The running snippet, `nil` when none (`CV-BQ`). Every edit moves it in the pass that moves the selections.
+    @ObservationIgnored package var snippet: SnippetSession? {
+        didSet { if (snippet != nil) != isSnippetActive { isSnippetActive = snippet != nil } }
+    }
+    /// The columns of the indent unit of the view showing this state, 0 for a tab: the view writes it each time it
+    /// builds its plan, and a snippet inserted with no `indentUnit` reads it (`CV-BQ`). Never observed.
+    @ObservationIgnored package var viewIndentSpaces = 0
+    /// Whether a snippet session is running: Tab and Shift-Tab step its placeholders, Escape ends it, and a view
+    /// tints the placeholders (`CV-BQ`). Observable.
+    public internal(set) var isSnippetActive = false
+
     /// The `revealSerial` a view has last taken in, and the frame it did so in (`CV-BA`): a view mounting with
     /// `revealSerial` ahead of this, or in that same frame, honours the reveal on its first laid-out frame; any
     /// later mount finds it handled and starts at the top. Never observed: writing it wakes nothing.
@@ -89,6 +100,7 @@ public final class CodeSelectionState {
         goalColumn = nil
         buffer.breakUndoCoalescing()
         openFolds()
+        if snippet != nil { reconcileSnippetAfterWrite() }
     }
 
     /// The index in `selections` of the primary selection: the one assigned first, or the one an edit
@@ -334,5 +346,164 @@ public final class CodeSelectionState {
             bytes += c.utf8.count
         }
         return bytes
+    }
+}
+
+// MARK: Snippets (`CV-BQ`)
+
+extension CodeSelectionState {
+    /// Inserts `snippet` in place of `range` as one undo step and starts a session at its first placeholder
+    /// (`CV-BQ`): the selections become that placeholder's ranges (every mirror of it), and Tab and Shift-Tab in a
+    /// ``CodeView`` step through the stops. This state is the acting state. A session already running ends first.
+    ///
+    /// Each line after the first takes the leading whitespace of the line the insertion starts on (up to the
+    /// insertion). With `indentUnit` (or, when `nil`, the unit of the view showing this state: its tab, or its
+    /// ``CodeView/tabWidth(_:)`` spaces under ``CodeView/indentUsingSpaces(_:)``), each leading tab of the
+    /// snippet's own lines becomes that unit. Line breaks in the snippet become the buffer's. A snippet with
+    /// only the final stop starts no session: the caret goes there. Nothing happens on a read-only buffer.
+    ///
+    /// - Returns: the transaction of the insertion.
+    @discardableResult
+    public func insertSnippet(_ snippet: CodeSnippet, replacing range: Range<Int>, indentUnit: String? = nil) -> CodeTransactionID {
+        endSnippet()
+        let buffer = buffer
+        let snap = buffer.snapshot()
+        let line = snap.lineRange(snap.point(at: range.lowerBound).row)
+        let lead = String(snap.text(in: line.lowerBound..<min(range.lowerBound, line.upperBound))
+            .utf8.prefix { $0 == 0x20 || $0 == 0x09 }.map { Character(Unicode.Scalar($0)) })
+        let unit = indentUnit ?? (viewIndentSpaces > 0 ? String(repeating: " ", count: viewIndentSpaces) : nil)
+        let (text, stops) = Self.adjusted(snippet, indent: lead, unit: unit, ending: buffer.lineEnding.text)
+        let base = range.lowerBound
+        var tx = CodeTransactionID(rawValue: 0)
+        var started: SnippetSession?
+        transaction { buf in
+            tx = buf.replace(range, with: text, origin: .programmatic)
+            guard !buf.isReadOnly else { return }
+            let absolute = stops.map { (index: $0.index, range: ($0.range.lowerBound + base)..<($0.range.upperBound + base)) }
+            let session = SnippetSession(stops: absolute, transaction: tx)
+            // Only the final stop: no session, the caret goes there.
+            placeSnippetSelections(session.ranges(of: session.current))
+            if session.current != 0 { started = session }
+        }
+        if let started { self.snippet = started }
+        return tx
+    }
+
+    /// Moves to the next placeholder of the running snippet and selects it (every mirror of it): Tab in a view.
+    /// Reaching the final stop places the caret there and ends the session. Undo-neutral. Returns `false` when no
+    /// session is running.
+    @discardableResult
+    public func nextSnippetPlaceholder() -> Bool {
+        guard var session = snippet else { return false }
+        guard let next = session.nextGroup() else { endSnippet(); return true }
+        session.setCurrent(next)
+        placeSnippetSelections(session.ranges(of: next))
+        snippet = next == 0 ? nil : session   // the final stop ends the session
+        return true
+    }
+
+    /// Moves to the previous placeholder and selects it: Shift-Tab in a view. Returns `false`, changing nothing,
+    /// when no session is running or the current placeholder is the first (the key then outdents).
+    @discardableResult
+    public func previousSnippetPlaceholder() -> Bool {
+        guard var session = snippet, let previous = session.previousGroup() else { return false }
+        session.setCurrent(previous)
+        placeSnippetSelections(session.ranges(of: previous))
+        snippet = session
+        return true
+    }
+
+    /// Ends the running snippet and keeps the selections: Escape in a view. The text stays as it is.
+    public func endSnippet() {
+        if snippet != nil { snippet = nil }
+    }
+
+    /// Selects `ranges` as the selections (the first the primary) without ending the session, ending undo
+    /// coalescing and asking views to reveal the primary.
+    private func placeSnippetSelections(_ ranges: [Range<Int>]) {
+        let limited = ranges.prefix(Self.selectionLimit).map { CodeSelection(anchor: $0.lowerBound, head: $0.upperBound) }
+        let limit = buffer.rope.summary.utf8
+        withMutation(keyPath: \.selections) {
+            (stored, storedPrimary) = CodeBuffer.normalize(limited, limit: limit, primary: 0)
+            mutationSerial &+= 1
+        }
+        goalColumn = nil
+        buffer.breakUndoCoalescing()
+        openFolds()
+        nearestRevealSerial &+= 1
+    }
+
+    /// After an explicit selection write (a press, a motion, any assignment): the session ends when a selection
+    /// is outside every placeholder, bounds included; otherwise the current group follows the primary.
+    private func reconcileSnippetAfterWrite() {
+        guard var session = snippet else { return }
+        for selection in stored where !session.contains(selection.range) {
+            snippet = nil
+            return
+        }
+        let primary = stored[storedPrimary].range
+        if let at = session.innermost(containing: primary), session.placeholders[at].index != session.current,
+           !session.placeholders.contains(where: { $0.index == session.current && !$0.removed && $0.range.lowerBound <= primary.lowerBound && primary.upperBound <= $0.range.upperBound }) {
+            let group = session.placeholders[at].index
+            if group == 0 { snippet = nil; return }
+            session.setCurrent(group)
+            snippet = session
+        }
+    }
+
+    /// Moves the running snippet over one edit; the one call the buffer makes per state per event.
+    func moveSnippet(start: Int, end: Int, newLength: Int) {
+        snippet!.move(start: start, end: end, newLength: newLength)
+    }
+
+    /// The snippet with its text adjusted to the insertion: every line after the first prefixed with `indent`, a
+    /// leading tab of any line after the first replaced by `unit`, line breaks as `ending`; and each stop's range
+    /// mapped into the adjusted text. A snippet with no final stop gets one at its end.
+    static func adjusted(_ snippet: CodeSnippet, indent: String, unit: String?, ending: String) -> (String, [CodeSnippet.TabStop]) {
+        let src = Array(snippet.text.utf8)
+        let n = src.count
+        let indentBytes = Array(indent.utf8), unitBytes = unit.map { Array($0.utf8) }, endingBytes = Array(ending.utf8)
+        var out: [UInt8] = []
+        out.reserveCapacity(n + 16)
+        var startMap = [Int](repeating: 0, count: n + 1), endMap = [Int](repeating: 0, count: n + 1)
+        var i = 0
+        var atLineStart = true, first = true, justStarted = false
+        while i <= n {
+            if atLineStart {
+                atLineStart = false
+                endMap[i] = out.count
+                if !first { out.append(contentsOf: indentBytes) }
+                startMap[i] = out.count
+                var j = i
+                while j < n, src[j] == 0x20 || src[j] == 0x09 {
+                    if j > i { startMap[j] = out.count; endMap[j] = out.count }
+                    if src[j] == 0x09, !first, let unitBytes { out.append(contentsOf: unitBytes) } else { out.append(src[j]) }
+                    j += 1
+                }
+                if j > i { startMap[j] = out.count; endMap[j] = out.count }
+                i = j
+                justStarted = true
+                continue
+            }
+            if !justStarted { startMap[i] = out.count; endMap[i] = out.count }
+            justStarted = false
+            if i == n { break }
+            if src[i] == 0x0A {
+                out.append(contentsOf: endingBytes)
+                i += 1
+                atLineStart = true
+                first = false
+            } else {
+                out.append(src[i])
+                i += 1
+            }
+        }
+        var stops = snippet.tabStops.map { stop -> CodeSnippet.TabStop in
+            let lo = startMap[stop.range.lowerBound]
+            let hi = stop.range.isEmpty ? lo : max(lo, endMap[stop.range.upperBound])
+            return CodeSnippet.TabStop(index: stop.index, range: lo..<hi)
+        }
+        if !stops.contains(where: { $0.index == 0 }) { stops.append(.init(index: 0, range: out.count..<out.count)) }
+        return (String(decoding: out, as: UTF8.self), stops)
     }
 }

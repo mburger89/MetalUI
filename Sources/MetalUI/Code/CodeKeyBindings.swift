@@ -19,9 +19,12 @@ extension CodeView {
     /// Shortcuts are in the base-key form (`KF-AL`): letters lower-cased, ⇧Tab as Tab with ⇧.
     ///
     /// **Some claims are conditional** (``ClaimedShortcut/isConditional``; the key is reported either way):
-    /// - Escape ("Collapse Selections"): `"only with several selections"`.
+    /// - Escape ("Collapse Selections"): `"only with several selections; ends a snippet"` (`CV-BR`: Escape also ends a
+    ///   running snippet session first, even with one selection).
+    /// - Tab ("Indent") and Shift-Tab ("Outdent"): `"editable only; next placeholder in a snippet"` and
+    ///   `"editable only; previous placeholder in a snippet"` (`CV-BR`).
     /// - ⌘G and ⇧⌘G, Ctrl+G and Ctrl+Shift+G ("Find Next", "Find Previous"): `"only with find matches"`.
-    /// - Every command that changes the text (Insert Newline, Indent, Outdent, the deletes, Cut, Paste, Undo,
+    /// - Every other command that changes the text (Insert Newline, the deletes, Cut, Paste, Undo,
     ///   Redo): `"editable only"`, because a read-only view does not take the key.
     ///
     /// Movement, selection (including Select All) and Copy are unconditional. The multi-caret keys other than
@@ -68,9 +71,11 @@ private enum CodeKeyBindingTable {
 
     static func conditionality(of command: CodeCommand) -> (Bool, String?) {
         switch command {
-        case .collapseSelections: (true, "only with several selections")
+        case .collapseSelections: (true, "only with several selections; ends a snippet")
         case .findNext, .findPrevious: (true, "only with find matches")
-        case .delete, .newline, .indent, .outdent, .cut, .paste, .undo, .redo: (true, "editable only")
+        case .indent: (true, "editable only; next placeholder in a snippet")
+        case .outdent: (true, "editable only; previous placeholder in a snippet")
+        case .delete, .newline, .cut, .paste, .undo, .redo: (true, "editable only")
         case .move, .selectAll, .copy: (false, nil)
         }
     }

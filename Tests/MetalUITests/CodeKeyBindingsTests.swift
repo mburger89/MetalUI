@@ -112,14 +112,18 @@ func noClaimedKeyIsMissingFromTheList(platform: KeyboardShortcut.Platform) {
 @Test func conditionalClaimsAreFlaggedWithTheirCondition() throws {
     let list = CodeView.builtInKeyBindings(platform: .macOS)
     let escape = try #require(claim(list, .escape))
-    #expect(escape.title == "Collapse Selections" && escape.isConditional && escape.condition == "only with several selections")
+    #expect(escape.title == "Collapse Selections" && escape.isConditional && escape.condition == "only with several selections; ends a snippet")
     let previous = try #require(claim(list, "g", [.command, .shift]))
     #expect(previous.title == "Find Previous" && previous.condition == "only with find matches")
-    for (key, modifiers) in [(KeyEquivalent.return, EventModifiers()), (.delete, []), (.tab, []), ("x", .command),
+    for (key, modifiers) in [(KeyEquivalent.return, EventModifiers()), (.delete, []), ("x", .command),
                              ("v", .command), ("z", .command)] as [(KeyEquivalent, EventModifiers)] {
         let entry = try #require(claim(list, key, modifiers))
         #expect(entry.isConditional && entry.condition == "editable only", "\(entry.title)")
     }
+    // Tab and Shift-Tab step a snippet's placeholders first (`CV-BR`).
+    let tab = try #require(claim(list, .tab)), backtab = try #require(claim(list, .tab, .shift))
+    #expect(tab.title == "Indent" && tab.isConditional && tab.condition == "editable only; next placeholder in a snippet")
+    #expect(backtab.title == "Outdent" && backtab.isConditional && backtab.condition == "editable only; previous placeholder in a snippet")
     for (key, modifiers) in [(KeyEquivalent.leftArrow, EventModifiers()), ("a", .command), ("c", .command),
                              (.pageDown, [])] as [(KeyEquivalent, EventModifiers)] {
         let entry = try #require(claim(list, key, modifiers))
