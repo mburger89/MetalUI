@@ -205,7 +205,8 @@ private struct HarnessKAction: Action {}
 
 /// 1.13 — `drag` delivers `steps` dragged events, each with a frame: a
 /// `DragGesture` (minimum distance 10; each step moves 10√2) hears `steps`
-/// changes and ends at end − start, and the drag draws `steps` + 1 frames.
+/// changes and ends at end − start. The drag draws 2 frames, the press's and the release's: since `FP-U` a drag event whose
+/// handler changes nothing a build reads (here a log) asks for no frame (it drew `steps` + 1 before).
 /// Mutation: the steps collapsed to 1.
 @Test @MainActor func aDragDeliversStepsDraggedEventsEachWithAFrame() throws {
     let drag = HarnessDragLog()
@@ -219,7 +220,7 @@ private struct HarnessKAction: Action {}
     window.drag(from: pt(150, 100), to: pt(230, 180), steps: 8)
     #expect(drag.changes == 8)
     #expect(drag.ended == sz(80, 80))
-    #expect(window.framesDrawn == drawn + 9)
+    #expect(window.framesDrawn == drawn + 2, "press and release only (`FP-U`): \(window.framesDrawn - drawn)")
 }
 
 /// 1.15 — `click(at:forDuration:thenDragTo:)` holds before it drags: a long

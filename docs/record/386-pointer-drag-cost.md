@@ -41,6 +41,6 @@ Branch `perf/pointer-drag-cost` on master `328ab5eb`. Class M, no divergence, no
 
 **One expectation of the plan did not hold.** T2 expected `framesDrawn` unchanged over a reporting terminal's secondary drag; the view draws its own surface-only frame per event (0 builds, 0 requests, `surfaceOnlyFrames` equals the frames drawn), so the test (renamed `aReportingSecondaryDragSendsBytesAndAsksForNoBuild`) pins 0 builds, 0 requests and every frame surface-only.
 
-**Existing literals updated:** `aSelectionDragCostsOneBuildAndRedrawsOnlyTheSelectedRow` is `aSelectionDragIsSurfaceOnly` (builds 0, requests 0), and `pointerCostsAreThoseOfAnyPointerEvent`'s drag loop (builds 0, requests 0), both citing `FP-U`. Every other existing test is unedited.
+**Existing literals updated:** `HarnessInputTests.aDragDeliversStepsDraggedEventsEachWithAFrame` expected `steps` + 1 = 9 frames and now 2 (the press and the release; its handler writes only a log), per the plan's triage rule; `aSelectionDragCostsOneBuildAndRedrawsOnlyTheSelectedRow` is `aSelectionDragIsSurfaceOnly` (builds 0, requests 0), and `pointerCostsAreThoseOfAnyPointerEvent`'s drag loop (builds 0, requests 0), both citing `FP-U`. Every other existing test is unedited.
 
 **Limit.** A drag handler that changes only unobserved state no longer redraws, as in SwiftUI (class M).
