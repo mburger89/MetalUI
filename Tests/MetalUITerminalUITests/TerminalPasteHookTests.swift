@@ -8,15 +8,11 @@ import Testing
 
 // The terminal's paste hook (`TRM-BG`, record 378), headless on `TermRig`: `onPaste` sees the text and the newest modes
 // before the default paste, for every route, and its answer decides. Mutations, each shown red against this file:
-//   - skip the hook call in `TerminalViewModel.paste` (items 1, 2, 3, 4 fail);
-//   - ignore its return (call it, then send anyway: item 4 fails);
-//   - pass `TerminalModes()` or the last drawn snapshot's modes instead of `modes` (item 3 fails);
-//   - route one path around the hook (send `encodePaste` straight from the Ctrl+Shift+V branch, or build the
-//     pasteDestination's action without `paste`: item 1 off Apple, item 2 on Apple fail);
-//   - hand the hook the text after `encodePaste` (item 1's text equality fails);
-//   - drop `onPaste` from the field's `model.onPaste = onPaste` (every hook item fails);
-//   - compare `onPaste` in the field's `==` (not mutable: a closure has no equality; the cost item guards a stored
-//     per-frame cost instead).
+//   - skip the hook call in `TerminalViewModel.paste` (items 1-4 fail);
+//   - ignore its return (call it, then send anyway: items 2 and 4 fail);
+//   - pass `TerminalModes()` or the last drawn snapshot's modes instead of `modes` (item 3 fails; red verified for both);
+//   - route one path around the hook (build the pasteDestination action without `paste`: items 1-3 fail; sending
+//     `encodePaste` straight from the Ctrl+Shift+V branch is unreachable on Apple, so only an off-Apple run can show it red (item 1; not run here));
 
 private func esc(_ s: String) -> [UInt8] { [0x1B] + Array(s.utf8) }
 
