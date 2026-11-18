@@ -126,6 +126,15 @@ struct KeyPressHandler {
 struct KeyCapture {
     var exceptions: [KeyboardShortcut]
     var optionAsMeta: Bool
+    /// Asked by the window while the layer is on the focus chain: whether the platform should deliver keypad
+    /// characters as keys now (`TRM-BM`; a terminal's DECKPAM). `nil` is never.
+    var keypadAsKeys: (@MainActor () -> Bool)?
+
+    init(exceptions: [KeyboardShortcut], optionAsMeta: Bool, keypadAsKeys: (@MainActor () -> Bool)? = nil) {
+        self.exceptions = exceptions
+        self.optionAsMeta = optionAsMeta
+        self.keypadAsKeys = keypadAsKeys
+    }
 
     /// The handler that carries this capture through every `onKeyPress` conformer (`KF-AC`, `KF-AD`, `KF-AE`):
     /// it joins the layer's handler list like any other and never hears a key.

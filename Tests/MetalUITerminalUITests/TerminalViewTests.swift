@@ -40,6 +40,7 @@ import Testing
     init(cols: Int = 80, rows: Int = 24, size: Size<Pixels> = Size(width: Pixels(400), height: Pixels(300)),
          blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true, commands: Bool = false,
          opens: Bool = false, cursorStyle: TerminalCursorStyle = TerminalCursorStyle(shape: .block, blinking: false),
+         accessibility: Bool = true,
          paste: (@MainActor (String, TerminalModes) -> Bool)? = nil) throws {
         self.size = size
         knobs.paste = paste
@@ -51,12 +52,12 @@ import Testing
         // An `OpenURLAction` written at the root is an uncomparable custom key (`LI-C`): a window that writes one refuses
         // retention, so only a test that reads `log.opened` writes it. (A real app's window stamps an identity reading, `LI-D`.)
         if opens {
-            window = try TestWindow(size: start, textSystem: { portableSystem() }) {
+            window = try TestWindow(size: start, options: .init(accessibilityClientActive: accessibility), textSystem: { portableSystem() }) {
                 rigStack(source: source, log: log, knobs: knobs, extra: extra, terminal: terminal, blink: blink, stops: stops)
                     .environment(\.openURL, OpenURLAction { url in log.opened.append(url); return .handled })
             }
         } else {
-            window = try TestWindow(size: start, textSystem: { portableSystem() }) {
+            window = try TestWindow(size: start, options: .init(accessibilityClientActive: accessibility), textSystem: { portableSystem() }) {
                 rigStack(source: source, log: log, knobs: knobs, extra: extra, terminal: terminal, blink: blink, stops: stops)
             }
         }

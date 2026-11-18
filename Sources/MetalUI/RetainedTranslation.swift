@@ -355,6 +355,7 @@ extension PrepaintLedger {
         copy.axNodes = moved.accessibility?.nodes ?? axNodes
         copy.axNodeLocals = moved.accessibility?.nodeLocals ?? axNodeLocals
         copy.pressOnly = pressOnly
+        copy.liveValues = liveValues
         copy.inertBlockers = inertBlockers
         copy.contextMenus = contextMenus
         copy.elementBounds = moved.elementBounds

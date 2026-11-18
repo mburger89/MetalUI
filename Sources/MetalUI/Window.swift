@@ -617,6 +617,7 @@ public final class Window {
     public private(set) var focusedElement: GlobalElementID? {
         didSet {
             syncRawOptionKeys()   // `TRM-X`
+            syncRawKeypadKeys()   // `TRM-BM`
             if lastFocusRegistry.hasRestoreScopes, !suppressRestoreTracking { noteRestoreTransition(from: oldValue) }
             // A composition does not survive its field losing focus (ruling
             // `IM-I`): AppKit discards the input context's marked text and
@@ -713,6 +714,8 @@ public final class Window {
 
     /// The last `setRawOptionKeys` hint sent to the platform (`TRM-X`).
     var sentRawOptionKeys = false
+    /// The last `setRawKeypadKeys` hint sent to the platform (`TRM-BM`).
+    var sentRawKeypadKeys = false
 
     /// An action nothing along the focus chain handled.
     ///
@@ -2017,6 +2020,7 @@ public final class Window {
         // decision (AB-J). Builds only while a client is active (AB-B). A
         // `List` still waiting for its viewport asks for one more frame, which
         // this honours at most once per run of asking frames (AB-X rule 3).
+        accessibility.adoptLiveValues(frame.liveAccessibilityValues)   // `TRM-BH`
         if accessibility.frameDidRender(
             emissionCount: frame.axEmissions.count,
             retry: frame.wantsAccessibilityRetry,
@@ -2128,7 +2132,9 @@ public final class Window {
             return true
         }
         surfaceRedraw.didPresentSurfaceOnly(requests)
+        accessibility.refreshLiveValues(to: platformWindow)   // `TRM-BH`: a client reads output without a build
         updateTextInputArea()   // a terminal's cursor moved with its output (`TRM-BC`)
+        syncRawKeypadKeys()   // the output may have set or reset DECKPAM (`TRM-BM`)
         timing?.commitFrame()
         framesDrawn += 1
         if drawsImmediatelyOnInput { lastCommitForPacing = immediateInputClock() }
@@ -2422,6 +2428,7 @@ public final class Window {
         let restoreChainAtHandIn = frame.restoreInput?.chain ?? []
         lastFocusRegistry = frame.focusRegistry
         syncRawOptionKeys()   // `TRM-X`
+        syncRawKeypadKeys()   // `TRM-BM`
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastContextMenus = frame.contextMenuRecords
         lastPresentationAnchors = frame.presentationAnchors

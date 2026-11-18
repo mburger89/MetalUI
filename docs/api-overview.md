@@ -700,7 +700,8 @@ F10, Tab and, on AppKit, the main menu. `.handled` ends the event; `.ignored` se
 the unchanged pipeline (the handler is offered it once). A key matching `except` (`.primary`
 per platform) and any key while marked text composes skip capture. `optionAsMeta: true` hints
 the platform (`PlatformWindow.setRawOptionKeys`, a defaulted no-op) to bypass dead keys for
-both Option keys while the layer is focused. It does not make the element focusable.
+both Option keys while the layer is focused. `PlatformWindow.setRawKeypadKeys` (also a defaulted no-op) is the
+same kind of hint for the numeric keypad, driven by a terminal's DECKPAM. It does not make the element focusable.
 
 **Text selection** (`SL-`, record §96;
 [`superpowers/2026-10-12-text-selection-decisions.md`](superpowers/2026-10-12-text-selection-decisions.md);
@@ -877,7 +878,7 @@ allocates nothing (release, macOS). The timed targets are measured by the gated 
 
 ## `TerminalView` — M
 
-`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:onInput:onResize:onLink:onPaste:)`
+`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:cursorStyle:accessibilityLabel:onInput:onResize:onLink:onPaste:)`
 (M; `TRM-BA`, record 357; Alloy gap 2, **frozen**; product `MetalUITerminalUI`, macOS, Linux and Windows). It draws a
 `TerminalSnapshotSource`'s grid on a `GPUSurface` in the environment's `.font` (default the system face's monospaced
 design) and reports the grid of whole cells that fits through `snapshotSource.resize(_:)` and then `onResize`, once per
@@ -885,7 +886,10 @@ real change. Output is a surface-only frame (0 builds, 0 element requests) that 
 opaque background. The cursor is a block, bar or underline, a hollow block when unfocused, blinks every 500 ms for a
 blinking style and stops 30 s after the last activity (`blinkStopsAfterIdle`). `TerminalPalette` (`ansi` x 16,
 `foreground`, `background`, `cursor`, `cursorText`, `selection`, `boldIsBright`, `.xterm`); `TerminalLinkQuery` and
-`TerminalLinkTarget`. `onInput` (the encoded bytes for the pty), `keyCaptureExceptions`, `optionAsMeta` (both ⌥ keys), `onLink` and `cursorStyle` (`TRM-BF`) are live since Phases 5.4 and 5.5 (`TRM-BC`, `TRM-BD`); a primary press focuses the view (`TRM-BE`). `onPaste` (`TRM-BG`, record 378, default nil) is called with the clipboard text and the
+`TerminalLinkTarget`. `onInput` (the encoded bytes for the pty), `keyCaptureExceptions`, `optionAsMeta` (both ⌥ keys), `onLink` and `cursorStyle` (`TRM-BF`) are live since Phases 5.4 and 5.5 (`TRM-BC`, `TRM-BD`); a primary press focuses the view (`TRM-BE`). `accessibilityLabel` (`TRM-BH`, record 379, default "Terminal") names the one read-only text area the view
+publishes while an accessibility client is present: the viewport's rows, trailing blanks trimmed, one line per row, kept
+current after output without a build (no cursor position: the node model has none). `METALUI_TERMINAL_DEMO=1 swift run
+MetalUIDemo` shows the view over `$SHELL` on macOS (`TRM-BI`). `onPaste` (`TRM-BG`, record 378, default nil) is called with the clipboard text and the
 newest `TerminalModes` before the default paste on every route; `true` means the host handled it and nothing is sent.
 
 ## Application icon — M

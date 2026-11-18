@@ -214,6 +214,8 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public private(set) var textInputAreas: [Bounds<Pixels>?] = []
     /// Every `setRawOptionKeys` argument, in order (`TRM-X`).
     public private(set) var rawOptionKeyRequests: [Bool] = []
+    /// Every `setRawKeypadKeys` argument, in order (`TRM-BM`).
+    public private(set) var rawKeypadKeyRequests: [Bool] = []
     /// Every `setContentSizeLimits` call, in order.
     public private(set) var contentSizeLimits: [(minimum: Size<Pixels>?, maximum: Size<Pixels>?)] = []
     /// Every `setDocumentEdited` argument, in order.
@@ -337,6 +339,9 @@ public final class HeadlessPlatformWindow: PlatformWindow {
 
     /// Records the hint in ``rawOptionKeyRequests`` (`TRM-X`).
     public func setRawOptionKeys(_ raw: Bool) { rawOptionKeyRequests.append(raw) }
+
+    /// Records the hint in ``rawKeypadKeyRequests`` (`TRM-BM`).
+    public func setRawKeypadKeys(_ raw: Bool) { rawKeypadKeyRequests.append(raw) }
 
     /// Records the caret rect (`nil`: text input stopped).
     /// A `nil` caret discards the input method's marked text with no event to
