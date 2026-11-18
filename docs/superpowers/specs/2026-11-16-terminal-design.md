@@ -245,6 +245,7 @@ public struct TerminalView: Component {
                 cursorBlink: Bool = true,
                 blinkStopsAfterIdle: Bool = true,          // the view stops blinking 30 s after the last input or output (TRM-C)
                 boldIsBright: Bool = false,
+                cursorStyle: TerminalCursorStyle = TerminalCursorStyle(shape: .block, blinking: false),  // additive after the freeze (TRM-BF, record 369)
                 onInput: @escaping ([UInt8]) -> Void,
                 onResize: @escaping (TerminalSize) -> Void,
                 onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?)
