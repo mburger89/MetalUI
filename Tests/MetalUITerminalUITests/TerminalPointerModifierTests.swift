@@ -85,7 +85,8 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     let frames = rig.window.framesDrawn, draws = rig.window.surfaceDrawCount
     rig.window.pressModifiers(Modifiers.primary)
     rig.window.pressModifiers([])
-    await rig.pump()
+    // Off Darwin a dirty mark hops through a task: wait for idle, not a fixed tick (zero frames must hold once idle).
+    try await rig.window.runUntilIdle()
     #expect(rig.window.framesDrawn == frames && rig.window.surfaceDrawCount == draws, "off a link: \(rig.window.framesDrawn - frames) frames")
     #expect(sum(rig, \.builds) == 0 && sum(rig, \.elementRequests) == 0)
     rig.window.hover(at: rig.point(0, 8))
@@ -93,12 +94,12 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     rig.window.resetFrameWork()
     let linked = rig.window.framesDrawn, linkedDraws = rig.window.surfaceDrawCount
     rig.window.pressModifiers(Modifiers.primary)
-    await rig.pump()
+    try await rig.window.runUntilIdle()
     #expect(rig.window.surfaceDrawCount == linkedDraws + 1, "the underline is one surface draw")
     #expect(rig.window.framesDrawn == linked + 1, "over a link: \(rig.window.framesDrawn - linked) frames")
     #expect(sum(rig, \.builds) == 0 && sum(rig, \.elementRequests) == 0, "surface only: \(sum(rig, \.builds)) \(sum(rig, \.elementRequests))")
     rig.window.pressModifiers([])
-    await rig.pump()
+    try await rig.window.runUntilIdle()
     #expect(rig.window.surfaceDrawCount == linkedDraws + 2 && sum(rig, \.builds) == 0 && sum(rig, \.elementRequests) == 0)
 }
 
@@ -117,6 +118,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     let frames = rig.window.framesDrawn, visits = rig.window.window.pointerStyleVisits
     rig.window.pressModifiers(Modifiers.primary)
     rig.window.pressModifiers([])
+    try await rig.window.runUntilIdle()
     #expect(rig.window.framesDrawn == frames, "\(rig.window.framesDrawn - frames) frames")
     #expect(rig.window.window.pointerStyleVisits == visits, "no hitbox visited")
     #expect(sum(rig, \.builds) == 0 && sum(rig, \.elementRequests) == 0)
