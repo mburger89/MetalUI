@@ -65,8 +65,15 @@ public final class App {
     /// An app on the system default Metal device with AppKit and CoreText;
     /// throws `AppError.noMetalDevice` when the system has no Metal device.
     public convenience init() throws {
-        guard let device = MTLCreateSystemDefaultDevice() else { throw AppError.noMetalDevice }
-        try self.init(device: device)
+        // `FP-V`: Metal's device and pipelines are built on a background
+        // thread while this one pays for `NSApplication.shared`.
+        let job = BackgroundPipelines { () throws -> (any MTLDevice, RendererPipelines) in
+            guard let device = MTLCreateSystemDefaultDevice() else { throw AppError.noMetalDevice }
+            return (device, try Renderer.makePipelines(device: device))
+        }
+        AppKitPlatform.prepareApplication()
+        let (device, pipelines) = try job.join()
+        try self.init(device: device, pipelines: pipelines, textSystem: nil)
     }
 
     /// - Parameter textSystem: makes the text engine every window of this app
@@ -74,10 +81,17 @@ public final class App {
     ///   own caches. `nil` (the default) is CoreText; a `PortableTextSystem`
     ///   draws with HarfBuzz, FreeType and libunibreak instead, the path a
     ///   non-Apple platform takes.
-    public init(device: any MTLDevice, textSystem: (@MainActor () -> any TextSystem)? = nil) throws {
+    public convenience init(device: any MTLDevice, textSystem: (@MainActor () -> any TextSystem)? = nil) throws {
+        let job = BackgroundPipelines { try Renderer.makePipelines(device: device) }
+        AppKitPlatform.prepareApplication()
+        try self.init(device: device, pipelines: try job.join(), textSystem: textSystem)
+    }
+
+    package init(device: any MTLDevice, pipelines: RendererPipelines,
+                 textSystem: (@MainActor () -> any TextSystem)?) throws {
         self.device = device
         self.makeTextSystem = textSystem
-        self.platform = AppKitPlatform(renderer: try Renderer(device: device))
+        self.platform = AppKitPlatform(renderer: try Renderer(device: device, pipelines: pipelines))
         self.platformDrawsImmediately = true   // `FP-M`: AppKit draws a key at an idle window at once
         installMenuBar()   // MN-I item 4: every app has the default bar
         installShellHandlers()   // AS-C item 6, AS-G item 4
@@ -259,3 +273,25 @@ public final class App {
         platform.run()
     }
 }
+
+#if canImport(MetalUIAppKit)
+/// A job run on a global queue whose result ``join()`` waits for (`FP-V`):
+/// the Metal setup overlapping `NSApplication.shared`.
+private final class BackgroundPipelines<Value>: @unchecked Sendable {
+    private let group = DispatchGroup()
+    private var result: Result<Value, any Error>?
+
+    init(_ work: @escaping @Sendable () throws -> Value) {
+        group.enter()
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            result = Result { try work() }
+            group.leave()
+        }
+    }
+
+    func join() throws -> Value {
+        group.wait()
+        return try result!.get()
+    }
+}
+#endif
