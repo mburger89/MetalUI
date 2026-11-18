@@ -1324,8 +1324,17 @@ public final class Window {
             // apart from the primary press's arena, each claiming the event
             // when it holds a live arena. The primary-only stages below never
             // see these events (`MN-B`, `CI-E` item 2).
-            if self.dispatchPinch(event) || self.dispatchButtonArena(event) {
+            if self.dispatchPinch(event) {
                 self.setNeedsRedraw()
+                return true
+            }
+            // `FP-U`: the arena's drag with a secondary or other button changes nothing a frame shows when it stays on one
+            // hitbox and wrote no state (its callbacks invalidate on their own); the rest of its events (a press, a
+            // release, a move onto another hitbox) still ask for the frame.
+            if self.dispatchButtonArena(event) {
+                if !self.pointerEventChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, checksOnInput: false) {
+                    self.setNeedsRedraw()
+                }
                 return true
             }
             // Focus on a primary press (rulings `KF-F`, `KF-E` item 5): a
@@ -1480,12 +1489,13 @@ public final class Window {
             // already dirtied the window), so it asks for no frame: a keystroke is one frame, not two.
             var isUnclaimedKeyUp = false
             if !handled, case .keyUp = event { isUnclaimedKeyUp = true }
-            // `FP-T`: an unclaimed pointer move that lands on the same topmost hitbox, with no tooltip pending or shown and
-            // no window `onInput` to have changed something unobserved, changes nothing a frame would show: the hover the
-            // frame resolves is that hitbox, and the pointer style is the platform's. A `withState` write raises no dirty of
-            // its own, so a move whose hover callbacks wrote any state (a text hover's track, whose next frame starts its
-            // delay) still asks for the frame. No frame, so no state write.
-            if !isUnclaimedKeyUp, !self.pointerMoveChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, handled: handled) {
+            // `FP-T`, `FP-U`: an unclaimed pointer move or drag that lands on the same topmost hitbox, with no tooltip pending
+            // or shown and no window `onInput` to have changed something unobserved, changes nothing a frame would show:
+            // the hover the frame resolves is that hitbox, and the pointer style is the platform's. A `withState` write
+            // raises no dirty of its own, so an event whose callbacks wrote any state (a text hover's track, whose next
+            // frame starts its delay) still asks for the frame. No frame, so no state write. A drag's own callbacks
+            // invalidate through what they write (`@State`, `@GestureState`, a binding, observation, a surface trigger).
+            if !isUnclaimedKeyUp, handled || !self.pointerEventChangesNothing(event, from: pointerBefore, writesBefore: writesBefore, checksOnInput: true) {
                 self.setNeedsRedraw()
             }
             return handled
@@ -1516,17 +1526,26 @@ public final class Window {
         Window.register(self)
     }
 
-    /// Whether `event`, a plain pointer move nothing claimed, leaves every pixel a frame would draw as it was (`FP-T`):
-    /// the pointer stays over the same topmost hitbox as before (`Frame.resolveHover`'s and `pointerOwner`'s one answer),
+    /// Whether `event`, a pointer move or drag, leaves every pixel a frame would draw as it was (`FP-T`, `FP-U`): a
+    /// `.mouseMoved`, an unclaimed `.mouseDragged`, or a `.rightMouseDragged` or `.otherMouseDragged` the button arena claimed.
+    /// The pointer stays over the same topmost hitbox as before (`Frame.resolveHover`'s and `pointerOwner`'s one answer),
     /// the event wrote no state (`withState` raises no dirty itself: a hover callback's write, a text hover's track, is
-    /// shown or timed by the next frame), no tooltip is pending or shown (its timer needs the display link a dirty window starts) and the window has no
-    /// `onInput`, whose fallback could change what a frame reads without a write the window observes.
-    private func pointerMoveChangesNothing(_ event: InputEvent, from before: Point<Pixels>?, writesBefore: Int,
-                                          handled: Bool) -> Bool {
-        guard case .mouseMoved(let mouse) = event, !handled, onInput == nil, let before,
-              stateTable.writeCount == writesBefore else { return false }
+    /// shown or timed by the next frame), no tooltip is pending or shown (its timer needs the display link a dirty window
+    /// starts) and, when `checksOnInput`, the window has no `onInput`, whose fallback could change what a frame reads
+    /// without a write the window observes (a claimed arena event never reached it). Any other event answers `false`.
+    private func pointerEventChangesNothing(_ event: InputEvent, from before: Point<Pixels>?, writesBefore: Int,
+                                            checksOnInput: Bool) -> Bool {
+        let position: Point<Pixels>
+        switch event {
+        case .mouseMoved(let mouse), .mouseDragged(let mouse), .rightMouseDragged(let mouse), .otherMouseDragged(let mouse):
+            position = mouse.position
+        default:
+            return false
+        }
+        guard let before, stateTable.writeCount == writesBefore else { return false }
+        if checksOnInput, onInput != nil { return false }
         guard case .idle = tooltipTracker.phase else { return false }
-        return topmostOpaqueHitbox(in: lastHitboxes, at: before) == topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position)
+        return topmostOpaqueHitbox(in: lastHitboxes, at: before) == topmostOpaqueHitbox(in: lastHitboxes, at: position)
     }
 
     /// Monotonic count of `setNeedsRedraw()` calls across every window, ever.
@@ -3683,6 +3702,9 @@ public final class Window {
             case .beginWindowDrag:
                 _ = platformWindow.performWindowDrag()
                 endPressForDrag()
+                // `FP-U` item 3: `endPressForDrag` clears `active`, which no frame build observes, and the drag event
+                // that begins this is otherwise unclaimed within one hitbox, which asks for no frame: ask for it here.
+                setNeedsRedraw()
             }
         }
     }

@@ -126,30 +126,62 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     print("TRM-BO cost literals: steady frame requests \(steady), modifier change frames \(rig.window.framesDrawn - frames)")
 }
 
-/// **5** (`TRM-BP`) A selection drag is **not** surface-only today, and this pins what it is: every drag event is one build
-/// and the view's own 2 element requests (the steady rebuilt frame's), because the window's input tail dirties after every
-/// claimed pointer event (`FP-T` spares only an unclaimed move) and the drag gesture's value is state; the surface redraw
-/// that follows touches only the selected row. Fixing it needs the window to know a claimed event changed nothing a build
-/// would show, a framework change, so it is pinned, not fixed. Mutation: redraw the whole grid per drag step (`lastRows`
-/// grows); make a drag event cost a second build.
-@MainActor @Test func aSelectionDragCostsOneBuildAndRedrawsOnlyTheSelectedRow() async throws {
+/// **5** (`TRM-BP`, flipped by `FP-U`) A selection drag is surface-only: 0 builds, 0 element requests and one surface draw per
+/// event, redrawing only the selected row. `TRM-BP` first pinned it at 1 build and the view's own 2 requests and blamed "the
+/// window's input tail dirties after every claimed pointer event"; that cause was wrong: the drag is never claimed
+/// (`dispatchGestures` declines `.mouseDragged`, `IX-D` item 6, and the terminal's text target is external), it reached the
+/// tail, and `FP-T` spared only `.mouseMoved`. `FP-U` widens the helper to an unclaimed drag whose hitbox is unchanged,
+/// so the selection (the model's, read by the surface) is what changes and the surface redraw is the frame. Steady frame
+/// literal 2 and the old drag literal (1 build, 2 requests, 1 surface draw) were measured on master `328ab5eb`.
+/// Mutation: drop `.mouseDragged` from `pointerEventChangesNothing` (1 build and 2 requests per drag again); redraw the
+/// whole grid per drag step (`lastRows` grows).
+@MainActor @Test func aSelectionDragIsSurfaceOnly() async throws {
     let rig = try TermRig()
     await rig.settle()
     rig.feed("first row of text\r\nsecond row of text\r\nthird\r\n")
     await rig.settle()
     rig.window.window.setNeedsRedraw(); rig.window.tick()
     let steady = rig.window.lastFrameWork.elementRequests
+    #expect(steady == 2, "the steady rebuilt frame's requests: \(steady)")
     rig.press(at: rig.point(1, 0))
     for c in 1...6 {
         rig.window.resetFrameWork()
         let draws = rig.window.surfaceDrawCount
         rig.dragged(to: rig.point(1, c)); await rig.frame()
-        #expect(sum(rig, \.builds) == 1 && sum(rig, \.elementRequests) == steady, "drag \(c): \(sum(rig, \.builds)) builds, \(sum(rig, \.elementRequests)) requests, steady \(steady)")
+        try await rig.window.runUntilIdle()
+        #expect(sum(rig, \.builds) == 0 && sum(rig, \.elementRequests) == 0, "drag \(c): \(sum(rig, \.builds)) builds, \(sum(rig, \.elementRequests)) requests")
         #expect(rig.window.surfaceDrawCount - draws == 1, "one surface draw per drag step: \(rig.window.surfaceDrawCount - draws)")
         #expect(rig.model.statistics.lastRows == [1], "\(rig.model.statistics.lastRows)")
     }
     rig.release(at: rig.point(1, 6))
-    print("TRM-BP literals: steady requests \(steady), drag event 1 build, \(steady) requests, 1 surface draw, rows [1]")
+    print("FP-U literals: steady requests \(steady), drag event 0 builds, 0 requests, 1 surface draw, rows [1]")
+}
+
+/// **5b** (`FP-U`) A reporting terminal's secondary drag is the button arena's (`CI-F`), not the unclaimed tail's: with
+/// button-event tracking on (`?1002`) a right press and a drag per cell send one report each and ask the window for no
+/// build: 0 builds, 0 element requests, and every frame drawn is a surface-only one (the view's own surface trigger, measured
+/// 1 per event; the plan expected none, the view redraws its surface itself). Mutation: an unconditional `setNeedsRedraw()`
+/// in the button-arena branch of `Window.init`'s input handler (a build and the view's requests per event appear).
+@MainActor @Test func aReportingSecondaryDragSendsBytesAndAsksForNoBuild() async throws {
+    let rig = try TermRig()
+    await rig.settle()
+    rig.feed("first row of text\r\nsecond row of text\r\n")
+    await rig.mouseMode("1002")
+    rig.window.send(.rightMouseDown(MouseEvent(position: rig.point(1, 1), buttonNumber: MouseButton.secondary.buttonNumber)))
+    try await rig.window.runUntilIdle()
+    rig.log.inputs = []
+    rig.window.resetFrameWork()
+    let frames = rig.window.framesDrawn
+    for c in 2...6 {
+        let reports = rig.log.inputs.count
+        rig.window.send(.rightMouseDragged(MouseEvent(position: rig.point(1, c), buttonNumber: MouseButton.secondary.buttonNumber)))
+        try await rig.window.runUntilIdle()
+        #expect(rig.log.inputs.count == reports + 1, "step \(c): one report: \(rig.log.inputs.count - reports)")
+    }
+    #expect(sum(rig, \.builds) == 0 && sum(rig, \.elementRequests) == 0, "\(sum(rig, \.builds)) builds, \(sum(rig, \.elementRequests)) requests")
+    #expect(sum(rig, \.surfaceOnlyFrames) == rig.window.framesDrawn - frames, "every frame is surface-only: \(sum(rig, \.surfaceOnlyFrames)) of \(rig.window.framesDrawn - frames)")
+    rig.window.send(.rightMouseUp(MouseEvent(position: rig.point(1, 6), buttonNumber: MouseButton.secondary.buttonNumber)))
+    try await rig.window.runUntilIdle()
 }
 
 /// **6** (`TRM-BP`) An autoscroll step (the drag held still past the edge) is a timed surface redraw stepped from `draw`: 0
