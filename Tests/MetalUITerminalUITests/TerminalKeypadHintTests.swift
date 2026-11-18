@@ -129,8 +129,9 @@ extension TermRig {
         let before = rig.window.framesDrawn
         send()
         await rig.frame()
-        let w = rig.window.lastFrameWork
-        return (w.builds, w.elementRequests, rig.window.framesDrawn - before)
+        // Summed over every frame since the reset: off Darwin the keystroke can span two frames, the build in the first.
+        let w = rig.window.frameWork.reduce((builds: 0, requests: 0)) { ($0.builds + $1.builds, $0.requests + $1.elementRequests) }
+        return (w.builds, w.requests, rig.window.framesDrawn - before)
     }
     let letter = await cost { rig.key("a") }
     await rig.settle()
