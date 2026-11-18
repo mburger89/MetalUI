@@ -199,7 +199,7 @@ public final class Renderer {
     }
 
     /// A renderer on `device` over `pipelines` built earlier, possibly on
-    /// another thread (``makePipelines(device:)``; `SO-A`).
+    /// another thread (``makePipelines(device:)``; `FP-V`).
     package init(device: any MTLDevice, pipelines: RendererPipelines) throws {
         self.device = device
         self.activeTextures = defaultTextureState
@@ -232,7 +232,7 @@ public final class Renderer {
 
     /// The shader library and the four eager pipelines of a ``Renderer``.
     /// Metal device, library and pipeline creation are thread-safe, so this
-    /// is built off the main actor while AppKit starts up (`SO-A`).
+    /// is built off the main actor while AppKit starts up (`FP-V`).
     package static nonisolated func makePipelines(device: any MTLDevice) throws -> RendererPipelines {
         let library = try ShaderLibrary.make(device: device)
 
@@ -1415,7 +1415,7 @@ public final class Renderer {
 
 /// What ``Renderer/makePipelines(device:)`` builds: the library and the four
 /// eager pipeline states. Metal objects are thread-safe, so the value crosses
-/// from the background thread to the main actor (`SO-A`).
+/// from the background thread to the main actor (`FP-V`).
 package struct RendererPipelines: @unchecked Sendable {
     package let library: any MTLLibrary
     package let rect: any MTLRenderPipelineState

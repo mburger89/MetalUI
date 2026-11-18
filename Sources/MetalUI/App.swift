@@ -65,7 +65,7 @@ public final class App {
     /// An app on the system default Metal device with AppKit and CoreText;
     /// throws `AppError.noMetalDevice` when the system has no Metal device.
     public convenience init() throws {
-        // `SO-A`: Metal's device and pipelines are built on a background
+        // `FP-V`: Metal's device and pipelines are built on a background
         // thread while this one pays for `NSApplication.shared`.
         let job = BackgroundPipelines { () throws -> (any MTLDevice, RendererPipelines) in
             guard let device = MTLCreateSystemDefaultDevice() else { throw AppError.noMetalDevice }
@@ -275,7 +275,7 @@ public final class App {
 }
 
 #if canImport(MetalUIAppKit)
-/// A job run on a global queue whose result ``join()`` waits for (`SO-A`):
+/// A job run on a global queue whose result ``join()`` waits for (`FP-V`):
 /// the Metal setup overlapping `NSApplication.shared`.
 private final class BackgroundPipelines<Value>: @unchecked Sendable {
     private let group = DispatchGroup()

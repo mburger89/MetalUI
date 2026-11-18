@@ -7,7 +7,7 @@ import MetalUIScene
 @testable import MetalUI
 @testable import MetalUIRender
 
-// `SO-A`, record 387: `App.init()` builds the Metal pipelines on a background
+// `FP-V`, record 387: `App.init()` builds the Metal pipelines on a background
 // thread while the main thread pays for `NSApplication.shared`.
 
 private let pureRed = Color(Hsla(h: 0, s: 1, l: 0.5, a: 1))

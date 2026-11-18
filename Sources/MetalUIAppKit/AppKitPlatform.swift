@@ -1536,7 +1536,7 @@ public final class AppKitPlatform: Platform {
 
     /// Forces `NSApplication.shared` (about 50 ms the first time) and nothing
     /// else — the first thing ``setMenuBar(_:)`` does — so `App.init()` can pay
-    /// it while Metal is set up on another thread (`SO-A`).
+    /// it while Metal is set up on another thread (`FP-V`).
     @MainActor package static func prepareApplication() {
         _ = NSApplication.shared
     }
