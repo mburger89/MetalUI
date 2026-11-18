@@ -841,7 +841,7 @@ dirtied the window, an animation or timer runs, or the scale, size or glyph-atla
 
 ## `TerminalView` — M
 
-`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:onInput:onResize:onLink:)`
+`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:cursorStyle:accessibilityLabel:onInput:onResize:onLink:)`
 (M; `TRM-BA`, record 357; Alloy gap 2, **frozen**; product `MetalUITerminalUI`, macOS, Linux and Windows). It draws a
 `TerminalSnapshotSource`'s grid on a `GPUSurface` in the environment's `.font` (default the system face's monospaced
 design) and reports the grid of whole cells that fits through `snapshotSource.resize(_:)` and then `onResize`, once per
@@ -849,7 +849,10 @@ real change. Output is a surface-only frame (0 builds, 0 element requests) that 
 opaque background. The cursor is a block, bar or underline, a hollow block when unfocused, blinks every 500 ms for a
 blinking style and stops 30 s after the last activity (`blinkStopsAfterIdle`). `TerminalPalette` (`ansi` x 16,
 `foreground`, `background`, `cursor`, `cursorText`, `selection`, `boldIsBright`, `.xterm`); `TerminalLinkQuery` and
-`TerminalLinkTarget`. `onInput`, `keyCaptureExceptions`, `optionAsMeta` and `onLink` are inert until Phases 5.4 and 5.5.
+`TerminalLinkTarget`. `accessibilityLabel` (`TRM-BH`, record 379, default "Terminal") names the one read-only text area the view
+publishes while an accessibility client is present: the viewport's rows, trailing blanks trimmed, one line per row, kept
+current after output without a build (no cursor position: the node model has none). `METALUI_TERMINAL_DEMO=1 swift run
+MetalUIDemo` shows the view over `$SHELL` on macOS (`TRM-BI`).
 
 ## Application icon — M
 

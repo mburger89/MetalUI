@@ -219,6 +219,21 @@ final class TerminalViewModel {
                           col: min(snapshot.cursor.col, snapshot.size.cols - 1), cells: covered.count)
     }
 
+    /// The viewport's rows as one string, trailing blanks trimmed per row, joined by newlines: what an accessibility client
+    /// reads (`TRM-BH`). Built only when asked; rows the draw has not received are blank.
+    func accessibilityText() -> String {
+        accessibilityReads += 1
+        var out = ""
+        for index in 0..<rows.count {
+            if index > 0 { out.append("\n") }
+            if let row = rows[index] { out.append(row.text) }
+        }
+        return out
+    }
+
+    /// Times an accessibility client's value was built (tests: zero with no client).
+    private(set) var accessibilityReads = 0
+
     /// The cell size in points, once the glyph cache exists.
     var cellSize: (width: Double, height: Double)? {
         guard let cache else { return nil }

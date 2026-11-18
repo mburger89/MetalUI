@@ -3522,6 +3522,10 @@ public final class Frame {
     /// binds after the frame is presented and unbinds when a later frame does not paint the surface.
     private(set) var surfaceTriggers: [(SurfaceID, SurfaceRedrawTrigger)] = []
 
+    /// The accessibility values this frame's elements asked the window to re-read after a surface-only frame, which builds
+    /// nothing (`TRM-BH`). Recorded only while collecting accessibility; the window merges them into its own table.
+    var liveAccessibilityValues: [GlobalElementID: @MainActor () -> String] = [:]
+
     /// Emits one app-owned surface's quad and its draw request (MetalView,
     /// rulings `MV-D`, `MV-E` item 2, `MV-G`) — ``drawImage(_:in:filter:)``'s
     /// arithmetic line for line: `bounds` in points, translated by

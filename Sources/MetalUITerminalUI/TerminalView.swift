@@ -19,6 +19,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
     let blinkStopsAfterIdle: Bool
     let boldIsBright: Bool
     let cursorStyle: TerminalCursorStyle
+    let accessibilityLabel: String
     let onInput: ([UInt8]) -> Void
     let onResize: (TerminalSize) -> Void
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
@@ -36,7 +37,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
 
     init(snapshotSource: TerminalSnapshotSource, theme: TerminalPalette, keyCaptureExceptions: [KeyboardShortcut],
          optionAsMeta: Bool, cursorBlink: Bool, blinkStopsAfterIdle: Bool, boldIsBright: Bool,
-         cursorStyle: TerminalCursorStyle,
+         cursorStyle: TerminalCursorStyle, accessibilityLabel: String,
          onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (TerminalSize) -> Void,
          onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?, openURL: OpenURLAction, clipboard: Clipboard) {
         self.snapshotSource = snapshotSource
@@ -47,6 +48,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
         self.blinkStopsAfterIdle = blinkStopsAfterIdle
         self.boldIsBright = boldIsBright
         self.cursorStyle = cursorStyle
+        self.accessibilityLabel = accessibilityLabel
         self.onInput = onInput
         self.onResize = onResize
         self.onLink = onLink
@@ -66,13 +68,13 @@ struct TerminalViewField: Component, @MainActor Equatable {
     /// a replay keeps the closures of the build that last ran. With surface replay (#362) a retained field replays
     /// its surface, so an idle terminal costs no element request.
     static func == (l: TerminalViewField, r: TerminalViewField) -> Bool {
-        same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle,
-             r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle)
+        same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle, l.accessibilityLabel,
+             r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle, r.accessibilityLabel)
     }
 
-    static func same(_ ls: TerminalSnapshotSource, _ lt: TerminalPalette, _ le: [KeyboardShortcut], _ lo: Bool, _ lc: Bool, _ lb: Bool, _ lbb: Bool, _ lcs: TerminalCursorStyle,
-                     _ rs: TerminalSnapshotSource, _ rt: TerminalPalette, _ re: [KeyboardShortcut], _ ro: Bool, _ rc: Bool, _ rb: Bool, _ rbb: Bool, _ rcs: TerminalCursorStyle) -> Bool {
-        ls === rs && lt == rt && le == re && lo == ro && lc == rc && lb == rb && lbb == rbb && lcs == rcs
+    static func same(_ ls: TerminalSnapshotSource, _ lt: TerminalPalette, _ le: [KeyboardShortcut], _ lo: Bool, _ lc: Bool, _ lb: Bool, _ lbb: Bool, _ lcs: TerminalCursorStyle, _ lal: String,
+                     _ rs: TerminalSnapshotSource, _ rt: TerminalPalette, _ re: [KeyboardShortcut], _ ro: Bool, _ rc: Bool, _ rb: Bool, _ rbb: Bool, _ rcs: TerminalCursorStyle, _ ral: String) -> Bool {
+        ls === rs && lt == rt && le == re && lo == ro && lc == rc && lb == rb && lbb == rbb && lcs == rcs && lal == ral
     }
 
     /// The view's content: the surface leaf under a focus layer and a geometry scope. Not for callers.
@@ -94,7 +96,8 @@ struct TerminalViewField: Component, @MainActor Equatable {
         if let system = measurer.terminalTextSystem {
             model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
         }
-        return TerminalSurfaceElement(model: model, palette: theme, boldIsBright: boldIsBright || theme.boldIsBright)
+        return TerminalSurfaceElement(model: model, palette: theme, boldIsBright: boldIsBright || theme.boldIsBright,
+                               accessibilityLabel: accessibilityLabel)
             .focusable()
             .focused($isFocused)
             .keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta)
@@ -172,7 +175,12 @@ struct TerminalViewField: Component, @MainActor Equatable {
 /// edge scrolls), ⌘C copies, and the wheel scrolls scrollback (on the alternate screen it sends arrow keys). With ⌘ held
 /// (Ctrl on Linux and Windows) the hovered cell is offered to `onLink` once per cell change; a target is underlined with
 /// the pointing hand, ⌘-click activates it, and OSC 8 hyperlinks the host did not claim are offered by the view itself.
-/// Accessibility arrives with Phase 5.6.
+/// **Accessibility** (`TRM-BH`): while a client is present the view publishes one read-only multi-line text area, labelled
+/// `accessibilityLabel` (default "Terminal"; a host passes the terminal's title from `TerminalEvent.title`), whose value is
+/// the viewport's rows, trailing blanks trimmed, joined by newlines. The value is
+/// re-read after every surface-only frame, so output reaches a screen reader without a build or an element request; with
+/// no client nothing is read. The alternate screen and a scrolled-back viewport expose the rows they show; the cursor
+/// position is not published (the node model has no selection).
 ///
 /// **Idle, it costs nothing extra on a rebuilt frame without the caller adding `.equatable()`** (`TRM-BD`): the public
 /// type is a thin component whose content is the internal field under `.equatable()`, so the field's content is
@@ -188,6 +196,7 @@ public struct TerminalView: Component, @MainActor Equatable {
     let blinkStopsAfterIdle: Bool
     let boldIsBright: Bool
     let cursorStyle: TerminalCursorStyle
+    let accessibilityLabel: String
     let onInput: ([UInt8]) -> Void
     let onResize: (TerminalSize) -> Void
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
@@ -209,6 +218,8 @@ public struct TerminalView: Component, @MainActor Equatable {
     ///   - cursorStyle: The cursor's default style (`TRM-BE`): the shape, and whether it asks to blink, until the program sets
     ///     one with DECSCUSR 1-6; `CSI 0 SP q`, DECSTR and RIS return to it. Default a steady block. A blinking style blinks
     ///     only while `cursorBlink` is on. Changing it redraws the cursor.
+    ///   - accessibilityLabel: The name a screen reader gives the terminal's text area (`TRM-BH`); a host passes the program's
+    ///     title (`TerminalEvent.title`) here. Default "Terminal".
     ///   - onInput: The bytes a key, committed text, paste or focus report encodes to; the host writes them to the pty.
     ///   - onResize: The grid size, when the cell count changes, after the source was resized.
     ///   - onLink: The link under a ⌘-hovered cell: asked `.hover` once per cell change, `.exit` on leaving, `.activate` on ⌘-click.
@@ -220,6 +231,7 @@ public struct TerminalView: Component, @MainActor Equatable {
                 blinkStopsAfterIdle: Bool = true,
                 boldIsBright: Bool = false,
                 cursorStyle: TerminalCursorStyle = TerminalCursorStyle(shape: .block, blinking: false),
+                accessibilityLabel: String = "Terminal",
                 onInput: @escaping ([UInt8]) -> Void,
                 onResize: @escaping (TerminalSize) -> Void,
                 onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?) {
@@ -231,6 +243,7 @@ public struct TerminalView: Component, @MainActor Equatable {
         self.blinkStopsAfterIdle = blinkStopsAfterIdle
         self.boldIsBright = boldIsBright
         self.cursorStyle = cursorStyle
+        self.accessibilityLabel = accessibilityLabel
         self.onInput = onInput
         self.onResize = onResize
         self.onLink = onLink
@@ -238,15 +251,15 @@ public struct TerminalView: Component, @MainActor Equatable {
 
     /// Whether two views draw and behave alike: the same source object, theme, exceptions and flags; closures are not compared.
     public static func == (l: TerminalView, r: TerminalView) -> Bool { 
-        TerminalViewField.same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle,
-                               r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle)
+        TerminalViewField.same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle, l.accessibilityLabel,
+                               r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle, r.accessibilityLabel)
     }
 
     /// The field under `.equatable()`. Not for callers.
     public var content: some ElementGroup {
         TerminalViewField(snapshotSource: snapshotSource, theme: theme, keyCaptureExceptions: keyCaptureExceptions,
                           optionAsMeta: optionAsMeta, cursorBlink: cursorBlink, blinkStopsAfterIdle: blinkStopsAfterIdle,
-                          boldIsBright: boldIsBright, cursorStyle: cursorStyle, onInput: onInput, onResize: onResize, onLink: onLink,
+                          boldIsBright: boldIsBright, cursorStyle: cursorStyle, accessibilityLabel: accessibilityLabel, onInput: onInput, onResize: onResize, onLink: onLink,
                           openURL: openURL, clipboard: clipboard)
             .equatable()
     }
@@ -257,6 +270,7 @@ struct TerminalSurfaceElement: ProposalElement {
     let model: TerminalViewModel
     let palette: TerminalPalette
     let boldIsBright: Bool
+    let accessibilityLabel: String
 
     /// The stamp that makes the surface redraw on a full frame when what a draw depends on changed.
     struct Stamp: Hashable {
@@ -276,7 +290,12 @@ struct TerminalSurfaceElement: ProposalElement {
         return (node, ())
     }
 
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {}
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
+        // One read-only text area node, only while an accessibility client is present; its value is re-read after
+        // every surface-only frame, so output never rebuilds the tree (`TRM-BH`).
+        let model = self.model
+        pass.terminalDeclareAccessibility(id, bounds: bounds, label: accessibilityLabel, value: { model.accessibilityText() })
+    }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void,
                         pass: inout PaintPass) {
