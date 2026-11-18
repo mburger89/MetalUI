@@ -24,6 +24,21 @@ public final class TerminalEmulator {
     var pendingWrap = false
     var pen = TerminalAttributes()
     var currentModes = TerminalModes()
+    var userCursorStyle = TerminalCursorStyle(shape: .block, blinking: false)
+    /// True while a program's DECSCUSR 1-6 or mode 12 holds the cursor style; DECSCUSR 0, DECSTR and RIS clear it.
+    var programSetsCursorStyle = false
+
+    /// The host's default cursor style (`TRM-BE`): the style the cursor has at power-on and returns to on `CSI 0 SP q`,
+    /// DECSTR and RIS, unless the program has set another since. The power-on default is a steady block (`TRM-F`).
+    /// Setting it changes the reported ``modes`` `cursorStyle` at once while the program has not set a style itself;
+    /// a style the program set (DECSCUSR 1-6, mode 12) is kept. Call on the owning queue (`TerminalSnapshotSource.perform`).
+    public var defaultCursorStyle: TerminalCursorStyle {
+        get { userCursorStyle }
+        set {
+            userCursorStyle = newValue
+            if !programSetsCursorStyle { currentModes.cursorStyle = newValue }
+        }
+    }
     /// The scroll region, 0-based and inclusive.
     var regionTop = 0
     var regionBottom: Int

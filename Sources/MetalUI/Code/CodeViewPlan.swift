@@ -142,6 +142,12 @@ final class CodeViewPlan {
         var fold: CodeFoldMark? = nil
         /// The fold chevron lane's state for a buffer row (`CV-BN`): 0 none, 1 open (▾), 2 folded (▸).
         var chevron: UInt8 = 0
+        /// A buffer row's change-lane mark, tag and owner id (`CV-BS`); `foldedChange` is the rows of a folded header
+        /// whose hidden change the mark shows (as `.modified`).
+        var changeBar: CodeChangeBar? = nil
+        var changeTag: UInt64? = nil
+        var changeOwner: UInt16 = 0
+        var foldedChange: Range<Int>? = nil
 
         /// The marked text inserted into this row's layout for display.
         struct Marked {
@@ -202,6 +208,10 @@ final class CodeViewPlan {
     var layoutRow: (Int, CodeSnapshot) -> CodeLineLayout = { _, _ in fatalError("CodeViewPlan.layoutRow is set by makePlan") }
     /// The rows and tag of the gutter bar over a buffer row (`CodeDecorations`), read at click time (`CV-AB`).
     var gutterBarOf: (Int) -> (lines: Range<Int>, tag: UInt64?, owner: UInt16)? = { _ in nil }
+    /// The rows and tag of the change-lane mark over a buffer row, read at click time (`CV-BS`).
+    var changeBarOf: (Int) -> (lines: Range<Int>, tag: UInt64?, owner: UInt16)? = { _ in nil }
+    /// The change lane's width in device pixels (0 when none is reserved, `CV-BS`).
+    var changePx = 0
     /// The owner an id names, `nil` for the default (`CV-AO`).
     var ownerOf: (UInt16) -> CodeDecorationOwner? = { _ in nil }
     /// The width of the marker lane at the gutter's left, device pixels; 0 when none is reserved (`CV-AP`).
@@ -445,6 +455,12 @@ final class CodeViewPlan {
 
     // MARK: Gutter bars
 
+    /// The change lane's right edge, in window device pixels: left of the fold chevrons, and of the gutter bar's own
+    /// column when there are no chevrons, so the two show side by side (`CV-BS`).
+    var changeLaneRight: Int {
+        originX + gutterPx - max(chevronPx, max(1, Int((4 * Double(scale)).rounded())))
+    }
+
     /// The gutter bar under `point` (window points), or `nil`: a point in the bar's column (the bar widened by four
     /// points towards the line numbers) on a row that has one, a buffer row's decoration or a virtual line's group
     /// (`CV-AB`). A virtual line's bar is hit like any other: that is where a removed hunk's Revert lives.
@@ -457,14 +473,23 @@ final class CodeViewPlan {
         let textLeft = originX + gutterPx
         guard x < textLeft, y >= originY, y < originY + heightPx else { return nil }
         let onBar = x >= textLeft - barWidth - reach - Int(Double(scale).rounded())
+        // The change lane (`CV-BS`) and the points around it that still hit it.
+        let slop = Int((2 * Double(scale)).rounded())
+        let changeRight = changeLaneRight, changeLeft = changeRight - changePx
+        let onChange = changePx > 0 && x >= changeLeft - slop && x < changeRight + slop
         // The marker's own place: the lane, or the number column when markers replace the numbers (`CV-AP`).
         let onMarker = !onBar && x >= originX && (laneWidthPx > 0 ? x < originX + laneWidthPx : markersReplaceNumbers)
-        guard onBar || onMarker else { return nil }
+        guard onBar || onMarker || onChange else { return nil }
         var i = shownFrom
         while i < shownTo {
             let row = rows[i]
             i += 1
             guard y >= row.top, y < row.top + pitchPx else { continue }
+            if onChange, row.changeBar != nil, !row.isVirtual, x < changeRight || row.bar == nil {
+                let lines = row.foldedChange ?? changeBarOf(row.buffer)?.lines ?? row.buffer..<(row.buffer + 1)
+                return CodeGutterHit(lines: lines, tag: row.changeTag, source: .changeBar, displayRow: row.display,
+                                     owner: ownerOf(row.changeOwner))
+            }
             if onMarker {
                 guard row.hasMarker, !row.isVirtual else { return nil }
                 return CodeGutterHit(lines: row.buffer..<(row.buffer + 1), tag: row.markerTag, source: .gutterMarker,
@@ -578,7 +603,11 @@ extension CodeView {
         // view has both a fold gutter and a fold state; a pure function of the view, so the text never moves with hover.
         let chevronLane = foldGutterConfig != nil && foldStateObject != nil
         plan.chevronPx = chevronLane ? max(1, Int((metrics.space * 2 * scaleD).rounded(.up))) : 0
-        plan.gutterPx = numbersPx + plan.laneWidthPx + plan.chevronPx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
+        // The change lane (`CV-BS`): 4 pt (a 3 pt bar and a 1 pt gap) between the numbers and the chevrons; reserved from
+        // the first frame (`true`), from the first change bar ever given (the default) or never (`false`).
+        let changeOn = changeLaneReserved == true || (changeLaneReserved == nil && decorations.changeBarsEverSet)
+        plan.changePx = changeOn ? max(1, Int((4 * scaleD).rounded())) : 0
+        plan.gutterPx = numbersPx + plan.laneWidthPx + plan.chevronPx + plan.changePx + (laneOn && numbersPx == 0 ? plan.padPx : 0)
         let source = selectionSource
         source.viewIndentSpaces = indentsWithSpaces ? tabColumns : 0   // a snippet inserted with no indent unit takes the view's (`CV-BQ`)
         if source.isSnippetActive { plan.snippet = source.snippet }   // observed: the session starting or ending redraws (`CV-BR`)
@@ -790,6 +819,7 @@ extension CodeView {
         plan.layoutRow = { row, snapshot in layoutOfRow(row, snapshot, settledScrollX) }
         let decorationsForHits = decorations
         plan.gutterBarOf = { row in decorationsForHits.gutterBar(overRow: row) }
+        plan.changeBarOf = { row in decorationsForHits.changeBar(overRow: row) }
         plan.ownerOf = { id in decorationsForHits.owner(ofID: id) }
 
         // The rows: the visible ones and one of overscan each side.
@@ -848,12 +878,20 @@ extension CodeView {
                 var labelWidth = 0
                 var payload = decorations.lineDecoration(row: row)
                 var foldMark: CodeFoldMark?
+                var foldedChange: Range<Int>?
                 if let foldLayout, let k = foldLayout.spans.spanIndex(headedBy: row) {   // a folded header (`CV-BM`)
                     let end = foldLayout.spans.ends[k]
                     if let strongest = decorations.strongestMarker(in: row..<end) {   // the hidden rows' strongest marker
                         var merged = payload ?? LineDecorationPayload()
                         merged.marker = strongest.marker; merged.markerTag = strongest.markerTag; merged.markerOwner = strongest.markerOwner
                         payload = merged
+                    }
+                    if plan.changePx > 0, payload?.changeBar == nil, let hidden = decorations.firstChange(in: (row + 1)..<end),
+                       let hiddenBar = hidden.changeBar {   // `CV-BS`: the first hidden change shows as .modified
+                        var merged = payload ?? LineDecorationPayload()
+                        merged.changeBar = .modified(hiddenBar.color); merged.changeTag = hidden.changeTag; merged.changeOwner = hidden.changeOwner
+                        payload = merged
+                        foldedChange = foldLayout.spans.folds[k]
                     }
                     let gap = max(1, Int((metrics.space * scaleD).rounded()))
                     let glyphs = cache.marker("\u{22EF}", font: font, system: system, scale: scale, spaceAdvance: metrics.space)
@@ -893,7 +931,9 @@ extension CodeView {
                                        tag: payload?.tag, anchorLine: row, marked: rowMarked, owner: payload?.owner ?? 0,
                                        laneMarker: laneMarker, laneMarkerWidthPx: laneMarkerWidth, laneMarkerColor: marker?.color,
                                        markerTag: payload?.markerTag, markerOwner: payload?.markerOwner ?? 0,
-                                       hasMarker: marker != nil && (plan.laneWidthPx > 0 || plan.markersReplaceNumbers), fold: foldMark, chevron: chevron))
+                                       hasMarker: marker != nil && (plan.laneWidthPx > 0 || plan.markersReplaceNumbers), fold: foldMark, chevron: chevron,
+                                       changeBar: plan.changePx > 0 ? payload?.changeBar : nil, changeTag: payload?.changeTag,
+                                       changeOwner: payload?.changeOwner ?? 0, foldedChange: foldedChange))
             case .virtual(let group, let lineIndex, let gap):
                 let line = group.lines[lineIndex]
                 let layout = lineLayout(bytes: line.bytes, knownHash: line.hash, parts: line.styling.foreground, digest: line.styling.digest,
@@ -1461,12 +1501,40 @@ extension CodeView {
                         }
                         guard let label = row.label else { continue }
                         let color = row.labelColor.map { pass.resolve($0) } ?? numbers
-                        let dx = textLeft - plan.chevronPx - plan.padPx - row.labelWidthPx
+                        let dx = textLeft - plan.chevronPx - plan.changePx - plan.padPx - row.labelWidthPx
                         var g = 0
                         while g < label.glyphs.count {
                             let glyph = label.glyphs[g]
                             pass.draw(TextGlyph(key: glyph.key, pixelX: glyph.pixelX + dx, baselineY: glyph.baselineY + row.top), color: color)
                             g += 1
+                        }
+                    }
+                    if plan.changePx > 0 {   // `CV-BS`: the change lane, left of the chevrons and of the gutter bar's column
+                        let laneLeft = plan.changeLaneRight - plan.changePx
+                        let changeWidth = max(1, Int((3 * scaleD).rounded()))
+                        var r = from
+                        while r < to {
+                            guard let mark = plan.rows[r].changeBar else { r += 1; continue }
+                            if case .deletedAbove = mark {
+                                // VS Code's triangle: a right-pointing wedge on the row's top edge, drawn as one-pixel
+                                // strips (plain rect fills), its base on the lane's left and its tip a bar's width in.
+                                let top = plan.rows[r].top
+                                let half = max(2, changeWidth)
+                                let color = pass.resolve(mark.color)
+                                var k = -(half - 1)
+                                while k <= half - 1 {
+                                    let w = max(1, changeWidth * (half - abs(k)) / half)
+                                    pass.fill(rect(laneLeft, top + k, laneLeft + w, top + k + 1), color: color)
+                                    k += 1
+                                }
+                                r += 1
+                                continue
+                            }
+                            var end = r
+                            while end + 1 < to, plan.rows[end + 1].changeBar == mark { end += 1 }
+                            pass.fill(rect(laneLeft, plan.rows[r].top, laneLeft + changeWidth, plan.rows[end].top + plan.pitchPx),
+                                      color: pass.resolve(mark.color))
+                            r = end + 1
                         }
                     }
                     let barWidth = max(1, Int((3 * scaleD).rounded()))
