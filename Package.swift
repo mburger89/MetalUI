@@ -82,6 +82,7 @@ metalUIDependencies += ["MetalUIText", "MetalUIRender", "MetalUIAppKit"]
 var terminalUITestDependencies: [Target.Dependency] = [
     "MetalUITerminalUI", "MetalUITerminal", "MetalUICore", "MetalUIScene", "MetalUITextSystem",
     "MetalUIPortableText", "MetalUIShaderTypes", "MetalUITestSupport", "MetalUI", "MetalUIPlatform", "MetalUITesting",
+    "MetalUITerminalDemo",
 ]
 #if os(macOS)
 terminalUITestDependencies += ["MetalUIText"]
@@ -279,6 +280,9 @@ var targets: [Target] = [
         .target(name: "MetalUITerminalUI",
                 dependencies: ["MetalUI", "MetalUITerminal", "MetalUICore", "MetalUIScene", "MetalUITextSystem",
                                "MetalUIPrimitives", "MetalUIShaderTypes"]),
+        // The terminal demo's session (`TRM-BI`): a shell on a pty behind a `TerminalView`, `package` access only, in no
+        // product; the demo executable and the headless smoke test share it.
+        .target(name: "MetalUITerminalDemo", dependencies: ["MetalUI", "MetalUITerminal", "MetalUITerminalUI"]),
         .testTarget(name: "MetalUITerminalUITests", dependencies: terminalUITestDependencies),
         // The test harness (ruling HT-A): imports `MetalUI` and `MetalUIScene`
         // only — no AppKit, Metal, CoreText or Foundation — so the Linux and
@@ -443,7 +447,7 @@ targets += [
         // The demo's content, a library so `MetalUITests` can import it (ruling
         // LR-S). In no product: it is demo content, not framework API. It makes
         // the non-test targets nine; CLAUDE.md's "eight" is the Docs phase's.
-        .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent"]),
+        .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent", "MetalUITerminalDemo"]),
         // A headless `TestWindow` rendered to pixels (ruling HT-AB): `MetalUITesting` stays portable
         // (HT-A), so the Metal, CoreGraphics and ImageIO half is its own macOS-only target.
         .target(name: "MetalUITestingSnapshot",
