@@ -700,7 +700,8 @@ F10, Tab and, on AppKit, the main menu. `.handled` ends the event; `.ignored` se
 the unchanged pipeline (the handler is offered it once). A key matching `except` (`.primary`
 per platform) and any key while marked text composes skip capture. `optionAsMeta: true` hints
 the platform (`PlatformWindow.setRawOptionKeys`, a defaulted no-op) to bypass dead keys for
-both Option keys while the layer is focused. It does not make the element focusable.
+both Option keys while the layer is focused. `PlatformWindow.setRawKeypadKeys` (also a defaulted no-op) is the
+same kind of hint for the numeric keypad, driven by a terminal's DECKPAM. It does not make the element focusable.
 
 **Text selection** (`SL-`, record §96;
 [`superpowers/2026-10-12-text-selection-decisions.md`](superpowers/2026-10-12-text-selection-decisions.md);

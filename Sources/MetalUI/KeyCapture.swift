@@ -53,4 +53,17 @@ extension Window {
         sentRawOptionKeys = wanted
         platformWindow.setRawOptionKeys(wanted)
     }
+
+    /// Sends `PlatformWindow.setRawKeypadKeys(_:)` when the focus chain's capture layers say keypad characters should
+    /// (or no longer should) be keys (`TRM-BM`): true while any capture layer on the chain answers so. Sends changes
+    /// only; with no capture layer, or none that asks, it is one count comparison.
+    func syncRawKeypadKeys() {
+        var wanted = false
+        if lastFocusRegistry.keyCaptureCount > 0, focusedElement != nil {
+            wanted = focusChain.contains { lastFocusRegistry.keyCapture(for: $0)?.keypadAsKeys?() == true }
+        }
+        guard wanted != sentRawKeypadKeys else { return }
+        sentRawKeypadKeys = wanted
+        platformWindow.setRawKeypadKeys(wanted)
+    }
 }

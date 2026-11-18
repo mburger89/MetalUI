@@ -858,6 +858,19 @@ public final class SDLWindow: PlatformWindow {
 
     public func setRawOptionKeys(_ raw: Bool) { rawOptionKeys = raw }
 
+    /// Whether keypad characters are keys, never text (`TRM-BM`): `producesText` is false for them and the
+    /// `TEXT_INPUT` SDL sends after one is dropped.
+    private(set) var rawKeypadKeys = false
+
+    /// The text SDL will send for the keypad key just delivered as a key (`TRM-BM`), dropped when it arrives. Set by
+    /// a key-down, cleared by the next key-down and by the text itself; SDL sends a key's text right after it.
+    private var droppedKeypadText: String?
+
+    public func setRawKeypadKeys(_ raw: Bool) {
+        rawKeypadKeys = raw
+        if !raw { droppedKeypadText = nil }
+    }
+
     public func readClipboard() -> String? {
         guard let text = mui_clipboard_text() else { return nil }
         defer { mui_free(text) }
@@ -953,12 +966,13 @@ public final class SDLWindow: PlatformWindow {
     }
 
     nonisolated static func producesText(keycode: UInt32, modifiers: Modifiers, rawOptionKeys: Bool = false,
-                                         scancode: UInt32 = 0) -> Bool {
+                                         scancode: UInt32 = 0, rawKeypadKeys: Bool = false) -> Bool {
         guard modifiers.isDisjoint(with: [.control, .command]) else { return false }
         if rawOptionKeys, modifiers.contains(.option) { return false }   // `TRM-X`
         // `TRM-BJ`: a keypad character key (digit, operator, period) sends text with Num Lock on, whatever
         // keycode the platform gave it; Enter sends none, so it stays a key.
-        if let keypad = SDLKeys.keypadCharacter(scancode: scancode, keycode: keycode) { return keypad != "\r" }
+        // `TRM-BM`: with the keypad hint on, it is a key, and its text is dropped when it arrives.
+        if let keypad = SDLKeys.keypadCharacter(scancode: scancode, keycode: keycode) { return keypad != "\r" && !rawKeypadKeys }
         return keycode >= 0x20 && keycode < 0x7F
     }
 
@@ -1602,6 +1616,11 @@ public final class SDLWindow: PlatformWindow {
             guard textInputCaret != nil, let text = event.text else { return }
             // `TRM-X`: with Alt as meta, the text an Alt combination produced is not typed (the key went as a key).
             if rawOptionKeys, modifiers.contains(.option) { return }
+            // `TRM-BM`: the text of a keypad key that went as a key is not typed as well.
+            if let dropped = droppedKeypadText {
+                droppedKeypadText = nil
+                if dropped == String(cString: text) { return }
+            }
             isComposing = false   // a commit ends the composition
             _ = onInput?(.textInput(String(cString: text)))
         case Int(MUI_EVENT_TEXT_EDITING):
@@ -1618,9 +1637,17 @@ public final class SDLWindow: PlatformWindow {
         case Int(MUI_EVENT_FOCUS_GAINED):
             _ = onInput?(.modifiersChanged(modifiers))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
+            if Int(event.kind) == Int(MUI_EVENT_KEY_DOWN) { droppedKeypadText = nil }
             if textInputCaret != nil,
                Self.producesText(keycode: event.keycode, modifiers: modifiers, rawOptionKeys: rawOptionKeys,
-                                 scancode: event.scancode) { return }
+                                 scancode: event.scancode, rawKeypadKeys: rawKeypadKeys) { return }
+            // `TRM-BM`: a keypad character that went as a key still gets its text from SDL: remember to drop it.
+            if rawKeypadKeys, textInputCaret != nil, Int(event.kind) == Int(MUI_EVENT_KEY_DOWN),
+               modifiers.isDisjoint(with: [.control, .command]),
+               !(rawOptionKeys && modifiers.contains(.option)),
+               let keypad = SDLKeys.keypadCharacter(scancode: event.scancode, keycode: event.keycode), keypad != "\r" {
+                droppedKeypadText = String(keypad)
+            }
             // KF-AB: while the input method composes, its keys are its own.
             if Self.suppressesKey(composing: isComposing, modifiers: modifiers) { return }
             let key = SDLKeys.keyEvent(keycode: event.keycode, scancode: event.scancode, modifiers: modifiers,

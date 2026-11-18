@@ -143,3 +143,72 @@ private func keyEvent(keycode: UInt32, scancode: UInt32, _ modifiers: Modifiers 
     platform.pumpEvents()
     #expect(describe() == ["key(35,kp)"], "\(describe())")
 }
+
+/// **7** (`TRM-BM`) With the keypad hint on, `producesText` is false for the keypad's character keys (and unchanged for
+/// every other key); off, `TRM-BJ`'s rows hold. Mutation: ignore `rawKeypadKeys` in `producesText` (the "on" rows fail),
+/// or apply it to every key (the main-row row fails).
+@Test func theKeypadHintMakesKeypadCharactersKeys() {
+    for (keycode, scancode) in [(UInt32(0x4000_005D), UInt32(93)), (0x35, 93), (0x2F, 84), (0x4000_0055, 85)] {
+        #expect(SDLWindow.producesText(keycode: keycode, modifiers: [], scancode: scancode), "off: \(keycode)")
+        #expect(!SDLWindow.producesText(keycode: keycode, modifiers: [], scancode: scancode, rawKeypadKeys: true), "on: \(keycode)")
+    }
+    #expect(SDLWindow.producesText(keycode: 0x35, modifiers: [], scancode: 34, rawKeypadKeys: true), "a main-row 5 is still text")
+    #expect(SDLWindow.producesText(keycode: 0x61, modifiers: [], scancode: 4, rawKeypadKeys: true))
+}
+
+/// **8** (`TRM-BM`) Through SDL's own queue: with the hint on, a keypad 5 arrives once, as a key with `isKeypad`, and the
+/// `TEXT_INPUT` SDL sends after it is dropped; a main-row 5 and its text still arrive as text; the next key-down clears
+/// a text that never came (a stale drop never eats a later commit); with the hint off again, TRM-BJ's behaviour.
+/// Mutation: do not drop the text (it arrives twice), or never clear it (the main-row text after a text-less keypad key
+/// is eaten).
+@MainActor @Test func aKeypadDigitWithTheHintOnArrivesOnceAsAKey() throws {
+    #if os(macOS)
+    armMainRunLoopExitCheck()
+    #endif
+    let platform = try SDLPlatform(hiddenWindows: true)
+    let window = try platform.openSDLWindow(title: "MetalUI keypad hint test",
+                                            size: Size(width: Pixels(320), height: Pixels(200)))
+    platform.pumpEvents()
+    var received: [InputEvent] = []
+    window.onInput = { received.append($0); return true }
+    func push(_ kind: Int, keycode: UInt32 = 0, scancode: UInt32 = 0, text: String? = nil) {
+        var event = MUIEvent()
+        event.kind = UInt32(kind); event.window_id = window.id
+        event.keycode = keycode; event.scancode = scancode
+        if let text {
+            text.withCString { event.text = $0; #expect(mui_push_event(&event)) }
+        } else {
+            #expect(mui_push_event(&event))
+        }
+    }
+    func describe() -> [String] {
+        received.compactMap {
+            switch $0 {
+            case .textInput(let text): "text(\(text))"
+            case .keyDown(let key): "key(\(key.characters),\(key.isKeypad ? "kp" : "-"))"
+            default: nil   // key-ups
+            }
+        }
+    }
+    window.setTextInputArea(Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: Size(width: Pixels(1), height: Pixels(16))))
+    window.setRawKeypadKeys(true)
+    push(Int(MUI_EVENT_KEY_DOWN), keycode: 0x4000_005D, scancode: 93)   // KP 5
+    push(Int(MUI_EVENT_TEXT_INPUT), text: "5")                          // its text: dropped
+    push(Int(MUI_EVENT_KEY_UP), keycode: 0x4000_005D, scancode: 93)
+    push(Int(MUI_EVENT_KEY_DOWN), keycode: 0x35, scancode: 34)          // main-row 5: text
+    push(Int(MUI_EVENT_TEXT_INPUT), text: "5")
+    platform.pumpEvents()
+    #expect(describe() == ["key(5,kp)", "text(5)"], "\(describe())")
+    received = []
+    push(Int(MUI_EVENT_KEY_DOWN), keycode: 0x4000_005D, scancode: 93)   // KP 5 whose text never comes
+    push(Int(MUI_EVENT_KEY_DOWN), keycode: 0x35, scancode: 34)          // the next key-down clears the stale drop
+    push(Int(MUI_EVENT_TEXT_INPUT), text: "5")
+    platform.pumpEvents()
+    #expect(describe() == ["key(5,kp)", "text(5)"], "\(describe())")
+    received = []
+    window.setRawKeypadKeys(false)
+    push(Int(MUI_EVENT_KEY_DOWN), keycode: 0x4000_005D, scancode: 93)   // hint off: TRM-BJ, only the text
+    push(Int(MUI_EVENT_TEXT_INPUT), text: "5")
+    platform.pumpEvents()
+    #expect(describe() == ["text(5)"], "\(describe())")
+}

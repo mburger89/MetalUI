@@ -152,6 +152,12 @@ public protocol PlatformWindow: AnyObject {
     /// and marked text are otherwise untouched. **Defaulted to a no-op**, so a conformer compiles unchanged.
     func setRawOptionKeys(_ raw: Bool)
 
+    /// Hints that the numeric keypad's character keys (digits, `. * + - / =`; no ⌘) are keys while `raw` is `true`
+    /// (ruling `TRM-BM`, sent by `Window` while the focused capture layer asks, a terminal under DECKPAM): the platform
+    /// delivers them as key events with `KeyEvent.isKeypad` and never as text input, so the program can be sent
+    /// `ESC O p`..`y`. Off, a keypad character reaches a text target as text, as before. **Defaulted to a no-op.**
+    func setRawKeypadKeys(_ raw: Bool)
+
     /// The system clipboard's plain text, if it holds any (ruling TI-A).
     func readClipboard() -> String?
 
@@ -761,6 +767,9 @@ extension Platform {
 extension PlatformWindow {
     /// The default: nothing to do (`TRM-X`).
     public func setRawOptionKeys(_ raw: Bool) {}
+
+    /// The default: nothing to do (`TRM-BM`).
+    public func setRawKeypadKeys(_ raw: Bool) {}
 
     /// The default: the platform cannot show a backdrop (`WB-C`).
     public func setWindowBackdrop(_ backdrop: WindowBackdrop) -> Bool { false }

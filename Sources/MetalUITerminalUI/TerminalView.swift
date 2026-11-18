@@ -104,7 +104,8 @@ struct TerminalViewField: Component, @MainActor Equatable {
                                accessibilityLabel: accessibilityLabel)
             .focusable()
             .focused($isFocused)
-            .keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta)
+            .keyCapture(except: keyCaptureExceptions, optionAsMeta: optionAsMeta,
+                        keypadAsKeys: { [model] in model.modes.applicationKeypad })   // `TRM-BM`
             .onKeyPress { press in model.handle(press, clipboard: clipboard) }
             .pasteDestination(for: String.self, action: { items in model.paste(items.joined(separator: "\n")) })
             .copyable(model.copyItems())
