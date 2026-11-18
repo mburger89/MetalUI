@@ -253,7 +253,7 @@ extension TerminalEmulator {
             var groupEnd = index + 1
             while groupEnd < values.count && p.isSub[groupEnd] { groupEnd += 1 }
             let code = Int(max(values[index], 0))
-            let subs = Array(values[(index + 1)..<groupEnd])
+            let subs = values[(index + 1)..<groupEnd]
             index = groupEnd
             switch code {
             case 0: resetPenKeepingLink()
@@ -303,7 +303,7 @@ extension TerminalEmulator {
                     let mode = index < values.count ? values[index] : -1
                     let need = mode == 5 ? 1 : mode == 2 ? 3 : 0
                     guard need > 0, index + need < values.count else { return }
-                    color = Self.colon(Array(values[index...(index + need)]))
+                    color = Self.colon(values[index...(index + need)])
                     index += need + 1
                 }
                 guard let color else { return }
@@ -315,24 +315,24 @@ extension TerminalEmulator {
 
     /// The colour described by `5;n` or `2;r;g;b` (with an optional colour-space id before the channels in the
     /// colon form: `2::r:g:b`); nil when it is malformed or a channel is out of range.
-    private static func colon(_ list: [Int32]) -> TerminalColor? {
+    private static func colon(_ list: ArraySlice<Int32>) -> TerminalColor? {
         func channel(_ v: Int32) -> UInt8? { v >= 0 && v <= 255 ? UInt8(v) : (v < 0 ? 0 : nil) }
+        let base = list.startIndex
         switch list.first {
         case 5:
-            guard list.count >= 2, let n = channel(list[1]) else { return nil }
+            guard list.count >= 2, let n = channel(list[base + 1]) else { return nil }
             return .indexed(n)
         case 2:
-            let channels: ArraySlice<Int32>
+            let from: Int
             if list.count >= 5 {
-                channels = list[2..<5]
+                from = base + 2
             } else if list.count == 4 {
-                channels = list[1..<4]
+                from = base + 1
             } else {
                 return nil
             }
-            let c = channels.compactMap(channel)
-            guard c.count == 3 else { return nil }
-            return .rgb(c[0], c[1], c[2])
+            guard let r = channel(list[from]), let g = channel(list[from + 1]), let b = channel(list[from + 2]) else { return nil }
+            return .rgb(r, g, b)
         default:
             return nil
         }

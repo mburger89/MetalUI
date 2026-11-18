@@ -39,11 +39,11 @@ import MetalUITestSupport
 /// one row (no scroll) make at most 2 heap allocations in all on the calling thread (a constant, not per line; the
 /// thread-filtered counter of `PA-J`; macOS only and release only, the pattern of `aWarmAsciiLookupAllocatesNothing`: a debug
 /// build allocates in slice and iterator plumbing, and how much depends on the toolchain). A scrolling feed allocates
-/// for the new scrollback row and for nothing else: at most 1 per line. **Measured, not met:** a line with four SGR sequences
-/// allocates 4 times (about one per sequence, 8 001 per 2 000 lines; the target of 0 is deferred, `TRM-BK` item 5), so
-/// the SGR line is pinned at 5 per line to stop it growing. Run with `swift test -c release --filter FeedAllocationTests`.
-/// Mutation: `feed` copies its input into an array (shown: plain 2 001, sgr 10 001, scroll 4 000; the bounds fail on each), an
-/// allocation more per SGR sequence fails the SGR bound.
+/// for the new scrollback row and for nothing else: at most 1 per line. A line with four SGR sequences allocates nothing per
+/// line either (`TRM-BL`: it was 8 001 per 2 000 lines, one per sequence, from `setAttributes` rebuilding the row's spans;
+/// now 4 in all, a constant), pinned at 8 in all. Run with `swift test -c release --filter FeedAllocationTests`.
+/// Mutation: `feed` copies its input into an array (shown: plain 2 001, sgr 10 001, scroll 4 000; the bounds fail on each); one
+/// allocation per CSI (`sgr` copying its parameter array) fails the SGR bound.
 @Suite struct FeedAllocationTests {
     @Test func aSteadyFeedAllocatesNothingAndAScrollAllocatesOnlyItsRow() throws {
         let e = TerminalEmulator(cols: 80, rows: 24, scrollback: 100)
@@ -62,7 +62,7 @@ import MetalUITestSupport
         })
         print("feed allocations over 2000 lines: plain \(plain), sgr \(coloured), scrolling \(scroll)")
         #expect(plain <= 2, "\(plain) allocations over 2000 plain lines")
-        #expect(coloured <= 5 * 2000, "\(coloured) allocations over 2000 SGR lines")
+        #expect(coloured <= 8, "\(coloured) allocations over 2000 SGR lines")
         #expect(scroll <= 2000 + 2, "\(scroll) allocations over 2000 scrolling lines")
     }
 }
