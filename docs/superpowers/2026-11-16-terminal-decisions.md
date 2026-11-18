@@ -468,4 +468,13 @@ Why: Alloy's report (2026-11-17): Terminal.app and NSTextView focus on any prima
 
 Why: Alloy's request (2026-11-17): the user's preferred cursor shape, overridden by a program, restored by 0 and by reset.
 
-Next unused: `TRM-BG`.
+## TRM-BG: the paste hook (record 378; additive to gap 2)
+
+1. **Parameter.** `TerminalView(…, onLink:, onPaste: (@MainActor (String, TerminalModes) -> Bool)? = nil)`, last, defaulted: called with the text about to be pasted and the terminal's current modes before the default paste. `true`: the host handled it, nothing is sent (it may send `TerminalEncoder.encodePaste(text, modes:)` through its own input path, e.g. after a confirmation); `false`: the default paste; nil: today's behaviour. Empty text never reaches it (the existing empty guard is first). The hook sees the raw clipboard text; ESC stripping stays inside `encodePaste`.
+2. **Every route.** All paste routes end in `TerminalViewModel.paste(_:)`, where the hook is called: the paste destination's action (⌘V and Edit ▸ Paste on Apple platforms) and Ctrl+Shift+V (elsewhere). There is no other route: a middle press is only reported to the program or ignored (no primary-selection paste), and the view has no text drop destination.
+3. **How current `modes` is.** The model's `modes`: the newest the source has, the snapshot waiting to be drawn (`pendingModes`, read under the source's lock), else the last drawn snapshot's, else `TerminalModes()`. So a mode the program set before the paste and that the view has not drawn yet (bracketed paste, 2004) already shows; only bytes still unfed or on the emulator's queue unpublished are not. Reading it is one lock acquisition on the main actor, as every key press already does; the emulator's queue is not touched.
+4. **Cost.** A closure like `onInput`, `onResize` and `onLink`: not compared by the field's `==` (a replay keeps the closures of the build that last ran), read only when a paste happens. Steady frames and an editor keystroke beside the view cost what they did without it (2 requests; 2 requests and 1 build).
+
+Why: Alloy's request (2026-11-17): a multi-line paste confirmation when bracketed paste is off, which `.pasteDestination` took before the host could.
+
+Next unused: `TRM-BH`.
