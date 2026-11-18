@@ -229,7 +229,7 @@ public struct KeyEvent: Sendable {
     /// matching reads it, with `.shift`, beside the characters.
     public var unshiftedKey: String = ""
     /// Whether the key is on the numeric keypad (`TRM-BC`): a terminal sends an application-keypad key its own
-    /// sequence. AppKit reports it from the key code; SDL does not report it yet. Default `false`.
+    /// sequence. AppKit reports it from the key code, SDL from the scancode (`TRM-BJ`). Default `false`.
     public var isKeypad: Bool = false
     /// A key event; every construction site states its timestamp.
     public init(charactersIgnoringModifiers: String, characters: String,

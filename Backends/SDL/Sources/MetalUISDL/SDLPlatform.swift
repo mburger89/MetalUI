@@ -952,9 +952,13 @@ public final class SDLWindow: PlatformWindow {
         composing && modifiers.isDisjoint(with: [.control, .command])
     }
 
-    nonisolated static func producesText(keycode: UInt32, modifiers: Modifiers, rawOptionKeys: Bool = false) -> Bool {
+    nonisolated static func producesText(keycode: UInt32, modifiers: Modifiers, rawOptionKeys: Bool = false,
+                                         scancode: UInt32 = 0) -> Bool {
         guard modifiers.isDisjoint(with: [.control, .command]) else { return false }
         if rawOptionKeys, modifiers.contains(.option) { return false }   // `TRM-X`
+        // `TRM-BJ`: a keypad character key (digit, operator, period) sends text with Num Lock on, whatever
+        // keycode the platform gave it; Enter sends none, so it stays a key.
+        if let keypad = SDLKeys.keypadCharacter(scancode: scancode, keycode: keycode) { return keypad != "\r" }
         return keycode >= 0x20 && keycode < 0x7F
     }
 
@@ -1615,14 +1619,12 @@ public final class SDLWindow: PlatformWindow {
             _ = onInput?(.modifiersChanged(modifiers))
         case Int(MUI_EVENT_KEY_DOWN), Int(MUI_EVENT_KEY_UP):
             if textInputCaret != nil,
-               Self.producesText(keycode: event.keycode, modifiers: modifiers, rawOptionKeys: rawOptionKeys) { return }
+               Self.producesText(keycode: event.keycode, modifiers: modifiers, rawOptionKeys: rawOptionKeys,
+                                 scancode: event.scancode) { return }
             // KF-AB: while the input method composes, its keys are its own.
             if Self.suppressesKey(composing: isComposing, modifiers: modifiers) { return }
-            let keys = SDLKeys.characters(forKeycode: event.keycode, modifiers: modifiers)
-            var key = KeyEvent(charactersIgnoringModifiers: keys.ignoringModifiers,
-                               characters: keys.characters, modifiers: modifiers,
-                               isRepeat: event.repeat, timestamp: event.timestamp)
-            key.unshiftedKey = keys.ignoringModifiers   // SDL's keycode is the unshifted key (`KF-AL`)
+            let key = SDLKeys.keyEvent(keycode: event.keycode, scancode: event.scancode, modifiers: modifiers,
+                                       isRepeat: event.repeat, timestamp: event.timestamp)
             _ = onInput?(Int(event.kind) == Int(MUI_EVENT_KEY_DOWN) ? .keyDown(key) : .keyUp(key))
         default:
             break
@@ -1671,6 +1673,44 @@ public enum SDLKeys {
         return (plain, modifiers.contains(.shift) ? plain.uppercased() : plain)
     }
 
+    /// The `KeyEvent` for an SDL key-down or key-up (`TRM-BJ`). A key on the numeric keypad (by `scancode`) carries
+    /// the character AppKit gives it (digit, operator, `.`, Enter as `\r`) and `isKeypad`, so a terminal can send
+    /// its application-keypad sequence; every other key is `characters(forKeycode:modifiers:)`.
+    static func keyEvent(keycode: UInt32, scancode: UInt32, modifiers: Modifiers, isRepeat: Bool,
+                         timestamp: Double) -> KeyEvent {
+        if let keypad = keypadCharacter(scancode: scancode, keycode: keycode) {
+            var key = KeyEvent(charactersIgnoringModifiers: keypad, characters: keypad, modifiers: modifiers,
+                               isRepeat: isRepeat, timestamp: timestamp)
+            key.unshiftedKey = keypad
+            key.isKeypad = true
+            return key
+        }
+        let keys = characters(forKeycode: keycode, modifiers: modifiers)
+        var key = KeyEvent(charactersIgnoringModifiers: keys.ignoringModifiers,
+                           characters: keys.characters, modifiers: modifiers,
+                           isRepeat: isRepeat, timestamp: timestamp)
+        key.unshiftedKey = keys.ignoringModifiers   // SDL's keycode is the unshifted key (`KF-AL`)
+        return key
+    }
+
+    /// The character of a numeric-keypad key, or nil when the event is not one. The physical key (`scancode`,
+    /// SDL_SCANCODE_KP_*) says "keypad"; the keycode must still be a keypad one (SDLK_KP_*, or the plain
+    /// character or `\r` a layout or platform may give it): with Num Lock off SDL reports the key as End,
+    /// Insert and so on, and then it is that key, not a keypad key.
+    static func keypadCharacter(scancode: UInt32, keycode: UInt32) -> String? {
+        guard let character = keypadScancodes[scancode] else { return nil }
+        let plain = character.unicodeScalars.first!.value
+        guard keycode == 0x4000_0000 | scancode || keycode == plain else { return nil }
+        return character
+    }
+
+    /// SDL_SCANCODE_KP_* (SDL_scancode.h) → the character AppKit reports for that key.
+    static let keypadScancodes: [UInt32: String] = [
+        84: "/", 85: "*", 86: "-", 87: "+", 88: "\r",
+        89: "1", 90: "2", 91: "3", 92: "4", 93: "5", 94: "6", 95: "7", 96: "8", 97: "9", 98: "0",
+        99: ".", 103: "=", 133: ",",
+    ]
+
     /// SDL keycodes whose AppKit character is not the keycode itself.
     static let named: [UInt32: String] = [
         0x08: "\u{7f}",            // SDLK_BACKSPACE → AppKit's delete (NSDeleteCharacter)
@@ -1680,6 +1720,7 @@ public enum SDLKeys {
         0x4000_0050: "\u{f702}", 0x4000_004F: "\u{f703}",   // left, right
         0x4000_004A: "\u{f729}", 0x4000_004D: "\u{f72b}",   // home, end
         0x4000_004B: "\u{f72c}", 0x4000_004E: "\u{f72d}",   // page up, page down
+        0x4000_0049: "\u{f727}",   // SDLK_INSERT → NSInsertFunctionKey (`TRM-BJ`)
         0x4000_0065: "\u{f735}",   // SDLK_APPLICATION → NSMenuFunctionKey, the Menu key (ruling MN-G)
         0x4000_003A: "\u{f704}", 0x4000_003B: "\u{f705}", 0x4000_003C: "\u{f706}", 0x4000_003D: "\u{f707}",
         0x4000_003E: "\u{f708}", 0x4000_003F: "\u{f709}", 0x4000_0040: "\u{f70a}", 0x4000_0041: "\u{f70b}",

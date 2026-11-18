@@ -19,14 +19,15 @@ import Testing
             TerminalView(snapshotSource: source, theme: knobs.palette, keyCaptureExceptions: knobs.exceptions,
                          optionAsMeta: knobs.optionAsMeta, cursorBlink: blink, blinkStopsAfterIdle: stops, cursorStyle: knobs.cursorStyle,
                          onInput: { log.inputs.append($0) }, onResize: { log.resizes.append($0) },
-                         onLink: { query in log.links.append(query); return knobs.link(query) })
+                         onLink: { query in log.links.append(query); return knobs.link(query) },
+                         onPaste: knobs.paste)
         }
     }
 }
 
 @MainActor final class TermRig {
     final class Log { var resizes: [TerminalSize] = []; var inputs: [[UInt8]] = []; var commands: [String] = []; var links: [TerminalLinkQuery] = []; var opened: [URL] = [] }
-    final class Knobs { var palette = TerminalPalette.xterm; var shown = true; var cursorStyle = TerminalCursorStyle(shape: .block, blinking: false); var optionAsMeta = false; var exceptions: [KeyboardShortcut] = []; var link: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil } }
+    final class Knobs { var palette = TerminalPalette.xterm; var shown = true; var cursorStyle = TerminalCursorStyle(shape: .block, blinking: false); var optionAsMeta = false; var exceptions: [KeyboardShortcut] = []; var link: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil }; var paste: (@MainActor (String, TerminalModes) -> Bool)? }
     let emulator: TerminalEmulator
     let source: TerminalSnapshotSource
     let log = Log()
@@ -39,8 +40,10 @@ import Testing
     init(cols: Int = 80, rows: Int = 24, size: Size<Pixels> = Size(width: Pixels(400), height: Pixels(300)),
          blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true, commands: Bool = false,
          opens: Bool = false, cursorStyle: TerminalCursorStyle = TerminalCursorStyle(shape: .block, blinking: false),
-         accessibility: Bool = true) throws {
+         accessibility: Bool = true,
+         paste: (@MainActor (String, TerminalModes) -> Bool)? = nil) throws {
         self.size = size
+        knobs.paste = paste
         knobs.cursorStyle = cursorStyle
         emulator = TerminalEmulator(cols: cols, rows: rows)
         source = TerminalSnapshotSource(emulator: emulator, queue: .main)

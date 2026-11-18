@@ -1759,7 +1759,7 @@ static bool translate(const SDL_Event *e, MUIEvent *out) {
         out->kind = MUI_EVENT_CLIPBOARD; return true;
     case SDL_EVENT_KEY_DOWN: case SDL_EVENT_KEY_UP:
         out->kind = e->type == SDL_EVENT_KEY_DOWN ? MUI_EVENT_KEY_DOWN : MUI_EVENT_KEY_UP;
-        out->window_id = e->key.windowID; out->keycode = e->key.key;
+        out->window_id = e->key.windowID; out->keycode = e->key.key; out->scancode = (uint32_t)e->key.scancode;
         out->modifiers = mods(e->key.mod); out->repeat = e->key.repeat;
         return true;
     // Drops from other applications (ruling DN-M): the five kinds carry the
@@ -1828,7 +1828,7 @@ bool mui_push_event(const MUIEvent *in) {
         e.wheel.x = in->dx; e.wheel.y = in->dy; e.wheel.mouse_x = in->x; e.wheel.mouse_y = in->y; break;
     case MUI_EVENT_KEY_DOWN: case MUI_EVENT_KEY_UP:
         e.type = in->kind == MUI_EVENT_KEY_DOWN ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
-        e.key.windowID = in->window_id; e.key.key = in->keycode; e.key.repeat = in->repeat;
+        e.key.windowID = in->window_id; e.key.key = in->keycode; e.key.scancode = (SDL_Scancode)in->scancode; e.key.repeat = in->repeat;
         e.key.down = in->kind == MUI_EVENT_KEY_DOWN;
         e.key.mod = (in->modifiers & MUI_MOD_SHIFT ? SDL_KMOD_LSHIFT : 0)
                   | (in->modifiers & MUI_MOD_CONTROL ? SDL_KMOD_LCTRL : 0)

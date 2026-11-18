@@ -841,7 +841,7 @@ dirtied the window, an animation or timer runs, or the scale, size or glyph-atla
 
 ## `TerminalView` — M
 
-`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:cursorStyle:accessibilityLabel:onInput:onResize:onLink:)`
+`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:cursorStyle:accessibilityLabel:onInput:onResize:onLink:onPaste:)`
 (M; `TRM-BA`, record 357; Alloy gap 2, **frozen**; product `MetalUITerminalUI`, macOS, Linux and Windows). It draws a
 `TerminalSnapshotSource`'s grid on a `GPUSurface` in the environment's `.font` (default the system face's monospaced
 design) and reports the grid of whole cells that fits through `snapshotSource.resize(_:)` and then `onResize`, once per
@@ -852,7 +852,8 @@ blinking style and stops 30 s after the last activity (`blinkStopsAfterIdle`). `
 `TerminalLinkTarget`. `accessibilityLabel` (`TRM-BH`, record 379, default "Terminal") names the one read-only text area the view
 publishes while an accessibility client is present: the viewport's rows, trailing blanks trimmed, one line per row, kept
 current after output without a build (no cursor position: the node model has none). `METALUI_TERMINAL_DEMO=1 swift run
-MetalUIDemo` shows the view over `$SHELL` on macOS (`TRM-BI`).
+MetalUIDemo` shows the view over `$SHELL` on macOS (`TRM-BI`). `onPaste` (`TRM-BG`, record 378, default nil) is called with the clipboard text and the
+newest `TerminalModes` before the default paste on every route; `true` means the host handled it and nothing is sent.
 
 ## Application icon — M
 
