@@ -31,6 +31,42 @@ import MetalUITerminal
         #expect(emulator.rowText(emulator.firstRow) != nil)
     }
 
+    /// SGR-heavy parse throughput (target 80 MB/s, Alloy's proposal): every few characters change the colours, with 256-colour,
+    /// truecolor, bold and reset in the mix, so rows carry many runs.
+    @Test(.enabled(if: TerminalBench.enabled)) func sgrHeavyParseThroughput() {
+        var line: [UInt8] = []
+        var i = 0
+        while line.count < 200 {
+            let sgr: String
+            switch i % 4 {
+            case 0: sgr = "\u{1B}[1;3\(i % 8)m"
+            case 1: sgr = "\u{1B}[38;5;\(16 + i % 200);48;5;\(i % 16)m"
+            case 2: sgr = "\u{1B}[38;2;\(i % 256);\((i * 7) % 256);\((i * 13) % 256)m"
+            default: sgr = "\u{1B}[0m"
+            }
+            line += Array(sgr.utf8) + Array("word\(i % 10) ".utf8)
+            i += 1
+        }
+        line += Array("\u{1B}[0m\r\n".utf8)
+        var chunk: [UInt8] = []
+        while chunk.count < 64 * 1024 { chunk += line }
+        let iterations = (64 * 1024 * 1024) / chunk.count
+        let emulator = TerminalEmulator(cols: 120, rows: 40)
+        var best = 0.0
+        for _ in 0..<4 {
+            let clock = ContinuousClock()
+            let elapsed = clock.measure {
+                chunk.withUnsafeBytes { buffer in
+                    for _ in 0..<iterations { emulator.feed(buffer) }
+                }
+            }
+            let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+            best = max(best, Double(chunk.count * iterations) / seconds / 1_000_000)
+        }
+        print("terminal bench: SGR-heavy parse \(Int(best)) MB/s (a colour change every \(line.count / i) bytes, 64 KiB chunks, best of 4)")
+        #expect(best > 5, "a floor far below the 80 MB/s target, so a broken build still fails")
+    }
+
     /// Reflow of 10,000 scrollback rows of 120 columns (`TRM-AP`; proposed bound 50 ms). Soft-wrapped and hard
     /// lines mixed, a few with colour and wide characters.
     @Test(.enabled(if: TerminalBench.enabled)) func reflowOfTenThousandScrollbackRows() {

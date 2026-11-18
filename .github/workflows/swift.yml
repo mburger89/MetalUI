@@ -129,6 +129,14 @@ jobs:
       run: |
         swift build -c release --product MetalUI
         exit $LASTEXITCODE
+    # TRM-BK: the terminal products in release too (the shipped configuration: -O specialisation of the parser and the
+    # painter, which no debug build sees). Products only; the gated bench is an Apple-silicon measurement.
+    - name: Release build of the terminal products (TRM-BK)
+      run: |
+        swift build -c release --product MetalUITerminal
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        swift build -c release --product MetalUITerminalUI
+        exit $LASTEXITCODE
 
   # Tests/PortableTests is one package with three test targets, and these jobs
   # run all of it: FreeType's rasterizer output, pinned byte for byte (size,
