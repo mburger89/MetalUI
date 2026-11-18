@@ -252,14 +252,15 @@ private struct Card: Component, @MainActor Equatable {
 
 /// **9** Ending the session by Escape (no selection change) still redraws: the view observes `isSnippetActive`.
 /// **Mutation:** the plan reading `source.snippet` without the observed flag leaves the tint on.
-@Test @MainActor func endingTheSessionRedraws() throws {
+@Test @MainActor func endingTheSessionRedraws() async throws {
     let (w, buffer, _) = try snippetWindow("")
     buffer.selectionState.insertSnippet(CodeSnippet(parsing: "(${1:a} ${2:b})$0"), replacing: 0..<0)
     redraw(w)
     #expect(tints(w).count == 1)
     buffer.selectionState.endSnippet()
-    w.tick()
-    #expect(tints(w).isEmpty, "a plain tick, no explicit redraw request")
+    // Off Darwin the dirty mark hops through a task: run until idle, which ticks only while the window is dirty.
+    try await w.runUntilIdle()
+    #expect(tints(w).isEmpty, "no explicit redraw request")
 }
 
 /// **10** Cost. A keystroke in a session costs what a keystroke over the same selection costs with no session
