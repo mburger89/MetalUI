@@ -239,6 +239,9 @@ typedef struct {
     int32_t button;
     float scale;
     int32_t phase;
+    // Appended for the terminal's key coverage (TRM-BJ): KEY_DOWN/UP's SDL_Scancode, the physical key, which
+    // says "keypad" however the layout, Num Lock or the platform spelled the keycode.
+    uint32_t scancode;
 } MUIEvent;
 // `app_id`: the application id for SDL_HINT_APP_ID, set immediately before
 // SDL_Init, or NULL to touch nothing (ruling AP-E). The recorders read back
