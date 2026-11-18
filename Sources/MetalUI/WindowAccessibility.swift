@@ -49,6 +49,38 @@ final class WindowAccessibility {
         return true
     }
 
+    /// Values re-read after a surface-only frame (`TRM-BH`), by the element that published the node. Filled by every full
+    /// frame that ran such an element's prepaint (a retained frame keeps the older entries); an entry whose node left the
+    /// published tree is dropped by the next refresh.
+    private var liveValues: [GlobalElementID: @MainActor () -> String] = [:]
+
+    /// Merges a full frame's live values. Nothing while no client is present.
+    func adoptLiveValues(_ values: [GlobalElementID: @MainActor () -> String]) {
+        guard isActive, !values.isEmpty else { return }
+        liveValues.merge(values) { _, new in new }
+    }
+
+    /// Forgets every live value, as a refresh does for a node the published tree no longer holds. Test seam (`TRM-BH`).
+    func forgetLiveValuesForTesting() { liveValues = [:] }
+
+    /// Re-reads every live value against the published tree and publishes a changed one (a surface-only frame builds
+    /// nothing, so output reaches a client only here). Does no work with no client or nothing registered.
+    func refreshLiveValues(to platformWindow: any PlatformWindow) {
+        guard isActive, !liveValues.isEmpty else { return }
+        var tree = lastPublished
+        var changed = false
+        for (id, read) in liveValues {
+            let node = AccessibilityNodeID(id)
+            guard tree.nodes[node] != nil else { liveValues[id] = nil; continue }
+            let value = read()
+            if tree.nodes[node]?.value != value { tree.nodes[node]?.value = value; changed = true }
+        }
+        guard changed else { return }
+        lastPublished = tree
+        publishCount += 1
+        platformWindow.publishAccessibilityTree(tree)
+    }
+
     /// Whether the previous drawn frame asked for an accessibility retry.
     private var lastFrameRetried = false
 

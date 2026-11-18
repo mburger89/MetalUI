@@ -28,33 +28,47 @@ package final class TerminalRowPainter {
     /// The selection's opacity, 0...1.
     package var selectionAlpha: Float = 0.5
 
-    private var lastAttributes = TerminalAttributes()
-    private var lastResolved: TerminalColorScheme.Resolved
-    private var lastValid = false
     private var colorCache: [TerminalRGB: MUIHsla] = [:]
+    private var lastColorRGB = TerminalRGB(0, 0, 0)
+    private var lastColor = MUIHsla(h: 0, s: 0, l: 0, a: 1)
+    private var lastColorValid = false
+
+    /// What one run of a row draws with, resolved once per run per draw instead of once per cell (`TRM-BL`).
+    private struct RunInfo {
+        var colors: TerminalColorScheme.Resolved
+        var foreground: MUIHsla
+        var bold: Bool
+        var italic: Bool
+        var underlineStyle: TerminalUnderlineStyle
+        var strikethrough: Bool
+    }
+    /// Index 0 is the default rendition (run -1), index `n + 1` is run `n`; reused across draws.
+    private var runInfo: [RunInfo] = []
 
     package init(cache: TerminalGlyphCache, scheme: TerminalColorScheme) {
         self.cache = cache
         self.scheme = scheme
-        lastResolved = scheme.resolve(TerminalAttributes())
-    }
-
-    private func resolved(_ attributes: TerminalAttributes) -> TerminalColorScheme.Resolved {
-        if lastValid, attributes == lastAttributes { return lastResolved }
-        lastAttributes = attributes
-        lastResolved = scheme.resolve(attributes)
-        lastValid = true
-        return lastResolved
     }
 
     private func color(_ rgb: TerminalRGB, alpha: Float = 1) -> MUIHsla {
         var hsla: MUIHsla
-        if let found = colorCache[rgb] { hsla = found } else {
-            hsla = MUIHsla(rgb.hsla())
-            colorCache[rgb] = hsla
+        if lastColorValid, rgb == lastColorRGB { hsla = lastColor } else {
+            if let found = colorCache[rgb] { hsla = found } else {
+                hsla = MUIHsla(rgb.hsla())
+                colorCache[rgb] = hsla
+            }
+            lastColorRGB = rgb
+            lastColor = hsla
+            lastColorValid = true
         }
         hsla.a = alpha
         return hsla
+    }
+
+    private func info(_ attributes: TerminalAttributes) -> RunInfo {
+        let colors = scheme.resolve(attributes)
+        return RunInfo(colors: colors, foreground: color(colors.foreground), bold: attributes.bold, italic: attributes.italic,
+                       underlineStyle: attributes.underlineStyle, strikethrough: attributes.strikethrough)
     }
 
     private func bounds(_ x: Int, _ y: Int, _ w: Int, _ h: Int) -> MUIBounds {
@@ -80,7 +94,11 @@ package final class TerminalRowPainter {
                       selection: Range<Int>? = nil, link: Range<Int>? = nil) {
         cache.prepare(for: sink.atlas)
         // A new scheme or a rebuilt atlas must not serve a stale resolution.
-        lastValid = false
+        lastColorValid = false
+        // One resolution per run, not per cell (`TRM-BL`).
+        runInfo.removeAll(keepingCapacity: true)
+        runInfo.append(info(TerminalAttributes()))
+        for run in 0..<row.runCount { runInfo.append(info(row.attributes(ofRun: run))) }
         let m = cache.metrics
         let cw = m.cellWidth, ch = m.cellHeight
         let top = origin.y + rowIndex * ch
@@ -94,16 +112,16 @@ package final class TerminalRowPainter {
             guard column > runStart else { return }
             sink.fillRect(bounds(origin.x + runStart * cw, top, (column - runStart) * cw, ch), color: color(runColor))
         }
-        row.forEachCell { column, width, _, attributes in
+        row.forEachCellByRun({ column, width, _, run in
             guard column < columns else { return }
-            let bg = resolved(attributes).background
+            let bg = runInfo[run + 1].colors.background
             if bg != runColor {
                 flush(to: column)
                 runStart = column
                 runColor = bg
             }
             end = min(columns, column + width)
-        }
+        })
         if scheme.background != runColor {
             flush(to: end)
             runStart = end
@@ -121,14 +139,14 @@ package final class TerminalRowPainter {
         }
 
         // Glyphs.
-        row.forEachCell { column, width, bytes, attributes in
+        row.forEachCellByRun({ column, width, bytes, run in
             guard column < columns else { return }
-            let colors = resolved(attributes)
-            guard !colors.hidden else { return }
+            let info = runInfo[run + 1]
+            guard !info.colors.hidden else { return }
             let cellX = origin.x + column * cw
-            drawCellGlyphs(bytes, attributes: attributes, tint: colors.foreground, cellX: cellX, top: top,
-                           rowBox: rowBox, into: sink)
-        }
+            drawCellGlyphs(bytes, bold: info.bold, italic: info.italic, tint: info.colors.foreground, hsla: info.foreground,
+                           cellX: cellX, top: top, rowBox: rowBox, into: sink)
+        })
 
         // Decorations, merged across neighbouring cells of one style and colour.
         var underline: (start: Int, end: Int, style: TerminalUnderlineStyle, color: TerminalRGB)?
@@ -144,26 +162,32 @@ package final class TerminalRowPainter {
             }
             strike = nil
         }
-        row.forEachCell { column, width, _, attributes in
+        row.forEachCellByRun({ column, width, _, run in
             guard column < columns else { return }
+            let info = runInfo[run + 1]
+            if info.underlineStyle == .none && !info.strikethrough {
+                if underline != nil { flushUnderline() }
+                if strike != nil { flushStrike() }
+                return
+            }
             let stop = min(columns, column + width)
-            if attributes.underlineStyle != .none {
-                let c = resolved(attributes).underline
-                if let u = underline, u.end == column, u.style == attributes.underlineStyle, u.color == c {
+            if info.underlineStyle != .none {
+                let c = info.colors.underline
+                if let u = underline, u.end == column, u.style == info.underlineStyle, u.color == c {
                     underline?.end = stop
                 } else {
                     flushUnderline()
-                    underline = (column, stop, attributes.underlineStyle, c)
+                    underline = (column, stop, info.underlineStyle, c)
                 }
             } else { flushUnderline() }
-            if attributes.strikethrough {
-                let c = resolved(attributes).foreground
+            if info.strikethrough {
+                let c = info.colors.foreground
                 if let s = strike, s.end == column, s.color == c { strike?.end = stop } else {
                     flushStrike()
                     strike = (column, stop, c)
                 }
             } else { flushStrike() }
-        }
+        })
         flushUnderline()
         flushStrike()
         if let link {
@@ -211,7 +235,8 @@ package final class TerminalRowPainter {
         case .block:
             sink.fillRect(box, color: tint)
             if let found, !found.attributes.hidden {
-                drawCellGlyphs(found.bytes, attributes: found.attributes, tint: textColor, cellX: x, top: top,
+                drawCellGlyphs(found.bytes, bold: found.attributes.bold, italic: found.attributes.italic, tint: textColor,
+                               hsla: color(textColor), cellX: x, top: top,
                                rowBox: bounds(origin.x, top, columns * cw, ch), into: sink)
             }
         case .bar:
@@ -228,21 +253,19 @@ package final class TerminalRowPainter {
         }
     }
 
-    /// The glyphs of one cell (shaped or synthesised) in `tint`, masked to `rowBox`.
-    private func drawCellGlyphs(_ bytes: ArraySlice<UInt8>, attributes: TerminalAttributes, tint rgb: TerminalRGB,
+    /// The glyphs of one cell (shaped or synthesised) in `tint` (`hsla` is the same colour as the renderer's), masked to
+    /// `rowBox`.
+    private func drawCellGlyphs(_ bytes: ArraySlice<UInt8>, bold: Bool, italic: Bool, tint rgb: TerminalRGB, hsla tint: MUIHsla,
                                 cellX: Int, top: Int, rowBox: MUIBounds, into sink: SurfaceTextSink) {
         let m = cache.metrics
         let cw = m.cellWidth, ch = m.cellHeight
         let atlas = sink.atlas
-        let system = cache.system
-        switch cache.drawing(for: bytes, bold: attributes.bold, italic: attributes.italic) {
+        switch cache.drawing(for: bytes, bold: bold, italic: italic) {
         case .blank:
             break
         case .glyphs(let index):
-            let tint = color(rgb)
-            for placed in cache.glyphs(at: index) {
-                guard let packed = atlas.packed(for: placed.key, rasterize: { system.rasterize(placed.key) }),
-                      packed.slot.width > 0, packed.slot.height > 0 else { continue }
+            for placed in cache.sprites(at: index, in: atlas) {
+                let packed = placed.packed
                 sink.append(sprite(bounds(cellX + placed.pixelX + packed.left, top + placed.baselineY - packed.top,
                                           packed.slot.width, packed.slot.height),
                                    packed.slot, mask: rowBox, color: tint))

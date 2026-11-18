@@ -282,33 +282,70 @@ public struct TerminalRow: Sendable, Hashable {
         guard lower < upper else { return }
         let plain = TerminalAttributes()
         if runs.isEmpty && attributes == plain { return }
-        var old = runs
-        if old.isEmpty { old = [Run(count: Int32(total), attributes: plain)] }
-        // Spans cover exactly the stored columns; extend with default blanks when text was just appended past them.
-        let covered = old.reduce(0) { $0 + Int($1.count) }
-        if covered < total { old.append(Run(count: Int32(total - covered), attributes: plain)) }
-        var out: [Run] = []
-        out.reserveCapacity(old.count + 2)
-        func emit(_ count: Int, _ attrs: TerminalAttributes) {
-            guard count > 0 else { return }
-            if let last = out.last, last.attributes == attrs {
-                out[out.count - 1].count += Int32(count)
+        // Edited in place (`TRM-BL`): the spans are spliced where the range falls, so an overwrite allocates nothing
+        // once the array has the capacity it needs.
+        if runs.isEmpty { runs.append(Run(count: Int32(total), attributes: plain)) }
+        var covered = 0
+        for run in runs { covered += Int(run.count) }
+        if covered < total {
+            // Text was just appended past the spans: extend with default blanks.
+            if runs[runs.count - 1].attributes == plain {
+                runs[runs.count - 1].count += Int32(total - covered)
             } else {
-                out.append(Run(count: Int32(count), attributes: attrs))
+                runs.append(Run(count: Int32(total - covered), attributes: plain))
             }
         }
+        // The spans the range touches: first..<after.
+        var first = 0
         var start = 0
-        for run in old {
-            let end = start + Int(run.count)
-            emit(max(0, min(end, lower) - start), run.attributes)
-            let a = max(start, lower)
-            let b = min(end, upper)
-            if a < b { emit(b - a, attributes) }
-            emit(max(0, end - max(start, upper)), run.attributes)
-            start = end
+        while first < runs.count, start + Int(runs[first].count) <= lower {
+            start += Int(runs[first].count)
+            first += 1
         }
-        if out.count == 1 && out[0].attributes == plain { out = [] }
-        runs = out
+        var after = first
+        var lastStart = start
+        var lastEnd = start
+        while after < runs.count, lastStart < upper {
+            lastEnd = lastStart + Int(runs[after].count)
+            if lastEnd >= upper { after += 1; break }
+            lastStart = lastEnd
+            after += 1
+        }
+        guard first < after else { return }
+        // Up to three pieces replace them: what is left of the first span, the new span, what is left of the last.
+        let firstAttributes = runs[first].attributes
+        let lastAttributes = runs[after - 1].attributes
+        let head = lower - start
+        let tail = lastEnd - upper
+        var pieces = 0
+        func place(_ count: Int, _ attrs: TerminalAttributes) {
+            let slot = first + pieces
+            pieces += 1
+            let run = Run(count: Int32(count), attributes: attrs)
+            if slot < after { runs[slot] = run } else { runs.insert(run, at: slot) }
+        }
+        let wasAfter = after
+        if head > 0 { place(head, firstAttributes) }
+        place(upper - lower, attributes)
+        if tail > 0 { place(tail, lastAttributes) }
+        if first + pieces < wasAfter { runs.removeSubrange((first + pieces)..<wasAfter) }
+        mergeEqualNeighbours()
+        if runs.count == 1 && runs[0].attributes == plain { runs.removeAll(keepingCapacity: true) }
+    }
+
+    /// Joins adjacent spans of equal rendition, in place.
+    private mutating func mergeEqualNeighbours() {
+        guard runs.count > 1 else { return }
+        var write = 0
+        for read in 1..<runs.count {
+            if runs[read].attributes == runs[write].attributes {
+                runs[write].count += runs[read].count
+            } else {
+                write += 1
+                if write != read { runs[write] = runs[read] }
+            }
+        }
+        if write + 1 < runs.count { runs.removeSubrange((write + 1)...) }
     }
 
     /// Drops trailing default blanks and shrinks both arrays to a tight size, in place. Called when a row leaves

@@ -29,6 +29,23 @@ extension PaintPass {
     }
 }
 
+extension PrepaintPass {
+    /// Publishes a read-only multi-line text area node at `id` while an accessibility client is present (`TRM-BH`):
+    /// `value()` is read now, and again by the window after every surface-only frame (which builds nothing), so output
+    /// reaches the client without a rebuild. With no client this is one `Bool` read.
+    package func terminalDeclareAccessibility(_ id: GlobalElementID, bounds: Bounds<Pixels>, label: String,
+                                              value: @escaping @MainActor () -> String) {
+        guard frame.collectsAccessibility else { return }
+        var node = AXNode()
+        node.role = .textArea
+        node.label = label
+        node.value = value()
+        frame.recordAccessibility(text: nil, declared: node, at: bounds, id: id)
+        frame.liveAccessibilityValues[id] = value
+        frame.prepaintLog?.liveValues.append((id, value))
+    }
+}
+
 extension TextMeasurer {
     /// The frame's text system (nil in a bare environment).
     package var terminalTextSystem: (any TextSystem)? { box?.system }

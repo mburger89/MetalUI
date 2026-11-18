@@ -162,3 +162,45 @@ private func referenceHeapBytes(forRequest n: Int) -> Int {
         #expect(MemoryLayout<TerminalRow>.stride <= 40)
     }
 }
+
+/// `TRM-BL`: `setAttributes` edits the spans in place; whatever a random series of overwrites does, every column reads what
+/// a per-column model says, the spans cover exactly the stored columns, no two neighbours are equal and an all-default row has
+/// no spans. Mutation: not merging equal neighbours fails the neighbour check; a wrong splice index fails the per-column one.
+@Suite struct RowSetAttributesTests {
+    @Test func randomOverwritesMatchAPerColumnModel() {
+        var seed: UInt64 = 0x9E37_79B9_7F4A_7C15
+        func next(_ n: Int) -> Int {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return Int((seed >> 33) % UInt64(n))
+        }
+        var palette: [TerminalAttributes] = [TerminalAttributes()]
+        for index in 1...3 {
+            var a = TerminalAttributes()
+            a.foreground = .indexed(UInt8(index))
+            palette.append(a)
+        }
+        for round in 0..<300 {
+            var row = TerminalRow(columns: 40)
+            var model = [TerminalAttributes](repeating: TerminalAttributes(), count: 40)
+            var stored = 0
+            for _ in 0..<(1 + next(12)) {
+                let start = next(40), length = 1 + next(40 - start)
+                let attrs = palette[next(palette.count)]
+                let text = String(repeating: "x", count: length)
+                text.utf8.withContiguousStorageIfAvailable { row.writeASCII($0, at: start, attributes: attrs) }
+                for column in start..<(start + length) { model[column] = attrs }
+                stored = max(stored, start + length)
+            }
+            for column in 0..<40 {
+                #expect(row.attributes(at: column) == (column < stored ? model[column] : TerminalAttributes()), "round \(round) column \(column)")
+            }
+            if row.runs.isEmpty {
+                #expect(model[0..<stored].allSatisfy { $0 == TerminalAttributes() }, "round \(round) lost its spans")
+            } else {
+                #expect(row.runs.reduce(0) { $0 + Int($1.count) } == stored, "round \(round) covers \(stored)")
+                #expect(!zip(row.runs, row.runs.dropFirst()).contains { $0.attributes == $1.attributes }, "round \(round) neighbours")
+                #expect(!(row.runs.count == 1 && row.runs[0].attributes == TerminalAttributes()), "round \(round) one default span")
+            }
+        }
+    }
+}

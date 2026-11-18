@@ -878,7 +878,7 @@ allocates nothing (release, macOS). The timed targets are measured by the gated 
 
 ## `TerminalView` — M
 
-`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:onInput:onResize:onLink:onPaste:)`
+`TerminalView(snapshotSource:theme:keyCaptureExceptions:optionAsMeta:cursorBlink:blinkStopsAfterIdle:boldIsBright:cursorStyle:accessibilityLabel:onInput:onResize:onLink:onPaste:)`
 (M; `TRM-BA`, record 357; Alloy gap 2, **frozen**; product `MetalUITerminalUI`, macOS, Linux and Windows). It draws a
 `TerminalSnapshotSource`'s grid on a `GPUSurface` in the environment's `.font` (default the system face's monospaced
 design) and reports the grid of whole cells that fits through `snapshotSource.resize(_:)` and then `onResize`, once per
@@ -886,7 +886,10 @@ real change. Output is a surface-only frame (0 builds, 0 element requests) that 
 opaque background. The cursor is a block, bar or underline, a hollow block when unfocused, blinks every 500 ms for a
 blinking style and stops 30 s after the last activity (`blinkStopsAfterIdle`). `TerminalPalette` (`ansi` x 16,
 `foreground`, `background`, `cursor`, `cursorText`, `selection`, `boldIsBright`, `.xterm`); `TerminalLinkQuery` and
-`TerminalLinkTarget`. `onInput` (the encoded bytes for the pty), `keyCaptureExceptions`, `optionAsMeta` (both ⌥ keys), `onLink` and `cursorStyle` (`TRM-BF`) are live since Phases 5.4 and 5.5 (`TRM-BC`, `TRM-BD`); a primary press focuses the view (`TRM-BE`). `onPaste` (`TRM-BG`, record 378, default nil) is called with the clipboard text and the
+`TerminalLinkTarget`. `onInput` (the encoded bytes for the pty), `keyCaptureExceptions`, `optionAsMeta` (both ⌥ keys), `onLink` and `cursorStyle` (`TRM-BF`) are live since Phases 5.4 and 5.5 (`TRM-BC`, `TRM-BD`); a primary press focuses the view (`TRM-BE`). `accessibilityLabel` (`TRM-BH`, record 379, default "Terminal") names the one read-only text area the view
+publishes while an accessibility client is present: the viewport's rows, trailing blanks trimmed, one line per row, kept
+current after output without a build (no cursor position: the node model has none). `METALUI_TERMINAL_DEMO=1 swift run
+MetalUIDemo` shows the view over `$SHELL` on macOS (`TRM-BI`). `onPaste` (`TRM-BG`, record 378, default nil) is called with the clipboard text and the
 newest `TerminalModes` before the default paste on every route; `true` means the host handled it and nothing is sent.
 
 ## Application icon — M

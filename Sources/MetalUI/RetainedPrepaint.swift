@@ -33,7 +33,7 @@ final class PrepaintLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0, inertBlockers = 0
+        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0, inertBlockers = 0, liveValues = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -42,6 +42,8 @@ final class PrepaintLog {
     /// Lock-step with `axNodes`: the pre-effect rect of each node, `nil` outside an effect (`AT-A`).
     var axNodeLocals: [AXLocalRects?] = []
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
+    /// Live accessibility values declared under the prepaint, in lock-step with the nodes they refresh (`TRM-BH`).
+    var liveValues: [(GlobalElementID, @MainActor () -> String)] = []
     /// Disabled controls' chrome-only rects (`AS-S`).
     var inertBlockers: [Bounds<Pixels>] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
@@ -61,7 +63,7 @@ final class PrepaintLog {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
               contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
               anchors: anchors.count, geometry: geometry.count, modifiers: modifiers.count,
-              inertBlockers: inertBlockers.count)
+              inertBlockers: inertBlockers.count, liveValues: liveValues.count)
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -151,6 +153,8 @@ final class PrepaintLedger {
     var axNodes: [(GlobalElementID, AXNode)] = []
     var axNodeLocals: [AXLocalRects?] = []
     var pressOnly: [(GlobalElementID, @MainActor () -> Void)] = []
+    /// Live accessibility values, re-registered on replay beside their nodes (`TRM-BH`).
+    var liveValues: [(GlobalElementID, @MainActor () -> String)] = []
     /// Disabled controls' chrome-only rects, replayed as recorded (`AS-S`); a translation refuses.
     var inertBlockers: [Bounds<Pixels>] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
@@ -513,6 +517,7 @@ extension Frame {
         ledger.axNodes = Array(log.axNodes[from.axNodes..<to.axNodes])
         ledger.axNodeLocals = Array(log.axNodeLocals[from.axNodes..<to.axNodes])
         ledger.pressOnly = Array(log.pressOnly[from.pressOnly..<to.pressOnly])
+        ledger.liveValues = Array(log.liveValues[from.liveValues..<to.liveValues])
         ledger.inertBlockers = Array(log.inertBlockers[from.inertBlockers..<to.inertBlockers])
         ledger.contextMenus = Array(log.contextMenus[from.contextMenus..<to.contextMenus])
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
