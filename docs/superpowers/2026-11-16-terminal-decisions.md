@@ -468,9 +468,18 @@ Why: Alloy's report (2026-11-17): Terminal.app and NSTextView focus on any prima
 
 Why: Alloy's request (2026-11-17): the user's preferred cursor shape, overridden by a program, restored by 0 and by reset.
 
+## TRM-BG: the paste hook (record 378; additive to gap 2)
+
+1. **Parameter.** `TerminalView(…, onLink:, onPaste: (@MainActor (String, TerminalModes) -> Bool)? = nil)`, last, defaulted: called with the text about to be pasted and the terminal's current modes before the default paste. `true`: the host handled it, nothing is sent (it may send `TerminalEncoder.encodePaste(text, modes:)` through its own input path, e.g. after a confirmation); `false`: the default paste; nil: today's behaviour. Empty text never reaches it (the existing empty guard is first). The hook sees the raw clipboard text; ESC stripping stays inside `encodePaste`.
+2. **Every route.** All paste routes end in `TerminalViewModel.paste(_:)`, where the hook is called: the paste destination's action (⌘V and Edit ▸ Paste on Apple platforms) and Ctrl+Shift+V (elsewhere). There is no other route: a middle press is only reported to the program or ignored (no primary-selection paste), and the view has no text drop destination.
+3. **How current `modes` is.** The model's `modes`: the newest the source has, the snapshot waiting to be drawn (`pendingModes`, read under the source's lock), else the last drawn snapshot's, else `TerminalModes()`. So a mode the program set before the paste and that the view has not drawn yet (bracketed paste, 2004) already shows; only bytes still unfed or on the emulator's queue unpublished are not. Reading it is one lock acquisition on the main actor, as every key press already does; the emulator's queue is not touched.
+4. **Cost.** A closure like `onInput`, `onResize` and `onLink`: not compared by the field's `==` (a replay keeps the closures of the build that last ran), read only when a paste happens. Steady frames and an editor keystroke beside the view cost what they did without it (2 requests; 2 requests and 1 build).
+
+Why: Alloy's request (2026-11-17): a multi-line paste confirmation when bracketed paste is off, which `.pasteDestination` took before the host could.
+
 ## TRM-BJ: SDL key coverage (Phase 4.2, record 380)
 
-(`TRM-BG` is open PR 381's; `TRM-BH` and `TRM-BI` are the accessibility lane's.)
+(`TRM-BH` and `TRM-BI` are the accessibility lane's.)
 
 1. **Audit.** Against SDL 3.4's tables: F1-F12, F13-F20 (`SDLK_F13`..`SDLK_F20`, already mapped by `KF-AH`), arrows, Home, End, Page Up and Down and Delete arrived as AppKit's function-key characters. **Insert did not** (it arrived with empty characters, so `encodeKey` sent nothing); it is now `\u{f727}` (`NSInsertFunctionKey`), which the encoder already maps to `ESC [ 2 ~`. **No keypad key arrived with characters** (an `SDLK_KP_*` keycode is above `0x4000_0000` and was not named), so keypad Enter and every keypad key sent nothing, and no event carried the keypad flag.
 2. **The keypad flag.** `KeyEvent.isKeypad` (`TRM-BC`, unchanged) is filled from the **scancode**, not the keycode: `MUIEvent` gains an appended `scancode` (SDL_Scancode of the key event, also injected by `mui_push_event`; no earlier field moves). The physical key says "keypad" however the layout, Num Lock or the platform spelled the keycode (X11 and Win32 may give the keypad's plain `1` for `SDLK_KP_1`); `SDLKeys.keypadCharacter(scancode:keycode:)` returns AppKit's character for it (digits, `/ * - + . = ,`, Enter as `\r`) when the keycode is the keypad's own (`SDLK_KP_*`) or that same plain character. With Num Lock off SDL reports the keycode as End, Insert, the arrows and so on while the scancode stays `KP_*`; then it is that navigation key, **not** a keypad key. `SDLKeys.keyEvent(keycode:scancode:modifiers:isRepeat:timestamp:)` is the one place a key-down or key-up becomes a `KeyEvent` (internal, tested directly). A keypad key's `characters`, `charactersIgnoringModifiers` and `unshiftedKey` are the character; ⇧ does not change it.
@@ -480,4 +489,4 @@ Why: Alloy's request (2026-11-17): the user's preferred cursor shape, overridden
 
 Why: plan item 4.2 and Alloy's answer 3 (the capture layer needs every key a terminal can send).
 
-Next unused: `TRM-BK` (`TRM-BG`, `TRM-BH` and `TRM-BI` are taken in other lanes).
+Next unused: `TRM-BK` (`TRM-BH` and `TRM-BI` are taken by the accessibility lane).

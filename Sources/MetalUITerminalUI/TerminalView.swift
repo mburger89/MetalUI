@@ -22,6 +22,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
     let onInput: ([UInt8]) -> Void
     let onResize: (TerminalSize) -> Void
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
+    let onPaste: (@MainActor (String, TerminalModes) -> Bool)?
 
     @State private var model = TerminalViewModel()
     /// Read by the public `TerminalView` (an `OpenURLAction` and a `Clipboard` hold functions, so an `@Environment`
@@ -38,7 +39,8 @@ struct TerminalViewField: Component, @MainActor Equatable {
          optionAsMeta: Bool, cursorBlink: Bool, blinkStopsAfterIdle: Bool, boldIsBright: Bool,
          cursorStyle: TerminalCursorStyle,
          onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (TerminalSize) -> Void,
-         onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?, openURL: OpenURLAction, clipboard: Clipboard) {
+         onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?,
+         onPaste: (@MainActor (String, TerminalModes) -> Bool)?, openURL: OpenURLAction, clipboard: Clipboard) {
         self.snapshotSource = snapshotSource
         self.theme = theme
         self.keyCaptureExceptions = keyCaptureExceptions
@@ -50,6 +52,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
         self.onInput = onInput
         self.onResize = onResize
         self.onLink = onLink
+        self.onPaste = onPaste
         self.openURL = openURL
         self.clipboard = clipboard
     }
@@ -62,7 +65,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
     }
 
     /// Whether two views draw and behave alike (`TRM-BD`): the same snapshot source object, theme, key-capture
-    /// exceptions and flags. The closures (`onInput`, `onResize`, `onLink`) are not compared, as `TabStrip`'s are not:
+    /// exceptions and flags. The closures (`onInput`, `onResize`, `onLink`, `onPaste`) are not compared, as `TabStrip`'s are not:
     /// a replay keeps the closures of the build that last ran. With surface replay (#362) a retained field replays
     /// its surface, so an idle terminal costs no element request.
     static func == (l: TerminalViewField, r: TerminalViewField) -> Bool {
@@ -90,6 +93,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
         model.optionAsMeta = optionAsMeta
         model.exceptions = keyCaptureExceptions
         model.onLink = onLink
+        model.onPaste = onPaste
         model.openURL = { url in openURL(url) }
         if let system = measurer.terminalTextSystem {
             model.prepare(system: system, font: environmentFont.terminalDescriptor, scale: Float(displayScale))
@@ -177,7 +181,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
 /// **Idle, it costs nothing extra on a rebuilt frame without the caller adding `.equatable()`** (`TRM-BD`): the public
 /// type is a thin component whose content is the internal field under `.equatable()`, so the field's content is
 /// skipped and its surface replayed while the inputs (not the closures) are equal. A host that swaps `onInput`,
-/// `onResize` or `onLink` for closures with different captures keeps the first build's closures until an input
+/// `onResize`, `onLink` or `onPaste` for closures with different captures keeps the first build's closures until an input
 /// changes; give the view a new `.id(_:)` to force them.
 public struct TerminalView: Component, @MainActor Equatable {
     let snapshotSource: TerminalSnapshotSource
@@ -191,6 +195,7 @@ public struct TerminalView: Component, @MainActor Equatable {
     let onInput: ([UInt8]) -> Void
     let onResize: (TerminalSize) -> Void
     let onLink: (TerminalLinkQuery) -> TerminalLinkTarget?
+    let onPaste: (@MainActor (String, TerminalModes) -> Bool)?
 
     @Environment(\.openURL) private var openURL
     @Environment(\.clipboard) private var clipboard
@@ -212,6 +217,12 @@ public struct TerminalView: Component, @MainActor Equatable {
     ///   - onInput: The bytes a key, committed text, paste or focus report encodes to; the host writes them to the pty.
     ///   - onResize: The grid size, when the cell count changes, after the source was resized.
     ///   - onLink: The link under a ⌘-hovered cell: asked `.hover` once per cell change, `.exit` on leaving, `.activate` on ⌘-click.
+    ///   - onPaste: A hook called with the text about to be pasted and the terminal's current modes (`TRM-BG`), before the
+    ///     default paste, for every paste route (⌘V and Edit ▸ Paste on Apple platforms, Ctrl+Shift+V elsewhere). Return
+    ///     true when the host handled the paste (nothing is sent; the host may send `TerminalEncoder.encodePaste(text, modes:)`
+    ///     through its own `onInput` path, for instance after a confirmation), false for the default paste. Empty text never
+    ///     reaches it. `modes` are the newest the source has (the snapshot waiting to be drawn, else the last drawn one), so
+    ///     a mode the program set before the paste (bracketed paste, 2004) already shows. Default nil: the default paste.
     public init(snapshotSource: TerminalSnapshotSource,
                 theme: TerminalPalette,
                 keyCaptureExceptions: [KeyboardShortcut] = [],
@@ -222,7 +233,8 @@ public struct TerminalView: Component, @MainActor Equatable {
                 cursorStyle: TerminalCursorStyle = TerminalCursorStyle(shape: .block, blinking: false),
                 onInput: @escaping ([UInt8]) -> Void,
                 onResize: @escaping (TerminalSize) -> Void,
-                onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?) {
+                onLink: @escaping (TerminalLinkQuery) -> TerminalLinkTarget?,
+                onPaste: (@MainActor (String, TerminalModes) -> Bool)? = nil) {
         self.snapshotSource = snapshotSource
         self.theme = theme
         self.keyCaptureExceptions = keyCaptureExceptions
@@ -234,6 +246,7 @@ public struct TerminalView: Component, @MainActor Equatable {
         self.onInput = onInput
         self.onResize = onResize
         self.onLink = onLink
+        self.onPaste = onPaste
     }
 
     /// Whether two views draw and behave alike: the same source object, theme, exceptions and flags; closures are not compared.
@@ -247,7 +260,7 @@ public struct TerminalView: Component, @MainActor Equatable {
         TerminalViewField(snapshotSource: snapshotSource, theme: theme, keyCaptureExceptions: keyCaptureExceptions,
                           optionAsMeta: optionAsMeta, cursorBlink: cursorBlink, blinkStopsAfterIdle: blinkStopsAfterIdle,
                           boldIsBright: boldIsBright, cursorStyle: cursorStyle, onInput: onInput, onResize: onResize, onLink: onLink,
-                          openURL: openURL, clipboard: clipboard)
+                          onPaste: onPaste, openURL: openURL, clipboard: clipboard)
             .equatable()
     }
 }
