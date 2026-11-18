@@ -28,6 +28,7 @@ Add `--cross-platform` to `metalui new` for a package that also runs on Linux
 and Windows. The generated app (`Sources/MyApp`) looks like this:
 
 ```swift
+// ContentView.swift
 import MetalUI
 
 @MainActor
