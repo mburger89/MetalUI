@@ -374,6 +374,25 @@ Pinned by `aPressOnAChevronTogglesItsRangeAndCallsOnToggle`, `theInnermostRangeS
 
 Pinned by `movingTextToGutterToTextChangesTheCursorWithoutAFrame`, `movesWithinARegionCostNoFrameAndNoRequest`, `aChevronAndAFoldPlaceholderAreThePointingHand`, `textIsTheHandOnlyWhenOnTextClickActsOnAPlainClick`, `regionCursorsRespectHorizontalScrolling` (`Tests/MetalUITestingTests/CodeViewRegionCursorTests.swift`).
 
+## CV-BP: the snippet model and parser (landed, record 376; class M, no divergence; Alloy code-intel #1, first PR)
+
+**API** (`MetalUICodeBuffer`, pure values): `CodeSnippet(text:tabStops:)` (precondition: ranges in the text's UTF-8 bytes on scalar boundaries, indexes non-negative, any two ranges nested or disjoint), `CodeSnippet(parsing:)` (never throws), `CodeSnippet.TabStop(index:range:)`; `tabStops` are ordered by start, an enclosing stop before the ones inside it. The session (`CV-BQ`), the keys and paint (`CV-BR`) are a later PR; Alloy's answers bind them: `replacing:` at the primary is enough, a second insert ends the first session, fallbacks are enough.
+
+**Parser rules** (LSP/TextMate grammar; VS Code `SnippetParser` is the reference):
+- `$n`, `${n}`, `${n:default}` with nesting; `\$ \} \\` are the literal characters, any other backslash stays.
+- A choice `${n|a,b|}` is a stop whose text is its first option (`\, \| \\` escape inside).
+- **A variable is plain text, never a stop**: `${NAME:default}` gives its default (stops nested in it stay stops), `$NAME` and `${NAME}` give nothing. This is Alloy's "default if given, else empty"; it differs from VS Code, which makes an unknown variable a placeholder holding its name.
+- A transform is parsed and dropped: `${n/re/fmt/opts}` is a plain mirror of `n`, a variable with one is empty.
+- Malformed syntax is literal text (`${`, `${1:`, an unclosed default, a lone `$`, a trailing `\`, an unclosed choice, an index that overflows `Int`); an inner valid construct inside an unclosed one still parses.
+- No `$0` appends an empty one at the end; an explicit `$0` keeps its place.
+- **Mirrors.** The first stop of an index in text order (outer before inner) with a non-empty default is the source; every other stop of that index, before or after it, gets that text, and as text only: stops nested in the source are not copied. A stop containing a stop of its own index takes the inner text once, no recursion.
+- Offsets are UTF-8 bytes of the resulting `text`.
+- Attempts at `$` are memoised by position, so unclosed nesting (`${1:` x n) is linear, not exponential.
+
+**Cost.** None: no view, no state, nothing observed.
+
+Pinned by `parserTable` (39 rows), `unclosedNestingIsLinear`, `parsingNeverTrapsOnArbitraryBytes`, `acceptsNestedDisjointAndAdjacentRanges`, `rejectsPartialOverlap`, `rejectsRangesOutsideTheText`, `rejectsOffsetsInsideAScalar` and `equalSnippetsHashEqualAndDifferencesShow` (`Tests/MetalUICodeBufferTests/CodeSnippetTests.swift`; mutations in its header).
+
 ## CV-BT: `gutterHelp`, the tooltip of a gutter bar or marker (landed, record 370; class M, no divergence)
 
 **Rule.** `CodeView.gutterHelp(_ text: @escaping @MainActor (CodeGutterHit) -> String?) -> CodeView` is the view's `MN-AJ` model-driven `.help`. A point in the gutter (a bar or a marker, wherever `gutterHit(at:)` hits) is answered by `text(hit)` from the last frame's plan; any other point is answered by the view's own `.help` (static or model-driven) if it has one, and has no tooltip otherwise. `nil` and empty are no tooltip (`MN-AM`). The `MN-AJ` rules for same text (the bubble stays) and changed text (it hides and the delay restarts) apply unchanged, so moving from one bar to another restarts the delay.
@@ -426,4 +445,4 @@ Tests only; no product change. What the code does today with a `TextField` insid
 
 **Probe** `docs/probes/swiftui-popover-focus.swift` (compiles; SA-O). **Arms PF1 (does the popover's `TextField` become first responder on open with no `@FocusState`), PF2 (is the presenter's focused view first responder again after dismiss, and does its `@FocusState` read true) and PF3 (does `onKeyPress(.escape)` on the field run before the popover closes) are UNRESOLVED**: the screen was locked (`CGSSessionScreenIsLocked = true`), no window became key (`main window key=false appActive=false keyWindow=nil`), the same failure as `MN-N` P3, and the probe prints `UNRESOLVED` rather than guess. Human checks `CV31`..`CV33`. Follow-ups wait on them: if PF1 is yes, "a presented popover seats focus on its first `TextField`"; if PF3 is yes, a divergence or reordered stages.
 
-Pinned by `aTextFieldInAnItemPopoverTakesKeysAwayFromTheView`, `onSubmitFiresAndDismissingFromItClosesThePopover`, `escapeDismissesWithTheFieldFocused`, `aWriteInTheOpeningHandlerIsDropped_onAppearWorks` and `focusAfterDismissIsNil` (`Tests/MetalUITestingTests/CodeViewTextAnchorTests.swift`). Next unused: `CV-BY` (wave 2 reserves `CV-BP`..`CV-BX`; `CV-BT`, `CV-BU`, `CV-BV` and `CV-BW` have landed, so `CV-BP`..`CV-BS` and `CV-BX` are not yet present).
+Pinned by `aTextFieldInAnItemPopoverTakesKeysAwayFromTheView`, `onSubmitFiresAndDismissingFromItClosesThePopover`, `escapeDismissesWithTheFieldFocused`, `aWriteInTheOpeningHandlerIsDropped_onAppearWorks` and `focusAfterDismissIsNil` (`Tests/MetalUITestingTests/CodeViewTextAnchorTests.swift`). Next unused: `CV-BY` (wave 2 reserves `CV-BP`..`CV-BX`; `CV-BP`, `CV-BT`, `CV-BU`, `CV-BV` and `CV-BW` have landed, so `CV-BQ`..`CV-BS` and `CV-BX` are not yet present).

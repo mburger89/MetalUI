@@ -1,4 +1,4 @@
-# Resetting the mouse modes; DECSCUSR 0 is a blinking block, the same as 1 (xterm ctlseqs, VT520).
+# Resetting the mouse modes; DECSCUSR 0 returns to the host default style, a steady block here (TRM-BE; it was a blinking block under TRM-AD).
 size 10 2
 input "\e[?1003h\e[?1005h\e[4 q\e[?1003l\e[?1005l\e[0 q"
-modes mouseTracking=off mouseEncoding=legacy cursorStyle=block-blinking
+modes mouseTracking=off mouseEncoding=legacy cursorStyle=block
