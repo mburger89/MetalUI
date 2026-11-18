@@ -19,12 +19,12 @@ import Testing
 }
 
 /// **1** A command typed into the shell comes back through the pty, the emulator and the source: the computed result
-/// (`smoke-42`, never in the typed text) is on a row. Mutation: the read handler drops its feed (no row ever has it).
+/// (`smoke-42`, never in the typed text) ends a row (a root shell prints its prompt first). Mutation: the read handler drops its feed (no row ever has it).
 @MainActor @Test func theDemoShellEchoesACommandThroughTheEmulator() async throws {
     let session = try TerminalDemoSession(shell: "/bin/sh", directory: NSTemporaryDirectory())
     defer { session.close() }
     session.send(Array("echo smoke-$((40+2))\n".utf8))
-    let seen = await eventually { await session.allRows().contains { $0 == "smoke-42" } }
+    let seen = await eventually { await session.allRows().contains { $0.hasSuffix("smoke-42") } }
     let rows = await session.allRows().filter { !$0.isEmpty }
     #expect(seen, "rows: \(rows)")
 }
@@ -46,7 +46,7 @@ import Testing
     defer { session.close() }
     session.resize(TerminalSize(cols: 100, rows: 30))
     session.send(Array("stty size\n".utf8))
-    let seen = await eventually { await session.allRows().contains { $0 == "30 100" } }
+    let seen = await eventually { await session.allRows().contains { $0.hasSuffix("30 100") } }
     let rows = await session.allRows().filter { !$0.isEmpty }
     #expect(seen, "rows: \(rows)")
 }

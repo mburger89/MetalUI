@@ -97,6 +97,8 @@ private let frameChannels: [String: Channel] = [
     // Hitboxes, accessibility, focus, hover: prepaint's.
     "hitboxes": .prepaintOnly, "hitTestingDisabledDepth": .prepaintOnly, "keyboardHiddenDepth": .prepaintOnly, "listRowDepth": .prepaintOnly,
     "axNodes": .prepaintOnly, "axEmissions": .prepaintOnly, "accessibilityPressOnly": .prepaintOnly,
+    // `TRM-BH`: logged to `PrepaintLog.liveValues` and re-applied by a replay beside the node it refreshes.
+    "liveAccessibilityValues": .prepaintOnly,
     "contextMenuRecords": .prepaintOnly, "namedSpaces": .prepaintOnly, "hitboxNamedSpaces": .prepaintOnly,
     "namedSpaceSnapshots": .prepaintOnly, "accessibilitySuppressionExceptions": .prepaintOnly,
     "restoreScopeStack": .prepaintOnly, "restoreLayoutDepth": .buildOnly, "restoreInput": .frameLocal, "restoredFocus": .frameLocal,   // KF-AM: a scope refuses retention by taint

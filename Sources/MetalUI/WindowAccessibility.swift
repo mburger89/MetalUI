@@ -60,6 +60,9 @@ final class WindowAccessibility {
         liveValues.merge(values) { _, new in new }
     }
 
+    /// Forgets every live value, as a refresh does for a node the published tree no longer holds. Test seam (`TRM-BH`).
+    func forgetLiveValuesForTesting() { liveValues = [:] }
+
     /// Re-reads every live value against the published tree and publishes a changed one (a surface-only frame builds
     /// nothing, so output reaches a client only here). Does no work with no client or nothing registered.
     func refreshLiveValues(to platformWindow: any PlatformWindow) {

@@ -3524,6 +3524,7 @@ public final class Frame {
 
     /// The accessibility values this frame's elements asked the window to re-read after a surface-only frame, which builds
     /// nothing (`TRM-BH`). Recorded only while collecting accessibility; the window merges them into its own table.
+    /// Written in prepaint: logged to `PrepaintLog.liveValues` and re-applied by a prepaint replay, in lock-step with `axNodes`.
     var liveAccessibilityValues: [GlobalElementID: @MainActor () -> String] = [:]
 
     /// Emits one app-owned surface's quad and its draw request (MetalView,
@@ -4972,6 +4973,10 @@ extension Frame {
             prepaintLog?.allowedStateWrites += 1
             stateTable.withState(Self.axRetentionSlot(for: id), initial: node) { $0 = node }
             prepaintLog?.allowedStateWrites -= 1
+        }
+        for (id, value) in l.liveValues {   // `TRM-BH`
+            liveAccessibilityValues[id] = value
+            prepaintLog?.liveValues.append((id, value))
         }
         inertChromeBlockers.append(contentsOf: l.inertBlockers)
         prepaintLog?.inertBlockers.append(contentsOf: l.inertBlockers)

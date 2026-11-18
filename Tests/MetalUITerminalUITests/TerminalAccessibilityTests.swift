@@ -136,3 +136,51 @@ extension TermRig {
     #expect(costs[0].retainedHits == costs[1].retainedHits && costs[0].retainedMisses == costs[1].retainedMisses
             && costs[0].retainedIneligible == costs[1].retainedIneligible)
 }
+
+/// **8** A frame in which the terminal's subtree replays its prepaint (an unrelated sibling changed, the terminal neither
+/// focused nor hovered) registers the live value again from the ledger, beside the re-appended node. The window's entry is
+/// forgotten first (as a refresh forgets one whose node the published tree lacked), so only the replay can restore it: the
+/// next surface-only frame then refreshes the node. Mutation: drop the ledger capture (`ledger.liveValues` is never filled
+/// or replayed) - the entry stays forgotten and the value stays at what the replayed frame read.
+@MainActor @Test func aRetainedPrepaintReplayKeepsTheLiveValue() async throws {
+    let emulator = TerminalEmulator(cols: 80, rows: 24)
+    let source = TerminalSnapshotSource(emulator: emulator, queue: .main)
+    let window = try TestWindow(size: Size(width: Pixels(400), height: Pixels(340)),
+                                options: .init(accessibilityClientActive: true), textSystem: { portableSystem() }) {
+        VStack(spacing: 0) {
+            SiblingCounter()
+            TerminalView(snapshotSource: source, theme: .xterm, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
+        }
+    }
+    window.runsSurfaceDraws = true
+    func pump() async { for _ in 0..<20 { await Task.yield() } }
+    await pump()
+    for _ in 0..<3 { window.tick(); window.advance(by: 0.05); await pump() }
+    window.window.focus(nil)   // a focused or hovered terminal never replays prepaint (`RK-E`)
+    window.tick()
+    func clickSibling() throws {
+        let button = try #require(try window.elements(role: .button).first)
+        window.resetFrameWork()
+        try window.click(button)
+        window.tick()
+    }
+    try clickSibling()   // the first frame after a focus change builds and records the ledger
+    try clickSibling()
+    window.window.accessibility.forgetLiveValuesForTesting()
+    try clickSibling()
+    let replays = window.lastFrameWork.retainedPrepaintHits
+    #expect(replays > 0, "the terminal's prepaint replayed on a sibling-only frame: \(replays)")
+    Array("after replay".utf8).withUnsafeBytes { source.feed($0) }
+    await pump()
+    window.advance(by: 0.05)
+    await pump()
+    let area = try #require(try window.elements(role: .textArea).first)
+    #expect((area.value ?? "").hasPrefix("after replay"), "\(String(describing: area.value?.prefix(30)))")
+}
+
+private struct SiblingCounter: Component {
+    @State private var count = 0
+    var content: some ProposalElementGroup {
+        VStack(spacing: 0) { Button("n\(count)") { count += 1 } }
+    }
+}

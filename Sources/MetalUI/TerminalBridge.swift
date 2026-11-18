@@ -42,6 +42,7 @@ extension PrepaintPass {
         node.value = value()
         frame.recordAccessibility(text: nil, declared: node, at: bounds, id: id)
         frame.liveAccessibilityValues[id] = value
+        frame.prepaintLog?.liveValues.append((id, value))
     }
 }
 
