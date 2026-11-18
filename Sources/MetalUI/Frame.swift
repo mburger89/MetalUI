@@ -1903,6 +1903,7 @@ public final class Frame {
         if enabled {
             if keyboardVisible {
                 focusRegistry.register(handlers, id: id)
+                if !restoreScopeStack.isEmpty, handlers.isFocusable { focusRegistry.noteScopes(restoreScopeStack, for: id) }
                 if handlers.isKeyTarget { prepaintLog?.focus.append(.register(handlers, id)) }
                 // A first-draw seat candidate (`FC-E`): a click-focusable element behind the disabled and
                 // hidden gate, outside a `List`'s rows. Deliberately NOT behind `allowsHitTesting(false)`
@@ -2733,6 +2734,15 @@ public final class Frame {
     /// (`Window.drawFrameIfNeeded`).
     private var focusedElementProducedThisFrame = false
 
+    /// The restoring scopes open around the prepaint in progress, outermost last (`KF-AM`); empty without a scope.
+    var restoreScopeStack: [RestoreScopeKey] = []
+    /// How many restoring scopes are open in layout (the depth half of a scope's key).
+    var restoreLayoutDepth = 0
+    /// What the window handed in to restore focus from (`KF-AM`); `nil` when it has no scope record.
+    var restoreInput: RestoreInput?
+    /// Whether `dropFocus` moved focus to a recorded element this frame.
+    var restoredFocus = false
+
     /// Drops focus when the focused element was not produced this frame AND
     /// is no longer retained by the state table (design spec §4.2, closing
     /// CLAUDE.md's divergence 17).
@@ -2823,7 +2833,7 @@ public final class Frame {
             return
         }
         if stateTable.peek(Self.focusRetentionSlot(for: focused), as: Bool.self) == nil {
-            focusedElement = nil
+            dropFocus()
         }
     }
 
@@ -4664,7 +4674,7 @@ public final class Frame {
         // own doc): a `List` row out of its window keeps `TB-J`'s retention.
         if let focused = focusedElement,
            stateTable.resetFocusSlots.contains(Self.focusRetentionSlot(for: focused)) {
-            focusedElement = nil
+            dropFocus()   // `KF-AM`: restores to a scope's record when the scope itself was not produced
         }
         // The lifecycle's build closes AFTER the sweep (ruling `LC-E` item 1):
         // its disappearances read the values the sweep reset (`LC-I`), and its
@@ -4942,7 +4952,9 @@ extension Frame {
         axEmissions.append(contentsOf: accessibility?.emissions ?? l.axEmissions)
         for call in l.focus {
             switch call {
-            case .register(let handlers, let id): focusRegistry.register(handlers, id: id)
+            case .register(let handlers, let id):
+                focusRegistry.register(handlers, id: id)
+                if !restoreScopeStack.isEmpty, handlers.isFocusable { focusRegistry.noteScopes(restoreScopeStack, for: id) }
             case .shortcut(let handlers, let id): focusRegistry.registerShortcut(handlers, id: id)
             case .binding(let binding, let id): focusRegistry.registerFocusBinding(binding, id: id)
             }
@@ -5097,4 +5109,31 @@ struct FrameCapacityHints: Equatable {
     var loweringItems = 0
     var elementBounds = 0
     var axNodes = 0
+}
+
+// MARK: - Restoring scopes (`KF-AM`, `MN-AS`)
+
+extension Frame {
+    /// Prepaint: `body` with `key` pushed on the scope stack, noting the scope produced. No-op for a `nil` key.
+    func withRestoreScope<R>(_ key: RestoreScopeKey?, taints: Bool = true, _ body: () -> R) -> R {
+        guard let key else { return body() }
+        restoreScopeStack.append(key)
+        focusRegistry.noteScopeProduced(key)
+        // A ledger recorded around a scope would replay registrations without it (`RK`): not replayable.
+        if taints { prepaintLog?.taint("restoresFocusScope") }   // a popover is already refused by name (`MN-AS`)
+        defer { restoreScopeStack.removeLast() }
+        return body()
+    }
+
+    /// Replaces the two sites that drop focus to `nil` (`IX-I`'s post-sweep clear and `resolveFocus`): clears focus,
+    /// then restores it when `KF-AM` says so.
+    func dropFocus() {
+        focusedElement = nil
+        guard let input = restoreInput, let innermost = input.chain.first,
+              !focusRegistry.producedScopes.contains(innermost),
+              let target = input.records[innermost], focusRegistry.isFocusable(target) else { return }
+        focusedElement = target
+        restoredFocus = true
+        requestAnotherFrame()
+    }
 }

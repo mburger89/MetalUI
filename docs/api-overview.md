@@ -450,7 +450,8 @@ recording is having focus; bare Escape cancels, bare ⌫/⌦ clears, ⌘Q record
 `CodeView.builtInKeyBindings(platform:)` (M, `KF-AJ`: the keys a code view takes, as `[ClaimedShortcut]` read from its
 key table, with conditions for Escape, find next/previous and the editing keys);
 `KeyEquivalent.f1`...`.f20` (M, `KF-AH`: AppKit's `U+F704`...`U+F717`; SwiftUI has no spelling; no Fn modifier);
-`@FocusState`/`.focused` (A). The keymap — `Keymap`, `KeyBinding`,
+`@FocusState`/`.focused` (A);
+`.restoresFocusOnDismiss(_:)` on every element group (M, `KF-AM`: a transparent `RestoresFocusScope` that gives focus back to the element focused when it entered the scope, when the focused element inside is dropped with the scope; a presented popover is one, `MN-AS`). The keymap — `Keymap`, `KeyBinding`,
 `Keystroke`, `KeyContext`, `ContextPredicate`, `Action` — is gpui's (M).
 
 **The clipboard beyond text** (`CB-`, record 115;
