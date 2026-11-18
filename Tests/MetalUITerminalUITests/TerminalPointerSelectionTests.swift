@@ -167,12 +167,15 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     #expect(rig.model.pointer.link == nil)
 }
 
-/// **13** (`REQUIRED`) Cost. A window dirties itself for every pointer event (`Window`'s input tail; `FP-T`, #363, spares only an
-/// unclaimed move within one hitbox and is not on this base), so the pointer wiring is judged against a twin window with no
+/// **13** (`REQUIRED`) Cost. A pointer event that changes something a frame shows dirties the window; one that does not
+/// asks for no frame (`Window`'s input tail: `FP-T` an unclaimed move within one hitbox, `FP-U` an unclaimed drag within one
+/// hitbox, 0 writes), so the pointer wiring is judged against a twin window with no
 /// terminal: the same hover script draws the same frames and builds, plain and with ⌘ over a link, and the callbacks add no
 /// frame of their own. Entering a link costs no build (the pointer style is answered from input); a build costs the view's own 2 requests. A selection
-/// drag event is one build and the same requests as a plain redraw, and its surface redraw touches only the selected row.
-/// Mutation: request a redraw on every hover; write the pointer-style state on every query.
+/// drag event is surface-only (`FP-U`: 0 builds, 0 requests; the drag was never claimed, so the old "1 build" was the tail's
+/// dirty), and its surface redraw touches only the selected row.
+/// Mutation: request a redraw on every hover; write the pointer-style state on every query; drop `.mouseDragged` from
+/// `pointerEventChangesNothing` (the drag costs a build again).
 @MainActor @Test func pointerCostsAreThoseOfAnyPointerEvent() async throws {
     // Cell geometry comes from the terminal rig `geometry`, never from a twin (which has no model: `TermRig.model` would be
     // whatever view another test built last).
@@ -220,7 +223,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     twinCommand.window.hover(at: plain.point(0, 7)); twinCommand.window.hover(at: plain.point(0, 12)); await twinCommand.pump()
     #expect(move == twinCommand.window.framesDrawn - twinFrames, "within a link \(move) frames")
     #expect(sum(rig, \.builds) == move, "each is the plain rebuild: \(sum(rig, \.builds)) builds")
-    // A selection drag: one build and the plain redraw's requests per event; the surface redraws the selected row only.
+    // A selection drag: surface-only (`FP-U`): no build, no request; the surface redraws the selected row only.
     rig.window.pressModifiers([])
     await rig.settle()
     rig.window.window.setNeedsRedraw(); rig.window.tick()
@@ -229,7 +232,8 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     for c in 1...6 {
         rig.window.resetFrameWork()
         rig.dragged(to: rig.point(1, c)); await rig.frame()
-        #expect(sum(rig, \.builds) == 1 && sum(rig, \.elementRequests) == steady, "drag \(c): builds \(sum(rig, \.builds)) requests \(sum(rig, \.elementRequests)) vs \(steady)")
+        try await rig.window.runUntilIdle()
+        #expect(sum(rig, \.builds) == 0 && sum(rig, \.elementRequests) == 0, "drag \(c): builds \(sum(rig, \.builds)) requests \(sum(rig, \.elementRequests)) (a plain rebuild is \(steady))")
         #expect(rig.model.statistics.lastRows == [1], "only the selected row redraws: \(rig.model.statistics.lastRows)")
     }
     rig.release(at: rig.point(1, 6))
