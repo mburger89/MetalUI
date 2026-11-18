@@ -81,6 +81,8 @@ final class TerminalViewModel {
     var optionAsMeta = false
     var exceptions: [KeyboardShortcut] = []
     var onLink: (TerminalLinkQuery) -> TerminalLinkTarget? = { _ in nil }
+    /// The host's paste hook (`TRM-BG`): true means it handled the paste.
+    var onPaste: (@MainActor (String, TerminalModes) -> Bool)?
     var openURL: (URL) -> Void = { _ in }
     /// The pointer's state: the press under way, the wheel's remainders, the link, the selected text (`TRM-BD`).
     var pointer = TerminalPointerState()
@@ -170,9 +172,13 @@ final class TerminalViewModel {
     /// and ⌘V does not exist (`TRM-BC`).
     static var pastesWithControlShiftV: Bool { Modifiers.primary != .command }
 
-    /// Pasted text, bracketed when the program asked for it, with every ESC stripped (`encodePaste`).
+    /// Pasted text, bracketed when the program asked for it, with every ESC stripped (`encodePaste`). Every route (the
+    /// paste destination, Ctrl+Shift+V) ends here: the host's hook sees the text and the newest modes first, and a
+    /// true answer ends the paste (`TRM-BG`).
     func paste(_ text: String) {
         guard !text.isEmpty else { return }
+        let modes = self.modes
+        if let onPaste, onPaste(text, modes) { return }
         send(TerminalEncoder.encodePaste(text, modes: modes))
     }
 
