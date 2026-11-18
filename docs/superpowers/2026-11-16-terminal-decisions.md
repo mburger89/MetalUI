@@ -534,7 +534,7 @@ Why: Alloy's goal is the lightest and fastest terminal that gives up no quality;
 
 ## TRM-BM: the keypad hint (record 383)
 
-(`TRM-BO` and `TRM-BP` are in open PR #387.) Fixes the limitation of `TRM-BC` item 2, `TRM-BJ` item 3 and `TRM-BK` item 6(c): a keypad digit under DECKPAM sent the digit, because AppKit's input context and SDL's `TEXT_INPUT` deliver it as text.
+(`TRM-BO` and `TRM-BP` follow, record 384.) Fixes the limitation of `TRM-BC` item 2, `TRM-BJ` item 3 and `TRM-BK` item 6(c): a keypad digit under DECKPAM sent the digit, because AppKit's input context and SDL's `TEXT_INPUT` deliver it as text.
 
 1. **The hint.** `PlatformWindow.setRawKeypadKeys(_:)`, a defaulted no-op like `setRawOptionKeys` (`TRM-X`). While true the platform delivers the keypad's keys (virtual key codes of `keypadKeyCodes` on AppKit; the scancode's keypad character keys on SDL) with no ⌘ as `.keyDown` with `isKeypad` and never as text; off, they are text as before. `HeadlessPlatformWindow` records every request in `rawKeypadKeyRequests`.
 2. **Who asks.** A capture layer may carry a closure (`KeyCapture.keypadAsKeys`, set by the `package` overload `keyCapture(except:optionAsMeta:keypadAsKeys:)`; no public API changes). `TerminalView` passes `{ model.modes.applicationKeypad }`, the newest modes (`pendingModes`, else the drawn snapshot's), so the hint is on exactly while DECKPAM is set. `Window.syncRawKeypadKeys` asks the closures of the focus chain's capture layers and sends the answer **only when it changes** (`sentRawKeypadKeys`): on a focus change, on each frame's registry swap, and after a **surface-only frame** (where output that sets or resets DECKPAM is drawn). It is per focus: moving focus to a field sends false, back sends true again. A window with no capture layer pays the `keyCaptureCount > 0` comparison and sends nothing; a window with a capture that has no closure asks nothing.
@@ -545,4 +545,22 @@ Why: Alloy's goal is the lightest and fastest terminal that gives up no quality;
 
 Why: Alloy's accepted limitation (2026-11-17, "fix later") and `TRM-BJ` item 3's note that the fix is a platform hint driven by DECKPAM, as `setRawOptionKeys`.
 
-Next unused: `TRM-BN` (`TRM-BO` and `TRM-BP` are in open PR #387).
+## TRM-BO: the pointer style while the link modifier is held (record 384; amends `TRM-BK` item 6(d))
+
+1. **The path.** A modifier change reaches `Window` as `.modifiersChanged` on both platforms (AppKit `flagsChanged`, and on becoming key; SDL on focus gained) and as the modifiers of every key event (SDL reports a modifier key as a key down and up with the new modifier set, so Ctrl on Linux and Windows is also a key event); no new platform event was needed. `Window.currentModifiers` already took them; its `didSet` now hands the held modifiers to every pointer attachment that asked (`PointerAttachment.modifiersChanged`, package, new; none when the frame has no pointer-style region, so an app without a terminal or a `CodeView` visits nothing), and, for an event that is not a pointer event (a flags report, a key, a scroll), `Window.updatePointerStyle(at: lastMousePosition)` resolves the style again at the last pointer location. A pointer event does it from its own position, as before.
+2. **No frame.** The hook and the resolve are input-time calls: the platform cursor request goes out only if the resolved style differs from the last sent. No frame, no element request, no build of its own. The hook is the general mechanism: any `styleProvider` whose owner stores the modifiers from `modifiersChanged` answers for the new modifiers on the next resolve (`CodeView`'s ⌘-click hand, `CV-BO`'s follow-up, can use it; not done here).
+3. **The terminal.** `TerminalView` takes the modifiers through the hook instead of `.onModifierKeysChanged(initial: false)`: the scope was a rebuilt frame (a build, 2 requests) per modifier change in any window holding a terminal; the hook is none. `modifiersChanged(to:)` is unchanged (it asks `onLink` `.hover` for the hovered cell when the primary modifier is held, `.exit` when released, and sets or clears the link); so the pointing hand shows the moment `Modifiers.primary` is held over a link, and goes the moment it is released, with the pointer still. Over a link the change costs the underline's one surface-only frame (0 builds, 0 element requests); anywhere else, no frame.
+4. **Cost.** Counted, no clock: a modifier change over text that is not a link, 0 frames, 0 builds, 0 requests; over a link 1 frame, 1 surface draw, 0 builds, 0 requests; a window with no terminal 0 frames and no hitbox visited. Steady and keystroke frames of a window with a terminal are unchanged (the scope was the only user of the lifecycle store's modifier observers).
+5. **Limits.** Platform reality is human check TRM24 (the real key events: AppKit's flags and SDL's modifier set on a modifier key up). A modifier change mid-drag updates the hovered link only when the drag ends (the existing guard).
+
+Pinned by `holdingPrimaryOverALinkShowsThePointingHand`, `holdingPrimaryElsewhereChangesNothing`, `aModifierChangeDrawsNoFrame`, `aWindowWithoutATerminalPaysNothingForAModifierChange` (`Tests/MetalUITerminalUITests/TerminalPointerModifierTests.swift`).
+
+## TRM-BP: drag frames (record 384; amends `TRM-BK` item 6(e) and the last sentence of `TRM-BD` item 8)
+
+1. **Autoscroll is surface-only.** Each autoscroll step of a held drag is a timed surface redraw stepped from `draw`: 0 builds, 0 element requests, one surface draw (`anAutoscrollStepIsSurfaceOnly`).
+2. **A drag event is not, and is pinned.** A selection drag event costs one build and the view's own 2 element requests (the steady rebuilt frame's) plus one surface draw of the selected row only (`aSelectionDragCostsOneBuildAndRedrawsOnlyTheSelectedRow`). The cause is in the window, not the view: a claimed pointer event dirties the window (`FP-T` spares only an unclaimed move) and the gesture's value is state. A surface-only drag needs the window to know that a claimed event changed nothing a build would show, a framework rule with every gesture's contract behind it; **not done**, so no behaviour change and no public API.
+3. **Selection from outside.** The extra empty frame of the Copy text fetch (`syncSelectionText`, `TRM-BK` item 6(e) first half) stays pinned by `aSelectionFrameIsSurfaceOnly`, not changed.
+
+Why: `TRM-BK` item 6(d) and (e): the deferred pointer items.
+
+Next unused: `TRM-BQ` (`TRM-BN` was skipped and is unused).

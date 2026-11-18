@@ -119,12 +119,12 @@ struct TerminalViewField: Component, @MainActor Equatable {
                 .simultaneously(with: Self.buttonGesture(.middle, .middle, model))
                 .simultaneously(with: Self.buttonGesture(.secondary, .right, model)),
             wheel: { event in model.wheel(event) },
-            style: { _ in model.pointer.link == nil ? nil : .link })
+            style: { _ in model.pointer.link == nil ? nil : .link },
+            modifiersChanged: { now in model.modifiersChanged(to: now) })
             .onGeometryChange(for: TerminalSize.self, of: { proxy in
                 model.grid(forPoints: Double(proxy.size.width.value), Double(proxy.size.height.value))
             }, action: { size in model.gridChanged(to: size) })
             .onChange(of: isFocused && activeState != .inactive) { _, now in model.focusChanged(to: now) }
-            .onModifierKeysChanged(initial: false) { _, now in model.modifiersChanged(to: now) }
     }
 }
 

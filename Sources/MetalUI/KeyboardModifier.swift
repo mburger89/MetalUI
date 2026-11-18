@@ -192,11 +192,13 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
     /// fields of the one layer, so they add no element request, as `onKeyPress` adds none (`KF-AD`).
     package func pointerInput<G: Gesture>(hover: @escaping @MainActor (HoverPhase) -> Void, gesture: G,
                                           wheel: @escaping @MainActor (ScrollEvent) -> Bool,
-                                          style: @escaping @MainActor (Point<Pixels>) -> PointerStyle?) -> Self {
+                                          style: @escaping @MainActor (Point<Pixels>) -> PointerStyle?,
+                                          modifiersChanged: (@MainActor (EventModifiers) -> Void)? = nil) -> Self {
         handling {
             $0.hover = HoverAttachment(onHover: nil, onContinuousHover: hover)
             $0.gestures.append(GestureAttachment(gesture, priority: .simultaneous))
-            $0.pointer = PointerAttachment(scrollWheel: wheel, style: nil, styleProvider: style)
+            $0.pointer = PointerAttachment(scrollWheel: wheel, style: nil, styleProvider: style,
+                                                 modifiersChanged: modifiersChanged)
         }
     }
 

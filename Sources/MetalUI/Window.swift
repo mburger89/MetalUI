@@ -207,6 +207,16 @@ public final class Window {
             guard currentModifiers != oldValue else { return }
             animationStore.lifecycle.currentModifiers = currentModifiers
             if animationStore.lifecycle.hasModifierObservers { setNeedsRedraw() }
+            tellPointerRegionsOfModifiers()   // `TRM-BO`
+        }
+    }
+
+    /// Whether `event` is one whose own handling does not resolve the pointer style again (`TRM-BO`): a flags report, a key
+    /// and a scroll. A pointer event does, from its position.
+    private static func resolvesStyleOnModifierChange(_ event: InputEvent) -> Bool {
+        switch event {
+        case .modifiersChanged, .keyDown, .keyUp, .scrollWheel: return true
+        default: return false
         }
     }
 
@@ -1170,7 +1180,13 @@ public final class Window {
             let timing = self.frameTiming
             timing?.noteInput(event)
             defer { timing?.settleInput(dirtied: self.needsRedraw) }
+            let modifiersBefore = self.currentModifiers
             self.noteModifiers(from: event)   // `IF-D` item 2: first, never claims
+            // `TRM-BO`: a modifier change with no pointer event resolves the pointer style again where the pointer is
+            // (a pointer event does it below, from its own position). The platform call only; no frame is asked for.
+            if self.currentModifiers != modifiersBefore, Self.resolvesStyleOnModifierChange(event) {
+                self.updatePointerStyle(at: self.lastMousePosition)
+            }
             // A flags report carries nothing else: it dirties the window through
             // `currentModifiers`' own guard (`IF-D` item 2) and, as before, when
             // the app's `onInput` claims it (`IF-N` item 3).
