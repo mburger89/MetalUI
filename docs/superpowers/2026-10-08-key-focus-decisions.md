@@ -8,7 +8,7 @@ Prefix `KF-`. Spec:
 Record: `../record/88-key-focus.md`. Branch
 `feat/key-focus` from `c62d6ba`.
 
-**Next unused id: `KF-AM`.**
+**Next unused id: `KF-AN`.**
 
 ## The final spellings (what an app writes)
 
@@ -1148,3 +1148,16 @@ Next unused id: `KF-AM`.
 10. **Cost** (`ShortcutRecorderCostTests`). MetalUI never retains an `Equatable` component by itself (no automatic path: `.equatable()` is explicit), so the public `ShortcutRecorder` is a thin component whose content is the internal `ShortcutRecorderField` under `.equatable()` (Alloy's follow-up): **the caller adds nothing**. An idle recorder costs 0 extra element requests on a rebuilt frame (3 requests, the window's own, 2 skips: the field's and the test's probe), the same as an explicit caller `.equatable()` and as a window without one (before: 4 more, 7). The field's `@FocusState` change still re-evaluates it at a start and an end; a keystroke into a `TextField` beside it costs the steady frame, and with `.equatable()` exactly what the window costs without it; starting a recording evaluates the recorder's content once and ending one once (an unrelated `Equatable` sibling is never evaluated); a parent change with `.equatable()` re-enters nothing; a window with no recorder has `keyCaptureCount == 0`.
 11. **Tests.** `ShortcutRecorderTests` (18, portable), `ShortcutRecorderCostTests` (4, portable), `ShortcutRecorderInternalTests` (2, the key table and `keyCaptureCount`). Mutations are named on each test and were shown red (record 366).
 
+
+## KF-AM — `restoresFocusOnDismiss()`: focus returns to where it came from (Alloy palette; record 374)
+
+Next unused id: `KF-AN`.
+
+1. **The finding.** Alloy's palette is an in-tree overlay: closing it drops focus to `nil` (`IX-I`, probe `F2`), and the editor has to be re-focused by hand (`onChange(of: … == nil) { codeFocused = true }`). SwiftUI's `focusScope`/`resetFocus` re-evaluate **default** focus inside a scope; none returns to the **previous** element. That behaviour comes only from presentations that are separate windows (popover, sheet: `MN-AS`). Class M, no divergence.
+2. **API.** `extension ElementGroup { public func restoresFocusOnDismiss(_ enabled: Bool = true) -> RestoresFocusScope<Self> }` (`PresentationScope`'s shape: `ProposalElementGroup`, `Element` and `StyledElement` where the content is, and `id(_:)`, so a legacy decoration after it lands on the content, `ES-A`). `false` is inert (no scope). `focusScope`, `prefersDefaultFocus` and `resetFocus` are not built: they do not answer the request.
+3. **Transparent.** No layout node, no identity level, no `@State` or `$focus` move: layout gives the scope a key (its parent, cursor and how many scopes are open around it), prepaint pushes it on a frame-local stack, and every focusable registered meanwhile names its scopes (`FocusRegistry.scopeChain(of:)`, innermost first). A ledger recorded around a scope is refused (`taint`), so a replayed prepaint never skips one; a replay inside a scope registers under the current stack.
+4. **Recording** (`Window.restoreRecords`, per scope key). When focus moves from outside scope S to inside it, S records the element focused before (nothing when none was). Focus leaving S another way (a click, Tab, `focus(_:)`, a `@FocusState` write, a frame's drop) discards the record. After each frame the records of scopes that frame did not produce are dropped, so the map is empty while no scope exists and costs one `Bool` check per focus change (`lastFocusRegistry.hasRestoreScopes`).
+5. **Restoring** (`Frame.dropFocus`, at `IX-I`'s post-sweep clear and `resolveFocus`'s retention drop). If the dropped element's innermost scope **was not produced this frame** and its recorded element is focusable this frame, focus moves there and one more frame is requested (the ring: the restore is decided after the frame's paint at `IX-I`). Otherwise today's drop: the scope stayed and only the element went (probe `F2`), the recorded element is gone (**nil**, Alloy's answer 9), or no scope. If something else took focus that frame (a `@FocusState` write is applied before the build) there is no drop and nothing to restore. **Nested scopes restore the innermost**: its own record, with no cascade outward when that target is gone.
+6. **`@FocusState`** is reconciled after the read-back, so it reads the restored value, a container binding (`FW-A`) included.
+7. **Cost.** No scope: an empty dictionary in the registry, one `isEmpty` check per focusable registration and one `Bool` per focus change; no element request moves (`appsWithNoScopeCostWhatTheyCost`, equal to master 9dc1e9a8). A restore costs the one extra frame (`restoreCostsOneExtraFrame`).
+8. **Tests** (`RestoresFocusTests`): `noScopeFocusDropUnchanged`, `ifRemovalRestoresToPrevious`, `removingOnlyTheElementWhileTheScopeStaysDrops`, `targetGoneLeavesNil`, `writeInSameTransactionWins`, `leavingScopeByClickDiscardsRecord`, `nestedScopesRestoreInnermost`, `restoreCostsOneExtraFrame`, `focusStateReadsRestoredValue`; mutations are named on each. `focusDropsWhenAnIfRemovesItsElement` is unedited.

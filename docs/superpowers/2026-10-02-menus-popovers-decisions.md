@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AR`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AT`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1512,4 +1512,15 @@ an extra `.accessibilityLabel` wrapper reddens the cost literal.
 
 **Mutation.** `counted: true` in the two entries reddens the five closed-equals-twin tests; deleting the count in `layOutPopover` reddens `theOpenCasesCostWhatTheyDid` and the two open literals of `CodeViewTextAnchorCostTests`.
 
-Next unused: `MN-AS`.
+
+## MN-AS — A popover returns focus on dismiss (amends `MN-N` item 3; Alloy; record 374; class `M`, no divergence)
+
+**Ruling.** Item 3's second half ("focus inside a dismissed popover leaves with its identity, `IX-I`, unchanged") is replaced: a presented popover's content is an implicit restoring scope (`KF-AM`), so dismissing it returns focus to the element focused when focus entered it. Opening still moves no focus. The scope is keyed by the popover modifier's id (`at: -1`) and exists only while the popover presents; the recorded element is the presenter's focused view, so a `CodeView` with a text-anchored popover holding a `TextField` gets the view back.
+
+**Evidence.** AppKit: an `NSPopover` is its own window, and the presenter's first responder never changes while it is open, so there is nothing to return. MetalUI draws the popover in the presenter's window, so focus moves into it and the dismissal dropped it to nil. Restoring is the same observable result. The recorded element gone, or nothing focused before entry, still reads nil (`KF-AM`).
+
+**Cost.** One stack push and a set insert per presented popover prepaint; a closed popover and an app with none pay nothing (`MN-AR`'s literals are unchanged).
+
+**Test.** `dismissingAPopoverReturnsFocusToThePresenter` (`RestoresFocusTests`). It flips PR #373's `focusAfterDismissIsNil` (`CodeViewTextAnchorTests`), if that branch is merged first: its last arm then expects the view.
+
+Next unused: `MN-AT`.

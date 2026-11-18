@@ -99,6 +99,7 @@ private let frameChannels: [String: Channel] = [
     "axNodes": .prepaintOnly, "axEmissions": .prepaintOnly, "accessibilityPressOnly": .prepaintOnly,
     "contextMenuRecords": .prepaintOnly, "namedSpaces": .prepaintOnly, "hitboxNamedSpaces": .prepaintOnly,
     "namedSpaceSnapshots": .prepaintOnly, "accessibilitySuppressionExceptions": .prepaintOnly,
+    "restoreScopeStack": .prepaintOnly, "restoreLayoutDepth": .buildOnly, "restoreInput": .frameLocal, "restoredFocus": .frameLocal,   // KF-AM: a scope refuses retention by taint
     "focusRegistry": .prepaintOnly, "focusedElement": .keyed, "focusedElementProducedThisFrame": .prepaintOnly,
     "hoveredHitbox": .keyed, "stackAxes": .buildOnly,
     // `BY-D`: the previous frame's pointer owner, stamped by `Window` before the build; read by a custom button

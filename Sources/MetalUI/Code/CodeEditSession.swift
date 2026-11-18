@@ -364,6 +364,10 @@ final class CodeEditSession {
             selectionState.selections = [CodeSelection(anchor: 0, head: snap.utf8Count)]
             update { $0.goalX = nil; $0.goalXs = nil; $0.revealsCaret = false }
             return CodeKeyOutcome(handled: true)
+        case .collapseSelections where selectionState.isSnippetActive:
+            // Escape ends a snippet session first and keeps the selections (`CV-BR`); the next Escape collapses (`CV-BI`).
+            selectionState.endSnippet()
+            return CodeKeyOutcome(handled: true)
         case .collapseSelections:
             // Escape (`CV-BI`): with several selections only the primary stays, keeping its range, and the key is
             // claimed; with one it is not the view's, so it keeps travelling to an app's own Escape.
@@ -403,8 +407,10 @@ final class CodeEditSession {
             selectionState.replaceSelections(withEach: texts, origin: .typing)
             buffer.breakUndoCoalescing()
         case .indent:
+            if selectionState.nextSnippetPlaceholder() { break }   // Tab steps a running snippet (`CV-BR`)
             indent(snap: snap)
         case .outdent:
+            if selectionState.previousSnippetPlaceholder() { break }   // ⇧Tab declines at the first stop, so it outdents
             outdent(snap: snap)
         case .cut:
             // The text is every selection's, joined; the removal is each selection's range (an empty one's whole

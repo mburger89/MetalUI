@@ -6,4 +6,4 @@ Branch `test/popover-field-focus` from master `9dc1e9a8`. Class M, no divergence
 
 **Probe** `docs/probes/swiftui-popover-focus.swift` (PF1 first responder on open, PF2 focus back after dismiss, PF3 field Escape before close, with two positive controls). It compiles and ran once; the screen was locked, no window became key, every arm printed `UNRESOLVED`. Nothing was inferred; human checks `CV31`..`CV33` carry the arms.
 
-**Follow-ups, waiting on the probe:** PF1 yes means a popover seats focus on its first `TextField`; PF3 yes means a divergence or reordered stages; `MN-AS` and `KF-AM` per the wave-2 design.
+**Follow-ups, waiting on the probe:** PF1 yes means a popover seats focus on its first `TextField`; PF3 yes means a divergence or reordered stages; `MN-AS` and `KF-AM` landed in record 374: focus now returns to the view after the dismissal (`focusAfterDismissIsNil` became `focusReturnsToTheViewOnDismiss`).

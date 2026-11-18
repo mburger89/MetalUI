@@ -82,6 +82,19 @@ struct FocusRegistry {
     /// Focusable elements in registration order — the tree's order, which is
     /// the Tab order (ruling TI-J).
     private(set) var tabOrder: [GlobalElementID] = []
+
+    /// The restoring scopes (`KF-AM`, `MN-AS`) each focusable was registered under, outermost first. Empty, and never
+    /// touched, while no scope exists: an app without one pays one `isEmpty` check per focusable.
+    private var scopeStacks: [GlobalElementID: [RestoreScopeKey]] = [:]
+    /// Every restoring scope prepainted this frame: "was the scope produced".
+    private(set) var producedScopes: Set<RestoreScopeKey> = []
+
+    mutating func noteScopeProduced(_ key: RestoreScopeKey) { producedScopes.insert(key) }
+    mutating func noteScopes(_ stack: [RestoreScopeKey], for id: GlobalElementID) { scopeStacks[id] = stack }
+    /// Whether any restoring scope was produced this frame.
+    var hasRestoreScopes: Bool { !producedScopes.isEmpty }
+    /// `id`'s restoring scopes, innermost first; empty for an element under none.
+    func scopeChain(of id: GlobalElementID) -> [RestoreScopeKey] { scopeStacks[id]?.reversed() ?? [] }
     /// Every `Button`'s keyboard shortcut this frame, **in registration order**
     /// — the tree's order — so the first button in tree order wins a shared
     /// shortcut (plan task 12 part 1, `IX-F` item 3, probe `B4h`). Registered

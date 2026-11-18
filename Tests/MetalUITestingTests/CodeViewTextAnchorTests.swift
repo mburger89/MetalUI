@@ -584,8 +584,8 @@ private struct ChainedHost: Component, @MainActor Equatable {
 // A focused `TextField` inside the view's text-anchored popover (`CV-BW`, Alloy's rename field). These pin what
 // MetalUI does TODAY, with no product change: the field receives the keys and the view does not, `onSubmit` works, Escape
 // dismisses through the popover's key stage before the field's own `onKeyPress(.escape)`, a `@FocusState` write in the
-// handler that opens the popover is dropped (the field was not registered in the last frame, `IX-J`), and focus is nil
-// after the dismissal (`IX-I`). `MN-AS` will change the last.
+// handler that opens the popover is dropped (the field was not registered in the last frame, `IX-J`), and focus returns to the view
+// after the dismissal (`MN-AS`; it was nil under `IX-I`).
 
 @Observable @MainActor private final class FieldModel {
     var item: Pick?
@@ -731,10 +731,10 @@ private struct FieldHost: Component {
     #expect(appear.text == "q", "and typing lands in it")
 }
 
-/// 18 — after the dismissal nothing has focus (`IX-I`): the presenter's view does not get it back. Pins today's
-/// behaviour; `MN-AS` will make a popover return it. **Mutation:** a restore on removal makes the focused element the
-/// view and the first expectation fails.
-@Test @MainActor func focusAfterDismissIsNil() throws {
+/// 18 — after the dismissal focus returns to the presenter's view (`MN-AS`, through `KF-AM`'s restoring scope; it was nil
+/// under `IX-I`), so the view takes the keys again. **Mutation:** drop the popover's implicit scope in
+/// `PopoverModifier.prepaint` and the view gets nothing back: `viewKeys` stays empty.
+@Test @MainActor func focusReturnsToTheViewOnDismiss() throws {
     let model = FieldModel()
     let (window, buffer) = try fieldWindow(model)
     window.click(at: pt(60, 6))
@@ -743,9 +743,8 @@ private struct FieldHost: Component {
     window.typeKey(.escape)
     window.tick()
     #expect(model.item == nil)
-    let after = try window.focusedElement?.identifier
-    #expect(after == nil, "focus is nil after the dismissal (IX-I): \(String(describing: after))")
+    window.window.setNeedsRedraw(); window.tick()
     window.typeText("a")
-    #expect(model.viewKeys == ["a"] || model.viewKeys.isEmpty, "recorded either way")
+    #expect(model.viewKeys == ["a"], "the view has focus again: \(model.viewKeys)")
     _ = buffer
 }
