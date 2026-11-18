@@ -2,6 +2,8 @@
 /// the app's tag, the owner and whether it belongs to a line decoration, a virtual row or a gutter marker.
 public struct CodeGutterHit: Equatable, Sendable {
     /// Where the bar comes from.
+    ///
+    /// This enumeration may gain cases: switch over it with a `default`.
     public enum Source: Equatable, Sendable {
         /// A ``CodeLineDecoration``'s gutter bar over buffer rows.
         case lineDecoration
@@ -9,6 +11,9 @@ public struct CodeGutterHit: Equatable, Sendable {
         case virtualRow
         /// A ``CodeLineDecoration/gutterMarker`` on a buffer row (`CV-AP`): `lines` is that one row.
         case gutterMarker
+        /// A ``CodeLineDecoration/changeBar`` in the change lane (`CV-BS`): `lines` is the run of rows with the same
+        /// mark and tag (for a folded header, the folded rows); the mark's kind is not reported, `tag` identifies the change.
+        case changeBar
     }
 
     /// The buffer lines the bar spans (0-based). For a virtual row, its anchor line as a one-line range.
