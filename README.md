@@ -24,7 +24,18 @@ metalui new MyApp
 cd MyApp && swift run MyApp
 ```
 
-Or, without Homebrew, from a clone:
+Homebrew works on macOS and Linux. On Windows, use Scoop:
+
+```powershell
+scoop bucket add win-metalui https://github.com/mburger89/win-MetalUI
+scoop install win-metalui/metalui
+```
+
+Prebuilt `metalui` binaries for macOS, Linux (x86_64, aarch64) and Windows (x64)
+are on the [releases page](https://github.com/mburger89/MetalUI/releases/latest).
+The Linux and Windows ones need no Swift runtime.
+
+Or, without a package manager, from a clone:
 
 ```sh
 git clone https://github.com/mburger89/MetalUI.git

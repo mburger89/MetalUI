@@ -63,19 +63,20 @@ cd MyApp &amp;&amp; swift run MyApp</code></pre></div>
 
     <div class="panel panel-linux">
       <p>Install SDL 3.4 or later first (Ubuntu 24.04 only ships SDL2, so build it from source), then create the app with <code>--cross-platform</code> and fetch AccessKit's C bindings once.</p>
-      <div class="codebox"><pre data-copy><code>git clone https://github.com/mburger89/MetalUI.git
-swift run --package-path MetalUI metalui new MyApp --cross-platform
+      <div class="codebox"><pre data-copy><code>brew install mburger89/metalui/metalui
+metalui new MyApp --cross-platform
 cd MyApp
 swift package resolve
 python3 .build/checkouts/MetalUI/Backends/SDL/scripts/fetch-accesskit.py --prefix /usr
 swift run MyApp</code></pre></div>
-      <p class="small">The SDL3 build commands, with the package list, are in <a href="https://github.com/mburger89/MetalUI/blob/master/docs/getting-started.md">getting-started.md</a>. <code>metalui new --cross-platform --no-accesskit</code> skips the AccessKit step. Checked in a clean Swift 6.4.2 Linux container (aarch64): <code>swift build</code> and <code>swift test</code> pass; the window itself was not opened there because the container has no display.</p>
+      <p class="small">The SDL3 build commands, with the package list, are in <a href="https://github.com/mburger89/MetalUI/blob/master/docs/getting-started.md">getting-started.md</a>. <code>metalui new --cross-platform --no-accesskit</code> skips the AccessKit step. Without Homebrew, unpack <code>metalui</code> from the <a href="https://github.com/mburger89/MetalUI/releases/latest">latest release</a> (x86_64 or aarch64; it needs no Swift runtime). You can also run it from a clone: <code>swift run --package-path MetalUI metalui new MyApp --cross-platform</code>. The Homebrew install is <strong>CI-verified</strong> on Ubuntu (the tap's own CI). Checked in a clean Swift 6.4.2 Linux container (aarch64): <code>swift build</code> and <code>swift test</code> pass; the window itself was not opened there because the container has no display.</p>
     </div>
 
     <div class="panel panel-windows">
-      <div class="codebox"><pre data-copy><code>git clone https://github.com/mburger89/MetalUI.git
-swift run --package-path MetalUI metalui new MyApp --cross-platform</code></pre></div>
-      <p class="small"><strong>CI-verified</strong>, not run by hand for this page. Windows needs SDL3's prebuilt Visual C++ package unpacked and its paths handed to SwiftPM; <a href="https://github.com/mburger89/MetalUI/blob/master/docs/guides/cross-platform.md">the cross-platform guide</a> has the exact steps.</p>
+      <div class="codebox"><pre data-copy><code>scoop bucket add win-metalui https://github.com/mburger89/win-MetalUI
+scoop install win-metalui/metalui
+metalui new MyApp --cross-platform</code></pre></div>
+      <p class="small">Without Scoop, unpack <code>metalui.exe</code> from the <a href="https://github.com/mburger89/MetalUI/releases/latest">latest release</a>; it needs no Swift runtime. You can also run it from a clone: <code>swift run --package-path MetalUI metalui new MyApp --cross-platform</code>. <strong>CI-verified</strong>, not run by hand for this page: the bucket's own CI installs <code>metalui</code> with Scoop on Windows and runs <code>metalui new</code>. Windows needs SDL3's prebuilt Visual C++ package unpacked and its paths handed to SwiftPM; <a href="https://github.com/mburger89/MetalUI/blob/master/docs/guides/cross-platform.md">the cross-platform guide</a> has the exact steps.</p>
     </div>
   </div>
 </section>
