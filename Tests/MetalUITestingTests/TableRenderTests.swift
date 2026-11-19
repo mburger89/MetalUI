@@ -137,12 +137,15 @@ private func inWindow(_ bounds: Bounds<Pixels>, scrolledBy offset: (x: Double, y
 
 /// **T1** A long cell text truncates: in a 60-wide column the row's text is one line cut with an ellipsis (six glyphs: five letters and
 /// the ellipsis, all inside the cell), so the whole window holds the header's six glyphs and these six. Mutation: drop the `lineLimit`
-/// environment push, so the text wraps to many lines and the window holds dozens of glyphs.
+/// environment push, so the 40-point row holds two lines and the window holds about sixteen glyphs.
 @Test @MainActor func aLongCellTextTruncatesWithAnEllipsis() async throws {
     let w = try harnessWindow(size: sz(800, 600)) {
+        // A 40-point row has room for two lines, so only the environment's line limit makes this one line: a 24-point row's
+        // proposed height would cut the text to one line by itself.
         Table(CountingRows(1)) {
             TableColumn("Narrow") { _ in Text("abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz") }.width(Pixels(60))
         }
+        .tableRowHeight(Pixels(40))
     }
     try await settle(w)
     let row = w.allGlyphs.filter { $0.bounds.origin.y >= 28 }
