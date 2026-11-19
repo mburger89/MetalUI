@@ -135,21 +135,22 @@ private func inWindow(_ bounds: Bounds<Pixels>, scrolledBy offset: (x: Double, y
     #expect(!above.isEmpty, "the frozen cell's own glyphs are above it")
 }
 
-/// **T1** A long cell text truncates: in a 60-wide column one line of glyphs (six: five letters and the ellipsis) ends inside the cell. Mutation: drop the
-/// `lineLimit` environment push, so the text wraps to several lines and the row holds many more glyphs.
+/// **T1** A long cell text truncates: in a 60-wide column the row's text is one line cut with an ellipsis (six glyphs: five letters and
+/// the ellipsis, all inside the cell), so the whole window holds the header's six glyphs and these six. Mutation: drop the `lineLimit`
+/// environment push, so the text wraps to many lines and the window holds dozens of glyphs.
 @Test @MainActor func aLongCellTextTruncatesWithAnEllipsis() async throws {
     let w = try harnessWindow(size: sz(800, 600)) {
-        Table(CountingRows(3)) {
+        Table(CountingRows(1)) {
             TableColumn("Narrow") { _ in Text("abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz") }.width(Pixels(60))
         }
     }
     try await settle(w)
-    let row0 = w.allGlyphs.filter { $0.bounds.origin.y >= 28 && $0.bounds.origin.y < 52 }
-    #expect(!row0.isEmpty)
-    #expect(row0.count <= 8, "one line cut with an ellipsis, \(row0.count) glyphs in the row")
-    #expect(row0.allSatisfy { $0.bounds.origin.x >= 0 && $0.bounds.origin.x + $0.bounds.size.width <= 60 },
+    let row = w.allGlyphs.filter { $0.bounds.origin.y >= 28 }
+    #expect(!row.isEmpty)
+    #expect(w.allGlyphs.count <= 14, "the header's glyphs and one truncated line: \(w.allGlyphs.count) glyphs")
+    #expect(row.allSatisfy { $0.bounds.origin.x >= 0 && $0.bounds.origin.x + $0.bounds.size.width <= 60 },
             "every glyph within the 60-point cell")
-    #expect(row0.count < 26, "the string was cut (\(row0.count) glyphs of 55)")
+    #expect(row.count < 26, "the string was cut (\(row.count) glyphs of 55)")
 }
 
 /// A trailing-aligned column puts its text's right edge at the cell's right edge less the 6-point inset. Mutation: ignore the
@@ -185,7 +186,7 @@ private func inWindow(_ bounds: Bounds<Pixels>, scrolledBy offset: (x: Double, y
     #expect(tinted.contains { $0.bounds.origin.x == 0 && $0.bounds.size.width == 800 }, "row 1's background \(tinted.map(\.bounds))")
 }
 
-/// `tableColumnHeaders(.hidden)` removes the header: row 0 is at y 0 and no 28-high cell exists. Mutation: ignore the environment
+/// **G1** `tableColumnHeaders(.hidden)` removes the header (probe `G1`'s 28-point header is gone): row 0 is at y 0 and no 28-high cell exists. Mutation: ignore the environment
 /// value, so the header returns.
 @Test @MainActor func tableColumnHeadersHiddenRemovesTheHeader() async throws {
     let w = try harnessWindow(size: sz(800, 600)) {
@@ -313,4 +314,33 @@ private struct CountingCell: Component {
     #expect(tall.allSatisfy { $0.contentMask.size.height <= 24 }, "masks \(tall.map(\.contentMask.size.height))")
     let short = w.scene.rects.filter { $0.bounds.size.width == 50 && $0.bounds.size.height == 10 }
     #expect(short.count == 3 && short.allSatisfy { $0.contentMask.size.height > 24 }, "a swatch that fits is not clipped")
+}
+
+/// **L1** A right-to-left table mirrors like SwiftUI's (probe `L1`: the first column is the rightmost): the layout engine mirrors a
+/// custom layout's placements, so the columns, the scroller's origin and the window agree with no table code. Twenty columns of 100 in
+/// 600: the first column is right of the second, the table opens at its leading (right) edge showing columns 0...5, and after scrolling
+/// to the far end the viewport is still full (six columns across it, no blank band). Mutation: mirror the cells' placement a second time
+/// in `TableRowLayout`, so the columns run left to right under a mirrored scroller.
+@Test @MainActor func aRightToLeftTableMirrorsItsColumnsAndWindowsThemOnTheScroll() async throws {
+    let w = try harnessWindow(size: sz(600, 300)) {
+        Table(CountingRows(5)) {
+            TableColumnForEach(0..<20) { c in TableColumn("c\(c)") { r in Text("r\(r.id)c\(c)").id("r\(r.id)c\(c)") }.width(Pixels(100)) }
+        }
+        .environment(\.layoutDirection, .rightToLeft)
+    }
+    try await settle(w)
+    func columnsOnScreen() -> Set<Int> {
+        Set(w.allGlyphs.filter { $0.bounds.origin.y >= 28 && $0.bounds.origin.y < 52 && $0.bounds.origin.x >= 0 }
+            .map { Int($0.bounds.origin.x) / 100 })
+    }
+    let first = try w.frame(ofID: "r0c0"), second = try w.frame(ofID: "r0c1")
+    #expect(first.origin.x > second.origin.x, "c0 at \(first.origin.x), c1 at \(second.origin.x)")
+    #expect(columnsOnScreen().isSuperset(of: [0, 1, 2, 3, 4, 5]), "at open: \(columnsOnScreen().sorted())")
+    for _ in 0..<4 {
+        w.scroll(at: Point(x: Pixels(300), y: Pixels(150)), byDeltaX: 900, deltaY: 0)
+        try await w.runUntilIdle()
+        w.window.setNeedsRedraw(); w.tick()
+    }
+    #expect(columnsOnScreen().isSuperset(of: [0, 1, 2, 3, 4, 5]), "at the far end: \(columnsOnScreen().sorted())")
+    #expect(w.lastFrameWork.tableCellsRealized > 0)
 }
