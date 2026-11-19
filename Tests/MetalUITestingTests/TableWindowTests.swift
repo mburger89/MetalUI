@@ -112,7 +112,7 @@ private func planOf(_ context: ScrollContext?, rows: Int = 1_000_000, columns: C
 }
 
 /// **A4.1** Both axes window from the two contexts. Mutation: pass `viewportHeight` instead of `viewportHeight − header` to the
-/// rows' window; the rows become `498..<528`... (the header's 28 points are 1.17 rows).
+/// rows' window; the rows become `498..<527` (the header's 28 points are 1.17 rows).
 @Test func aBoundedPlanWindowsBothAxesFromTheContext() {
     let plan = planOf(contextOf(y: 12000, x: 600))
     #expect(plan.mode == .bounded)
