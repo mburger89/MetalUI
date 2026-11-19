@@ -11,3 +11,5 @@ Branch `feat/cli-release` on master `73e1f5cc`. Class M, no divergence. Prepares
 **Tests.** `ReleaseTests` (each of the three cases, a fork, explicit flags, the requirement text, `--version`, the CLI message); mutations are in its header.
 
 **Deferred.** The tap repository and its formula (url + sha256 of the source archive) are made by hand after the first tag.
+
+**Later: all platforms.** `release.yml` now has build jobs for macOS arm64, Linux x86_64 and aarch64 (`swift:6.4-noble`, `--static-swift-stdlib`) and Windows x64 (`-Xswiftc -static-stdlib`), one `publish` job (create, or upload with `--clobber`), a `workflow_dispatch` `tag` input for an existing tag, and a `pull_request` trigger that builds without publishing. Measured on PR #395: all four binaries are self-contained (Linux runs in plain `ubuntu:24.04`; Windows runs with only `System32` on `PATH`; no DLLs bundled), about 24 MB each; no CLI source change was needed. The publish job and the dispatch were not run.

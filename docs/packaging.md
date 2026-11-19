@@ -849,6 +849,16 @@ in [`testing.md`](testing.md#a-ci-smoke-test-of-the-real-window).
 ## Releasing the `metalui` CLI (`SC-J`)
 
 1. Set `metaluiVersion` in `Sources/MetalUIScaffold/Version.swift` to the new `X.Y.Z` and merge it.
-2. Tag the merge commit `vX.Y.Z` and push the tag. `.github/workflows/release.yml` fails unless the tag is `v` + `metaluiVersion`, then builds `metalui`, smoke-tests it and creates the GitHub release with `metalui-X.Y.Z-macos-arm64.tar.gz` and its `.sha256`.
+2. Tag the merge commit `vX.Y.Z` and push the tag. `.github/workflows/release.yml` fails unless the tag is `v` + `metaluiVersion`, then builds `metalui` on four targets, smoke-tests each (`--version`, `metalui new Smoke`) and publishes one GitHub release (`gh release create --generate-notes`, or `gh release upload --clobber` when the release exists) with a package and a `.sha256` per target. Every `.sha256` reads `<hash>  <file name>`.
+
+   | Target | Asset | Self-contained by |
+   |---|---|---|
+   | macOS arm64 | `metalui-X.Y.Z-macos-arm64.tar.gz` | links the system Swift runtime |
+   | Linux x86_64 | `metalui-X.Y.Z-linux-x86_64.tar.gz` | `--static-swift-stdlib`; `ldd` shows no `libswift*`; the package runs in a plain `ubuntu:24.04` container |
+   | Linux aarch64 | `metalui-X.Y.Z-linux-aarch64.tar.gz` | the same, on `ubuntu-24.04-arm` |
+   | Windows x64 | `metalui-X.Y.Z-windows-x64.zip` | `-Xswiftc -static-stdlib`; `metalui.exe` runs with only `System32` on `PATH` (no DLLs shipped) |
+
+   Each package holds `metalui` (or `metalui.exe`), `LICENSE` and `README.md`. Linux and Windows are about 24 MB, macOS about 0.1 MB. A pull request that touches the workflow, `Sources/MetalUIScaffold` or `Sources/MetalUICLI` runs the same build jobs without publishing.
+   To add the new targets to a release that exists (v0.1.0 has only macOS): `gh workflow run release.yml --ref master -f tag=v0.1.0` (the tag's own `Version.swift` is checked out and compared).
 3. In the tap (`mburger89/homebrew-metalui`), update `Formula/metalui.rb`: `url` is the release's source archive (`https://github.com/mburger89/MetalUI/archive/refs/tags/vX.Y.Z.tar.gz`) and `sha256` its checksum (`curl -L <url> | shasum -a 256`). The formula builds from source (`swift build -c release --product metalui`), so apps it scaffolds depend on the release (`.upToNextMinor(from: "X.Y.Z")` while 0.x), not on `master`.
 4. After the release, set `metaluiVersion` to the next `-dev` value if development should stop writing a version requirement.
