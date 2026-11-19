@@ -760,8 +760,8 @@ private func markerValue(_ key: String, _ id: AccessibilityNodeID, _ node: Acces
 /// rectangles and tapped cells, and a tap publishes no press (G1, `IX-Y`), so
 /// the grid adds nothing (`IX-AB`'s first production reader; `AB-Q`'s "the
 /// preview toggle is silent" is answered: the toggle's tap is silent, as
-/// SwiftUI's). The text-input demo publishes its two fields, the echo text
-/// and the editor, and a `.focus` request on the first field is the tree's
+/// SwiftUI's). The text-input demo publishes its two fields, the echo text,
+/// its secure field and the editor, and a `.focus` request on the first field is the tree's
 /// focus. Mutation M3k (`ProposalText.prepaint` records nothing) must redden
 /// the preview arm and not the text-input arm.
 @Test @MainActor func thePreviewAndTextInputDemosPublishTheTreesTheScriptReads() throws {
@@ -779,6 +779,8 @@ private func markerValue(_ key: String, _ id: AccessibilityNodeID, _ node: Acces
         AuditNode(.textField, label: "Type here: an input method, a selection, copy and paste", value: ""),
         AuditNode(.textField, label: "A second field — Tab does not move here; click it", value: ""),
         AuditNode(.staticText, value: "(the first field echoes here)"),
+        AuditNode(.secureTextField, label: "Password", value: ""),   // `SCF-F`: the demo's secure field
+        AuditNode(.staticText, value: "Password: 0 characters"),
         AuditNode(.textArea, label: "A multi-line editor: return, up and down, the wheel", value: ""),
     ]
     #expect(textInput.auditRows == expected, "the text-input demo: \(textInput.auditRows)")

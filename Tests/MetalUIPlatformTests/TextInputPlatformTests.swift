@@ -216,10 +216,24 @@ private func secureWindow() throws -> (AppKitWindow, MetalHostView, EventLog, Ho
     #expect(holds.calls.count == 6, "nothing is released twice")
 }
 
-/// A secure field takes no input method: a printable key is committed text with no input context, a function key is a
-/// key, marked text from the input context is dropped, and the Edit menu's Cut and Copy are off while Paste stays on.
-/// **Mutation:** delete the `if secureInput, textInputCaret != nil …` branch of `keyDown(with:)` (the key goes through
-/// the input context).
+/// What a key types into a secure field, with no input context: its characters when all are printable, nothing for a
+/// function key, a control character or a ⌃-key (those are keys). **Mutation:** `isPrintable` answers `true` (the arrow's
+/// private-use code is typed as text). The input context routes a plain key in a test window exactly as the bypass does,
+/// so the `keyDown(with:)` branch itself cannot be told from it headlessly; it is the human check `SCF4`.
+@MainActor
+@Test func aSecureFieldTypesPrintableCharactersAndKeepsTheRestAsKeys() throws {
+    let (window, _, _, _) = try secureWindow()
+    #expect(MetalHostView.secureTypedText(try keyEvent("a", keyCode: 0, in: window)) == "a")
+    #expect(MetalHostView.secureTypedText(try keyEvent("\u{b4}", keyCode: 14, modifiers: [.option], in: window)) == "\u{b4}")
+    #expect(MetalHostView.secureTypedText(try keyEvent("\u{f702}", keyCode: 123, in: window)) == nil)
+    #expect(MetalHostView.secureTypedText(try keyEvent("\r", keyCode: 36, in: window)) == nil)
+    #expect(MetalHostView.secureTypedText(try keyEvent("\u{7f}", keyCode: 51, in: window)) == nil)
+    #expect(MetalHostView.secureTypedText(try keyEvent("k", keyCode: 40, modifiers: [.control], in: window)) == nil)
+}
+
+/// A secure field takes no input method: marked text from the input context is dropped, a key reaches the window as
+/// text or a key, and the Edit menu's Cut and Copy are off while Paste stays on. **Mutation:** the Cut/Copy `if` in
+/// `validateMenuItem` is disabled.
 @MainActor
 @Test func aSecureFieldBypassesTheInputMethodAndDisablesCutAndCopy() throws {
     let (window, view, log, _) = try secureWindow()

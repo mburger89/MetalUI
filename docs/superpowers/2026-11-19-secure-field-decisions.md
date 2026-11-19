@@ -82,4 +82,4 @@ stands).
 
 - The bullet's metrics against AppKit's echo glyph, measured by pixels (divergence 1115).
 - NSSecureTextField's word keys and double-click, measured (`SCF-D`).
-- Windows: `SetWindowsHookEx` low-level hooks are not what secure entry is there; nothing is done (divergence 1116).
+- A secure-entry equivalent on Windows and Linux, if one exists that a toolkit can ask for (divergence 1116).

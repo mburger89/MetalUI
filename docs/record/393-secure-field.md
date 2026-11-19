@@ -19,11 +19,30 @@ A SwiftUI `SecureField` holding "hunter2" is an `AppKitSecureTextField` over `NS
 
 `SecureFieldTests` (portable, 11), three `TextInputPlatformTests`/`AppKitAccessibilityTests` tests (AppKit) and one SDL test. Each names its mutation; the round, every one restored (a `git diff` of the sources empty after), with the red tests:
 
-MUTATIONS
+| mutation | red tests |
+|---|---|
+| `TextField.shownText` returns `text` (the real text drawn, published, measured) | `aSecureFieldDrawsOnlyBulletsAndNeverHandsTheTextToTheTextSystem`, `aSecureFieldPublishesItsRoleAndBulletsNeverItsText`, `theCaretMovesByGraphemeOverBullets` |
+| `prepaint` publishes `value: text` | `aSecureFieldPublishesItsRoleAndBulletsNeverItsText` |
+| the `TextInputTarget` is given `shownText` (the edit buffer is bullets) | `theBindingWritesTheRealText` |
+| the `case "c" where secure, "x" where secure` arm removed (copy allowed) | `copyAndCutDoNothingInASecureField` |
+| a `case "v" where secure` arm that does nothing (paste disabled) | `pasteInsertsIntoASecureField` |
+| `mask` counts `text.utf16.count` | `theCaretMovesByGraphemeOverBullets` |
+| the `.textComposition` claim removed from `Window` | `markedTextIsIgnoredInASecureField` |
+| the word keys read the real characters | `wordMovementNeverRevealsWhereTheWordsAre` |
+| `runDisappearancesForClose` skips `syncSecureTextInput()` (close keeps the hold) | `secureInputIsBalancedAcrossFocusBlurAndWindowClose` |
+| `syncSecureTextInput` keeps a sent hold while anything is focused (removal never releases) | `removingTheFocusedSecureFieldReleasesSecureInput` |
+| `syncSecureTextInput` drops its `wanted != sent` guard (a request per frame) | `aWindowWithoutASecureFieldKeepsItsFrameWorkAndSendsNothing` |
+| `windowWillClose` skips `refreshSecureEventInput()` (AppKit) | `secureEventInputIsBalancedAcrossFocusKeyWindowAndClose` |
+| the Cut/Copy `if` of `validateMenuItem` disabled | `aSecureFieldBypassesTheInputMethodAndDisablesCutAndCopy` |
+| the role map answers no subrole | `aSecureTextFieldIsAXTextFieldWithTheSecureSubroleAndAMaskedValue` |
+| the AppKit value answers the node's string | the same |
+| `isPrintable` answers `true` | `aSecureFieldTypesPrintableCharactersAndKeepsTheRestAsKeys` |
+
+Two instruments were found blind and fixed in the round: the first removal test mutated `syncSecureTextInput` with `guard focusedElement != nil`, which a removed field's stale focus does not trip (green), so its mutation became "keep a sent hold while anything is focused"; and `keyDown(with:)`'s secure branch cannot be told from the input context's own routing in a headless window (the context inserts the same text), so the branch's mutation stays green headlessly and is human check `SCF4`; the pure `secureTypedText` it calls is pinned by the last row. The SDL pin (`aSecureFieldIsAPasswordInputToAccessKitAndSDLHasNoSecureEntry`) has the mutation "map `.secureTextField` to `.textInput`".
 
 ## Verified
 
-FULLRUN
+`swift build --build-system native --build-tests && swift test --build-system native --no-parallel`: 7072 tests in 79 suites, green (the run before the demo's two assertions were updated had exactly those two red; re-run after the last code change). `swift build -c release` green. SDL package (`Backends/SDL`, AccessKit 0.23 from the scratch fetch, SDL3 from Homebrew): the SDL pin passes and goes red under its mutation; `windowServerTrafficNeverStopsTheMainRunLoop` fails as on master and `thePublicLocateDoesNotEvaluateItsBundleWhenTheExecutableCandidateOpens` could not write under the sandbox (unrelated). `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Linux and Windows: CI.
 
 ## Carried
 
