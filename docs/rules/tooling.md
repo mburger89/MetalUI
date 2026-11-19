@@ -76,3 +76,5 @@ element's `.id`, so a guide test reads an accessibility frame (`DG-T`). No publi
 **Real windows in a test call `installAppKitEventSignal()` first (record 304).** Without HIToolbox's enqueue-signal block the event thread stops the main run loop (`CFRunLoopStop`), and one stop outside a nested run ends the whole test process with exit 0 and no summary line; every helper that builds an `AppKitPlatform` or `AppKitWindow` calls it, and a new one does too.
 
 **Website and API reference.** The site lives in `site/` and the DocC API reference is built by `scripts/build-docs.sh`; both deploy from master through `.github/workflows/pages.yml` to `https://mburger89.github.io/MetalUI/` (API at `/api/`, MetalUITesting at `/api/testing/`).
+
+**Windows STL/Clang mismatch (CI, 2026-11-19).** `windows-latest` images from `20261116` ship MSVC 14.52, whose STL wants Clang 22 (`STL1000`) while Swift 6.4.0 ships Clang 21; `CHarfBuzz` (the only C++ target) defines `_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH` on Windows in `Package.swift`, so consumers need no `-Xcc` flag. Drop it once Swift ships Clang 22. No record: a CI/build-setting change (commit message carries the reason).

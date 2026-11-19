@@ -156,7 +156,11 @@ var targets: [Target] = [
             sources: ["src/harfbuzz.cc"],
             // The UCRT marks `getenv` deprecated (hb-face.cc, hb-font.cc,
             // hb-shaper.cc); quieted on Windows by a define, the source untouched.
-            cxxSettings: [.define("_CRT_SECURE_NO_WARNINGS", .when(platforms: [.windows]))]
+            // MSVC 14.52's STL (windows-latest image 20261116 on) demands Clang 22 and
+            // Swift 6.4.0 ships Clang 21 (STL1000); the define lets them meet. Drop it
+            // once Swift ships Clang 22.
+            cxxSettings: [.define("_CRT_SECURE_NO_WARNINGS", .when(platforms: [.windows])),
+                          .define("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH", .when(platforms: [.windows]))]
         ),
 
         // libunibreak 8.0, vendored (ruling LB-A; Sources/CUnibreak/VENDORED.md):
