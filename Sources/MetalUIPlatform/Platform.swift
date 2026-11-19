@@ -158,7 +158,7 @@ public protocol PlatformWindow: AnyObject {
     /// `ESC O p`..`y`. Off, a keypad character reaches a text target as text, as before. **Defaulted to a no-op.**
     func setRawKeypadKeys(_ raw: Bool)
 
-    /// Tells the platform the focused text field is a `SecureField` while `secure` is `true` (ruling `SF-B`, sent by
+    /// Tells the platform the focused text field is a `SecureField` while `secure` is `true` (ruling `SCF-B`, sent by
     /// `Window` on change only: when focus enters or leaves one, and `false` once when the window closes). A platform
     /// that has one turns on its system-wide secure keyboard entry (AppKit: Carbon's `EnableSecureEventInput`,
     /// balanced with a counter), bypasses the input method, and disables the Edit menu's Cut and Copy. **Defaulted to a
@@ -778,7 +778,7 @@ extension PlatformWindow {
     /// The default: nothing to do (`TRM-BM`).
     public func setRawKeypadKeys(_ raw: Bool) {}
 
-    /// The default: nothing to do (`SF-B`).
+    /// The default: nothing to do (`SCF-B`).
     public func setSecureTextInput(_ secure: Bool) {}
 
     /// The default: the platform cannot show a backdrop (`WB-C`).

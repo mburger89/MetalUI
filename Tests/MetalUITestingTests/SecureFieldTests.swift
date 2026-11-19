@@ -5,7 +5,7 @@ import MetalUIPortableText
 import MetalUITesting
 import Testing
 
-// `SecureField` (rulings `SF-A`…`SF-H`, record 393). Portable: plain imports, the harness's Noto Sans through a
+// `SecureField` (rulings `SCF-A`…`SCF-H`, record 393). Portable: plain imports, the harness's Noto Sans through a
 // recording text system, so a literal agrees on macOS, Linux and Windows. Every test names its mutation; each was run
 // red and restored (record 393). **Instrument checks**: the glyph and clipboard tests run the same script on a plain
 // `TextField` and assert the opposite, so a test that cannot tell a secure field from a plain one fails here.
@@ -91,7 +91,7 @@ private let title = "Pass"
 
 // MARK: Masking
 
-/// 1 (`SF-A`) — typing "hunter2" draws 7 glyphs that are all the one bullet, and no string containing a typed
+/// 1 (`SCF-A`) — typing "hunter2" draws 7 glyphs that are all the one bullet, and no string containing a typed
 /// character is ever given to the text system. **Instrument**: a `TextField` draws 7 distinct shapes and hands the
 /// text system the text. **Mutation:** `TextField.shownText` returns `text` (the real text is drawn): reddens the
 /// bullet shapes and the recorded strings.
@@ -125,7 +125,7 @@ private let title = "Pass"
     #expect(plainSystem.seen.contains("hunter2"))
 }
 
-/// 2 (`SF-F`) — the accessibility tree has a secure text field with 7 bullets, never the text, and no plain
+/// 2 (`SCF-F`) — the accessibility tree has a secure text field with 7 bullets, never the text, and no plain
 /// text field for it. **Mutation:** `prepaint` publishes `value: text`.
 @Test @MainActor func aSecureFieldPublishesItsRoleAndBulletsNeverItsText() throws {
     let box = Box()
@@ -140,7 +140,7 @@ private let title = "Pass"
     #expect(!published.contains { $0.contains("hunter2") })
 }
 
-/// 3 (`SF-A`) — the binding receives the real text, edit by edit, and a backspace edits it. **Mutation:**
+/// 3 (`SCF-A`) — the binding receives the real text, edit by edit, and a backspace edits it. **Mutation:**
 /// `prepaint`'s `TextInputTarget` is given `shownText`: the next edit starts from bullets and writes them.
 @Test @MainActor func theBindingWritesTheRealText() throws {
     let box = Box()
@@ -154,7 +154,7 @@ private let title = "Pass"
 
 // MARK: Clipboard
 
-/// 4 (`SF-C`) — select all and ⌘C leave the clipboard as it was, ⌘X cuts nothing, and the text stays. **Instrument**: the
+/// 4 (`SCF-C`) — select all and ⌘C leave the clipboard as it was, ⌘X cuts nothing, and the text stays. **Instrument**: the
 /// same keys on a `TextField` copy and cut. **Mutation:** delete the `case "c" where secure, "x" where secure` arm of
 /// `TextEditing.key`.
 @Test @MainActor func copyAndCutDoNothingInASecureField() throws {
@@ -180,7 +180,7 @@ private let title = "Pass"
     #expect(plain.platformWindow.clipboard == "hunter2", "instrument: a plain field copies")
 }
 
-/// 5 (`SF-C`) — ⌘V inserts at the caret, and over a selection replaces it. **Mutation:** the secure arm returns before
+/// 5 (`SCF-C`) — ⌘V inserts at the caret, and over a selection replaces it. **Mutation:** the secure arm returns before
 /// the paste case too (`case "v" where secure`).
 @Test @MainActor func pasteInsertsIntoASecureField() throws {
     let box = Box()
@@ -197,7 +197,7 @@ private let title = "Pass"
 
 // MARK: Graphemes
 
-/// 6 (`SF-A`) — "a👨‍👩‍👧b" is 3 graphemes (and 10 UTF-16 units): 3 bullets, Left moves over the whole family emoji and
+/// 6 (`SCF-A`) — "a👨‍👩‍👧b" is 3 graphemes (and 10 UTF-16 units): 3 bullets, Left moves over the whole family emoji and
 /// Backspace deletes it whole. **Mutation:** `mask` counts `text.utf16.count` (10 bullets).
 @Test @MainActor func theCaretMovesByGraphemeOverBullets() throws {
     let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"
@@ -220,7 +220,7 @@ private let title = "Pass"
 
 // MARK: Input method
 
-/// 7 (`SF-E`) — marked text is ignored: nothing is marked, the bullets do not grow, the binding is untouched, and there
+/// 7 (`SCF-E`) — marked text is ignored: nothing is marked, the bullets do not grow, the binding is untouched, and there
 /// is nothing to commit. **Instrument**: a `TextField` shows it. **Mutation:** delete the `if target.secure { return true }`
 /// line in `Window`'s `.textComposition` case.
 @Test @MainActor func markedTextIsIgnoredInASecureField() throws {
@@ -243,7 +243,7 @@ private let title = "Pass"
     #expect(plain.markedText == "ni", "instrument: a plain field composes")
 }
 
-/// 8 (`SF-D`) — the word key sees one word, so ⌥← (⌃← off a Mac) goes to the start and never to a word boundary.
+/// 8 (`SCF-D`) — the word key sees one word, so ⌥← (⌃← off a Mac) goes to the start and never to a word boundary.
 /// **Mutation:** the word keys read `characters` instead of `wordCharacters`.
 @Test @MainActor func wordMovementNeverRevealsWhereTheWordsAre() throws {
     let box = Box()
@@ -261,7 +261,7 @@ private let title = "Pass"
 
 // MARK: Secure keyboard entry
 
-/// 9 (`SF-B`) — focus enters: one enable; focus moves to another field: one disable; back and the window closes: one
+/// 9 (`SCF-B`) — focus enters: one enable; focus moves to another field: one disable; back and the window closes: one
 /// more enable and one more disable. **Mutation:** delete `runDisappearancesForClose`'s `syncSecureTextInput()` line (the
 /// close leaves the hold on).
 @Test @MainActor func secureInputIsBalancedAcrossFocusBlurAndWindowClose() throws {
@@ -277,8 +277,8 @@ private let title = "Pass"
     #expect(window.platformWindow.secureTextInputRequests == [true, false, true, false])
 }
 
-/// 10 (`SF-B`) — removing the focused field releases the hold. **Mutation:** `syncSecureTextInput` reads the last
-/// frame's target only while it is in the tree (answers the previous value when the target is gone).
+/// 10 (`SCF-B`) — removing the focused field releases the hold. **Mutation:** `syncSecureTextInput` keeps a sent
+/// hold while anything is focused (`wanted = … || (sentSecureTextInput && focusedElement != nil)`).
 @Test @MainActor func removingTheFocusedSecureFieldReleasesSecureInput() throws {
     let box = Box()
     let (window, _) = try secureWindow(box)
@@ -292,9 +292,9 @@ private let title = "Pass"
 
 // MARK: Steady frame
 
-/// 11 (`SF-B`) — a window with no `SecureField` never talks to the secure-input hook and its frame work is what it was
-/// before the field existed: the typing script's summed `elementRequests` is the literal measured on master (`d7b3e9c`'s
-/// parent). **Mutation:** drop `syncSecureTextInput`'s `guard wanted != sentSecureTextInput`: a request per frame.
+/// 11 (`SCF-B`) — a window with no `SecureField` never talks to the secure-input hook and its frame work is what it was
+/// before the field existed: the typing script's summed `elementRequests` is the literal measured on this branch's tip, which
+/// has no secure field in the tree to cost it anything. **Mutation:** drop `syncSecureTextInput`'s `guard wanted != sentSecureTextInput`: a request per frame.
 @Test @MainActor func aWindowWithoutASecureFieldKeepsItsFrameWorkAndSendsNothing() async throws {
     let box = Box()
     let (window, _) = try secureWindow(box, secure: false)

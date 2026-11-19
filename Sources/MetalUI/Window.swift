@@ -716,7 +716,7 @@ public final class Window {
     var sentRawOptionKeys = false
     /// The last `setRawKeypadKeys` hint sent to the platform (`TRM-BM`).
     var sentRawKeypadKeys = false
-    /// The last `setSecureTextInput` request sent to the platform (`SF-B`).
+    /// The last `setSecureTextInput` request sent to the platform (`SCF-B`).
     var sentSecureTextInput = false
 
     /// An action nothing along the focus chain handled.
@@ -2235,7 +2235,7 @@ public final class Window {
         cancelLiveArenas()   // `IF-F` item 5: before any `onDisappear`
         synthesizeTerminalScroll()   // `IF-H`
         endSliderEdit()   // a close counts as the release (`LK-B` item 5)
-        syncSecureTextInput()   // `SF-B`: the closed window releases secure keyboard entry, once
+        syncSecureTextInput()   // `SCF-B`: the closed window releases secure keyboard entry, once
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
         }
@@ -3873,7 +3873,7 @@ public final class Window {
         platformWindow.setTextInputArea(area)
     }
 
-    /// Tells the platform when the focused text field becomes or stops being a `SecureField` (`SF-B`): changes only, so a
+    /// Tells the platform when the focused text field becomes or stops being a `SecureField` (`SCF-B`): changes only, so a
     /// window with no secure field sends nothing. The field's removal clears the focus the frame read back, so it is
     /// seen here as a blur.
     private func syncSecureTextInput() {
@@ -3883,7 +3883,7 @@ public final class Window {
         platformWindow.setSecureTextInput(wanted)
     }
 
-    /// A secure field's text as the word logic sees it (`SF-C`): one word, so a double click, a drag by words and the
+    /// A secure field's text as the word logic sees it (`SCF-C`): one word, so a double click, a drag by words and the
     /// word keys never reveal where the real text's words are.
     private func editingText(_ id: GlobalElementID, _ target: TextInputTarget) -> String {
         let text = currentText(id, target)
@@ -4031,7 +4031,7 @@ public final class Window {
                 StateDispatch.dispatching(to: id) { session.compose(composition) }   // ID-F: the composing code view
                 return true
             }
-            if target.secure { return true }   // `SF-E`: no marked text in a secure field; claimed, kept out of the state
+            if target.secure { return true }   // `SCF-E`: no marked text in a secure field; claimed, kept out of the state
             setEditState(id, TextEditing.compose(composition, state: editState(id)))
             return true
         default:

@@ -221,7 +221,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
 }
 
 /// A secure text field is `AXTextField` with subrole `AXSecureTextField`, and its value is one U+F79A per character, as
-/// `NSSecureTextFieldCell` answers (measured, ruling `SF-F`) — never the text. **Mutation:** the role map drops the
+/// `NSSecureTextFieldCell` answers (measured, ruling `SCF-F`) — never the text. **Mutation:** the role map drops the
 /// subrole, or `value` returns the node's string.
 @Test @MainActor func aSecureTextFieldIsAXTextFieldWithTheSecureSubroleAndAMaskedValue() throws {
     let h = try makeHarness(signal: true)

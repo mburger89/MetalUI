@@ -138,7 +138,7 @@ enum TextEditing {
                     lines: TextLineModel? = nil, mode: KeyMode? = nil, secure: Bool = false) -> KeyOutcome {
         let mode = mode ?? (lines == nil ? .singleLine : .editor)
         let characters = Array(text)
-        // A secure field (`SF-C`, `SF-D`): the word keys see one word, so the caret and a word delete never reveal where
+        // A secure field (`SCF-C`, `SCF-D`): the word keys see one word, so the caret and a word delete never reveal where
         // the text's words begin; copy and cut do nothing.
         let wordCharacters = secure ? Array(repeating: Character("x"), count: characters.count) : characters
         var state = synced(state.clamped(to: characters.count), with: text)
@@ -170,7 +170,7 @@ enum TextEditing {
                 let restored = redo(text: text, state: state)
                 return KeyOutcome(state: restored.state, text: restored.text, handled: true)
             case "c" where secure, "x" where secure:
-                return KeyOutcome(state: state, handled: true)   // `SF-C`: claimed, nothing copied, nothing cut
+                return KeyOutcome(state: state, handled: true)   // `SCF-C`: claimed, nothing copied, nothing cut
             case "c":
                 let selected = String(characters[state.selection])
                 return KeyOutcome(state: state, copied: selected.isEmpty ? nil : selected, handled: true)
@@ -645,7 +645,7 @@ final class TextTargetHooks {
     /// The text input of a view that edits outside MetalUI (`TRM-BC`): a terminal. `Window` routes committed and
     /// marked text to it and never to `TextEditing`.
     let external: ExternalTextInput?
-    /// Whether this is a `SecureField`'s (`SF-A`).
+    /// Whether this is a `SecureField`'s (`SCF-A`).
     let secure: Bool
 
     init(submit: (@MainActor () -> Void)?, sink: (@MainActor (Range<Int>, String) -> AnyHashable)?,
@@ -701,7 +701,7 @@ struct TextInputTarget {
     /// target costs `Handlers` nothing it did not (`SL-M`, `CV-W`: the pin of `handlersGainsOneReferenceMember`).
     private var hooks: TextTargetHooks?
 
-    /// Whether this is a `SecureField`'s (`SF-A`): masked text, no copy or cut, no marked text. In the one hooks box,
+    /// Whether this is a `SecureField`'s (`SCF-A`): masked text, no copy or cut, no marked text. In the one hooks box,
     /// as a new part of a target goes (`Handlers` stays pinned).
     var secure: Bool { hooks?.secure ?? false }
 

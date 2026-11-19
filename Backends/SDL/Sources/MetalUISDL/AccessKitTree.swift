@@ -254,7 +254,7 @@ extension AccessKitSnapshot {
         case .table: .table
         case .row: .row
         case .textField: .textInput
-        case .secureTextField: .passwordInput   // `SF-F`: `ACCESSKIT_ROLE_PASSWORD_INPUT`
+        case .secureTextField: .passwordInput   // `SCF-F`: `ACCESSKIT_ROLE_PASSWORD_INPUT`
         case .textArea: .multilineTextInput
         case .checkBox: .checkBox
         case .radioButton: .radioButton

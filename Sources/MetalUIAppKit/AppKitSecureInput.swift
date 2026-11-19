@@ -4,7 +4,7 @@ import Carbon.HIToolbox
 import MetalUICore
 import MetalUIPlatform
 
-/// macOS's secure keyboard entry for `SecureField` (ruling `SF-B`): Carbon's `EnableSecureEventInput()` while a
+/// macOS's secure keyboard entry for `SecureField` (ruling `SCF-B`): Carbon's `EnableSecureEventInput()` while a
 /// secure field is focused in a key window, `DisableSecureEventInput()` when focus leaves, the window resigns key or
 /// closes, or the field is removed. Carbon counts nested enables itself, so every `acquire()` is matched by exactly one
 /// `release()` and a `release()` with nothing held does nothing — the count is what keeps a double blur or a close after

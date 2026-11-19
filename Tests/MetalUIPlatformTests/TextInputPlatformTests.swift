@@ -175,7 +175,7 @@ private let caret = Bounds(origin: Point(x: Pixels(40), y: Pixels(10)), size: Si
     #expect(read == NSPasteboard.general.string(forType: .string) && read?.hasPrefix("MetalUI TI-A") == true)
 }
 
-// MARK: - SecureField (ruling `SF-B`, record 393)
+// MARK: - SecureField (ruling `SCF-B`, record 393)
 
 @MainActor
 private final class HoldLog {
@@ -227,10 +227,13 @@ private func secureWindow() throws -> (AppKitWindow, MetalHostView, EventLog, Ho
     window.setSecureTextInput(true)
     view.keyDown(with: try keyEvent("a", keyCode: 0, in: window))
     view.keyDown(with: try keyEvent("\u{f702}", keyCode: 123, in: window))
-    #expect(log.described == ["text(a)", "key(f702)"])
+    // ⌥E is a dead key to the input context (marked text); a secure field types its character.
+    view.keyDown(with: try keyEvent("\u{b4}", keyCode: 14, modifiers: [.option], in: window))
+    #expect(log.described == ["text(a)", "key(f702)", "text(\u{b4})"])
+    #expect(!view.hasMarkedText())
     view.setMarkedText(NSAttributedString(string: "にほ"), selectedRange: NSRange(location: 2, length: 0),
                        replacementRange: NSRange(location: NSNotFound, length: 0))
-    #expect(!view.hasMarkedText() && log.events.count == 2, "marked text from the input context is dropped")
+    #expect(!view.hasMarkedText() && log.events.count == 3, "marked text from the input context is dropped")
 
     let copy = NSMenuItem(title: "Copy", action: #selector(MetalHostView.copy(_:)), keyEquivalent: "c")
     let cut = NSMenuItem(title: "Cut", action: #selector(MetalHostView.cut(_:)), keyEquivalent: "x")

@@ -75,6 +75,16 @@ private func sampleTree() -> AccessibilityTree {
     #expect(AccessKitSnapshot.role(.textArea) == .multilineTextInput)
 }
 
+/// `SecureField` (rulings `SCF-F`, `SCF-B`; divergence 1116): the secure role is AccessKit's `PASSWORD_INPUT`, its
+/// bullets stay the node's value, and `setSecureTextInput`, which SDL has no system-wide equivalent for, is the
+/// protocol's default no-op. **Mutation:** map `.secureTextField` to `.textInput`.
+@Test func aSecureFieldIsAPasswordInputToAccessKitAndSDLHasNoSecureEntry() throws {
+    #expect(AccessKitSnapshot.role(.secureTextField) == .passwordInput)
+    #expect(AccessKitSnapshot.role(.textField) == .textInput)
+    #expect(AccessKitAdapter.role(.passwordInput) == UInt8(ACCESSKIT_ROLE_PASSWORD_INPUT.rawValue))
+    #expect(AccessKitAdapter.role(.passwordInput) != AccessKitAdapter.role(.textInput))
+}
+
 /// Plan task 10 part 2, lane 1 (ruling `DD-U` item 1): the five control roles
 /// map to AccessKit's check box, radio button, radio group, slider and spin
 /// button; a check box's and a radio button's `"1"`/`"0"` become the toggled

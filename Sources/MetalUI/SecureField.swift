@@ -2,7 +2,7 @@ import MetalUICore
 import MetalUILayout
 import MetalUITextSystem
 
-/// SwiftUI's `SecureField` (rulings `SF-A`…`SF-H`): a one-line field for text that must not show — a password. It is
+/// SwiftUI's `SecureField` (rulings `SCF-A`…`SCF-H`): a one-line field for text that must not show — a password. It is
 /// ``TextField``'s editor, chrome, binding and focus, with the text replaced by one bullet `•` (U+2022) per grapheme
 /// wherever it would be drawn, measured or published.
 ///

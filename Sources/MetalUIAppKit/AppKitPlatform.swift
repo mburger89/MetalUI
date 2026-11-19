@@ -414,7 +414,7 @@ final class MetalHostView: NSView {
         }
     }
 
-    /// Whether the focused field is a `SecureField` (`SF-B`, `PlatformWindow.setSecureTextInput`): the input context is
+    /// Whether the focused field is a `SecureField` (`SCF-B`, `PlatformWindow.setSecureTextInput`): the input context is
     /// bypassed, so there is no marked text, and the Edit menu's Cut and Copy are disabled.
     var secureInput = false {
         didSet {
@@ -448,7 +448,7 @@ final class MetalHostView: NSView {
         // A key equivalent the window already declined (`MN-J` item 3): AppKit
         // hands the same event here after the main menu passed on it.
         if event === lastOfferedKeyEquivalent { return }
-        // A secure field takes no input method (`SF-B`): the key's characters are its text, a function or control key
+        // A secure field takes no input method (`SCF-B`): the key's characters are its text, a function or control key
         // is a plain key, as in `NSSecureTextField` with an input method refused.
         if secureInput, textInputCaret != nil, !event.modifierFlags.contains(.command) {
             if let typed = Self.secureTypedText(event) {
@@ -533,7 +533,7 @@ extension MetalHostView: @preconcurrency NSTextInputClient {
     }
 
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
-        if secureInput { return }   // `SF-B`: no marked text in a secure field
+        if secureInput { return }   // `SCF-B`: no marked text in a secure field
         let text = Self.plain(string)
         markedText = text
         _ = onInput?(.textComposition(TextComposition(
@@ -1100,7 +1100,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     func setRawKeypadKeys(_ raw: Bool) { hostView.rawKeypadKeys = raw }
 
-    // MARK: Secure text input (ruling `SF-B`)
+    // MARK: Secure text input (ruling `SCF-B`)
 
     /// The counter this window takes its hold from; a test replaces it with a recording one.
     var secureEventInput: SecureEventInput = .shared
@@ -1527,7 +1527,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         secureWindowIsClosed = true
-        refreshSecureEventInput()   // `SF-B`: a close releases the hold, once
+        refreshSecureEventInput()   // `SCF-B`: a close releases the hold, once
         hostView.forgetHeldPress()
         displayLink?.invalidate()
         displayLink = nil

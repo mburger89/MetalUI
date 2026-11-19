@@ -101,6 +101,8 @@ public final class DemoModel {
     public var fieldText = ""
     /// The text-input demo's second field.
     public var secondFieldText = ""
+    /// The text input demo's `SecureField` (`SCF-A`).
+    public var passwordText = ""
     /// The text-input demo's multi-line editor (ruling TI-H).
     public var editorText = ""
 }
@@ -1230,7 +1232,7 @@ public func nativeLayoutPreviewContent() -> some Element {
 }
 
 /// The text-input demo (roadmap item 14, `METALUI_TEXT_INPUT_DEMO=1`): two
-/// fields and a line echoing the first. A separate root, not a panel of
+/// fields and a line echoing the first, a `SecureField`. A separate root, not a panel of
 /// `demoContent()`, whose every rect the lowering corpus and the cross-platform
 /// frame pin. Typing here is the human look TI-F owes: an input method's
 /// marked text and candidate window, dead keys, a drag, a double click, ⌘C/⌘V
@@ -1247,6 +1249,10 @@ public func textInputDemoContent() -> some Element {
                   text: demoModel.secondFieldText) { demoModel.secondFieldText = $0 }
             .background(.surfaceSecondary)
         Text(demoModel.fieldText.isEmpty ? "(the first field echoes here)" : demoModel.fieldText)
+        // A secure field (`SCF-A`): bullets, no copy or cut, no marked text; the line below echoes only the count.
+        SecureField("Password", text: Binding(get: { demoModel.passwordText }, set: { demoModel.passwordText = $0 }))
+            .background(.surfaceSecondary)
+        Text("Password: \(demoModel.passwordText.count) characters")
         // Multi-line (TI-H): return breaks a line, up and down keep the
         // column, the wheel scrolls it.
         TextEditor("A multi-line editor: return, up and down, the wheel",

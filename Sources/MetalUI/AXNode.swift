@@ -15,7 +15,7 @@ public enum AXRole: Equatable, Sendable {
     case container
     /// An editable line of text — `TextField` (ruling TI-C).
     case textField
-    /// An editable line of masked text — `SecureField` (ruling `SF-F`).
+    /// An editable line of masked text — `SecureField` (ruling `SCF-F`).
     case secureTextField
     /// Editable multi-line text — `TextEditor` (ruling TI-H).
     case textArea

@@ -216,7 +216,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     public private(set) var rawOptionKeyRequests: [Bool] = []
     /// Every `setRawKeypadKeys` argument, in order (`TRM-BM`).
     public private(set) var rawKeypadKeyRequests: [Bool] = []
-    /// Every `setSecureTextInput` argument, in order (`SF-B`): `[true, false]` is one enable and one disable.
+    /// Every `setSecureTextInput` argument, in order (`SCF-B`): `[true, false]` is one enable and one disable.
     public private(set) var secureTextInputRequests: [Bool] = []
     /// Every `setContentSizeLimits` call, in order.
     public private(set) var contentSizeLimits: [(minimum: Size<Pixels>?, maximum: Size<Pixels>?)] = []
@@ -342,7 +342,7 @@ public final class HeadlessPlatformWindow: PlatformWindow {
     /// Records the hint in ``rawOptionKeyRequests`` (`TRM-X`).
     public func setRawOptionKeys(_ raw: Bool) { rawOptionKeyRequests.append(raw) }
 
-    /// Records the request in ``secureTextInputRequests`` (`SF-B`).
+    /// Records the request in ``secureTextInputRequests`` (`SCF-B`).
     public func setSecureTextInput(_ secure: Bool) { secureTextInputRequests.append(secure) }
 
     /// Records the hint in ``rawKeypadKeyRequests`` (`TRM-BM`).

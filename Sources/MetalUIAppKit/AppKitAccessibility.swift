@@ -504,7 +504,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     private var subrole: NSAccessibility.Subrole? {
         switch node.role {
         case .row: .outlineRow
-        case .secureTextField: .secureTextField   // `SF-F`
+        case .secureTextField: .secureTextField   // `SCF-F`
         case .alert: .dialog
         default: nil
         }
@@ -598,7 +598,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
             if let number = Double(string) { return NSNumber(value: number) }
             return string
         case .secureTextField:
-            // `NSSecureTextFieldCell`'s `AXValue` is one U+F79A per character (measured, `SF-F`), never the text; the
+            // `NSSecureTextFieldCell`'s `AXValue` is one U+F79A per character (measured, `SCF-F`), never the text; the
             // neutral value is one bullet per grapheme, so its count is what is kept.
             return String(repeating: "\u{F79A}", count: string.count)
         default:
