@@ -65,6 +65,12 @@ package struct BuildWork: Sendable, Equatable {
     package var codeHighlightRunsVisited = 0
     package var codeFindMatchesVisited = 0
     package var codeSelectionsVisited = 0
+    /// What the build's tables realised and read (`TBL-M`).
+    package var tableRowsRealized = 0
+    package var tableCellsRealized = 0
+    package var tableColumnsResolved = 0
+    package var tableDataReads = 0
+    package var tableColdFrames = 0
 }
 
 extension Window {
@@ -122,7 +128,12 @@ extension Window {
                                codeGlyphsEmitted: frame.codeWork.glyphsEmitted,
                                codeHighlightRunsVisited: frame.codeWork.highlightRunsVisited,
                                codeFindMatchesVisited: frame.codeWork.findMatchesVisited,
-                               codeSelectionsVisited: frame.codeWork.selectionsVisited))
+                               codeSelectionsVisited: frame.codeWork.selectionsVisited,
+                               tableRowsRealized: frame.tableWork.rowsRealized,
+                               tableCellsRealized: frame.tableWork.cellsRealized,
+                               tableColumnsResolved: frame.tableWork.columnsResolved,
+                               tableDataReads: frame.tableWork.dataReads,
+                               tableColdFrames: frame.tableWork.coldFrames))
         }
     }
 }

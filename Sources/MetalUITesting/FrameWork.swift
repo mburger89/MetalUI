@@ -135,6 +135,16 @@ public struct FrameWork: Sendable, Equatable {
     /// Selections the `CodeView`s' paint looked at: those touching the shown rows and a binary search's probes, so a
     /// view of 10 000 selections visits the handful in the viewport (`CV-BG`).
     public var codeSelectionsVisited: Int
+    /// Rows the `Table`s realised: the window, never the data's count (`TBL-M`).
+    public var tableRowsRealized: Int
+    /// Body cells the `Table`s realised, frozen ones included and header cells excluded (`TBL-M`).
+    public var tableCellsRealized: Int
+    /// Column specs the `Table`s resolved: one per column per build (`TBL-M`).
+    public var tableColumnsResolved: Int
+    /// Calls the `Table`s made to `data[i]`: one per realised row per build (`TBL-M`).
+    public var tableDataReads: Int
+    /// Builds in which a `Table` planned cold, its viewport not yet known (`TBL-M`).
+    public var tableColdFrames: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -173,7 +183,9 @@ public struct FrameWork: Sendable, Equatable {
                 outlineContentChecks: Int = 0,
                 codeLinesShaped: Int = 0, codeLinesPainted: Int = 0, codeGlyphsEmitted: Int = 0,
                 codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0, surfaceOnlyFrames: Int = 0,
-                codeSelectionsVisited: Int = 0) {
+                codeSelectionsVisited: Int = 0,
+                tableRowsRealized: Int = 0, tableCellsRealized: Int = 0, tableColumnsResolved: Int = 0,
+                tableDataReads: Int = 0, tableColdFrames: Int = 0) {
         self.surfaceOnlyFrames = surfaceOnlyFrames
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
@@ -233,6 +245,11 @@ public struct FrameWork: Sendable, Equatable {
         self.codeHighlightRunsVisited = codeHighlightRunsVisited
         self.codeFindMatchesVisited = codeFindMatchesVisited
         self.codeSelectionsVisited = codeSelectionsVisited
+        self.tableRowsRealized = tableRowsRealized
+        self.tableCellsRealized = tableCellsRealized
+        self.tableColumnsResolved = tableColumnsResolved
+        self.tableDataReads = tableDataReads
+        self.tableColdFrames = tableColdFrames
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -293,6 +310,11 @@ public struct FrameWork: Sendable, Equatable {
                   codeHighlightRunsVisited: l.codeHighlightRunsVisited + r.codeHighlightRunsVisited,
                   codeFindMatchesVisited: l.codeFindMatchesVisited + r.codeFindMatchesVisited,
                   surfaceOnlyFrames: l.surfaceOnlyFrames + r.surfaceOnlyFrames,
-                  codeSelectionsVisited: l.codeSelectionsVisited + r.codeSelectionsVisited)
+                  codeSelectionsVisited: l.codeSelectionsVisited + r.codeSelectionsVisited,
+                  tableRowsRealized: l.tableRowsRealized + r.tableRowsRealized,
+                  tableCellsRealized: l.tableCellsRealized + r.tableCellsRealized,
+                  tableColumnsResolved: l.tableColumnsResolved + r.tableColumnsResolved,
+                  tableDataReads: l.tableDataReads + r.tableDataReads,
+                  tableColdFrames: l.tableColdFrames + r.tableColdFrames)
     }
 }

@@ -35,6 +35,20 @@ struct CodeWork: Equatable {
     var selectionsVisited = 0
 }
 
+/// What a build's tables did (`TBL-M`): counted per build, never timed. All 0 in a window with no table.
+struct TableWork: Equatable {
+    /// Rows realised.
+    var rowsRealized = 0
+    /// Body cells realised, frozen ones included, header cells excluded.
+    var cellsRealized = 0
+    /// Column specs resolved (one per column per build).
+    var columnsResolved = 0
+    /// Calls the table made to `data[i]`.
+    var dataReads = 0
+    /// Builds that planned cold (the viewport not yet known).
+    var coldFrames = 0
+}
+
 struct LazyWork: Equatable {
     /// Units realised.
     var unitsRealized = 0

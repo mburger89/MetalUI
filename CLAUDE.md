@@ -68,6 +68,6 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor100kPathsAsFor500
 ```
 
-- **Counts (2026-11-18, `feat/terminal-a11y-demo` merged with master 7b1a2253, record 379): root 6996 tests in 75 suites, full run green (`--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 226 live, next label 243. Earlier counts: record §67 and its appendix.**
+- **Counts (2026-11-19, `feat/table-a`, record 388): root 7057 tests in 79 suites, full run green once `everyFrameChannelIsClassified` classified `tableWork` (`--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 226 live, next label 243. Earlier counts: record §67 and its appendix.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.

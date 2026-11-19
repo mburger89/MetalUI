@@ -465,13 +465,8 @@ where Data.Element: Identifiable {
     /// so a list scrolled past never windows to nothing.
     static func window(count: Int, rowExtent: Double, offset: Double, viewport: Double,
                        origin: Double) -> Range<Int> {
-        let extent = rowExtent * Double(count)
-        let top = min(max(0, offset - origin), max(0, extent - viewport))
-        let rawFirst = Int((top / rowExtent).rounded(.down)) - Self.overscan
-        let rawLast = Int(((top + viewport) / rowExtent).rounded(.up)) + Self.overscan
-        let first = min(max(0, rawFirst), count)
-        let last = min(max(first, rawLast), count)
-        return first..<last
+        UniformWindow.lines(count: count, extent: rowExtent, offset: offset, viewport: viewport,
+                            origin: origin, overscan: Self.overscan)
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
