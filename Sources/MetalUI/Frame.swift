@@ -164,6 +164,8 @@ public final class Frame {
 
     /// What this frame's lazy containers realised (`LZ-I`, a work counter, never time).
     var lazyWork = LazyWork()
+    /// What this build's tables realised and read (`TBL-M`, a work counter, never time).
+    var tableWork = TableWork()
     /// What this build's `CodeView`s shaped, painted and emitted (`CV-Q`).
     var codeWork = CodeWork()
 
