@@ -67,6 +67,16 @@ public struct TextField: Element, StyledElement {
     /// The field's own `lineLimit`, which wins over the environment's (`VT-C`); `nil` reads the environment.
     var ownLineLimit: TextLineLimit?
 
+    /// Whether this field is a `SecureField`'s (`SF-A`): it draws, measures and publishes one bullet per grapheme and
+    /// never lets the text reach the text system or the accessibility tree. Only `SecureField` sets it.
+    var isSecure = false
+
+    /// What the field shows of `text`: the text itself, or one `•` (U+2022) per grapheme when secure (`SF-A`).
+    var shownText: String { isSecure ? Self.mask(text) : text }
+
+    /// One `•` per grapheme of `text`: what a secure field draws, measures and reports as its accessible value.
+    static func mask(_ text: String) -> String { String(repeating: "\u{2022}", count: text.count) }
+
     /// The explicit font's family; computed over the request (TE-F item 2).
     public var fontFamily: String? {
         get { fontRequest.familyAndSize.family }
@@ -359,7 +369,7 @@ public struct TextField: Element, StyledElement {
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         let system = pass.textSystem
         let key = resolvedFont(in: pass.environment, system: system)
-        let text = self.text, placeholder = self.placeholder
+        let text = shownText, placeholder = self.placeholder   // masked when secure (`SF-A`)
         let insets = chromeInsets(in: pass.environment)
         // Greedy on the width, as SwiftUI's `TextField` is; one line tall plus
         // the chrome's vertical insets (`MD-D`). Any offered width is taken
@@ -417,13 +427,14 @@ public struct TextField: Element, StyledElement {
         let state = state.clamped(to: text.count)
         let characters = Array(text)
         let lineHeight = Self.lineHeight(font: font, system: system)
-        let textOffsets = system.caretOffsets(text, font: font)
-        var display = text
+        let shown = shownText   // one bullet per grapheme when secure: the offsets map 1:1 (`SF-A`)
+        let textOffsets = system.caretOffsets(shown, font: font)
+        var display = shown
         var offsets = textOffsets
         var caretIndex = state.head
         var selection = state.selection
         var composition: Range<Int>?
-        if !state.composition.text.isEmpty {
+        if !isSecure && !state.composition.text.isEmpty {   // a secure field has no marked text (`SF-E`)
             let marked = Array(state.composition.text)
             let start = state.selection.lowerBound
             display = String(characters[..<start]) + String(marked) + String(characters[state.selection.upperBound...])
@@ -495,10 +506,11 @@ public struct TextField: Element, StyledElement {
                            size: Size(width: Pixels(1), height: Pixels(Float(geometry.lineHeight)))),
                 ownEffects: decoration.renderEffects, bounds: bounds),
             onChange: onChange, onSubmit: submit,
-            selectionSink: selectionWriter)
+            selectionSink: selectionWriter, secure: isSecure)
         // `DA-C`: fills what was not declared, so an identifier or hint written on the field
-        // does not cost it its role and text.
-        handlers.axNode.fillControl(role: .textField, label: placeholder.isEmpty ? nil : placeholder, value: text)
+        // does not cost it its role and text. A secure field publishes bullets, never its text (`SF-F`).
+        handlers.axNode.fillControl(role: isSecure ? .secureTextField : .textField,
+                                    label: placeholder.isEmpty ? nil : placeholder, value: shownText)
         pass.registerAndScope(handlers, decoration, at: bounds, for: id) { }
     }
 

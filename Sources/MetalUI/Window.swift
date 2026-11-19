@@ -716,6 +716,8 @@ public final class Window {
     var sentRawOptionKeys = false
     /// The last `setRawKeypadKeys` hint sent to the platform (`TRM-BM`).
     var sentRawKeypadKeys = false
+    /// The last `setSecureTextInput` request sent to the platform (`SF-B`).
+    var sentSecureTextInput = false
 
     /// An action nothing along the focus chain handled.
     ///
@@ -2233,6 +2235,7 @@ public final class Window {
         cancelLiveArenas()   // `IF-F` item 5: before any `onDisappear`
         synthesizeTerminalScroll()   // `IF-H`
         endSliderEdit()   // a close counts as the release (`LK-B` item 5)
+        syncSecureTextInput()   // `SF-B`: the closed window releases secure keyboard entry, once
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
         }
@@ -3860,6 +3863,7 @@ public final class Window {
     /// After each frame: text input is on exactly while a field is focused,
     /// with that field's caret as the input method's area.
     func updateTextInputArea() {
+        syncSecureTextInput()
         let area = focusedElement.flatMap { id -> Bounds<Pixels>? in
             guard let target = lastFocusRegistry.textTarget(for: id) else { return nil }
             return target.external.map { $0.caret() ?? target.caretRect } ?? target.caretRect   // a terminal's moves with its output (`TRM-BC`)
@@ -3867,6 +3871,23 @@ public final class Window {
         guard area != lastTextInputArea else { return }
         lastTextInputArea = area
         platformWindow.setTextInputArea(area)
+    }
+
+    /// Tells the platform when the focused text field becomes or stops being a `SecureField` (`SF-B`): changes only, so a
+    /// window with no secure field sends nothing. The field's removal clears the focus the frame read back, so it is
+    /// seen here as a blur.
+    private func syncSecureTextInput() {
+        let wanted = !shell.isClosed && focusedElement.flatMap { lastFocusRegistry.textTarget(for: $0)?.secure } == true
+        guard wanted != sentSecureTextInput else { return }
+        sentSecureTextInput = wanted
+        platformWindow.setSecureTextInput(wanted)
+    }
+
+    /// A secure field's text as the word logic sees it (`SF-C`): one word, so a double click, a drag by words and the
+    /// word keys never reveal where the real text's words are.
+    private func editingText(_ id: GlobalElementID, _ target: TextInputTarget) -> String {
+        let text = currentText(id, target)
+        return target.secure ? String(repeating: "x", count: text.count) : text
     }
 
     func editState(_ id: GlobalElementID) -> TextEditState {
@@ -3962,7 +3983,7 @@ public final class Window {
                                                                    y: Double(local.y.value)),
                                               clickCount: mouse.clickCount,
                                               extend: mouse.modifiers.contains(.shift),
-                                              text: currentText(id, target), state: editState(id)))
+                                              text: editingText(id, target), state: editState(id)))
             return true
         case .mouseDragged(let mouse):
             guard let id = active, let region = lastHitboxes.first(where: { $0.id == id }),
@@ -3974,7 +3995,7 @@ public final class Window {
             }
             setEditState(id, TextEditing.drag(to: target.boundary(atWindowX: Double(local.x.value),
                                                                   y: Double(local.y.value)),
-                                             text: currentText(id, target), state: editState(id)))
+                                             text: editingText(id, target), state: editState(id)))
             return true
         case .mouseUp:
             // The release ends a code view's drag and its autoscroll (`CV-AD`); it claims nothing.
@@ -4010,6 +4031,7 @@ public final class Window {
                 StateDispatch.dispatching(to: id) { session.compose(composition) }   // ID-F: the composing code view
                 return true
             }
+            if target.secure { return true }   // `SF-E`: no marked text in a secure field; claimed, kept out of the state
             setEditState(id, TextEditing.compose(composition, state: editState(id)))
             return true
         default:
@@ -4114,7 +4136,8 @@ public final class Window {
         let outcome = TextEditing.key(key, text: currentText(id, target), state: editState(id),
                                       clipboard: { [platformWindow] in platformWindow.readClipboard() },
                                       lines: target.lines,
-                                      mode: target.lines == nil ? .singleLine : target.verticalField ? .verticalField : .editor)
+                                      mode: target.lines == nil ? .singleLine : target.verticalField ? .verticalField : .editor,
+                                      secure: target.secure)
         guard outcome.handled else { return false }
         setEditState(id, outcome.state)
         if let copied = outcome.copied { platformWindow.writeClipboard(copied) }

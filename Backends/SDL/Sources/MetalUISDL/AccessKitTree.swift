@@ -10,7 +10,7 @@ import MetalUIPlatform
 /// `accesskit_tree_update`, on whatever thread AccessKit asks from.
 public struct AccessKitSnapshot: Equatable, Sendable {
     public enum Role: Equatable, Sendable {
-        case window, genericContainer, button, label, image, table, row, textInput, multilineTextInput
+        case window, genericContainer, button, label, image, table, row, textInput, passwordInput, multilineTextInput
         /// The five control roles (ruling `DD-U` item 1).
         case checkBox, radioButton, radioGroup, slider, spinButton
         /// `.heading` and `.link` (plan task 12 part 2, `IX-AD`).
@@ -254,6 +254,7 @@ extension AccessKitSnapshot {
         case .table: .table
         case .row: .row
         case .textField: .textInput
+        case .secureTextField: .passwordInput   // `SF-F`: `ACCESSKIT_ROLE_PASSWORD_INPUT`
         case .textArea: .multilineTextInput
         case .checkBox: .checkBox
         case .radioButton: .radioButton

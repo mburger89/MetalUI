@@ -174,3 +174,69 @@ private let caret = Bounds(origin: Point(x: Pixels(40), y: Pixels(10)), size: Si
     let read = window.readClipboard()
     #expect(read == NSPasteboard.general.string(forType: .string) && read?.hasPrefix("MetalUI TI-A") == true)
 }
+
+// MARK: - SecureField (ruling `SF-B`, record 393)
+
+@MainActor
+private final class HoldLog {
+    var calls: [String] = []
+}
+
+@MainActor
+private func secureWindow() throws -> (AppKitWindow, MetalHostView, EventLog, HoldLog) {
+    let (window, view, log) = try hostWindow()
+    let holds = HoldLog()
+    window.secureEventInput = SecureEventInput(enable: { holds.calls.append("on") },
+                                               disable: { holds.calls.append("off") })
+    return (window, view, log, holds)
+}
+
+/// Secure keyboard entry is held exactly while a secure field is focused in a key window: focus is one enable, a repeat
+/// is none, resigning key releases and becoming key takes it again, blur releases, and a close releases once — a second
+/// close or blur releases nothing more. **Mutation:** `windowWillClose` skips `refreshSecureEventInput()` (the close
+/// leaves the hold on).
+@MainActor
+@Test func secureEventInputIsBalancedAcrossFocusKeyWindowAndClose() throws {
+    let (window, _, _, holds) = try secureWindow()
+    window.setSecureTextInput(true)
+    window.setSecureTextInput(true)
+    #expect(holds.calls == ["on"], "a repeated request is one hold")
+    window.windowDidResignKey(Notification(name: NSWindow.didResignKeyNotification))
+    #expect(holds.calls == ["on", "off"])
+    window.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+    #expect(holds.calls == ["on", "off", "on"])
+    window.setSecureTextInput(false)
+    window.setSecureTextInput(false)
+    #expect(holds.calls == ["on", "off", "on", "off"])
+    window.setSecureTextInput(true)
+    window.close()
+    #expect(holds.calls == ["on", "off", "on", "off", "on", "off"], "the close released the hold")
+    #expect(window.secureEventInput.held == 0)
+    window.setSecureTextInput(false)
+    #expect(holds.calls.count == 6, "nothing is released twice")
+}
+
+/// A secure field takes no input method: a printable key is committed text with no input context, a function key is a
+/// key, marked text from the input context is dropped, and the Edit menu's Cut and Copy are off while Paste stays on.
+/// **Mutation:** delete the `if secureInput, textInputCaret != nil …` branch of `keyDown(with:)` (the key goes through
+/// the input context).
+@MainActor
+@Test func aSecureFieldBypassesTheInputMethodAndDisablesCutAndCopy() throws {
+    let (window, view, log, _) = try secureWindow()
+    window.setTextInputArea(caret)
+    window.setSecureTextInput(true)
+    view.keyDown(with: try keyEvent("a", keyCode: 0, in: window))
+    view.keyDown(with: try keyEvent("\u{f702}", keyCode: 123, in: window))
+    #expect(log.described == ["text(a)", "key(f702)"])
+    view.setMarkedText(NSAttributedString(string: "にほ"), selectedRange: NSRange(location: 2, length: 0),
+                       replacementRange: NSRange(location: NSNotFound, length: 0))
+    #expect(!view.hasMarkedText() && log.events.count == 2, "marked text from the input context is dropped")
+
+    let copy = NSMenuItem(title: "Copy", action: #selector(MetalHostView.copy(_:)), keyEquivalent: "c")
+    let cut = NSMenuItem(title: "Cut", action: #selector(MetalHostView.cut(_:)), keyEquivalent: "x")
+    let paste = NSMenuItem(title: "Paste", action: #selector(MetalHostView.paste(_:)), keyEquivalent: "v")
+    #expect(!view.validateMenuItem(copy) && !view.validateMenuItem(cut))
+    #expect(view.validateMenuItem(paste))
+    window.setSecureTextInput(false)
+    #expect(view.validateMenuItem(copy) && view.validateMenuItem(cut), "a plain field copies and cuts")
+}
