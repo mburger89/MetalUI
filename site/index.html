@@ -55,10 +55,10 @@
     </div>
 
     <div class="panel panel-macos">
-      <div class="codebox"><pre data-copy><code>git clone https://github.com/mburger89/MetalUI.git
-swift run --package-path MetalUI metalui new MyApp
+      <div class="codebox"><pre data-copy><code>brew install mburger89/metalui/metalui
+metalui new MyApp
 cd MyApp &amp;&amp; swift run MyApp</code></pre></div>
-      <p class="small">Checked from a fresh clone on macOS 27.2 (Apple Silicon) with Swift 6.4.2: the window opens and the generated test passes.</p>
+      <p class="small">Checked with the Homebrew tap on macOS 27.2 (Apple Silicon) with Swift 6.4.2: <code>metalui</code> 0.1.0 installs, the window opens and the generated test passes. The app depends on MetalUI 0.1.x. The formula builds from source, so Xcode 27 is required. Without Homebrew, run the tool from a clone: <code>git clone https://github.com/mburger89/MetalUI.git</code>, then <code>swift run --package-path MetalUI metalui new MyApp</code>.</p>
     </div>
 
     <div class="panel panel-linux">
