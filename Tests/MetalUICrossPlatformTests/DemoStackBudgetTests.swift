@@ -50,6 +50,7 @@ private func buildEveryProductionTree() {
     buildTheMarkdownDemo()         // the block Markdown transcript (BM-, record 235)
     buildTheTabStripDemo()         // the tab strip (TBS-, record 238)
     buildTheOutlineDemo()          // the outline performance demo (OG-O, record 318)
+    buildTheTableDemo()            // the table demo (TBL-V, record 389)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
     buildTheGroupFilterStrip()     // a filter over a group (GF-)
@@ -150,6 +151,12 @@ private func buildTheTabStripDemo() {
 @MainActor @inline(never)
 private func buildTheOutlineDemo() {
     _ = outlineDemoContent()
+}
+
+/// The table demo's tree (`TBL-V`, record 389): a `Table` over a synthetic source, no model to build.
+@MainActor @inline(never)
+private func buildTheTableDemo() {
+    _ = tableDemoContent()
 }
 
 /// The Liquid Glass demo's tree and its container component, in its own frame.

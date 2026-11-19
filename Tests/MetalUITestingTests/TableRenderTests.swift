@@ -296,3 +296,21 @@ private struct CountingCell: Component {
     try await scrollTable(w, x: steadyOffsets.x, y: steadyOffsets.y)
     #expect(w.window.stateTable.count == atOrigin, "origin \(atOrigin), scrolled \(w.window.stateTable.count)")
 }
+
+/// A cell taller than its row is clipped to it (divergence 1105; `TBL-K`): a 100-point swatch in a 24-point row paints inside the row's
+/// band, and a swatch that fits is not clipped at all (so a caller's `.equatable()` content can replay translated). Mutation: never
+/// clip (the overflow test always false), so the swatch's mask is the viewport's.
+@Test @MainActor func aCellTallerThanItsRowIsClippedToIt() async throws {
+    let w = try harnessWindow(size: sz(800, 600)) {
+        Table(CountingRows(3)) {
+            TableColumn("A") { _ in Color.red.frame(width: Pixels(50), height: Pixels(100)) }.width(Pixels(100))
+            TableColumn("B") { _ in Color.blue.frame(width: Pixels(50), height: Pixels(10)) }.width(Pixels(100))
+        }
+    }
+    try await settle(w)
+    let tall = w.scene.rects.filter { $0.bounds.size.width == 50 && $0.bounds.size.height == 100 }
+    #expect(tall.count == 3, "swatches \(tall.count)")
+    #expect(tall.allSatisfy { $0.contentMask.size.height <= 24 }, "masks \(tall.map(\.contentMask.size.height))")
+    let short = w.scene.rects.filter { $0.bounds.size.width == 50 && $0.bounds.size.height == 10 }
+    #expect(short.count == 3 && short.allSatisfy { $0.contentMask.size.height > 24 }, "a swatch that fits is not clipped")
+}
