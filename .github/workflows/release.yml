@@ -1,28 +1,54 @@
-# Release of the `metalui` CLI (ruling SC-J, record 385): a pushed tag `vX.Y.Z`
-# builds the CLI, checks it, and publishes a GitHub release with a macOS arm64
-# tarball and its sha256. The Homebrew tap formula then points at the release's
-# source archive (docs/packaging.md, "Releasing").
+# Release of the `metalui` CLI (rulings SC-J, record 385): a pushed tag `vX.Y.Z`
+# builds the CLI for macOS arm64, Linux x86_64 and aarch64, and Windows x64,
+# checks each binary runs without a Swift toolchain, and publishes one GitHub
+# release with a package and a `.sha256` per platform (docs/packaging.md,
+# "Releasing"). Package managers consume those assets (a Scoop bucket on
+# Windows, the Homebrew tap on Linux).
+#
+#   push tag v*          build every platform, then publish.
+#   workflow_dispatch    build and publish an existing tag (`tag` input), e.g. to
+#                        add the new platforms to a release made before them.
+#   pull_request         build and smoke-test only (paths below), no publish.
+#
+# Every `.sha256` has the macOS format: "<hash>  <file name>".
 name: Release
 
 on:
   push:
     tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag (vX.Y.Z) to build and publish; created releases are updated with --clobber"
+        type: string
+        required: true
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - Sources/MetalUIScaffold/**
+      - Sources/MetalUICLI/**
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  # The tag this run releases: the dispatch input, else the pushed tag. Empty on a pull request.
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || (github.event_name == 'push' && github.ref_name || '') }}
 
 jobs:
-  release:
+  macos-arm64:
     runs-on: xcode-27  # Swift 6.4 (Xcode 27, preview image), as swift.yml
     steps:
     - uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}
 
     - name: The tag is v + metaluiVersion
       run: |
         version=$(sed -n 's/^package let metaluiVersion = "\(.*\)"$/\1/p' Sources/MetalUIScaffold/Version.swift)
         if [ -z "$version" ]; then echo "no metaluiVersion in Version.swift"; exit 1; fi
-        if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-          echo "tag $GITHUB_REF_NAME does not match metaluiVersion $version (expected v$version)"
+        if [ -n "$RELEASE_TAG" ] && [ "$RELEASE_TAG" != "v$version" ]; then
+          echo "tag $RELEASE_TAG does not match metaluiVersion $version (expected v$version)"
           exit 1
         fi
         echo "VERSION=$version" >> "$GITHUB_ENV"
@@ -43,14 +69,228 @@ jobs:
       run: |
         archive="metalui-$VERSION-macos-arm64.tar.gz"
         mkdir dist
-        cp .build/release/metalui dist/metalui
-        tar -C dist -czf "$archive" metalui
+        cp .build/release/metalui LICENSE README.md dist/
+        tar -C dist -czf "$archive" metalui LICENSE README.md
         shasum -a 256 "$archive" > "$archive.sha256"
         cat "$archive.sha256"
+        ls -l "$archive"
 
-    - name: Create the release
+    - uses: actions/upload-artifact@v4
+      with:
+        name: metalui-macos-arm64
+        path: |
+          metalui-*.tar.gz
+          metalui-*.tar.gz.sha256
+        if-no-files-found: error
+
+  linux:
+    name: linux-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: swift:6.4-noble  # as swift.yml (a multi-arch image)
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}
+
+    - name: The tag is v + metaluiVersion
+      run: |
+        version=$(sed -n 's/^package let metaluiVersion = "\(.*\)"$/\1/p' Sources/MetalUIScaffold/Version.swift)
+        if [ -z "$version" ]; then echo "no metaluiVersion in Version.swift"; exit 1; fi
+        if [ -n "$RELEASE_TAG" ] && [ "$RELEASE_TAG" != "v$version" ]; then
+          echo "tag $RELEASE_TAG does not match metaluiVersion $version (expected v$version)"
+          exit 1
+        fi
+        echo "VERSION=$version" >> "$GITHUB_ENV"
+
+    - name: Build (Swift runtime linked statically)
+      run: swift build -c release --product metalui --static-swift-stdlib
+
+    - name: Smoke test
+      run: |
+        out=$(.build/release/metalui --version)
+        echo "$out"
+        [ "$out" = "metalui $VERSION" ]
+        scratch=$(mktemp -d)
+        (cd "$scratch" && "$GITHUB_WORKSPACE/.build/release/metalui" new Smoke)
+        grep -n "MetalUI.git" "$scratch/Smoke/Package.swift"
+
+    - name: The binary links no Swift library
+      run: |
+        ldd .build/release/metalui
+        if ldd .build/release/metalui | grep -E 'libswift|libFoundation|lib_FoundationICU'; then
+          echo "the binary needs the Swift runtime"
+          exit 1
+        fi
+
+    - name: Package
+      run: |
+        archive="metalui-$VERSION-linux-${{ matrix.arch }}.tar.gz"
+        mkdir dist
+        cp .build/release/metalui LICENSE README.md dist/
+        tar -C dist -czf "$archive" metalui LICENSE README.md
+        sha256sum "$archive" > "$archive.sha256"
+        cat "$archive.sha256"
+        ls -l "$archive"
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: metalui-linux-${{ matrix.arch }}
+        path: |
+          metalui-*.tar.gz
+          metalui-*.tar.gz.sha256
+        if-no-files-found: error
+
+  # The proof that a Linux package needs no Swift: a plain Ubuntu, no toolchain.
+  linux-plain:
+    name: linux-${{ matrix.arch }} runs without Swift
+    needs: linux
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: ubuntu:24.04
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: metalui-linux-${{ matrix.arch }}
+    - name: Run the packaged binary
+      run: |
+        if command -v swift; then echo "swift is installed"; exit 1; fi
+        mkdir x && tar -C x -xzf metalui-*.tar.gz
+        ls -l x
+        out=$(x/metalui --version)
+        echo "$out"
+        case "$out" in "metalui "*) ;; *) exit 1;; esac
+        (cd "$(mktemp -d)" && "$OLDPWD/x/metalui" new Smoke && ls Smoke)
+
+  windows-x64:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}
+    # The installer intermittently leaves `swift` off PATH (the action's
+    # version check fails before any build); one retry after a pause.
+    - id: setup-swift
+      uses: compnerd/gha-setup-swift@v0.5.0
+      continue-on-error: true
+      with:
+        swift-version: swift-6.4.0-release
+        swift-build: 6.4.0-RELEASE
+    - name: Pause before retrying Swift setup
+      if: steps.setup-swift.outcome == 'failure'
+      shell: pwsh
+      run: Start-Sleep -Seconds 30
+    - name: Retry Swift setup
+      if: steps.setup-swift.outcome == 'failure'
+      uses: compnerd/gha-setup-swift@v0.5.0
+      with:
+        swift-version: swift-6.4.0-release
+        swift-build: 6.4.0-RELEASE
+
+    - name: The tag is v + metaluiVersion
+      shell: bash
+      run: |
+        version=$(sed -n 's/^package let metaluiVersion = "\(.*\)"$/\1/p' Sources/MetalUIScaffold/Version.swift)
+        if [ -z "$version" ]; then echo "no metaluiVersion in Version.swift"; exit 1; fi
+        if [ -n "$RELEASE_TAG" ] && [ "$RELEASE_TAG" != "v$version" ]; then
+          echo "tag $RELEASE_TAG does not match metaluiVersion $version (expected v$version)"
+          exit 1
+        fi
+        echo "VERSION=$version" >> "$GITHUB_ENV"
+
+    - name: Build (Swift runtime linked statically)
+      run: |
+        swift build -c release --product metalui -Xswiftc -static-stdlib
+        exit $LASTEXITCODE
+
+    - name: Smoke test
+      run: |
+        $bin = (swift build -c release --product metalui --show-bin-path)
+        $exe = Join-Path $bin "metalui.exe"
+        $out = & $exe --version
+        Write-Host $out
+        if ($out -ne "metalui $env:VERSION") { throw "unexpected version output: $out" }
+        $scratch = Join-Path $env:RUNNER_TEMP "smoke"
+        New-Item -ItemType Directory -Force $scratch | Out-Null
+        Push-Location $scratch
+        & $exe new Smoke
+        if ($LASTEXITCODE -ne 0) { throw "metalui new failed" }
+        Pop-Location
+        Select-String -Path (Join-Path $scratch "Smoke/Package.swift") -Pattern "MetalUI.git"
+        if (-not $?) { throw "no MetalUI.git in Smoke/Package.swift" }
+
+    - name: Package and prove it is self-contained
+      run: |
+        $bin = (swift build -c release --product metalui --show-bin-path)
+        $dist = Join-Path $env:RUNNER_TEMP "dist"
+        New-Item -ItemType Directory -Force $dist | Out-Null
+        Copy-Item (Join-Path $bin "metalui.exe") $dist
+        Copy-Item LICENSE, README.md $dist
+        # With the Swift toolchain directories off PATH (only Windows' own), the binary must still run.
+        $saved = $env:PATH
+        $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+        $out = & (Join-Path $dist "metalui.exe") --version
+        $code = $LASTEXITCODE
+        $env:PATH = $saved
+        Write-Host "exit $code, output: $out"
+        if ($code -ne 0 -or $out -ne "metalui $env:VERSION") {
+          Write-Host "metalui.exe needs DLLs; dumpbin:"
+          dumpbin /dependents (Join-Path $dist "metalui.exe")
+          throw "metalui.exe is not self-contained"
+        }
+        Get-ChildItem $dist | Format-Table Name, Length
+        $archive = "metalui-$env:VERSION-windows-x64.zip"
+        Compress-Archive -Path (Join-Path $dist "*") -DestinationPath $archive
+        $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+        # "<hash>  <file name>", as the other platforms; LF, no BOM.
+        [IO.File]::WriteAllText((Join-Path (Get-Location) "$archive.sha256"), "$hash  $archive`n")
+        Get-Content "$archive.sha256"
+        Get-Item $archive | Format-Table Name, Length
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: metalui-windows-x64
+        path: |
+          metalui-*.zip
+          metalui-*.zip.sha256
+        if-no-files-found: error
+
+  publish:
+    needs: [ macos-arm64, linux, linux-plain, windows-x64 ]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: metalui-*
+        path: dist
+        merge-multiple: true
+    - name: Publish the release
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh release create "$GITHUB_REF_NAME" --generate-notes \
-          "metalui-$VERSION-macos-arm64.tar.gz" "metalui-$VERSION-macos-arm64.tar.gz.sha256"
+        ls -l dist
+        if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          gh release upload "$RELEASE_TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+        else
+          gh release create "$RELEASE_TAG" dist/* --generate-notes --verify-tag --repo "$GITHUB_REPOSITORY"
+        fi
