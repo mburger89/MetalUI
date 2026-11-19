@@ -9,6 +9,7 @@ Moved verbatim from `CLAUDE.md` on 2026-11-18, one entry per item:
 
 - 242 used by `MN-AP` (`Label` has no `labelStyle`), 1085 used by `OG-L` (the same-transaction reveal), 1086 used by `OG-M` (the ⌥ cascade over bindings), 1087 used by `OG-O` (the content list's flatten cache), 1088 used by `OG-P` (the splice animation is paint only and realised rows only) and 1089–1094 unused (1085–1094 reserved by OG)
 - 241 used by `WB-C`, 232–234 and 237–240 used by `VT` (235 and 236 are the gesture rows), 230–231 used by `SYM-I`/`SYM-J`, 227–229 used by `SYM-C`/`SYM-H`, 226 used by `DSA-A`, 224 used by `CM-H`, 225 used, 91 and 92 retired by `CM-A` and `CM-B`, 109 retired by `TZ-B`, 217 used by `FC-G`, 218 by `LI-G`, 219 by `VF-D`, 220 by `VF-E`, 221 (retired by `GF-A`) and 222 by `GO-H`, 223 by `GF-H`, 1066 retired by `GF-A`
+- 1105–1114 reserved by TBL: unused
 - 1095–1104 reserved by TRM: unused
 - 1085–1094 reserved by OG: unused
 - 1075–1084 reserved by AD: 1075, 1076, 1078 and 1079 used and 1077 and 1080–1084 unused
