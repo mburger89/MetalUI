@@ -45,7 +45,7 @@ one or two sentences, not a summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **228 live, next label 243**; which labels each milestone reserved, used or
+  live SwiftUI difference — **229 live, next label 243**; which labels each milestone reserved, used or
   retired: `docs/rules/divergence-labels.md`; retired labels are never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code, the bundled Lucide icons and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (one group per milestone, each headed in the file; **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -69,6 +69,6 @@ METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor10
 METALUI_RUN_1M_TABLE_TEST=1 swift test --filter aTablesWorkIsTheSameFor1MBy200AsFor1kBy20
 ```
 
-- **Counts (2026-11-19, `feat/table-b`, record 389): root 7093 tests in 79 suites, full run green but `ttyNamesAPty` (a pseudo-terminal name check that fails in the agent sandbox; `--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 228 live, next label 243. Earlier counts: record §67 and its appendix.**
+- **Counts (2026-11-19, `feat/table-b`, record 389): root 7093 tests in 79 suites, full run green but `ttyNamesAPty` (a pseudo-terminal name check that fails in the agent sandbox; `--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 229 live, next label 243. Earlier counts: record §67 and its appendix.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.

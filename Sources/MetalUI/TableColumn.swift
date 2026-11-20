@@ -123,6 +123,19 @@ extension TableColumn where Sort == Never, Content == Text, Label == Text {
     }
 }
 
+extension String.StandardComparator {
+    /// The comparator a string column sorts by when it names none (`TBL-X`): SwiftUI's `localizedStandard` where Foundation has it,
+    /// `lexical` where it does not (swift-corelibs Foundation on Linux and Windows has neither `localized` nor `localizedStandard`;
+    /// divergence 1106).
+    @usableFromInline static var tableDefault: String.StandardComparator {
+        #if canImport(Darwin)
+        .localizedStandard
+        #else
+        .lexical
+        #endif
+    }
+}
+
 // MARK: - Inits that sort by a key path (`Sort == KeyPathComparator<RowValue>`)
 
 extension TableColumn where Sort == KeyPathComparator<RowValue>, Label == Text {
@@ -172,7 +185,7 @@ extension TableColumn where Sort == KeyPathComparator<RowValue>, Label == Text {
 extension TableColumn where Sort == KeyPathComparator<RowValue>, Content == Text, Label == Text {
     /// A column showing, and sorting by, the string at `value`, compared with `comparator`.
     public init(_ title: LocalizedStringKey, value: KeyPath<RowValue, String> & Sendable,
-                comparator: String.StandardComparator = .localizedStandard) {
+                comparator: String.StandardComparator = .tableDefault) {
         self.init(title: Text(title), sortPrototype: AnyHashable(KeyPathComparator(value, comparator: comparator)),
                   content: { Text(verbatim: $0[keyPath: value]) })
     }
@@ -180,13 +193,13 @@ extension TableColumn where Sort == KeyPathComparator<RowValue>, Content == Text
     /// A column titled `title` (a string) showing, and sorting by, the string at `value`.
     @_disfavoredOverload
     public init<S: StringProtocol>(_ title: S, value: KeyPath<RowValue, String> & Sendable,
-                                   comparator: String.StandardComparator = .localizedStandard) {
+                                   comparator: String.StandardComparator = .tableDefault) {
         self.init(title: Text(verbatim: String(title)), sortPrototype: AnyHashable(KeyPathComparator(value, comparator: comparator)),
                   content: { Text(verbatim: $0[keyPath: value]) })
     }
 
     /// A column titled with `title` showing, and sorting by, the string at `value`.
-    public init(_ title: Text, value: KeyPath<RowValue, String> & Sendable, comparator: String.StandardComparator = .localizedStandard) {
+    public init(_ title: Text, value: KeyPath<RowValue, String> & Sendable, comparator: String.StandardComparator = .tableDefault) {
         self.init(title: title, sortPrototype: AnyHashable(KeyPathComparator(value, comparator: comparator)),
                   content: { Text(verbatim: $0[keyPath: value]) })
     }

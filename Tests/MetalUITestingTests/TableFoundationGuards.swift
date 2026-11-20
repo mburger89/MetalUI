@@ -1,3 +1,4 @@
+@testable import MetalUI
 import Foundation
 import Testing
 
@@ -12,8 +13,14 @@ private struct Named { var name: String }
     var s = [KeyPathComparator(\Named.name)]
     s[0].order = .reverse
     #expect(s[0].order == .reverse)
+    // `localizedStandard` is Darwin's; corelibs Foundation on Linux and Windows has only `lexical` (divergence 1106, `TBL-X`).
+    #if canImport(Darwin)
     let c = String.StandardComparator.localizedStandard
     #expect(c.compare("a", "B") == .orderedAscending)
+    #else
+    #expect(String.StandardComparator.lexical.compare("B", "a") == .orderedAscending)
+    #endif
+    #expect(String.StandardComparator.tableDefault == String.StandardComparator.tableDefault)
     func takes<S: SortComparator>(_: S.Type) {}
     takes(Never.self)
 }

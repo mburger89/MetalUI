@@ -2,7 +2,7 @@
 
 Requester: Sift, a database explorer (millions of rows by hundreds of columns). Branch `feat/table-a` (PR A), then PRs B to E; records 388 to 392 at planning time; class `A` (SwiftUI's `Table`) except the MetalUI-only modifiers (class `M`); divergence labels 1105–1114 reserved (see `docs/rules/divergence-labels.md`). Spec `specs/2026-11-18-table-design.md`, plan `plans/2026-11-18-table.md`. Probe `docs/probes/swiftui-table.swift` (arms `G1`..`F1`, written in PR B task B0).
 
-Next unused id: `TBL-X`.
+Next unused id: `TBL-Y`.
 
 Every ruling below is marked "(ruled, not built)" until the PR that builds it flips it. `TBL-H`, `TBL-I` and `TBL-M` are built in PR A (record 388); `TBL-A`..`TBL-G`, `TBL-J`, `TBL-K` and `TBL-L` in PR B (record 389), where the probe `docs/probes/swiftui-table.swift` was run (macOS 27.2.1, 2026-11-19) and decided the arms the spec left open: its read is in the probe's header and `swiftui-table.recorded.txt`.
 
@@ -97,6 +97,10 @@ Metrics live in `TableMetrics` and come from arms G1 and G2 (provisional in PR A
 ## TBL-W: RTL (divergence 1108, unused) (built, PR B: nothing to build)
 
 In a right-to-left environment columns are laid out left to right and the frozen column stays on the left, only if arm L1 shows SwiftUI mirroring. **Probe `L1`:** a right-to-left environment mirrors SwiftUI's columns (the first is the rightmost, x 476 against 361). **MetalUI mirrors too, so divergence 1108 stays unused and the ruling "columns laid out left to right" is withdrawn:** the layout engine mirrors a custom layout's placements and the scroller's offsets are logical, so the table's columns, its scroller's origin and its window agree with no code of the table's (pinned by `aRightToLeftTableMirrorsItsColumnsAndWindowsThemOnTheScroll`: columns 0...5 at open and no blank band after scrolling to the end). A frozen column is the leading one, so it sits on the right.
+
+## TBL-X: the default string comparator off Darwin (divergence 1106) (built, PR B)
+
+A string column (`TableColumn(_, value: \.name)`) sorts by `String.StandardComparator.localizedStandard` where Foundation has it, as SwiftUI does. swift-corelibs Foundation on Linux and Windows has neither `localized` nor `localizedStandard` (measured in `swift:6.4-noble`: both "no member"), so off Darwin the default is `lexical`; a caller can name any comparator that exists (`comparator:`). No MetalUI-owned comparator is added (`TBL-C`). The first CI run failed to build on Linux for exactly this: `TableFoundationGuards.swift` is not built by the portable-tests job, so its `localizedStandard` was never compiled there; the guard now splits at `#if canImport(Darwin)`.
 
 ## Carried
 

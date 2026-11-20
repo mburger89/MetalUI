@@ -1,6 +1,6 @@
 # 389: Table PR B, the API and rendering (`TBL-A`..`TBL-G`, `TBL-J`, `TBL-K`, `TBL-L`, `TBL-V`)
 
-Class `A` (SwiftUI's `Table`) plus the MetalUI-only `tableRowHeight`, `tableFrozenColumns` and `tableRowIndex` (class `M`); divergences 1105 and 1110 used, 1106 and 1108 unused. Branch `feat/table-b`, base master `260d9614` (PR A, record 388, merged). Spec `docs/superpowers/specs/2026-11-18-table-design.md`, plan `docs/superpowers/plans/2026-11-18-table.md`, decisions `docs/superpowers/2026-11-18-table-decisions.md`, probe `docs/probes/swiftui-table.swift` (read in its header, raw output in `swiftui-table.recorded.txt`).
+Class `A` (SwiftUI's `Table`) plus the MetalUI-only `tableRowHeight`, `tableFrozenColumns` and `tableRowIndex` (class `M`); divergences 1105, 1106 and 1110 used, 1108 unused. Branch `feat/table-b`, base master `260d9614` (PR A, record 388, merged). Spec `docs/superpowers/specs/2026-11-18-table-design.md`, plan `docs/superpowers/plans/2026-11-18-table.md`, decisions `docs/superpowers/2026-11-18-table-decisions.md`, probe `docs/probes/swiftui-table.swift` (read in its header, raw output in `swiftui-table.recorded.txt`).
 
 ## Change
 
@@ -53,6 +53,8 @@ At the steady offsets (600, 12000) of an 800 x 600 table with 24-point rows and 
 Not mutated: `anEmptyTablesSteadyCostIsTheBase` (the base), `theTableDemoBuildsAndScrollsInOneBuildPerStep` (its pin is the build count, the same one `aScrollStepCostsOneBuildAndTheSteadyRequests` mutates) and `aTablesWorkIsTheSameFor1MBy200AsFor1kBy20` (opt-in; its equality is `aTablesWorkIsTheSameFor10kBy50AsFor1kBy20`'s).
 
 ## Deviations from the plan
+
+- **Divergence 1106 is used for something else** (`TBL-X`): corelibs Foundation on Linux and Windows has no `localized`/`localizedStandard` string comparator, so a string column's default sort is `lexical` off Darwin. The first CI run failed on Linux compiling the default argument; the guard test is not built by the portable-tests job, so it had never seen it. No MetalUI-owned comparator.
 
 - **A cell content is any `ElementGroup`, not an `Element`** (`@ElementBuilder`), wrapped in `LegacyContent` by the cell box: the plan's `.equatable()` cell (an `EquatableComponent`, an `ElementGroup`) could not otherwise be a column's content. Divergence 1110 names it.
 - **A cell is clipped only when its content overflows it** (the plan clips every cell): a clip on the pass's stack is in the replay key and moved with every scroll step, so `equatableCellsReplayTranslatedOnAScrollStep` measured 0 translated; unclipped it is the plan's 270. `aCellTallerThanItsRowIsClippedToIt` pins the overflow clip. `TBL-K` amended.
