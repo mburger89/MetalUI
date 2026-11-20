@@ -45,7 +45,7 @@ one or two sentences, not a summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **226 live, next label 243**; which labels each milestone reserved, used or
+  live SwiftUI difference — **228 live, next label 243**; which labels each milestone reserved, used or
   retired: `docs/rules/divergence-labels.md`; retired labels are never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code, the bundled Lucide icons and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (one group per milestone, each headed in the file; **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -63,11 +63,12 @@ swift test --no-parallel
 swift build --build-system native --build-tests && swift test --build-system native --no-parallel  # guards run
 swift run MetalUIDemo            # and -c release
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # value exactly "1"
-# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1, METALUI_RETAINED_DEMO=1, METALUI_CHROME_DEMO=1, METALUI_CLIPBOARD_DEMO=1, METALUI_LAZY_DEMO=1, METALUI_CODE_DEMO=1, METALUI_MARKDOWN_DEMO=1, METALUI_TABS_DEMO=1, METALUI_OUTLINE_DEMO=1, METALUI_TERMINAL_DEMO=1, METALUI_GLASS_DEMO=1, METALUI_KEY_FOCUS_DEMO=1, METALUI_OVERLAYS_DEMO=1, METALUI_ACCESSIBILITY_DEMO=1
+# also METALUI_TEXT_INPUT_DEMO=1, METALUI_CONTROLS_DEMO=1, METALUI_DND_DEMO=1, METALUI_LOOKS_DEMO=1, METALUI_METALVIEW_DEMO=1, METALUI_MENUS_DEMO=1, METALUI_SERVICES_DEMO=1, METALUI_LIST_DEMO=1, METALUI_RICH_TEXT_DEMO=1, METALUI_CANVAS_DEMO=1, METALUI_APP_SHELL_DEMO=1, METALUI_SELECTION_DEMO=1, METALUI_INVALIDATION_DEMO=1, METALUI_RETAINED_DEMO=1, METALUI_CHROME_DEMO=1, METALUI_CLIPBOARD_DEMO=1, METALUI_LAZY_DEMO=1, METALUI_CODE_DEMO=1, METALUI_MARKDOWN_DEMO=1, METALUI_TABS_DEMO=1, METALUI_OUTLINE_DEMO=1, METALUI_TERMINAL_DEMO=1, METALUI_GLASS_DEMO=1, METALUI_KEY_FOCUS_DEMO=1, METALUI_OVERLAYS_DEMO=1, METALUI_ACCESSIBILITY_DEMO=1, METALUI_TABLE_DEMO=1
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor100kPathsAsFor500
+METALUI_RUN_1M_TABLE_TEST=1 swift test --filter aTablesWorkIsTheSameFor1MBy200AsFor1kBy20
 ```
 
-- **Counts (2026-11-19, `feat/table-a`, record 388): root 7057 tests in 79 suites, full run green once `everyFrameChannelIsClassified` classified `tableWork` (`--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 226 live, next label 243. Earlier counts: record §67 and its appendix.**
+- **Counts (2026-11-19, `feat/table-b`, record 389): root 7093 tests in 79 suites, full run green but `ttyNamesAPty` (a pseudo-terminal name check that fails in the agent sandbox; `--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 228 live, next label 243. Earlier counts: record §67 and its appendix.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.

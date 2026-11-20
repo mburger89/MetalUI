@@ -69,6 +69,6 @@ METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor10
 METALUI_RUN_1M_TABLE_TEST=1 swift test --filter aTablesWorkIsTheSameFor1MBy200AsFor1kBy20
 ```
 
-- **Counts (2026-11-19, `feat/table-a`, record 388): root 7057 tests in 79 suites, full run green once `everyFrameChannelIsClassified` classified `tableWork` (`--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 226 live, next label 243. Earlier counts: record §67 and its appendix.**
+- **Counts (2026-11-19, `feat/table-b`, record 389): root 7093 tests in 79 suites, full run green but `ttyNamesAPty` (a pseudo-terminal name check that fails in the agent sandbox; `--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 228 live, next label 243. Earlier counts: record §67 and its appendix.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.
