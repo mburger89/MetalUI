@@ -13,6 +13,8 @@ is not a swift block**: `SDLPlatform` lives in a package behind a trait that the
 does not build, so it is a `text` fence here, and the starter that `metalui new --cross-platform`
 generates is what the Linux image and Windows CI build ([`README.md`](README.md#how-the-code-blocks-are-checked)).
 
+**Windows toolchain note.** Swift 6.4.0's Clang 21 with MSVC 14.52 or later needs `_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH` (`STL1000`); MetalUI's `Package.swift` defines it for its own C++ target, so no flag is needed. Drop it once Swift ships Clang 22.
+
 ## How do I start a package that runs everywhere?
 
 ```sh
