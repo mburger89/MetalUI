@@ -130,6 +130,10 @@ func runDemo() throws {
     // live. Its own root, not under the looks demo, whose pins count its layout (`LG-V`'s reason).
     let accessibilityDemo = ProcessInfo.processInfo.environment["METALUI_ACCESSIBILITY_DEMO"] == "1"
 
+    // The table's human looks (`docs/verification/human-checks.md` group TBL, rulings `TBL-E`..`TBL-V`): a `Table` of 1 000 000 rows by
+    // 200 columns, windowed on both axes, with a pinned header and a frozen "#" column.
+    let tableDemo = ProcessInfo.processInfo.environment["METALUI_TABLE_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
@@ -138,6 +142,10 @@ func runDemo() throws {
         window = try app.openWindow(title: "MetalUI — Terminal",
                                     size: Size(width: Pixels(900), height: Pixels(560)),
                                     content: { terminalDemoContent(session) })
+    } else if tableDemo {
+        window = try app.openWindow(title: "MetalUI — Table (1 000 000 × 200)",
+                                    size: Size(width: Pixels(1100), height: Pixels(700)),
+                                    content: tableDemoContent)
     } else if accessibilityDemo {
         window = try app.openWindow(title: "MetalUI — Accessibility Display",
                                     size: Size(width: Pixels(560), height: Pixels(260)),

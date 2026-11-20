@@ -35,3 +35,47 @@ let steadyOffsets: (x: Double, y: Double) = (x: 600, y: 12000)
 let steadyRows = 28
 /// The columns it realises: `5..<15`.
 let steadyColumns = 10
+
+// MARK: - The table fixtures (PR B)
+
+/// An 800 x 600 harness window holding `Table(CountingRows(rows))` with `columns` columns of 100 points of `Text("r<id>c<column>")`,
+/// rows 24 high and the first `frozen` columns frozen: the steady-frame fixture `F` of spec 4.4 (`TBL-M`).
+@MainActor
+func tableFixture(rows: Int, columns: Int, frozen: Int = 0, data: CountingRows? = nil) throws -> TestWindow {
+    let source = data ?? CountingRows(rows)
+    return try harnessWindow(size: sz(800, 600)) {
+        Table(source) {
+            TableColumnForEach(0..<columns) { c in
+                TableColumn("c\(c)") { r in Text("r\(r.id)c\(c)") }.width(Pixels(100))
+            }
+        }
+        .tableRowHeight(Pixels(24))
+        .tableFrozenColumns(frozen)
+    }
+}
+
+/// `tableFixture` with every cell's `Text` named `r<id>c<column>` (`.id`), so a test finds a cell's frame by name.
+@MainActor
+func namedTableFixture(rows: Int, columns: Int, frozen: Int = 0) throws -> TestWindow {
+    let source = CountingRows(rows)
+    return try harnessWindow(size: sz(800, 600)) {
+        Table(source) {
+            TableColumnForEach(0..<columns) { c in
+                TableColumn("c\(c)") { r in Text("r\(r.id)c\(c)").id("r\(r.id)c\(c)") }.width(Pixels(100))
+            }
+        }
+        .tableRowHeight(Pixels(24))
+        .tableFrozenColumns(frozen)
+    }
+}
+
+/// Scrolls the table by exactly `(x, y)` through two phaseless wheel events at its centre (one vertical, then one horizontal: a
+/// diagonal goes wholly to the dominant axis, `XS-F`), then settles. Deltas are the platform's, so a positive offset step is a
+/// negative delta.
+@MainActor
+func scrollTable(_ w: TestWindow, x: Double, y: Double) async throws {
+    let centre = Point(x: Pixels(400), y: Pixels(300))
+    if y != 0 { w.scroll(at: centre, byDeltaX: 0, deltaY: Float(-y)) }
+    if x != 0 { w.scroll(at: centre, byDeltaX: Float(-x), deltaY: 0) }
+    try await w.runUntilIdle()
+}

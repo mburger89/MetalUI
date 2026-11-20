@@ -1,0 +1,55 @@
+SwiftUI Table probe, full output of the compiled form (`xcrun swiftc docs/probes/swiftui-table.swift -o /tmp/table-probe && /tmp/table-probe`).
+Recorded 2026-11-19 by the table-b lane, macOS 27.2.1 (26B131), Apple Swift 6.4.2, arm64. Object addresses and sort-descriptor UUIDs are
+normalised. The READ of every line is in the header of docs/probes/swiftui-table.swift.
+
+G1 table class = SwiftUIOutlineTableView style = 2 rowHeight = 24.0 intercell = 17.0 x 0.0
+G1 header frame = (0.0, 0.0, 800.0, 28.0) header height = 28.0
+G1 row0 rect = (0.0, 5.0, 800.0, 24.0) row1 rect = (0.0, 29.0, 800.0, 24.0) enclosing clip frame = (0.0, 0.0, 800.0, 600.0) contentInsets = NSEdgeInsets(top: 0.0, left: 0.0, bottom: 0.0, right: 0.0)
+G1 column 0 frame = (10.0, 0.0, 391.0, 975.0) column 1 frame = (401.0, 0.0, 389.0, 975.0)
+G1 label n0 frame = (16.0, 37.0, 42.0, 16.0) (cell inset = label x - column x)
+G1 header cell font = nil
+G1 gridStyleMask = 0 usesAutomaticRowHeights = true
+G2 usesAlternatingRowBackgroundColors = true
+G3 Table in a vertical ScrollView, 10 rows: frame = (0.0, 0.0, 800.0, 0.0) (rows 10 x 24 + header 28 = 268; a greedy table would be 600 or 0)
+G3 Table in a VStack between two Texts in 800 x 600: frame = (0.0, 16.0, 800.0, 568.0)
+W1 10 columns, no width, viewport 400: widths = ["100.0", "100.0", "100.0", "100.0", "100.0", "100.0", "100.0", "100.0", "100.0", "100.0"]
+W4 minWidth = ["10.0", "10.0", "10.0", "10.0", "10.0", "10.0", "10.0", "10.0", "10.0", "10.0"] maxWidth = ["inf", "inf", "inf", "inf", "inf", "inf", "inf", "inf", "inf", "inf"]
+W3 10 columns in 400: sum of widths = 1000.0 (shrinks to the viewport if <= 400) document width = 1185.0
+W2 fixed 100, (min 50 ideal 100 max 150), (ideal 100) in 800: widths = ["100.0", "150.0", "484.0"] (the plan's solver would give [100, 150, 550])
+W2 three columns ideal 100 in 800: widths = ["245.0", "245.0", "244.0"] intercell = 17.0
+T1 narrow column width 60: label frame row 0 = (16.0, 53.0, 53.0, 16.0), column 0 rect = (10.0, 0.0, 75.0, 372.0) (a label of one truncated line: height ~ 16, width <= column - 2 x inset)
+T2 VStack of three Texts in a row: row 0 rect = (0.0, 5.0, 400.0, 56.0) row 1 rect = (0.0, 61.0, 400.0, 56.0) first line frame = (93.0, 37.0, 48.0, 16.0) usesAutomaticRowHeights = true
+S1 click Name (nothing sorted): writes = ["name+"]
+S2 click Name again: writes = ["name-"]
+S3 click Size (sort is [name-]): writes = ["size+ name-"]
+S4 click Name (sort is [size+]): writes = ["name- size+"]; then the order array held = name- size+
+S4 click Plain (no comparator): writes = []
+S1 sortDescriptors on the table = ["<uuid>-", "<uuid>+"]
+K1 down from row 10: writes = ["11"]
+K1 shift-up: writes = ["10,11"]
+K2 page down: writes = [] scroll y -28.0 -> -28.0
+K2 page up: writes = [] scroll y -28.0 -> -28.0
+K3 end: writes = [] scroll y -28.0 -> 4415.0
+K3 home: writes = [] scroll y 4415.0 -> -28.0
+K4 left then right: writes = []
+K5 return: actions = ["primary [10, 11]"]
+K7 command-A: writes = [] (count of rows selected: 2)
+K6 type 'name' with a row-name column: writes = ["0"] selected row = 0 (type-select would select a row whose first column text starts with "name")
+R1 allowsColumnReordering = false allowsColumnResizing = true columnAutoresizingStyle = 1
+R3 resizingMasks = [3, 3, 0, 3] (1 = autoresizing, 2 = user resizing) widths = ["206.0", "206.0", "100.0", "205.0"] min = ["10.0", "50.0", "100.0", "10.0"] max = ["inf", "300.0", "100.0", "inf"]
+R2 drag column B's trailing divider +40: widths before = ["206.0", "206.0", "100.0", "205.0"] after = ["206.0", "246.0", "100.0", "165.0"] (neighbours give way if the sum stays the viewport)
+A1 table class = SwiftUIOutlineTableView AXRole = AXOutline AXSubrole = nil AXRowCount = nil AXColumnCount = nil
+A1 AXRows = 300 first row class = NSOutlineRow
+A1 row 0 AXRole = AXRow AXSubrole = AXOutlineRow AXIndex = 0 AXChildren count = 3
+A1 row 0 child 0 class = NSTableViewCellMockElement AXRole = AXCell AXRowIndexRange = NSRange: {0, 1} AXColumnIndexRange = NSRange: {0, 1}
+A1 AXColumns = 3 AXVisibleColumns = 3 AXHeader = <NSTableHeaderView: 0x…> AXColumnHeaderUIElements = 0
+A1 AXSelectedRows count = 1 AXVisibleRows count = 24
+A1 header cells: []
+A1 header view AXChildren: ["AXButton/AXSortButton/AXUnknownSortDirection", "AXButton/AXSortButton/AXUnknownSortDirection", "AXButton/AXSortButton/AXUnknownSortDirection"]
+A1 after clicking Name: header view AXChildren: ["AXButton/AXSortButton/AXAscendingSortDirection", "AXButton/AXSortButton/AXUnknownSortDirection", "AXButton/AXSortButton/AXUnknownSortDirection"]
+A1 after clicking Name: header cells: []
+A2 after scrolling to row 250: AXRows = 300 AXVisibleRows = 25 first visible AXIndex = 226
+L1 layoutDirection rightToLeft: column rects = ["(476.0, 0.0, 114.0, 272.0)", "(361.0, 0.0, 115.0, 272.0)"] first-column label = (568.0, 37.0, 16.0, 16.0) userInterfaceLayoutDirection = 1 (0 LTR, 1 RTL)
+F1 columns a b c: titles = ["a", "b", "c"] born a0 = 34 b0 = 35 c0 = 36
+F1 columns a b c d (append): titles = ["a", "b", "c", "d"] born a0 = 34 b0 = 35 c0 = 36 d0 = 49 (a surviving column keeps its @State when its born number is unchanged)
+F1 removing a column (names [b, c, d]) aborts SwiftUI in this rig (SIGABRT, precondition failure); not measured

@@ -294,7 +294,7 @@ var targets: [Target] = [
         // Tests/Fonts by #filePath (HT-J) and run on all three platforms.
         .target(name: "MetalUITesting", dependencies: ["MetalUI", "MetalUIScene"]),
         .testTarget(name: "MetalUITestingTests",
-                    dependencies: ["MetalUITesting", "MetalUI", "MetalUIScene", "MetalUIPortableText", "MetalUITestSupport"]),
+                    dependencies: ["MetalUITesting", "MetalUI", "MetalUIScene", "MetalUIPortableText", "MetalUITestSupport", "MetalUIDemoContent"]),
         // The whole framework's frame, pinned byte-for-byte across platforms
         // (ruling XP-C): runs on macOS, Linux and Windows.
         // CStbImage for test 2.8b (stb alone, called directly; PX-O item 3);

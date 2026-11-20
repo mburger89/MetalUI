@@ -67,7 +67,7 @@ private func spec(fixed: Double? = nil, min: Double? = nil, ideal: Double? = nil
     TableColumnWidthSpec(fixed: fixed, min: min, ideal: ideal, max: max)
 }
 
-/// **A3.1** Fixed, ideal, default and override, each clamped. Mutation: drop the clamp; the last column becomes 100 (its max
+/// **A3.1** Fixed, ideal, default and override, each clamped (probe `swiftui-table.swift` arm `W1`: a column with no width is 100 wide; `W4`: its minimum is 10). Mutation: drop the clamp; the last column becomes 100 (its max
 /// is 60).
 @Test func widthsResolveFixedIdealDefaultAndOverride() {
     let specs = [spec(fixed: 80), spec(min: 50, ideal: 150, max: 300), spec(), spec(min: 40, max: 60)]

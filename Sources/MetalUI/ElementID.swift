@@ -193,3 +193,15 @@ public final class GlobalElementID: Hashable, Sendable {
 
     public func hash(into hasher: inout Hasher) { hasher.combine(cachedHash) }
 }
+
+extension ElementID {
+    /// The component naming a `Table`'s cell in its row and its header cell in the header row (`TBL-J`): a name carrying the
+    /// column's `TableColumnKey`, so a cell's identity is (row id × column key) and never depends on its display position, the
+    /// window or the user's column order. A key that prints injectively (a structural `.slot`) takes the plain name; a
+    /// `TableColumnForEach` key carries the element's id value as well (`keyed`), as `forRow` does for an id that does not print
+    /// injectively.
+    static func forColumn(_ key: TableColumnKey, keyed: Bool) -> ElementID {
+        keyed ? ElementID(name: String(describing: key), key: IdentityKey(AnyHashable(key)))
+              : ElementID(String(describing: key))
+    }
+}
