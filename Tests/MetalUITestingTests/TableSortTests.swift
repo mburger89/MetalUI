@@ -1,6 +1,7 @@
 @testable import MetalUI
 import Foundation
 import MetalUITesting
+import Observation
 import Testing
 
 // `Table` sorting (`TBL-Q`, record 390; probe arms `S1`..`S4`): a header click writes the `sortOrder` binding once and the table
