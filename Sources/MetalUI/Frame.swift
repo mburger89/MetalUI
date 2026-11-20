@@ -5148,3 +5148,10 @@ extension Frame {
         requestAnotherFrame()
     }
 }
+
+extension Frame {
+    /// Seats focus on `id` from inside the frame (`TCM-F`): a `Table`'s cell editor takes it the frame it appears, and the table
+    /// takes it back when an edit ends. `Window` keeps an in-frame decision (`focusingFromInsideAFrameSurvivesThatFrame`), and
+    /// `resolveFocus` still validates it against this frame's registry.
+    func seatFocus(on id: GlobalElementID) { focusedElement = id }
+}

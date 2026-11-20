@@ -22,6 +22,8 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
     /// The name of this cell in its row: the column's (`TBL-J`).
     var columnID: ElementID?
     var paintsRowBackground: Color?
+    /// Cell mode's fill, ring and click (`TCM-D`, `TCM-I`); `nil` for every cell of a row table.
+    var decor: TableCellDecor?
 
     var elementID: ElementID? { columnID }
 
@@ -53,6 +55,8 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                            pass: inout PrepaintPass) -> LegacyContent<Content>.GroupPrepaint {
+        // `TCM-D`: in cell mode a click lands on the cell, above its row's own hitbox.
+        if let handlers = decor?.handlers { pass.registerHandlers(handlers, at: bounds, id: id) }
         guard Self.overflows(bounds, nodes: layout.contentNodes, of: { pass.bounds(of: $0) }) else {
             return content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
@@ -68,13 +72,31 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
         if let background = paintsRowBackground {
             pass.fill(bounds, color: pass.resolve(background), cornerRadii: Corners(all: Pixels(0)))
         }
-        guard Self.overflows(bounds, nodes: layout.contentNodes, of: { pass.bounds(of: $0) }) else {
-            content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
-            return
+        // `TCM-D` paint order inside a cell box: the row background above, then the caller's fill, the content, the ring.
+        if let fill = decor?.fill {
+            pass.fill(bounds, color: pass.resolve(fill), cornerRadii: Corners(all: Pixels(0)))
         }
-        pass.clipped(to: bounds, offsetBy: zeroPoint) {
+        if Self.overflows(bounds, nodes: layout.contentNodes, of: { pass.bounds(of: $0) }) {
+            pass.clipped(to: bounds, offsetBy: zeroPoint) {
+                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+            }
+        } else {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }
+        if let ring = decor?.ring { Self.paintRing(ring, in: bounds, pass: &pass) }
+    }
+
+    /// The active ring (`TCM-D`): `width` points inside the box, as four fills.
+    private static func paintRing(_ ring: TableCellRing, in bounds: Bounds<Pixels>, pass: inout PaintPass) {
+        let color = pass.resolve(ring.color)
+        let t = Pixels(Float(Swift.min(ring.width, Double(bounds.size.height.value) / 2, Double(bounds.size.width.value) / 2)))
+        let x = bounds.origin.x, y = bounds.origin.y, w = bounds.size.width, h = bounds.size.height
+        let square = Corners(all: Pixels(0))
+        pass.fill(Bounds(origin: Point(x: x, y: y), size: Size(width: w, height: t)), color: color, cornerRadii: square)
+        pass.fill(Bounds(origin: Point(x: x, y: y + h - t), size: Size(width: w, height: t)), color: color, cornerRadii: square)
+        pass.fill(Bounds(origin: Point(x: x, y: y + t), size: Size(width: t, height: h - t - t)), color: color, cornerRadii: square)
+        pass.fill(Bounds(origin: Point(x: x + w - t, y: y + t), size: Size(width: t, height: h - t - t)), color: color,
+                  cornerRadii: square)
     }
 }
 
@@ -112,6 +134,8 @@ struct TableCellLayout: ProposalLayout {
 class AnyTableCell {
     /// Frozen cells paint this under their content (`TBL-K`).
     var rowBackground: Color? { get { nil } set {} }
+    /// Cell mode's fill, ring and click (`TCM-D`); `nil` and ignored for a row table.
+    var decor: TableCellDecor? { get { nil } set {} }
     func requestLayout(under parent: GlobalElementID?, at cursor: inout Int, pass: inout LayoutPass) -> ProposalNodeID {
         fatalError("AnyTableCell is abstract")
     }
@@ -132,6 +156,11 @@ final class TableCellHolder<Content: ElementGroup>: AnyTableCell {
     override var rowBackground: Color? {
         get { box.paintsRowBackground }
         set { box.paintsRowBackground = newValue }
+    }
+
+    override var decor: TableCellDecor? {
+        get { box.decor }
+        set { box.decor = newValue }
     }
 
     override func requestLayout(under parent: GlobalElementID?, at cursor: inout Int,
