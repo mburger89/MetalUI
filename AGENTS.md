@@ -68,6 +68,6 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor100kPathsAsFor500
 ```
 
-- **Counts (2026-11-19, `feat/secure-field`, record 393): root 7072 tests in 79 suites, full run green (`--build-system native`, `--no-parallel`; on top of `feat/table-a`'s 7057); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master, and a shader-library test cannot write under the sandbox; divergences 229 live, next label 243 (1115-1117 are `SCF`'s, block 1115-1124). Earlier counts: record §67 and its appendix.**
+- **Counts (2026-11-19, `feat/secure-field`, record 393): root 7076 tests in 79 suites, full run green (`--build-system native`, `--no-parallel`; on top of `feat/table-a`'s 7057); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master, and a shader-library test cannot write under the sandbox; divergences 229 live, next label 243 (1115-1117 are `SCF`'s, block 1115-1124). Earlier counts: record §67 and its appendix.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.

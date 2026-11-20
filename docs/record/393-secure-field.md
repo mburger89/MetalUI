@@ -44,7 +44,7 @@ Second round (Alloy's request): `SCF-I` (undo snapshots dropped on blur, removal
 
 ## Verified
 
-`swift build --build-system native --build-tests && swift test --build-system native --no-parallel`: 7072 tests in 79 suites, green (the run before the demo's two assertions were updated had exactly those two red; re-run after the last code change). `swift build -c release` green. SDL package (`Backends/SDL`, AccessKit 0.23 from the scratch fetch, SDL3 from Homebrew): the SDL pin passes and goes red under its mutation; `windowServerTrafficNeverStopsTheMainRunLoop` fails as on master and `thePublicLocateDoesNotEvaluateItsBundleWhenTheExecutableCandidateOpens` could not write under the sandbox (unrelated). `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Linux and Windows: CI.
+`swift build --build-system native --build-tests && swift test --build-system native --no-parallel`: 7076 tests in 79 suites, green (earlier runs had the demo's two assertions, then `everyStateWriteSiteIsClassified` for the new `Window` write, red until updated; re-run after the last change). `swift build -c release` green. SDL package (`Backends/SDL`, AccessKit 0.23 from the scratch fetch, SDL3 from Homebrew): the SDL pin passes and goes red under its mutation; `windowServerTrafficNeverStopsTheMainRunLoop` fails as on master and `thePublicLocateDoesNotEvaluateItsBundleWhenTheExecutableCandidateOpens` could not write under the sandbox (unrelated). `closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing. Linux and Windows: CI.
 
 ## Carried
 
