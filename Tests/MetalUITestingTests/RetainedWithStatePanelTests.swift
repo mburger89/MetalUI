@@ -405,7 +405,9 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
         "AnimatedColor.swift": (2, 0, 0, 0), "AnimatedStyle.swift": (2, 0, 0, 0), "FocusState.swift": (1, 0, 0, 0),
         "Frame.swift": (5, 0, 0, 0), "LazyCore.swift": (0, 1, 0, 0), "LazyGrid.swift": (0, 1, 0, 0), "List.swift": (1, 2, 0, 0), "ListContent.swift": (1, 0, 0, 0), "ProposalScrollView.swift": (0, 0, 1, 0),
         "ScrollChrome.swift": (0, 1, 3, 0), "ScrollPosition.swift": (0, 0, 1, 0), "ScrollView.swift": (0, 0, 1, 0), "TestingHooks.swift": (1, 0, 0, 0),
-        "State.swift": (0, 0, 0, 1), "TableBody.swift": (0, 1, 0, 0),
+        "State.swift": (0, 0, 0, 1), "TableBody.swift": (0, 1, 0, 0), "TableSelection.swift": (2, 0, 0, 0),
+        // A table's selection (`TBL-N`, record 390): the position cache's first-use seed and the lead store's lead and anchor, both written
+        // from input only (a click, a key move), through `withState`, which fires no `onWrite`; no phase writes them.
         // A vertical `TextField` (`VT-D`): its prepaint writes the caret reveal compared and its paint reads the state once more; the wheel
         // arm for it is `Window`'s sixth plain write (input).
         // A secure field's blur, removal or close drops its undo snapshots (`SCF-I`): `Window`'s seventh plain write, off the focus

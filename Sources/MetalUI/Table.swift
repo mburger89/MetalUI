@@ -36,14 +36,17 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
     var frozenCount = 0
     var rowIndexLookup: (@MainActor (Value.ID) -> Int?)?
     var selection: ListSelection<Value.ID> = .none
+    var sort: TableSortControl?
+    var menu: SelectionContextMenu?
     @State var columnState = TableColumnState()
     var inner: EnvironmentScope<ProposalScrollView<TableBody<Value>>>?
 
     init(source: TableSource<Value>, resolveColumns: @escaping @MainActor () -> [AnyTableColumn<Value>],
-         selection: ListSelection<Value.ID> = .none) {
+         selection: ListSelection<Value.ID> = .none, sort: TableSortControl? = nil) {
         self.source = source
         self.resolveColumns = resolveColumns
         self.selection = selection
+        self.sort = sort
     }
 
     // MARK: MetalUI-only modifiers (class M; write them directly on the table, before other modifiers)
@@ -87,8 +90,14 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
 
     public mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let headerHeight = pass.frame.environmentTop.tableColumnHeaders == .hidden ? 0 : Double(TableMetrics.headerHeight)
-        let body = TableBody(source: source, resolveColumns: resolveColumns, rowHeight: rowHeight, frozenCount: frozenCount,
+        // `OG-N`: the nearest `contextMenu(forSelectionType:)` above, when its identifier type is the rows' (`TBL-P`).
+        menu = pass.frame.environmentTop.selectionContextMenu.flatMap { $0.applies(to: Value.ID.self) ? $0 : nil }
+        var body = TableBody(source: source, resolveColumns: resolveColumns, rowHeight: rowHeight, frozenCount: frozenCount,
                              headerHeight: headerHeight, columnState: columnState)
+        body.selection = selection
+        body.rowIndex = rowIndexLookup
+        body.sort = sort
+        body.menu = menu
         var scrolled = ProposalScrollView([.horizontal, .vertical]) { body }
             .contentMargins(.top, Pixels(Float(headerHeight)), for: .scrollIndicators)
         var cursor = 0
@@ -98,8 +107,16 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
         return (node, Layout(node: node.layoutNodeID, inner: innerLayout))
     }
 
+    private static func emptySpaceHandlers(_ menu: SelectionContextMenu) -> Handlers {
+        var handlers = Handlers()
+        handlers.contextual = menu.listAttachment(over: nil)
+        return handlers
+    }
+
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                   pass: inout PrepaintPass) -> Prepaint {
+        // The table's empty space takes the menu's `[]` form (`OG-P`, `P-M2`); rows are above it and take their own.
+        if let menu { pass.registerHandlers(Self.emptySpaceHandlers(menu), at: bounds, id: id) }
         var scrolled = inner!
         let result = scrolled.prepaintGroup(layout: &layout.inner, pass: &pass)
         inner = scrolled
@@ -150,7 +167,7 @@ extension Table {
     where Rows == TableForEachContent<Data>, Data.Element == Value, Sort.Compared == Value,
           Columns == TableColumnGroup<Value, Sort> {
         let group = columns()
-        self.init(source: TableSource(data), resolveColumns: { group.resolve(slot: []) })
+        self.init(source: TableSource(data), resolveColumns: { group.resolve(slot: []) }, sort: TableSortControl(sortOrder))
     }
 
     /// A sorted table whose rows select into `selection`, one at a time.
@@ -161,7 +178,8 @@ extension Table {
     where Rows == TableForEachContent<Data>, Data.Element == Value, Sort.Compared == Value,
           Columns == TableColumnGroup<Value, Sort> {
         let group = columns()
-        self.init(source: TableSource(data), resolveColumns: { group.resolve(slot: []) }, selection: .single(selection))
+        self.init(source: TableSource(data), resolveColumns: { group.resolve(slot: []) }, selection: .single(selection),
+                  sort: TableSortControl(sortOrder))
     }
 
     /// A sorted table whose rows select into the set `selection`.
@@ -172,6 +190,7 @@ extension Table {
     where Rows == TableForEachContent<Data>, Data.Element == Value, Sort.Compared == Value,
           Columns == TableColumnGroup<Value, Sort> {
         let group = columns()
-        self.init(source: TableSource(data), resolveColumns: { group.resolve(slot: []) }, selection: .multi(selection))
+        self.init(source: TableSource(data), resolveColumns: { group.resolve(slot: []) }, selection: .multi(selection),
+                  sort: TableSortControl(sortOrder))
     }
 }

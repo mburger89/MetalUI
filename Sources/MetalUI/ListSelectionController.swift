@@ -16,6 +16,10 @@ struct ListRowSpace<ID: Hashable> {
     var id: @MainActor (Int) -> ID?
     /// The position of an id, by a scan, or `nil` when no row carries it (a content list's hidden selection, `P-K7`).
     var index: @MainActor (ID) -> Int?
+    /// The position of the first selected row, when the list can answer without scanning every row (`TBL-N`): a `Table` over
+    /// a million rows answers `nil` for an empty selection without reading one. `nil` here (the default) means the controller
+    /// scans `0..<count`, as a `List` does.
+    var firstSelected: (@MainActor () -> Int?)? = nil
 }
 
 /// Where a list keeps its lead and anchor rows between inputs (`DD-Z` item 7): the data list in its `ListOrigin`, a
@@ -38,6 +42,7 @@ struct ListSelectionController<ID: Hashable> {
     /// time only (`DD-AC` item 4).
     func leadIndex(stored: AnyHashable?, isSelected: (ID) -> Bool) -> Int? {
         if let stored = stored?.base as? ID, isSelected(stored), let index = space.index(stored) { return index }
+        if let firstSelected = space.firstSelected { return firstSelected() }
         for index in 0..<space.count {
             if let id = space.id(index), isSelected(id) { return index }
         }
