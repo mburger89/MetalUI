@@ -15,6 +15,8 @@ import Testing
     @ObservationIgnored var activeWrites: [TableCell<Int>?] = []
     @ObservationIgnored var editingWrites: [TableCell<Int>?] = []
     @ObservationIgnored var commits: [(cell: TableCell<Int>, text: String)] = []
+    /// Every active write and commit, in the order they happened.
+    @ObservationIgnored var events: [String] = []
     @ObservationIgnored var fillCalls = 0
     @ObservationIgnored var textCalls = 0
     @ObservationIgnored var tints: [TableCell<Int>: Color] = [:]
@@ -24,7 +26,7 @@ import Testing
     func value(_ cell: TableCell<Int>) -> String { overrides[cell] ?? "r\(cell.row)c\(cell.column)" }
 
     func activeBinding() -> Binding<TableCell<Int>?> {
-        Binding(get: { self.active }, set: { self.active = $0; self.activeWrites.append($0) })
+        Binding(get: { self.active }, set: { self.active = $0; self.activeWrites.append($0); self.events.append("active") })
     }
     func editingBinding() -> Binding<TableCell<Int>?> {
         Binding(get: { self.editing }, set: { self.editing = $0; self.editingWrites.append($0) })
@@ -63,7 +65,7 @@ import Testing
     if editable {
         configured = configured.tableCellEditing(model.editingBinding(), text: { cell in model.textCalls += 1; return rawPrefix + model.value(cell) },
                                                  isEditable: { cell in editableCell?(cell) ?? true },
-                                                 onCommit: { cell, text in model.commits.append((cell, text)); model.overrides[cell] = text })
+                                                 onCommit: { cell, text in model.events.append("commit"); model.commits.append((cell, text)); model.overrides[cell] = text })
     }
     if tint {
         configured = configured.tableCellBackground { cell in model.fillCalls += 1; return model.tints[cell] }

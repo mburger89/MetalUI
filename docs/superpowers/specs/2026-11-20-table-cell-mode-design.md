@@ -5,7 +5,7 @@
 - **Alloy (developer-af):** a CSV table editor. It checks the values an agent produced and fixes wrong ones in place. Alloy keeps the data, the parsing and the undo. A commit becomes a minimal text replacement on the open document.
 - **Sift:** edit mode (phase 7) and keyboard browsing of a result grid.
 
-This document is both the spec and the decisions document for `TCM-`. Every ruling is provisional until PR F builds it.
+This document is both the spec and the decisions document for `TCM-`. **Built in PR F (record 394, 2026-11-20): `TCM-A`..`TCM-K` stand as written except where "As built" at the end of the spec half records a deviation. Next unused id `TCM-L`.**
 
 ## 0. Scope (`TCM-A`)
 
@@ -217,6 +217,21 @@ PR F publishes nothing new to the tree, except that the editor is a normal `Text
 None. All three modifiers and `TableCell` are class M. The only SwiftUI-visible behaviour change is in cell mode, which SwiftUI does not have.
 
 Inventory rows go in the `table-cell-mode` family.
+
+## As built (record 394)
+
+Where the source made a ruling impossible or the spec was silent, the build did this; each is also in the record's deviations.
+
+- **`TCM-K` pins 2, 3 and 5 are "builds x the steady window", not "zero cells realised".** Every frame the table draws rebuilds its window (`TBL-M`), so a move or a keystroke realises the same 28 rows as an idle redraw, never more, and never anything that grows with the data. The pins count `tableRowsRealized` and `tableCellsRealized` per build.
+- **`TCM-I`: `fill` runs once per realised cell per build**, not "only for the newly realised cells": the window is rebuilt whole. Idle it runs zero times; in a scroll step it runs exactly `tableCellsRealized` times.
+- **`TCM-F`: the window resigning key cannot commit because `Window` has no such event.** The test pins that a pointer leaving and a modifier change commit nothing.
+- **A click in the empty space commits through a viewport-sized region registered only while an edit is open**; the body is only as tall as its rows.
+- **A cell registers its own click in cell mode** (the row's hitbox is untouched): the cell runs the row click (the selection, the menu's double click) after making itself active.
+- **`tableCellEditing` and `tableCellBackground` do nothing without `tableActiveCell`** (cell mode is on exactly then).
+- **A caller writing `editing` to another cell while an edit is open cancels the open edit** (no callback) and begins the new one.
+- **Page Up and Page Down move the active cell and leave the row selection alone**; ↑ ↓ (and ⇧) use the table's row move, so the row selection follows as TBL-O says.
+- **The unemphasised selection fill is `Color.secondary` at 0.25**: `List` has no unfocused fill to copy. The unfocused ring is `Color.secondary`, 1 point.
+- **A table with an open edit reads one more data row per build** (the edit's row position, verified with one read).
 
 ---
 

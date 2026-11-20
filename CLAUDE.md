@@ -69,6 +69,6 @@ METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor10
 METALUI_RUN_1M_TABLE_TEST=1 swift test --filter aTablesWorkIsTheSameFor1MBy200AsFor1kBy20
 ```
 
-- **Counts (2026-11-20, `feat/table-c`, record 390): root 7141 tests in 79 suites, full run green (`--build-system native`, `--no-parallel`; +29 over `feat/table-b`'s 7112, after `everyStateWriteSiteIsClassified` classified `TableSelection.swift`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 233 live, next label 243. Earlier counts: record §67 and its appendix.**
+- **Counts (2026-11-20, `feat/table-f`, record 394): root 7199 tests in 79 suites, full run green (`--build-system native`, `--no-parallel`; +58 over `feat/table-c`'s 7141, after `everyStateWriteSiteIsClassified` classified `TableBody.swift`'s two cell-mode writes and one read); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master (not re-run here); divergences 233 live, next label 243 (cell mode is class M and uses none). Earlier counts: record §67 and its appendix.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.

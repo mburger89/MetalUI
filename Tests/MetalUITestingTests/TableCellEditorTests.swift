@@ -165,9 +165,11 @@ private let returnKey = "\r", tabKey = "\t", escapeKey = "\u{1b}", f2Key = "\u{f
 @Test @MainActor func aClickElsewhereCommits() async throws {
     let e = try await Editing()
     try await e.key(returnKey); try await e.type("Z")
+    e.model.events = []
     e.w.click(at: rowPoint(6, column: 1)); try await e.w.runUntilIdle()
     expectOneCommit(e.model, TableCell(row: 3, column: 2), "r3c2Z")
     #expect(e.model.active == TableCell(row: 6, column: 1) && e.tableHasFocus && e.text == nil)
+    #expect(e.model.events == ["commit", "active"], "the commit is the click's first act, before the cell changes: \(e.model.events)")
 }
 
 /// **F10** A click in the empty space below the rows commits once and keeps the active cell. Mutation: the empty space has no click.
@@ -257,16 +259,25 @@ private let returnKey = "\r", tabKey = "\t", escapeKey = "\u{1b}", f2Key = "\u{f
     try await e.key(returnKey)
     e.w.resetFrameWork()
     e.w.window.setNeedsRedraw(); e.w.tick()
-    let idle = e.w.lastFrameWork
-    #expect(idle.tableRowsRealized > 0)
+    let editing = e.w.lastFrameWork
+    #expect(editing.tableRowsRealized > 0)
     e.w.resetFrameWork()
     e.w.typeText("a"); try await e.w.runUntilIdle()
     let typed = e.w.frameWork.reduce(FrameWork(), +)
     #expect(typed.builds >= 1)
-    #expect(typed.tableCellsRealized == typed.builds * idle.tableCellsRealized, "cells \(typed.tableCellsRealized) over \(typed.builds)")
-    #expect(typed.tableRowsRealized == typed.builds * idle.tableRowsRealized)
-    #expect(typed.elementRequests == typed.builds * idle.elementRequests, "requests \(typed.elementRequests) over \(typed.builds)")
-    #expect(typed.tableDataReads <= typed.builds * (idle.tableDataReads + 0), "no extra data reads: \(typed.tableDataReads)")
+    // The window a table realises with no edit open: the reference the typing frames are held to.
+    let plain = try await { () async throws -> FrameWork in
+        let w = try cellTable(rows: 5000, model: CellModel())
+        try await w.runUntilIdle()
+        w.resetFrameWork(); w.window.setNeedsRedraw(); w.tick()
+        return w.lastFrameWork
+    }()
+    #expect(typed.tableCellsRealized == typed.builds * plain.tableCellsRealized, "cells \(typed.tableCellsRealized) over \(typed.builds)")
+    #expect(typed.tableRowsRealized == typed.builds * plain.tableRowsRealized)
+    #expect(typed.elementRequests == typed.builds * editing.elementRequests, "requests \(typed.elementRequests) over \(typed.builds)")
+    #expect(editing.elementRequests > plain.elementRequests && editing.elementRequests <= plain.elementRequests + 8,
+            "the editor adds a few requests: \(plain.elementRequests) -> \(editing.elementRequests)")
+    #expect(typed.tableDataReads <= typed.builds * (plain.tableDataReads + 1), "one verification read per build: \(typed.tableDataReads)")
 }
 
 /// **F18** An idle editor costs what an idle `TextField` does: no frames at all (the caret does not blink). Mutation: the body asks
@@ -382,4 +393,20 @@ private let returnKey = "\r", tabKey = "\t", escapeKey = "\u{1b}", f2Key = "\u{f
     e.w.window.focus(nil); try await e.w.runUntilIdle()
     e.w.window.runDisappearancesForClose()
     expectOneCommit(e.model, TableCell(row: 3, column: 2), "r3c2Z")
+}
+
+/// **F19** A cell that is not editable leaves Return to the table: with a `contextMenu` primary action, Return on such a cell runs
+/// the action with the selection, as PR C's Return does, and no edit begins. Mutation: cell mode swallows the keys it does not take.
+@Test @MainActor func returnOnACellThatIsNotEditableRunsThePrimaryAction() async throws {
+    let model = CellModel(), sel = TableSel()
+    var acted: [Set<Int>] = []
+    let w = try harnessWindow(size: sz(800, 600)) {
+        cellTableValue(data: CountingRows(50), model: model, selection: sel, editableCell: { _ in false })
+            .contextMenu(forSelectionType: Int.self, menu: { _ in Button("Act") {} }, primaryAction: { acted.append($0) })
+    }
+    try await w.runUntilIdle()
+    w.click(at: rowPoint(3, column: 2)); try await w.runUntilIdle()
+    w.typeKey(KeyEquivalent("\r")); try await w.runUntilIdle()
+    #expect(acted == [[3]], "acted \(acted)")
+    #expect(model.editing == nil)
 }
