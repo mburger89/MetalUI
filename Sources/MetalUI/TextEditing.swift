@@ -780,6 +780,14 @@ struct TextInputTarget {
     }
 }
 
+/// A target's mirror hides a secure field's text (`SCF-J`): `dump` of a `Handlers` value prints bullets.
+extension TextInputTarget: CustomReflectable {
+    var customMirror: Mirror {
+        Mirror(self, children: ["text": secure ? String(repeating: "\u{2022}", count: text.count) : text,
+                                "secure": secure], displayStyle: .struct)
+    }
+}
+
 /// A multi-line field's display lines in graphemes (ruling TI-H): what up and
 /// down, the line keys, a press and the caret's position read. Built by
 /// `TextEditor` from `TextSystem.lineRanges` and `caretOffsets`, so the lines

@@ -654,3 +654,11 @@ public struct TextField: Element, StyledElement {
                                  focused: focused, pass: &pass)
     }
 }
+
+/// What `dump`, `String(reflecting:)` and a debugger show of a field (`SCF-J`): a secure field's text is its bullets.
+extension TextField: @preconcurrency CustomReflectable {
+    public var customMirror: Mirror {
+        Mirror(self, children: ["placeholder": placeholder, "text": shownText, "axis": axis, "isSecure": isSecure],
+               displayStyle: .struct)
+    }
+}

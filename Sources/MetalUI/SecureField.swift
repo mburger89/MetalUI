@@ -122,3 +122,10 @@ public struct SecureField: Element, StyledElement {
         field.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
     }
 }
+
+/// `description`, `debugDescription` and the mirror show the bullets, never the text (`SCF-J`).
+extension SecureField: @preconcurrency CustomStringConvertible, @preconcurrency CustomDebugStringConvertible, @preconcurrency CustomReflectable {
+    public var description: String { "SecureField(\"\(field.placeholder)\", text: \(field.shownText))" }
+    public var debugDescription: String { description }
+    public var customMirror: Mirror { field.customMirror }
+}

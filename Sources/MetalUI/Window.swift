@@ -622,6 +622,7 @@ public final class Window {
             // A composition does not survive its field losing focus (ruling
             // `IM-I`): AppKit discards the input context's marked text and
             // sends nothing, so the stored composition is dropped here.
+            if let old = oldValue, old != focusedElement { forgetSecureEdits(of: old) }   // `SCF-I`
             guard let old = oldValue, old != focusedElement,
                   let lost = lastFocusRegistry.textTarget(for: old) else { return }
             // A code view keeps its composition in its own state, not a `TextEditState` (`CV-W`).
@@ -2235,6 +2236,7 @@ public final class Window {
         cancelLiveArenas()   // `IF-F` item 5: before any `onDisappear`
         synthesizeTerminalScroll()   // `IF-H`
         endSliderEdit()   // a close counts as the release (`LK-B` item 5)
+        for id in Array(secureEdited) { forgetSecureEdits(of: id) }   // `SCF-I`
         syncSecureTextInput()   // `SCF-B`: the closed window releases secure keyboard entry, once
         for event in animationStore.lifecycle.closeAll() {
             StateDispatch.dispatching(to: event.owner) { event.action() }
@@ -3873,6 +3875,20 @@ public final class Window {
         platformWindow.setTextInputArea(area)
     }
 
+    /// The secure fields that have been edited since they last lost focus (`SCF-I`).
+    private var secureEdited: Set<GlobalElementID> = []
+
+    /// A secure field keeps its undo and redo snapshots only while it is focused: when it loses focus, is removed (the
+    /// frame clears the focus it did not produce) or its window closes, its history and the text it last saw are
+    /// dropped from the edit state, so no copy of the plaintext outlives the editing (`SCF-I`).
+    private func forgetSecureEdits(of id: GlobalElementID) {
+        guard secureEdited.remove(id) != nil else { return }
+        stateTable.withState(id, initial: TextEditState()) { state in
+            state.history = TextEditHistory()
+            state.seenText = nil
+        }
+    }
+
     /// Tells the platform when the focused text field becomes or stops being a `SecureField` (`SCF-B`): changes only, so a
     /// window with no secure field sends nothing. The field's removal clears the focus the frame read back, so it is
     /// seen here as a blur.
@@ -4016,6 +4032,7 @@ public final class Window {
                 StateDispatch.dispatching(to: id) { session.insert(inserted) }   // ID-F: the typed-into code view
                 return true
             }
+            if target.secure { secureEdited.insert(id) }
             let (text, state) = TextEditing.insert(inserted, text: currentText(id, target), state: editState(id),
                                                    multiline: target.lines != nil)
             setEditState(id, state)
@@ -4139,6 +4156,7 @@ public final class Window {
                                       mode: target.lines == nil ? .singleLine : target.verticalField ? .verticalField : .editor,
                                       secure: target.secure)
         guard outcome.handled else { return false }
+        if target.secure { secureEdited.insert(id) }
         setEditState(id, outcome.state)
         if let copied = outcome.copied { platformWindow.writeClipboard(copied) }
         if let text = outcome.text { applyEdit(id, target, text) }
