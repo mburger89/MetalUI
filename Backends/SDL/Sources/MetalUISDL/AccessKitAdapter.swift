@@ -264,6 +264,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .table: ACCESSKIT_ROLE_TABLE.rawValue
         case .row: ACCESSKIT_ROLE_ROW.rawValue
         case .textInput: ACCESSKIT_ROLE_TEXT_INPUT.rawValue
+        case .passwordInput: ACCESSKIT_ROLE_PASSWORD_INPUT.rawValue
         case .multilineTextInput: ACCESSKIT_ROLE_MULTILINE_TEXT_INPUT.rawValue
         case .checkBox: ACCESSKIT_ROLE_CHECK_BOX.rawValue
         case .radioButton: ACCESSKIT_ROLE_RADIO_BUTTON.rawValue

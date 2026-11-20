@@ -45,7 +45,7 @@ one or two sentences, not a summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **226 live, next label 243**; which labels each milestone reserved, used or
+  live SwiftUI difference — **229 live, next label 243**; which labels each milestone reserved, used or
   retired: `docs/rules/divergence-labels.md`; retired labels are never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code, the bundled Lucide icons and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (one group per milestone, each headed in the file; **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -68,6 +68,6 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor100kPathsAsFor500
 ```
 
-- **Counts (2026-11-19, `feat/table-a`, record 388): root 7057 tests in 79 suites, full run green once `everyFrameChannelIsClassified` classified `tableWork` (`--build-system native`, `--no-parallel`); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master; divergences 226 live, next label 243. Earlier counts: record §67 and its appendix.**
+- **Counts (2026-11-19, `feat/secure-field`, record 393): root 7076 tests in 79 suites, full run green (`--build-system native`, `--no-parallel`; on top of `feat/table-a`'s 7057); SDL package: `windowServerTrafficNeverStopsTheMainRunLoop` fails, as on master, and a shader-library test cannot write under the sandbox; divergences 229 live, next label 243 (1115-1117 are `SCF`'s, block 1115-1124). Earlier counts: record §67 and its appendix.**
   - E24 hard-fails under the root locale; seven `AnimationTests` need a
     display device.

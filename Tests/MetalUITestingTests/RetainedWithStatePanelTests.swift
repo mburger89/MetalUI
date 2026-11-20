@@ -408,11 +408,13 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
         "State.swift": (0, 0, 0, 1),
         // A vertical `TextField` (`VT-D`): its prepaint writes the caret reveal compared and its paint reads the state once more; the wheel
         // arm for it is `Window`'s sixth plain write (input).
+        // A secure field's blur, removal or close drops its undo snapshots (`SCF-I`): `Window`'s seventh plain write, off the focus
+        // change, never in a phase.
         // `CodeView` (`CV-W`): the wheel's plain write and the session's one are input; the prepaint's is compared; the plan reads the
         // scroll fade and the caret's blink epoch in paint (`CV-AC`), and an autoscroll's offsets are computed from input's state (`CV-AD`), written nowhere in a phase.
         // The fold gutter's hover (`CV-BN`): its input side reads `gutterHovered` and writes it plain, only when it differs.
         // The text hover (`CV-AS`): its input side writes the hover track plain (one site) and reads it; the prepaint's timers go through `CodeView`'s compared write.
-        "Code/CodeEditSession.swift": (1, 0, 1, 0), "Code/CodeTextHover.swift": (1, 0, 1, 0), "Code/CodeView.swift": (2, 1, 2, 0), "Code/CodeViewPlan.swift": (0, 0, 2, 0), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 2, 3, 0), "Window.swift": (6, 0, 0, 0),
+        "Code/CodeEditSession.swift": (1, 0, 1, 0), "Code/CodeTextHover.swift": (1, 0, 1, 0), "Code/CodeView.swift": (2, 1, 2, 0), "Code/CodeViewPlan.swift": (0, 0, 2, 0), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 2, 3, 0), "Window.swift": (7, 0, 0, 0),
     ]
     let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Sources/MetalUI")

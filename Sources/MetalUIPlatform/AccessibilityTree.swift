@@ -34,6 +34,9 @@ public enum AccessibilityRole: Equatable, Sendable {
     case group, button, staticText, image, table, row
     /// An editable line of text (ruling TI-C).
     case textField
+    /// A `SecureField`'s editable line (ruling `SCF-F`; AppKit `AXTextField` with subrole `AXSecureTextField`,
+    /// AccessKit `PASSWORD_INPUT`). Its value is never the text.
+    case secureTextField
     /// Editable multi-line text (ruling TI-H).
     case textArea
     /// A checkbox — `Toggle` (ruling `DD-U` item 1; AppKit `.checkBox`).

@@ -220,6 +220,24 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     #expect(all.enumerated().allSatisfy { $0.offset == 3 || $0.element.isAccessibilityEnabled() })
 }
 
+/// A secure text field is `AXTextField` with subrole `AXSecureTextField`, and its value is one U+F79A per character, as
+/// `NSSecureTextFieldCell` answers (measured, ruling `SCF-F`) — never the text. **Mutation:** the role map drops the
+/// subrole, or `value` returns the node's string.
+@Test @MainActor func aSecureTextFieldIsAXTextFieldWithTheSecureSubroleAndAMaskedValue() throws {
+    let h = try makeHarness(signal: true)
+    defer { h.nsWindow.close() }
+    h.bridge.publish(makeTree(roots: ["secure", "plain"], [
+        "secure": Entry(node: node(.secureTextField, "Pass", value: "\u{2022}\u{2022}\u{2022}"), frame: rect(0, 0, 80, 20)),
+        "plain": Entry(node: node(.textField, "Name", value: "abc"), frame: rect(0, 30, 80, 20)),
+    ]))
+    let top = elements(h.host.accessibilityChildren())
+    try #require(top.count == 2)
+    #expect(top[0].accessibilityRole() == .textField)
+    #expect(top[0].accessibilitySubrole() == .secureTextField)
+    #expect(top[0].accessibilityValue() as? String == "\u{F79A}\u{F79A}\u{F79A}")
+    #expect(top[1].accessibilitySubrole() == nil && top[1].accessibilityValue() as? String == "abc")
+}
+
 /// Publishing creates no element; a client read creates exactly what it was
 /// handed, once (AB-X).
 @Test @MainActor func elementsAreCreatedOnlyWhenAClientReadsThem() throws {
