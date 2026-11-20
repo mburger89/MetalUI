@@ -126,6 +126,8 @@ public struct SecureField: Element, StyledElement {
 /// `description`, `debugDescription` and the mirror show the bullets, never the text (`SCF-J`).
 extension SecureField: @preconcurrency CustomStringConvertible, @preconcurrency CustomDebugStringConvertible, @preconcurrency CustomReflectable {
     public var description: String { "SecureField(\"\(field.placeholder)\", text: \(field.shownText))" }
+    /// The same text as ``description``: bullets, never the text.
     public var debugDescription: String { description }
+    /// The field's mirror, whose `text` is the bullets.
     public var customMirror: Mirror { field.customMirror }
 }
