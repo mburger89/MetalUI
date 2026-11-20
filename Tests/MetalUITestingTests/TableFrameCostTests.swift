@@ -246,3 +246,98 @@ func aTablesWorkIsTheSameFor1MBy200AsFor1kBy20() async throws {
     }
     print("TBL 1M x 200 sweep: \(Int(Date().timeIntervalSince(sweepStart) * 1000 / 200)) ms per step")
 }
+
+// MARK: - The cost of input (PR C, `TBL-N`, `TBL-O`, `TBL-Q`; record 390)
+
+/// A selectable (and, with `sorted`, sortable) table of 1 000 000 rows by 200 columns at the steady offsets, its first click done so
+/// the table holds the focus.
+@MainActor private func inputFixture(sorted: SortModel? = nil, model: TableSel = TableSel(), data: CountingRows) async throws -> TestWindow {
+    let w: TestWindow
+    if let sorted {
+        w = try harnessWindow(size: sz(800, 600)) {
+            Table(data, sortOrder: sorted.rowBinding()) {
+                TableColumnForEach(0..<200) { c in
+                    TableColumn("c\(c)", value: \RowRef.id) { r in Text("r\(r.id)c\(c)") }.width(Pixels(100))
+                }
+            }
+            .tableRowHeight(Pixels(24))
+        }
+    } else {
+        w = try harnessWindow(size: sz(800, 600)) {
+            Table(data, selection: model.multiBinding()) {
+                TableColumnForEach(0..<200) { c in TableColumn("c\(c)") { r in Text("r\(r.id)c\(c)") }.width(Pixels(100)) }
+            }
+            .tableRowHeight(Pixels(24))
+        }
+    }
+    try await scrollTable(w, x: steadyOffsets.x, y: steadyOffsets.y)
+    return w
+}
+
+extension SortModel {
+    @MainActor func rowBinding() -> Binding<[KeyPathComparator<RowRef>]> {
+        Binding(get: { self.rowOrder }, set: { self.rowOrder = $0; self.rowWrites += 1 })
+    }
+}
+
+/// **C-1** A selection change realises only the visible window: a click at the steady offsets is builds x 28 rows, 280 cells and 28
+/// reads, plus the input's own reads, and the steady frame afterwards (a selected row) costs the unselected steady window's
+/// requests. Mutation: scan the first 5000 rows for the highlight whenever the table selects.
+@Test @MainActor func aSelectionChangeRealisesOnlyTheVisibleWindow() async throws {
+    let data = CountingRows(1_000_000)
+    let model = TableSel()
+    let w = try await inputFixture(model: model, data: data)
+    try await w.runUntilIdle()
+    data.resetCounts()
+    let f = try await work(of: { w.click(at: Point(x: Pixels(50), y: Pixels(28 + 12 + 5 * 24))) }, in: w)
+    #expect(model.multi == [505], "selected \(model.multi)")
+    #expect(f.tableRowsRealized == 28 * f.builds && f.tableCellsRealized == 280 * f.builds, "rows \(f.tableRowsRealized) cells \(f.tableCellsRealized) builds \(f.builds)")
+    #expect(data.subscriptReads <= 28 * f.builds + 4, "reads \(data.subscriptReads) in \(f.builds) builds")
+    let steadyAfter = try await steady(w)
+    #expect(steadyAfter.elementRequests == emptyTableRequests + windowRequests, "requests \(steadyAfter.elementRequests)")
+}
+
+/// **C-2** A key move realises only the visible window: ↓ from row 505 at the steady offsets, then at most the same figures.
+/// Mutation: as C-1.
+@Test @MainActor func aKeyMoveRealisesOnlyTheVisibleWindow() async throws {
+    let data = CountingRows(1_000_000)
+    let model = TableSel()
+    let w = try await inputFixture(model: model, data: data)
+    w.click(at: Point(x: Pixels(50), y: Pixels(28 + 12 + 5 * 24)))
+    try await w.runUntilIdle()
+    data.resetCounts()
+    let f = try await work(of: { w.typeKey(.downArrow) }, in: w)
+    #expect(model.multi == [506], "selected \(model.multi)")
+    #expect(f.tableRowsRealized == 28 * f.builds && f.tableCellsRealized == 280 * f.builds, "rows \(f.tableRowsRealized) cells \(f.tableCellsRealized)")
+    #expect(data.subscriptReads <= 28 * f.builds + 4, "reads \(data.subscriptReads) in \(f.builds) builds")
+}
+
+/// **C-3** A sort click realises only the visible window and reads no row for itself. Mutation: as C-1 (in the layout, for a
+/// table with a sort).
+@Test @MainActor func aSortRealisesOnlyTheVisibleWindow() async throws {
+    let data = CountingRows(1_000_000)
+    let sorted = SortModel()
+    let w = try await inputFixture(sorted: sorted, data: data)
+    try await w.runUntilIdle()
+    data.resetCounts()
+    let f = try await work(of: { w.click(at: Point(x: Pixels(50), y: Pixels(14))) }, in: w)
+    #expect(sorted.rowWrites == 1, "writes \(sorted.rowWrites)")
+    #expect(f.tableRowsRealized == 28 * f.builds && f.tableCellsRealized == 280 * f.builds, "rows \(f.tableRowsRealized) cells \(f.tableCellsRealized)")
+    #expect(data.subscriptReads == 28 * f.builds, "reads \(data.subscriptReads) in \(f.builds) builds")
+}
+
+/// **C-4** An idle selected table asks for no frame: after a click and a key, nothing is drawn while idle. Mutation:
+/// `requestAnotherFrame()` in the body's prepaint whenever it is focusable (the display link never sleeps).
+@Test @MainActor func anIdleSelectedTableAsksNoFrames() async throws {
+    let data = CountingRows(1_000_000)
+    let model = TableSel()
+    let w = try await inputFixture(model: model, data: data)
+    w.click(at: Point(x: Pixels(50), y: Pixels(28 + 12 + 5 * 24)))
+    w.typeKey(.downArrow)
+    try await w.runUntilIdle()
+    let drawn = w.framesDrawn
+    w.resetFrameWork()
+    try await w.runUntilIdle()
+    #expect(w.framesDrawn == drawn, "frames drawn while idle: \(w.framesDrawn - drawn)")
+    #expect(w.frameWork.reduce(0) { $0 + $1.builds } == 0)
+}

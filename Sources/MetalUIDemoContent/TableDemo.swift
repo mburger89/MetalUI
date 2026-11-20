@@ -8,7 +8,8 @@ import MetalUI
 /// The rows are cheap handles (`TableDemoRow`, an ordinal) behind a `RandomAccessCollection` whose `count` and subscript are O(1), as the
 /// row-source contract asks (`TBL-D`); the cell values are computed from the ordinal, so nothing is stored per row. A header click
 /// writes the sort order, which this demo reads only for its direction (the source reverses itself, O(1)); the table never sorts data.
-/// The selection, the sort writes and the menu act once the table's input lands (`TBL-N`..`TBL-Q`, PR C).
+/// A click selects (⌘ toggles, ⇧ selects a range), ↑ ↓ move the selection, Page Up/Down/Home/End scroll, a header click on a sortable
+/// column writes the sort order (the leading column shows a chevron), and a right-click opens the menu (`TBL-N`..`TBL-Q`, record 390).
 ///
 /// **The human look** (group TBL of `docs/verification/human-checks.md`): scrolling a trackpad or a wheel through 1 000 000 x 200 shows no
 /// blank band, the header stays at the top while the rows scroll and moves with the columns across, the "#" column stays at the
