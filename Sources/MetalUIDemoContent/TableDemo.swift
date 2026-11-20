@@ -1,5 +1,6 @@
 import Foundation
 import MetalUI
+import Observation
 
 /// The table demo (`TBL-V`, record 389), reached with `METALUI_TABLE_DEMO=1 swift run MetalUIDemo`: a `Table` over a synthetic
 /// source of 1 000 000 rows by 200 columns, with the "#" column frozen, three sortable `value:` columns, a `Set` selection, a context
