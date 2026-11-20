@@ -1,3 +1,4 @@
+import Foundation
 import MetalUICore
 import MetalUILayout
 
@@ -40,8 +41,15 @@ struct TableColumnState: Equatable {
 /// settled table taints nothing and stays eligible inside an ancestor's retained subtree (`RW-I`).
 struct TableViewState {
     var lastPlan: TableWindowPlan?
+    /// The row a keyboard move starts from and the row a ⇧-move or ⇧-click extends from (row ids), written from input only.
+    var lead: AnyHashable?
+    var anchor: AnyHashable?
+    /// The row id to position cache (`TBL-N`), made at the first click; compared by identity.
+    var positions: TableRowPositionCache?
 
-    static func sameEntry(_ a: TableViewState, _ b: TableViewState) -> Bool { a.lastPlan == b.lastPlan }
+    static func sameEntry(_ a: TableViewState, _ b: TableViewState) -> Bool {
+        a.lastPlan == b.lastPlan && a.lead == b.lead && a.anchor == b.anchor && a.positions === b.positions
+    }
 }
 
 // MARK: - The body
@@ -53,6 +61,12 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
     var frozenCount: Int
     var headerHeight: Double
     var columnState: TableColumnState
+    var selection: ListSelection<Value.ID> = .none
+    var rowIndex: (@MainActor (Value.ID) -> Int?)?
+    var sort: TableSortControl?
+    var menu: SelectionContextMenu?
+    /// The body's own handlers (`TBL-N`): focusable with the table's keys, and the accessibility selection.
+    var handlers = Handlers()
 
     struct Layout {
         var node: LayoutNodeID
@@ -105,18 +119,37 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         // 8. One environment push for every cell's `Text`: one line, tail truncation (`TBL-K`).
         let values = frame.scopedValues(applying: .transform { $0.lineLimit = 1; $0.truncationMode = .tail })
         let keyed = !(Value.ID.self is DescriptionInjectiveID.Type)
+        // `TBL-N`: the selection is read ONCE and each realised row asks one `==`/`contains` of it; nothing scans the data.
+        let reader = selection.reader()
+        let accent = frame.environmentTop.tint ?? Color(.accent)
+        let selectionContext: TableSelectionContext<Value>? = reader == nil && menu == nil ? nil
+            : TableSelectionContext(source: source, rowIndex: rowIndex, selection: selection, body: id, table: frame.stateTable)
+        let sortLeading = sort?.leading()
+        var realisedIDs: [Value.ID] = []
         var rows: [TableRowElement] = []
         var rowLayouts: [SingleElementLayout<TableRowElement>] = []
         var nodes: [ProposalNodeID] = []
         var header: TableHeaderRow?
         var headerLayout: SingleElementLayout<TableHeaderRow>?
         var cursor = 0
+        let sort = self.sort
+        func headerCell(_ spec: AnyTableColumn<Value>, paintsBackground: Color?) -> TableHeaderCell {
+            var cell = TableHeaderCell(title: spec.title, name: spec.elementID, alignment: spec.alignment,
+                                       paintsBackground: paintsBackground)
+            if let prototype = spec.sortPrototype, let sort {
+                cell.sortOrder = sortLeading?(prototype)
+                cell.handlers.onClick = { sort.click(prototype) }
+            }
+            return cell
+        }
         frame.withEnvironment(values) {
             // 9. Each realised row reads `data[i]` once.
             for position in plan.rows {
                 let value = source.element(position)
                 frame.tableWork.dataReads += 1
-                let alternate: Color? = position % 2 == 1 ? Color.surfaceSecondary : nil
+                var alternate: Color? = position % 2 == 1 ? Color.surfaceSecondary : nil
+                let selected = reader?(value.id) ?? false
+                if selected { alternate = accent }
                 var cells: [AnyTableCell] = []
                 var xs: [Double] = [], cellWidths: [Double] = []
                 cells.reserveCapacity(plan.columns.count + frozen)
@@ -134,6 +167,21 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                 }
                 var row = TableRowElement(name: ElementID.forRow(value.id, keyed: keyed), cells: cells, xs: xs, widths: cellWidths,
                                           height: rowHeight, background: alternate)
+                if let selectionContext {
+                    realisedIDs.append(value.id)
+                    if reader != nil {
+                        // The selected row's background and hint, as a `List` row's (`DD-AC` item 1): the hint writes no `$ax`.
+                        if selected { row.handlers.axNode.selectionHint = true }
+                        row.handlers.onClick = selectionContext.rowClick(row: value.id, position: position)
+                        row.handlers.axNode.isSelectableRow = true
+                    }
+                    if let menu {
+                        // `OG-N`: the row's menu and its double-click primary action.
+                        row.handlers.onClick = menu.clickHandler(wrapping: row.handlers.onClick, row: value.id)
+                        let current = selection
+                        row.handlers.contextual = menu.rowAttachment(row: value.id) { current.currentSet() }
+                    }
+                }
                 let (rowNodes, rowLayout) = row.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
                 rows.append(row)
                 rowLayouts.append(rowLayout)
@@ -146,13 +194,12 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                 var xs: [Double] = [], cellWidths: [Double] = []
                 for column in plan.columns {
                     let spec = ordered[column]
-                    cells.append(TableHeaderCell(title: spec.title, name: spec.elementID, alignment: spec.alignment, paintsBackground: nil))
+                    cells.append(headerCell(spec, paintsBackground: nil))
                     xs.append(index.offset(of: column)); cellWidths.append(index.width(at: column))
                 }
                 for column in plan.frozen {
                     let spec = ordered[column]
-                    cells.append(TableHeaderCell(title: spec.title, name: spec.elementID, alignment: spec.alignment,
-                                                 paintsBackground: Color.background))
+                    cells.append(headerCell(spec, paintsBackground: Color.background))
                     xs.append(plan.offsetX + index.offset(of: column)); cellWidths.append(index.width(at: column))
                 }
                 var row = TableHeaderRow(cells: cells, xs: xs, widths: cellWidths, height: headerHeight)
@@ -162,7 +209,20 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                 nodes.append(contentsOf: headerNodes)
             }
         }
-        // 11. The body's layout; 12. the counters.
+        // 11. The body's handlers (`TBL-N`, `TBL-O`): focusable with the table's keys when it selects or has a menu, and the
+        // accessibility selection over the realised rows only.
+        var bodyHandlers = Handlers()
+        if let selectionContext {
+            if !selection.isNone {
+                bodyHandlers.actions[ObjectIdentifier(AccessibilityRowSelection.self)] =
+                    selectionContext.accessibilityRowSelection(realised: realisedIDs, keyed: keyed)
+            }
+            bodyHandlers.isFocusable = true
+            bodyHandlers.onKey = selectionContext.keyHandler(menu: menu, queue: frame.scrollRequestQueue, rowHeight: rowHeight,
+                                                    headerHeight: headerHeight)
+        }
+        handlers = bodyHandlers
+        // 12. The body's layout; 13. the counters.
         let node = pass.requestNativeLayout(
             TableBodyLayout(rowHeight: rowHeight, headerHeight: headerHeight, rowCount: rowCount, totalWidth: index.totalWidth,
                             viewportWidth: viewportWidth, firstRow: plan.rows.lowerBound, realisedRows: rows.count,
@@ -187,6 +247,10 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                                                  columns: layout.index, frozenCount: layout.frozen,
                                                  scroller: frame.activeScrollerFrame)
             if !TableWindowPlanner.contains(plan, fresh) { frame.requestAnotherFrame() }
+            // `TBL-N`: the body's own region (focus, keys, the accessibility selection) registers before its rows, so a row's
+            // hitbox is above it.
+            if handlers.isFocusable { pass.registerHandlers(handlers, at: bounds, id: id) }
+            resolveScrollRequests(id, bounds: bounds, layout: layout, frame: frame)
             @MainActor func run() -> Prepaint {
                 frame.withEnvironment(layout.values) {
                     var result = Prepaint(rows: [], header: nil)
@@ -208,6 +272,37 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                 return frame.withAccessibilitySuppressed(except: id) { run() }
             }
             return run()
+        }
+    }
+
+    /// A pending `scrollTo` or key reveal for a row, resolved by POSITION (`TBL-O`, spec 5.2): this table's own `TableLeadReveal`
+    /// carries its position; a caller's `scrollTo(rowID)` goes through `tableRowIndex`, and without it scans the data (documented).
+    /// The target is the row plus the pinned header above it, over the current horizontal band, so the horizontal position never
+    /// jumps and the row lands below the header. Before the rows prepaint, so this answer is the first match.
+    private func resolveScrollRequests(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: Layout, frame: Frame) {
+        let pending = frame.unresolvedScrollRequests(enclosing: id)
+        guard !pending.isEmpty else { return }
+        let count = layout.rowCount
+        for request in pending where !frame.isScrollRequestResolved(request.index) {
+            var position: Int?
+            if let reveal = request.key.base as? TableLeadReveal {
+                if reveal.body == id { position = reveal.position }
+            } else if let row = request.key.base as? Value.ID {
+                if let found = rowIndex?(row) {
+                    position = found
+                } else {
+                    for candidate in 0..<count {
+                        frame.tableWork.dataReads += 1
+                        if source.element(candidate).id == row { position = candidate; break }
+                    }
+                }
+            }
+            guard let position, position >= 0, position < count else { continue }
+            let target = Bounds(origin: Point(x: Pixels(Float(Double(bounds.origin.x.value) + layout.plan.offsetX)),
+                                              y: Pixels(Float(Double(bounds.origin.y.value) + Double(position) * rowHeight))),
+                                size: Size(width: Pixels(Float(layout.plan.viewportWidth)),
+                                           height: Pixels(Float(rowHeight + headerHeight))))
+            frame.resolveScrollRequest(request.index, target: target)
         }
     }
 
@@ -326,16 +421,21 @@ struct TableHeaderRow: Element, ProposalElement {
     }
 }
 
-/// One header cell: the title, and the divider at its trailing edge (`TBL-K`, `TBL-R`). Three element requests: the cell, the
-/// label and the divider.
+/// One header cell: the title, the divider at its trailing edge (`TBL-K`, `TBL-R`) and, on the column the table sorts by, the sort
+/// indicator (`TBL-Q`). Three element requests: the cell, the label and the divider, plus the indicator's on the sorted column.
+/// A sortable column's header is a click target: the click writes the table's `sortOrder` once.
 struct TableHeaderCell: Element, ProposalElement {
     var title: Text
     var name: ElementID
     var alignment: TableColumnAlignment
     /// A frozen header cell paints this under itself, so it is opaque over the scrolled cells it covers.
     var paintsBackground: Color?
+    /// The order the table sorts by when this column leads it, else `nil`.
+    var sortOrder: SortOrder?
+    var handlers = Handlers()
     var label: LegacyContent<Text>?
     var divider = TableColumnDivider()
+    var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>?
 
     var elementID: ElementID? { name }
 
@@ -343,11 +443,13 @@ struct TableHeaderCell: Element, ProposalElement {
         var node: LayoutNodeID
         var label: LegacyContent<Text>.GroupLayout
         var divider: SingleElementLayout<TableColumnDivider>
+        var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupLayout?
     }
 
     struct Prepaint {
         var label: LegacyContent<Text>.GroupPrepaint?
         var divider: Void?
+        var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupPrepaint?
     }
 
     mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
@@ -356,20 +458,38 @@ struct TableHeaderCell: Element, ProposalElement {
         let (labelNodes, labelLayout) = content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
         label = content
         let (dividerNodes, dividerLayout) = divider.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+        var nodes = labelNodes + dividerNodes
+        var indicatorLayout: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupLayout?
+        indicator = nil
+        if let sortOrder {
+            // `chevron.down` is the one chevron every platform has (`SYM-I`): ascending turns it over.
+            var chevron = LegacyContent(Image(systemName: "chevron.down").rotationEffect(.degrees(sortOrder == .forward ? 180 : 0)))
+            let (indicatorNodes, built) = chevron.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+            nodes += indicatorNodes
+            indicatorLayout = built
+            indicator = chevron
+        }
         let node = pass.requestNativeLayout(TableHeaderCellLayout(alignment: alignment, inset: TableMetrics.cellInset,
-                                                                   dividerWidth: TableMetrics.dividerHitWidth),
-                                            children: labelNodes + dividerNodes)
-        return (node, Layout(node: node.layoutNodeID, label: labelLayout, divider: dividerLayout))
+                                                                   dividerWidth: TableMetrics.dividerHitWidth,
+                                                                   hasIndicator: sortOrder != nil),
+                                            children: nodes)
+        return (node, Layout(node: node.layoutNodeID, label: labelLayout, divider: dividerLayout, indicator: indicatorLayout))
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                            pass: inout PrepaintPass) -> Prepaint {
-        var prepaint = Prepaint(label: nil, divider: nil)
+        if handlers.onClick != nil { pass.registerHandlers(handlers, at: bounds, id: id) }
+        var prepaint = Prepaint(label: nil, divider: nil, indicator: nil)
         if var content = label {
             prepaint.label = content.prepaintGroup(layout: &layout.label, pass: &pass)
             label = content
         }
         prepaint.divider = divider.prepaintGroup(layout: &layout.divider, pass: &pass)
+        if var chevron = indicator, var built = layout.indicator {
+            prepaint.indicator = chevron.prepaintGroup(layout: &built, pass: &pass)
+            indicator = chevron
+            layout.indicator = built
+        }
         return prepaint
     }
 
@@ -384,28 +504,44 @@ struct TableHeaderCell: Element, ProposalElement {
             prepaint.label = held
         }
         divider.paintGroup(layout: &layout.divider, prepaint: &prepaint.divider, pass: &pass)
+        if var chevron = indicator, var built = layout.indicator, var held = prepaint.indicator {
+            chevron.paintGroup(layout: &built, prepaint: &held, pass: &pass)
+            indicator = chevron
+            layout.indicator = built
+            prepaint.indicator = held
+        }
     }
 }
 
-/// Places a header cell's label (aligned like the cells below it) and its divider (centred on the trailing edge).
+/// Places a header cell's label (aligned like the cells below it), its divider (centred on the trailing edge) and, when the column
+/// leads the sort, the indicator at the trailing inset with the label giving way to it.
 struct TableHeaderCellLayout: ProposalLayout {
     var alignment: TableColumnAlignment
     var inset: Double
     var dividerWidth: Double
+    var hasIndicator = false
 
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
         LayoutMeasurement(size: SizeD(width: proposal.width ?? 0, height: proposal.height ?? 0))
     }
 
     func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
-        guard subviews.count == 2 else { return }
-        let inner = ProposedSize(width: Swift.max(0, bounds.width - 2 * inset), height: bounds.height)
+        guard subviews.count == (hasIndicator ? 3 : 2) else { return }
+        var reserved = 0.0
+        if hasIndicator {
+            let size = subviews[2].sizeThatFits(ProposedSize(width: nil, height: bounds.height)).size
+            reserved = size.width + 4
+            subviews[2].place(at: Point(x: bounds.x + bounds.width - inset - size.width,
+                                        y: bounds.y + (bounds.height - size.height) / 2),
+                              anchor: .topLeading, proposal: ProposedSize(width: size.width, height: size.height))
+        }
+        let inner = ProposedSize(width: Swift.max(0, bounds.width - 2 * inset - reserved), height: bounds.height)
         let size = subviews[0].sizeThatFits(inner).size
         let x: Double
         if alignment.isTrailing {
-            x = bounds.x + bounds.width - inset - size.width
+            x = bounds.x + bounds.width - inset - reserved - size.width
         } else if alignment.isCentered {
-            x = bounds.x + (bounds.width - size.width) / 2
+            x = bounds.x + (bounds.width - reserved - size.width) / 2
         } else {
             x = bounds.x + inset
         }
