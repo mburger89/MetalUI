@@ -4,7 +4,7 @@ Sift's saved-connection passwords (its plan's gap G1). SwiftUI's `SecureField` o
 (probe `docs/probes/swiftui-secure-field.swift`, arm `A`). Class `D`: three divergences, labels 1115-1117 of the block
 1115-1124 reserved by SCF. Record 393. Prefix `SCF-` (`SF-` is the system fonts').
 
-Next unused ruling: `SCF-I`.
+Next unused ruling: `SCF-L`.
 
 ## SCF-A: a `TextField`'s editor with the text masked (ruled, built)
 
@@ -77,6 +77,28 @@ generic ones (`.disabled`, `.frame`, `.focused`, `.background`) are the `StyledE
 `SecureField(_:text:selection:)` (no `TextSelection` over bullets), `axis: .vertical`, a reveal-last-character delay (AppKit
 has none), a show-password toggle (the app's `if` over two fields), a `SecureField` in an alert's actions (divergence 362
 stands).
+
+## SCF-I: no plaintext in undo state outliving the field (ruled, built)
+
+Undo and redo work while a secure field is focused: AppKit's do (`NSSecureTextView` undoes typing as a plain field editor
+does, probe `docs/probes/appkit-secure-field-undo.swift`), so "no undo" was not chosen. Instead a secure field's undo and redo
+snapshots, `lastText` and last-seen text are dropped from its `TextEditState` when it loses focus (a blur, a removal: the
+frame clears the focus it did not produce) and when its window closes (`Window.forgetSecureEdits`, in `focusedElement`'s
+`didSet` and `runDisappearancesForClose`). Only the binding, the edit buffer of the focused field and the focused field's
+state hold the text. Pin: `aSecureFieldsUndoSnapshotsDoNotOutliveItsFocus`.
+
+## SCF-J: no dump prints the text (ruled, built)
+
+`SecureField` is `CustomStringConvertible`, `CustomDebugStringConvertible` and `CustomReflectable`; so are `TextField`
+(its mirror shows `shownText`, bullets when secure) and the internal `TextInputTarget`, so `dump` of a field, its target or a
+`Handlers` value, `String(describing:)`/`String(reflecting:)` and the harness' tree dumps show bullets. The accessibility
+tree already carries bullets (`SCF-F`). Pin: `noDumpOrDescriptionOfASecureFieldPrintsItsText`.
+
+## SCF-K: submit, focus and steady frames (ruled, built)
+
+`.onSubmit` and `.focused(_:)` work as on a `TextField` (`aSecureFieldSubmitsAndReportsItsFocus`); an idle unfocused or focused
+secure field asks for no frame and no element request (`anIdleSecureFieldAsksForNoFrames`; MetalUI's caret does not blink), and
+a window without one never calls the platform hook (`aWindowWithoutASecureFieldKeepsItsFrameWorkAndSendsNothing`).
 
 ## Carried
 
