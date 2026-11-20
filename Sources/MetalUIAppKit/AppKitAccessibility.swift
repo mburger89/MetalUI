@@ -462,7 +462,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         // neutral role stays `.table`; AccessKit keeps `TABLE`.
         case .table: .outline
         case .row: .row
-        case .textField: .textField
+        case .textField, .secureTextField: .textField
         case .textArea: .textArea
         case .checkBox: .checkBox
         case .radioButton: .radioButton
@@ -504,6 +504,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     private var subrole: NSAccessibility.Subrole? {
         switch node.role {
         case .row: .outlineRow
+        case .secureTextField: .secureTextField   // `SCF-F`
         case .alert: .dialog
         default: nil
         }
@@ -596,6 +597,10 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         case .checkBox, .radioButton, .slider, .incrementor, .menuItemCheckBox, .progressIndicator, .splitter:
             if let number = Double(string) { return NSNumber(value: number) }
             return string
+        case .secureTextField:
+            // `NSSecureTextFieldCell`'s `AXValue` is one U+F79A per character (measured, `SCF-F`), never the text; the
+            // neutral value is one bullet per grapheme, so its count is what is kept.
+            return String(repeating: "\u{F79A}", count: string.count)
         default:
             return string
         }

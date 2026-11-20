@@ -675,6 +675,7 @@ enum AccessibilityTreeBuilder {
         case .text: return .staticText
         case .image: return .image
         case .textField: return .textField
+        case .secureTextField: return .secureTextField
         case .textArea: return .textArea
         case .checkBox: return .checkBox
         case .radioButton: return .radioButton

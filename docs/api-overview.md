@@ -215,7 +215,11 @@ before any wrapper (`PE-R`). `TextField` draws SwiftUI's bordered field by
 default and takes `.textFieldStyle(_:)` (`TextFieldStyle`: `.automatic`,
 `.roundedBorder`, `.squareBorder`, `.plain`), `TextEditor` an opaque background
 and `.textEditorStyle(_:)` — each on the control or on a container, the
-innermost winning (`MD-B`, `MD-F`; 132, 133).
+innermost winning (`MD-B`, `MD-F`; 132, 133). **`SecureField`** (`SCF-A`..`SCF-H`, D; 1115-1117) is
+`TextField`'s one-line editor drawing and publishing one bullet per grapheme: `SecureField(_:text:)`,
+`(_:text:prompt:)`, `(text:prompt:label:)`, `.font(family:size:)`, `.foregroundColor`, `.textFieldStyle`, `.onSubmit`.
+Copy and cut do nothing, paste and undo work, there is no marked text, and macOS holds secure keyboard entry while it
+is focused; its accessibility role is `.secureTextField`. No `axis:` or selection binding.
 
 ## Text — A
 

@@ -135,9 +135,12 @@ enum TextEditing {
     /// modifier's Return passes on as in an editor. `nil` reads the mode from `lines`.
     static func key(_ key: KeyEvent, text: String, state: TextEditState,
                     clipboard: () -> String?, platform: Platform = platform,
-                    lines: TextLineModel? = nil, mode: KeyMode? = nil) -> KeyOutcome {
+                    lines: TextLineModel? = nil, mode: KeyMode? = nil, secure: Bool = false) -> KeyOutcome {
         let mode = mode ?? (lines == nil ? .singleLine : .editor)
         let characters = Array(text)
+        // A secure field (`SCF-C`, `SCF-D`): the word keys see one word, so the caret and a word delete never reveal where
+        // the text's words begin; copy and cut do nothing.
+        let wordCharacters = secure ? Array(repeating: Character("x"), count: characters.count) : characters
         var state = synced(state.clamped(to: characters.count), with: text)
         let goalX = state.goalX
         state.goalX = nil
@@ -166,6 +169,8 @@ enum TextEditing {
             case "y" where platform == .other:
                 let restored = redo(text: text, state: state)
                 return KeyOutcome(state: restored.state, text: restored.text, handled: true)
+            case "c" where secure, "x" where secure:
+                return KeyOutcome(state: state, handled: true)   // `SCF-C`: claimed, nothing copied, nothing cut
             case "c":
                 let selected = String(characters[state.selection])
                 return KeyOutcome(state: state, copied: selected.isEmpty ? nil : selected, handled: true)
@@ -265,12 +270,12 @@ enum TextEditing {
         case leftArrow:
             if !shift && !state.selection.isEmpty && !byWord && !toEdge { return move(to: state.selection.lowerBound) }
             if toEdge { return move(to: 0) }
-            if byWord { return move(to: wordStart(before: state.head, in: characters)) }
+            if byWord { return move(to: wordStart(before: state.head, in: wordCharacters)) }
             return move(to: max(0, state.head - 1))
         case rightArrow:
             if !shift && !state.selection.isEmpty && !byWord && !toEdge { return move(to: state.selection.upperBound) }
             if toEdge { return move(to: characters.count) }
-            if byWord { return move(to: wordEnd(after: state.head, in: characters)) }
+            if byWord { return move(to: wordEnd(after: state.head, in: wordCharacters)) }
             return move(to: min(characters.count, state.head + 1))
         case upArrow where platform == .mac, home:
             return move(to: 0)
@@ -282,7 +287,7 @@ enum TextEditing {
             if range.isEmpty {
                 let from: Int
                 if toEdge { from = 0 }
-                else if byWord { from = wordStart(before: state.head, in: characters) }
+                else if byWord { from = wordStart(before: state.head, in: wordCharacters) }
                 else { from = max(0, state.head - 1) }
                 range = from..<state.head
             }
@@ -295,7 +300,7 @@ enum TextEditing {
             var range = state.selection
             let single = range.isEmpty && !byWord
             if range.isEmpty {
-                let to = byWord ? wordEnd(after: state.head, in: characters)
+                let to = byWord ? wordEnd(after: state.head, in: wordCharacters)
                     : min(characters.count, state.head + 1)
                 range = state.head..<to
             }
@@ -640,9 +645,13 @@ final class TextTargetHooks {
     /// The text input of a view that edits outside MetalUI (`TRM-BC`): a terminal. `Window` routes committed and
     /// marked text to it and never to `TextEditing`.
     let external: ExternalTextInput?
+    /// Whether this is a `SecureField`'s (`SCF-A`).
+    let secure: Bool
 
     init(submit: (@MainActor () -> Void)?, sink: (@MainActor (Range<Int>, String) -> AnyHashable)?,
-         code: CodeEditSession? = nil, vertical: Bool = false, external: ExternalTextInput? = nil) {
+         code: CodeEditSession? = nil, vertical: Bool = false, external: ExternalTextInput? = nil,
+         secure: Bool = false) {
+        self.secure = secure
         self.submit = submit
         self.sink = sink
         self.code = code
@@ -692,6 +701,10 @@ struct TextInputTarget {
     /// target costs `Handlers` nothing it did not (`SL-M`, `CV-W`: the pin of `handlersGainsOneReferenceMember`).
     private var hooks: TextTargetHooks?
 
+    /// Whether this is a `SecureField`'s (`SCF-A`): masked text, no copy or cut, no marked text. In the one hooks box,
+    /// as a new part of a target goes (`Handlers` stays pinned).
+    var secure: Bool { hooks?.secure ?? false }
+
     var onSubmit: (@MainActor () -> Void)? { hooks?.submit }
 
     /// A bound field's way to write its selection (`SL-B`): receives the range
@@ -720,14 +733,14 @@ struct TextInputTarget {
          onChange: @escaping @MainActor (String) -> Void, onSubmit: (@MainActor () -> Void)?,
          selectionSink: (@MainActor (Range<Int>, String) -> AnyHashable)? = nil,
          lines: TextLineModel? = nil, originY: Double = 0, lineHeight: Double = 0, maxScrollY: Double = 0,
-         verticalField: Bool = false) {
+         verticalField: Bool = false, secure: Bool = false) {
         self.text = text
         self.caretOffsets = caretOffsets
         self.originX = originX
         self.caretRect = caretRect
         self.onChange = onChange
-        self.hooks = onSubmit == nil && selectionSink == nil && !verticalField ? nil
-            : TextTargetHooks(submit: onSubmit, sink: selectionSink, vertical: verticalField)
+        self.hooks = onSubmit == nil && selectionSink == nil && !verticalField && !secure ? nil
+            : TextTargetHooks(submit: onSubmit, sink: selectionSink, vertical: verticalField, secure: secure)
         self.lines = lines
         self.originY = originY
         self.lineHeight = lineHeight
@@ -764,6 +777,14 @@ struct TextInputTarget {
         }
         let index = min(max(Int(((y - originY) / lineHeight).rounded(.down)), 0), lines.lines.count - 1)
         return lines.boundary(inLine: index, nearest: x - originX)
+    }
+}
+
+/// A target's mirror hides a secure field's text (`SCF-J`): `dump` of a `Handlers` value prints bullets.
+extension TextInputTarget: CustomReflectable {
+    var customMirror: Mirror {
+        Mirror(self, children: ["text": secure ? String(repeating: "\u{2022}", count: text.count) : text,
+                                "secure": secure], displayStyle: .struct)
     }
 }
 

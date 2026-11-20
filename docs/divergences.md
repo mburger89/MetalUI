@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **229 live divergences**, each measured (a probe
+place it knowingly does not: **232 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -257,6 +257,9 @@ scheduled).
 | 1105 | a `Table` row's height | rows size to their content: a cell of three `Text`s makes its row 56 high where one-line rows are 24 (probe `swiftui-table.swift` `T2`; the table's `usesAutomaticRowHeights` is true) | rows are one uniform height, `tableRowHeight(_:)` (24 by default), which is what makes a million rows cost a division; a cell whose content is laid out larger than the cell is clipped to it, a cell whose content fits is not clipped (so a caller's `.equatable()` content replays translated, `retainedTranslated` 270 on a scroll step) | `TBL-F`, `TBL-K` | `aCellTallerThanItsRowIsClippedToIt`, `aTableLaysOutHeaderAndRowsAtTheProbesMetrics` | none |
 | 1106 | the default sort of a string `TableColumn` off Apple platforms | `value: \.name` sorts by `localizedStandard` (Finder-style, numeric-aware, locale-aware) | on Linux and Windows the default is `lexical`, because swift-corelibs Foundation has no `localized` or `localizedStandard` comparator (probed in `swift:6.4-noble`); on macOS it is `localizedStandard`; name `comparator:` to choose | `TBL-X` | `foundationSortTypesAreAvailableOnEveryPlatform` | none |
 | 1110 | `Table`'s type shape | `Columns` is whatever the builder produced and `alignment(_:)` returns `some TableColumnContent`; a column's `Content` is a `View` | `Columns` is always `TableColumnGroup<Value, Sort>`, the builder's erased result, and `alignment(_:)` returns the `TableColumn`; a column's `Content` is any `ElementGroup` (a `Component`, an `.equatable()` cell and a legacy element included), written with `@ElementBuilder` | `TBL-B` | `everyTableColumnSpellingCompiles` | none |
+| 1115 | the bullets a `SecureField` draws | AppKit's `NSSecureTextFieldCell` draws its own echo glyph for each character (its accessibility value is one U+F79A each, probe `swiftui-secure-field.swift` `A`); the glyph's advance and ink are AppKit's | one `•` (U+2022) per grapheme in the field's font, so a bullet's advance is that font's, not measured against AppKit's by pixels (`SCF-A`) | `SCF-A` | `aSecureFieldDrawsOnlyBulletsAndNeverHandsTheTextToTheTextSystem` | none |
+| 1116 | secure keyboard entry and the published value off macOS | `EnableSecureEventInput()` while the field is focused in a key window; the accessibility value is U+F79A per character (probe `A`) | on SDL (Linux, Windows) `setSecureTextInput` is the default no-op: no system-wide secure input exists to turn on, and the AccessKit node is `PASSWORD_INPUT` with one `•` per grapheme as its value (`SCF-B`, `SCF-F`) | `SCF-B`, `SCF-F` | `aSecureFieldIsAPasswordInputToAccessKitAndSDLHasNoSecureEntry` | none |
+| 1117 | input methods in a `SecureField` | `NSSecureTextField` takes the input context (marked text is not shown; the system limits the input sources) | the input method is bypassed whole: a printable key is committed text, marked text is dropped, so a dead key composes nothing and a CJK input method types its raw keys; committed text (the emoji palette, a paste) is typed (`SCF-E`). Not measured against `NSSecureTextField` | `SCF-E` | `markedTextIsIgnoredInASecureField` | none |
 
 ## Retired
 
