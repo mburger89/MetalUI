@@ -249,6 +249,10 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                         row.handlers.onClick = rowClick
                         row.handlers.contextual = rowContextual
                     }
+                    // A clickable row is a row, as a bounded `List`'s is (`AB-L`): the hint makes it `.row`, not a button, so the
+                    // builder does not fold its cells into one label and each keeps its element and identifier. Stripped before
+                    // `isEmpty` and written to no `$ax` slot, so retention does not move.
+                    if row.handlers.onClick != nil, pass.collectsAccessibility { row.handlers.axNode.logicalIndex = position }
                 }
                 let (rowNodes, rowLayout) = row.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
                 rows.append(row)

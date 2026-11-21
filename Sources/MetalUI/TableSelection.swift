@@ -52,7 +52,8 @@ final class TableSelectionContext<Value: Identifiable> {
     /// The table's position cache, made on first use at the body's state.
     func positions() -> TableRowPositionCache {
         var cache: TableRowPositionCache?
-        table?.withState(body, initial: TableViewState()) { state in
+        // `unchanged:` (`TBL-L`): the cache exists after the first use, so a settled table's build writes nothing and stays retained.
+        table?.withState(body, initial: TableViewState(), unchanged: TableViewState.sameEntry) { state in
             if state.positions == nil { state.positions = TableRowPositionCache() }
             cache = state.positions
         }

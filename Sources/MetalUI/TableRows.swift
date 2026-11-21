@@ -56,7 +56,9 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                            pass: inout PrepaintPass) -> LegacyContent<Content>.GroupPrepaint {
         // `TCM-D`: in cell mode a click lands on the cell, above its row's own hitbox.
-        if let handlers = decor?.handlers { pass.registerHandlers(handlers, at: bounds, id: id) }
+        // Registered without a synthesized node: a clickable cell would publish as a button and fold its content's elements and
+        // identifiers into one label; the click still lands, and the row it runs is the accessibility node that selects.
+        if let handlers = decor?.handlers { pass.registerHandlers(handlers, at: bounds, id: id, synthesizesAccessibility: false) }
         guard Self.overflows(bounds, nodes: layout.contentNodes, of: { pass.bounds(of: $0) }) else {
             return content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
