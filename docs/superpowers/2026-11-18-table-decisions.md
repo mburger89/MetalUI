@@ -86,6 +86,8 @@ The dragged header cell would paint at the pointer offset and the order be writt
 
 The platform tree gains `AccessibilityRole.columnHeader`, `columnCount`, `columnIndex`, `headerRowCount` and `sortDirection`; a node with a non-nil `columnCount` on a `.table` is a data table. AppKit publishes no `AXColumn` elements (divergence 1107) and cells carry index ranges; AccessKit's `row_count` and `row_index` count the header row where AppKit's do not. Divergence 32 gains `Table`'s realised rows and cells. **Probe `A1`/`A2`:** SwiftUI's table is an `AXOutline` (not `AXTable`) whose `AXRows` are every row (300 of 300 after a scroll, `AXVisibleRows` 25), each `AXRow`/`AXOutlineRow` with `AXCell` children carrying `AXRowIndexRange` and `AXColumnIndexRange`; `AXColumns` are present; the header's children are `AXButton`/`AXSortButton` with `AXSortDirection`. Record 392 read this before it chose the AppKit roles: see `TBL-AB`, which keeps `AXTable` (the spec's and the human check's) over SwiftUI's `AXOutline` and records why.
 
+**As built, after merge:** hiding the sort chevron is a suppression scope around its prepaint, never an `.accessibilityHidden(true)` wrapper: a wrapper is an element, so it costs a request per build with no client attached (record 392, "Fixes after merge").
+
 ## TBL-U: not offered (ruled, not built)
 
 The rows form (`Table(of:columns:rows:)`, `TableRow`, `DisclosureTableRow`), column customisation, `.tableStyle`, `TableColumnAlignment.numeric(_:)`, `SortDescriptor` and `LocalizedStringResource` forms, row drag, `onDelete`/`onMove`, `scrollPosition(id:)`, a header context menu and double-click auto-size are not in v1.

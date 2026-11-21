@@ -341,3 +341,37 @@ extension SortModel {
     #expect(w.framesDrawn == drawn, "frames drawn while idle: \(w.framesDrawn - drawn)")
     #expect(w.frameWork.reduce(0) { $0 + $1.builds } == 0)
 }
+
+// MARK: - A sorted header costs nothing extra (record 392, "Fixes after merge")
+
+/// **T-SORT** A sorted table's scroll steps cost what the same table unsorted costs, with no accessibility client attached: the
+/// sort chevron is one more element in the header (the unsorted header has none), so the sorted figure is the unsorted one + 1
+/// and not + 2. PR E's `.accessibilityHidden(true)` on the chevron wrapped it in a third, `AccessibilityModifier` element on every
+/// build, whether or not a client collected (`TBL-T`: accessibility-only work costs nothing without a client). Alloy's guard of 285
+/// became 286. Mutation: restore `Image(systemName: "chevron.down").accessibilityHidden(true)` in `TableHeaderCell`.
+@Test @MainActor func aSortedHeaderCostsOnlyItsChevronWhileNoClientCollects() async throws {
+    @MainActor func perStep(sorted: Bool) async throws -> [Int] {
+        let model = SortModel()
+        if sorted { model.order = [KeyPathComparator(\SortRow.name)] }
+        let rows = (0..<10_000).map { SortRow(id: $0, name: "n\($0)", size: $0 % 5) }
+        let w = try harnessWindow(size: sz(800, 600)) {
+            Table(rows, sortOrder: model.binding()) {
+                TableColumn("Name", value: \SortRow.name).width(Pixels(100))
+                TableColumn("Size", value: \SortRow.size) { r in Text("\(r.size)") }.width(Pixels(100))
+                TableColumn("Plain") { r in Text("p\(r.id)") }.width(Pixels(100))
+            }
+            .tableRowHeight(Pixels(24))
+        }
+        try await scrollTable(w, x: 0, y: 12000)
+        var costs: [Int] = []
+        for _ in 0..<4 {
+            let step = try await work(of: { w.scroll(at: Point(x: Pixels(400), y: Pixels(300)), byDeltaX: 0, deltaY: -24) }, in: w)
+            costs.append(step.elementRequests)
+        }
+        return costs
+    }
+    let plain = try await perStep(sorted: false)
+    let sorted = try await perStep(sorted: true)
+    print("TBL-T sorted scroll: unsorted \(plain), sorted \(sorted)")
+    #expect(sorted == plain.map { $0 + 2 }, "unsorted \(plain), sorted \(sorted)")
+}

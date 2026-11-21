@@ -65,6 +65,10 @@ Not every test of the five `TBL-T` plan rows has a mutation of its own here: `aT
 - A table with no accessibility client: 0 emissions and the steady frame of record 389 unchanged (621 requests, 621 paints, 280 cells, 28 data reads, 1 build); the same table with a client collecting costs the same on every one of those (records are not element requests). The existing `TableFrameCostTests` and the sibling-redraw replay tests in `TableRetainedTests` run with the harness's client ON by default and still pass, so a collecting client does not move retained replay either.
 - At the steady offsets of a 1 000 000 x 200 table a client reads 28 rows, each with 10 cells, and a header row of 10 cells: about 310 nodes.
 
+## Fixes after merge
+
+- **A sorted header cost one element request more per frame with no client attached** (Alloy's guard 285 became 286 at dc52cd3). PR E wrote the sort chevron as `Image(...).accessibilityHidden(true)`: the modifier is an `AccessibilityModifier` element, built and requested on every frame whether or not a client collects, and it broke the rule above. Measured per scroll step on a 10 000-row sorted table (3 columns, one sorted) against the same table unsorted (208): 210 at a714225, 211 at dc52cd3, 210 now. The chevron is now a plain `Image` with the rotation, and `TableHeaderCell.prepaint` runs its prepaint inside `withAccessibilitySuppressed(except: nil)`, which is a no-op while no client collects. Pinned by `aSortedHeaderCostsOnlyItsChevronWhileNoClientCollects` (sorted = unsorted + 2, the chevron and its rotation; red at 3 before the fix). The header labels are unchanged (`TableAccessibilityTests`, `TableAppKitAccessibilityTests`).
+
 ## Counts
 
 Root, `swift build --build-system native --build-tests && swift test --build-system native --no-parallel`: **7235 tests in 79 suites, green** (7220 at record 391, plus 15: `TableAccessibilityTests` 10, `TableAppKitAccessibilityTests` 4, `AccessibilityTableFieldsTests` 1). `swift build -c release` green. `zsh docs/probes/closeout-inventory-check.sh` and `closeout-undocumented.sh` print nothing.
