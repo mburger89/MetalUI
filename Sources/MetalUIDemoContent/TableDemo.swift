@@ -1,5 +1,6 @@
 import Foundation
 import MetalUI
+import Observation
 
 /// The table demo (`TBL-V`, record 389), reached with `METALUI_TABLE_DEMO=1 swift run MetalUIDemo`: a `Table` over a synthetic
 /// source of 1 000 000 rows by 200 columns, with the "#" column frozen, three sortable `value:` columns, a `Set` selection, a context
@@ -23,13 +24,33 @@ public func tableDemoContent() -> some Element {
 @MainActor
 private func tableDemoRoot() -> some Element {
     VStack(alignment: .leading, spacing: Pixels(8)) {
-        ProposalText("Table: 1 000 000 rows x 200 columns, windowed on both axes")
-            .font(size: 16)
-        TableDemoBody()
+        TableDemoSwitch()
     }
     .padding(Edges(all: Pixels(12)))
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(.background)
+}
+
+/// The table demo's two tables behind one switch (`TCM-A`, record 394): the 1 000 000 x 200 row table, and cell mode over a small
+/// editable CSV-like sheet. The switch starts on the row table, so the demo everyone has seen is unchanged.
+private struct TableDemoSwitch: Component {
+    @State var cellMode = false
+
+    var content: some ElementGroup {
+        VStack(alignment: .leading, spacing: Pixels(8)) {
+            Row(gap: Pixels(12)) {
+                ProposalText(cellMode ? "Cell mode: an editable sheet, 2 000 rows x 8 columns"
+                                      : "Table: 1 000 000 rows x 200 columns, windowed on both axes")
+                    .font(size: 16)
+                Toggle("Cell mode", isOn: $cellMode)
+            }
+            if cellMode {
+                TableCellsDemoBody()
+            } else {
+                TableDemoBody()
+            }
+        }
+    }
 }
 
 /// One row of the synthetic source: an ordinal, with every cell computed from it.
@@ -71,6 +92,63 @@ private struct TableDemoBody: Component {
         .contextMenu(forSelectionType: Int.self) { rows in
             Button("Copy \(rows.count) row\(rows.count == 1 ? "" : "s")") {}
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Cell mode (`TCM-`, record 394)
+
+/// A sheet's values and which cells were edited, observed so a commit redraws.
+@MainActor @Observable
+private final class SheetStore {
+    var values: [[String]] = (0..<2_000).map { row in (0..<8).map { column in column == 0 ? "\(row + 1)" : "r\(row + 1)c\(column)" } }
+    var edited: Set<TableCell<Int>> = []
+    var log = "Click a cell, arrows and Tab move, Return or F2 or typing edits, Escape cancels"
+
+    func value(_ cell: TableCell<Int>) -> String {
+        guard cell.row >= 0, cell.row < values.count, cell.column >= 0, cell.column < 8 else { return "" }
+        return values[cell.row][cell.column]
+    }
+
+    func commit(_ cell: TableCell<Int>, _ text: String) {
+        guard cell.row >= 0, cell.row < values.count, cell.column > 0, cell.column < 8 else { return }
+        if values[cell.row][cell.column] != text { edited.insert(cell) }
+        values[cell.row][cell.column] = text
+        log = "Committed (\(cell.row + 1), \(cell.column)): \(text.debugDescription)"
+    }
+}
+
+/// One row of the sheet: its ordinal.
+private struct SheetRow: Identifiable, Sendable { let id: Int }
+
+private struct TableCellsDemoBody: Component {
+    @State var store = SheetStore()
+    @State var active: TableCell<Int>?
+    @State var editing: TableCell<Int>?
+
+    var content: some ElementGroup {
+        VStack(alignment: .leading, spacing: Pixels(6)) {
+            ProposalText(store.log).font(size: 12)
+            sheet
+        }
+    }
+
+    private var sheet: some ElementGroup {
+        let store = self.store
+        return Table((0..<2_000).map { SheetRow(id: $0) }) {
+            TableColumnForEach(0..<8) { column in
+                TableColumn(column == 0 ? "#" : "Column \(column)") { (row: SheetRow) in
+                    Text(store.value(TableCell(row: row.id, column: column)))
+                }
+                .width(Pixels(column == 0 ? 60 : 120))
+            }
+        }
+        .tableFrozenColumns(1)
+        .tableRowIndex { $0 }
+        .tableActiveCell($active)
+        .tableCellEditing($editing, text: { store.value($0) }, isEditable: { $0.column > 0 },
+                          onCommit: { cell, text in store.commit(cell, text) })
+        .tableCellBackground { cell in store.edited.contains(cell) ? Color.orange.opacity(0.25) : nil }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

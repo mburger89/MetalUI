@@ -46,9 +46,15 @@ struct TableViewState {
     var anchor: AnyHashable?
     /// The row id to position cache (`TBL-N`), made at the first click; compared by identity.
     var positions: TableRowPositionCache?
+    /// Cell mode's open edit (`TCM-F`, a `TableEditSession`), compared by identity; `editRevision` moves when an edit begins or
+    /// ends, so the write that does it draws a frame. `refocus` asks the next prepaint to give the table its focus back.
+    var edit: AnyObject?
+    var editRevision = 0
+    var refocus = false
 
     static func sameEntry(_ a: TableViewState, _ b: TableViewState) -> Bool {
         a.lastPlan == b.lastPlan && a.lead == b.lead && a.anchor == b.anchor && a.positions === b.positions
+            && a.edit === b.edit && a.editRevision == b.editRevision && a.refocus == b.refocus
     }
 }
 
@@ -65,6 +71,10 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
     var rowIndex: (@MainActor (Value.ID) -> Int?)?
     var sort: TableSortControl?
     var menu: SelectionContextMenu?
+    /// Cell mode (`TCM-A`): on when the table has an active-cell binding.
+    var cellMode = TableCellModeSpec<Value.ID>()
+    /// The click a cell-mode table's empty space takes while an edit is open (`TCM-F`).
+    var emptyClick: (@MainActor () -> Void)?
     /// The body's own handlers (`TBL-N`): focusable with the table's keys, and the accessibility selection.
     var handlers = Handlers()
 
@@ -79,11 +89,17 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         var rowLayouts: [SingleElementLayout<TableRowElement>]
         var header: TableHeaderRow?
         var headerLayout: SingleElementLayout<TableHeaderRow>?
+        /// Cell mode (`TCM-F`): the editor's element and layout, and the declared index to display position map.
+        var editor: LegacyContent<TextField>?
+        var editorLayout: LegacyContent<TextField>.GroupLayout?
+        var displayOf: [Int] = []
+        var editSession: TableEditSession<Value.ID>?
     }
 
     struct Prepaint {
         var rows: [Void?]
         var header: [TableHeaderCell.Prepaint?]?
+        var editor: LegacyContent<TextField>.GroupPrepaint?
     }
 
     mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
@@ -106,6 +122,16 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
             rest.removeAll { placed.contains($0.key) }
         }
         ordered.append(contentsOf: rest)
+        // Cell mode (`TCM-C`): a cell's column is its DECLARED index, so keep both directions of the map (O(C), cell mode only).
+        let cellOn = cellMode.isOn
+        var declaredAt: [Int] = [], displayOf: [Int] = []
+        if cellOn {
+            var declaredIndex: [TableColumnKey: Int] = [:]
+            for (i, column) in columns.enumerated() { declaredIndex[column.key] = i }
+            declaredAt = ordered.map { declaredIndex[$0.key] ?? 0 }
+            displayOf = Array(repeating: 0, count: columns.count)
+            for (display, declared) in declaredAt.enumerated() { displayOf[declared] = display }
+        }
         // 4. The widths against last frame's viewport; 5. their prefix-sum index.
         let context = pass.scrollContext
         let viewportWidth = context?.along(.horizontal)?.viewportExtent ?? 0
@@ -122,8 +148,23 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         // `TBL-N`: the selection is read ONCE and each realised row asks one `==`/`contains` of it; nothing scans the data.
         let reader = selection.reader()
         let accent = frame.environmentTop.tint ?? Color(.accent)
-        let selectionContext: TableSelectionContext<Value>? = reader == nil && menu == nil ? nil
+        let selectionContext: TableSelectionContext<Value>? = reader == nil && menu == nil && !cellOn ? nil
             : TableSelectionContext(source: source, rowIndex: rowIndex, selection: selection, body: id, table: frame.stateTable)
+        // `TCM-D`: the active cell and the table's focus are read once per build, as the selection is.
+        var cellContext: TableCellContext<Value>?
+        var activeCell: TableCell<Value.ID>?
+        var ring = TableCellRing(color: accent, width: 2)
+        if cellOn, let selectionContext {
+            cellContext = TableCellContext(spec: cellMode, selection: selectionContext, body: id, table: frame.stateTable,
+                                           queue: frame.scrollRequestQueue, declaredAt: declaredAt, displayOf: displayOf,
+                                           rowHeight: rowHeight, headerHeight: headerHeight)
+            activeCell = cellMode.active?.wrappedValue
+            // The table is focused while its editor is (`TCM-D`).
+            let focus = frame.focusedElement
+            if focus != id && focus != GlobalElementID.child(of: id, at: 0, name: tableEditorName) {
+                ring = TableCellRing(color: Color.secondary, width: 1)
+            }
+        }
         let sortLeading = sort?.leading()
         var realisedIDs: [Value.ID] = []
         var rows: [TableRowElement] = []
@@ -131,6 +172,10 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         var nodes: [ProposalNodeID] = []
         var header: TableHeaderRow?
         var headerLayout: SingleElementLayout<TableHeaderRow>?
+        var editor: LegacyContent<TextField>?
+        var editorLayout: LegacyContent<TextField>.GroupLayout?
+        var editorPlacement: TableEditorPlacement?
+        var editSession: TableEditSession<Value.ID>?
         var cursor = 0
         let sort = self.sort
         func headerCell(_ spec: AnyTableColumn<Value>, paintsBackground: Color?) -> TableHeaderCell {
@@ -149,18 +194,42 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                 frame.tableWork.dataReads += 1
                 var alternate: Color? = position % 2 == 1 ? Color.surfaceSecondary : nil
                 let selected = reader?(value.id) ?? false
-                if selected { alternate = accent }
+                // `TCM-D`: a selected row in cell mode is the unemphasised fill, so a cell tint stays readable on it.
+                if selected { alternate = cellOn ? Color.secondary.opacity(0.25) : accent }
+                // The row's click and menu, made before its cells so a cell's click can run it (`TCM-D`).
+                var rowClick: (@MainActor () -> Void)?
+                var rowContextual: ContextualAttachment?
+                if let selectionContext {
+                    if reader != nil { rowClick = selectionContext.rowClick(row: value.id, position: position) }
+                    if let menu {
+                        rowClick = menu.clickHandler(wrapping: rowClick, row: value.id)
+                        let current = selection
+                        rowContextual = menu.rowAttachment(row: value.id) { current.currentSet() }
+                    }
+                }
+                @MainActor func decorate(_ cell: AnyTableCell, column: Int) {
+                    guard let cellContext else { return }
+                    let tableCell = TableCell(row: value.id, column: declaredAt[column])
+                    var handlers = Handlers()
+                    handlers.onClick = cellContext.click(cell: tableCell, position: position, rowClick: rowClick)
+                    handlers.contextual = rowContextual
+                    cell.decor = TableCellDecor(fill: cellMode.fill?(tableCell), ring: activeCell == tableCell ? ring : nil,
+                                                handlers: handlers)
+                }
                 var cells: [AnyTableCell] = []
                 var xs: [Double] = [], cellWidths: [Double] = []
                 cells.reserveCapacity(plan.columns.count + frozen)
                 for column in plan.columns {
                     let spec = ordered[column]
-                    cells.append(spec.makeCell(value, spec.elementID))
+                    let cell = spec.makeCell(value, spec.elementID)
+                    decorate(cell, column: column)
+                    cells.append(cell)
                     xs.append(index.offset(of: column)); cellWidths.append(index.width(at: column))
                 }
                 for column in plan.frozen {
                     let spec = ordered[column]
                     let cell = spec.makeCell(value, spec.elementID)
+                    decorate(cell, column: column)
                     cell.rowBackground = alternate ?? Color.background   // opaque over the scrolled cells (`TBL-K`)
                     cells.append(cell)
                     xs.append(plan.offsetX + index.offset(of: column)); cellWidths.append(index.width(at: column))
@@ -172,21 +241,71 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                     if reader != nil {
                         // The selected row's background and hint, as a `List` row's (`DD-AC` item 1): the hint writes no `$ax`.
                         if selected { row.handlers.axNode.selectionHint = true }
-                        row.handlers.onClick = selectionContext.rowClick(row: value.id, position: position)
+                        row.handlers.onClick = rowClick
                         row.handlers.axNode.isSelectableRow = true
                     }
-                    if let menu {
+                    if menu != nil {
                         // `OG-N`: the row's menu and its double-click primary action.
-                        row.handlers.onClick = menu.clickHandler(wrapping: row.handlers.onClick, row: value.id)
-                        let current = selection
-                        row.handlers.contextual = menu.rowAttachment(row: value.id) { current.currentSet() }
+                        row.handlers.onClick = rowClick
+                        row.handlers.contextual = rowContextual
                     }
+                    // A clickable row is a row, as a bounded `List`'s is (`AB-L`): the hint makes it `.row`, not a button, so the
+                    // builder does not fold its cells into one label and each keeps its element and identifier. Stripped before
+                    // `isEmpty` and written to no `$ax` slot, so retention does not move.
+                    if row.handlers.onClick != nil, pass.collectsAccessibility { row.handlers.axNode.logicalIndex = position }
                 }
                 let (rowNodes, rowLayout) = row.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
                 rows.append(row)
                 rowLayouts.append(rowLayout)
                 nodes.append(contentsOf: rowNodes)
                 frame.tableWork.cellsRealized += cells.count
+            }
+            // 9b. Cell mode's editor (`TCM-F`): the body's own child, above the cells and under the header, placed by position.
+            if let cellContext, let session = cellContext.openSession {
+                editSession = session
+                let editorID = GlobalElementID.child(of: id, at: 0, name: tableEditorName)
+                session.editorFocused = frame.focusedElement == editorID
+                // The row: the session's position verified with one read, then `tableRowIndex`, then one scan (`TCM-F`).
+                @MainActor func holds(_ position: Int) -> Bool {
+                    guard position >= 0, position < rowCount else { return false }
+                    frame.tableWork.dataReads += 1
+                    return source.element(position).id == session.cell.row
+                }
+                var found: Int?
+                if let hint = session.position, holds(hint) {
+                    found = hint
+                } else if let looked = rowIndex?(session.cell.row), holds(looked) {
+                    found = looked
+                } else {
+                    for candidate in 0..<rowCount {
+                        frame.tableWork.dataReads += 1
+                        if source.element(candidate).id == session.cell.row { found = candidate; break }
+                    }
+                }
+                if let found, !ordered.isEmpty {
+                    session.position = found
+                    let display = displayOf[Swift.min(Swift.max(0, session.cell.column), displayOf.count - 1)]
+                    session.lastFrame = (x: (display < frozen ? plan.offsetX : 0) + index.offset(of: display),
+                                         y: headerHeight + Double(found) * rowHeight,
+                                         width: Swift.max(index.width(at: display), TableEditorPlacement.minimumWidth))
+                }
+                if let held = session.lastFrame {
+                    editorPlacement = TableEditorPlacement(x: held.x, y: held.y, width: held.width)
+                    var field = TextField("", text: session.text, axis: .vertical) { [weak cellContext] new in
+                        session.text = new
+                        cellContext?.revealEditing(session)
+                    }
+                    .lineLimit(1...6)
+                    field.elementID = tableEditorName
+                    field = field.addingKeyPress([.down, .repeat], .any) { [weak cellContext] press in
+                        cellContext?.editorKey(press, session: session) ?? .ignored
+                    }
+                    var content = LegacyContent(field)
+                    let (editorNodes, built) = content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
+                    editor = content
+                    editorLayout = built
+                    nodes.append(contentsOf: editorNodes)
+                }
             }
             // 10. The header, last: it prepaints and paints over the rows.
             if headerHeight > 0, !ordered.isEmpty {
@@ -218,20 +337,51 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                     selectionContext.accessibilityRowSelection(realised: realisedIDs, keyed: keyed)
             }
             bodyHandlers.isFocusable = true
-            bodyHandlers.onKey = selectionContext.keyHandler(menu: menu, queue: frame.scrollRequestQueue, rowHeight: rowHeight,
-                                                    headerHeight: headerHeight)
+            let rowKeys = selectionContext.keyHandler(menu: menu, queue: frame.scrollRequestQueue, rowHeight: rowHeight,
+                                                      headerHeight: headerHeight)
+            bodyHandlers.onKey = cellContext?.keyHandler(fallback: rowKeys) ?? rowKeys
+        }
+        if let cellContext {
+            // A click in the empty space commits an open edit (`TCM-D`); only an open edit gives the body a click.
+            emptyClick = editSession != nil ? cellContext.emptySpaceClick() : nil
+            noteCellLifecycle(id, context: cellContext, session: editSession, frame: frame)
         }
         handlers = bodyHandlers
         // 12. The body's layout; 13. the counters.
         let node = pass.requestNativeLayout(
             TableBodyLayout(rowHeight: rowHeight, headerHeight: headerHeight, rowCount: rowCount, totalWidth: index.totalWidth,
                             viewportWidth: viewportWidth, firstRow: plan.rows.lowerBound, realisedRows: rows.count,
-                            hasHeader: header != nil, offsetY: plan.offsetY),
+                            hasHeader: header != nil, offsetY: plan.offsetY, editor: editorPlacement),
             children: nodes)
         frame.tableWork.rowsRealized += rows.count
         if plan.mode == .cold { frame.tableWork.coldFrames += 1 }
         return (node, Layout(node: node.layoutNodeID, plan: plan, index: index, rowCount: rowCount, frozen: frozen, values: values,
-                             rows: rows, rowLayouts: rowLayouts, header: header, headerLayout: headerLayout))
+                             rows: rows, rowLayouts: rowLayouts, header: header, headerLayout: headerLayout,
+                             editor: editor, editorLayout: editorLayout, displayOf: displayOf, editSession: editSession))
+    }
+
+    /// Cell mode's after-frame notes (`TCM-F`, `TCM-H`): the `editing` binding's changes (a caller's `nil` cancels, a cell begins
+    /// an edit), focus leaving the editor and the table leaving the hierarchy (each commits). They run after the frame, where
+    /// writes are inputs, never in a phase. The last two are noted only while an edit is open.
+    private func noteCellLifecycle(_ id: GlobalElementID, context: TableCellContext<Value>,
+                                   session: TableEditSession<Value.ID>?, frame: Frame) {
+        func note(_ write: LifecycleWrite) {
+            let order = frame.reserveLifecycleOrder()
+            let node = frame.tree.nodeCount
+            frame.noteLifecycle(write, order: order, owner: id, span: (node, node))
+        }
+        if let editing = cellMode.editing {
+            let token = TableEditingToken<Value.ID>(cell: editing.wrappedValue)
+            note(.change(value: token, isEqual: { ($0 as? TableEditingToken<Value.ID>) == token },
+                         action: { _, new in context.editingChanged(to: (new as? TableEditingToken<Value.ID>)?.cell) },
+                         initial: false))
+        }
+        guard let session else { return }
+        let focused = session.editorFocused
+        note(.change(value: focused, isEqual: { ($0 as? Bool) == focused },
+                     action: { old, new in if (old as? Bool) == true, (new as? Bool) == false { context.focusLeft() } },
+                     initial: false))
+        note(.disappear { context.disappeared() })
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
@@ -247,9 +397,11 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                                                  columns: layout.index, frozenCount: layout.frozen,
                                                  scroller: frame.activeScrollerFrame)
             if !TableWindowPlanner.contains(plan, fresh) { frame.requestAnotherFrame() }
+            if cellMode.isOn { seatCellModeFocus(id, layout: layout, frame: frame, pass: &pass) }
             // `TBL-N`: the body's own region (focus, keys, the accessibility selection) registers before its rows, so a row's
             // hitbox is above it.
             if handlers.isFocusable { pass.registerHandlers(handlers, at: bounds, id: id) }
+            registerEmptySpace(id, bounds: bounds, fresh: fresh, pass: &pass)
             resolveScrollRequests(id, bounds: bounds, layout: layout, frame: frame)
             @MainActor func run() -> Prepaint {
                 frame.withEnvironment(layout.values) {
@@ -257,6 +409,11 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                     result.rows.reserveCapacity(layout.rows.count)
                     for i in layout.rows.indices {
                         result.rows.append(layout.rows[i].prepaintGroup(layout: &layout.rowLayouts[i], pass: &pass))
+                    }
+                    if var editor = layout.editor, var editorLayout = layout.editorLayout {
+                        result.editor = editor.prepaintGroup(layout: &editorLayout, pass: &pass)
+                        layout.editor = editor
+                        layout.editorLayout = editorLayout
                     }
                     if var header = layout.header, var headerLayout = layout.headerLayout {
                         result.header = header.prepaintGroup(layout: &headerLayout, pass: &pass)
@@ -275,6 +432,37 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         }
     }
 
+    /// While an edit is open, a click anywhere in the viewport that no row or cell takes commits it (`TCM-F`): the body is only as
+    /// tall as its rows, so the empty space below them is a region of its own, registered before the rows so they sit above it.
+    private func registerEmptySpace(_ id: GlobalElementID, bounds: Bounds<Pixels>, fresh: TableWindowPlan, pass: inout PrepaintPass) {
+        guard let onClick = emptyClick else { return }
+        var region = Handlers()
+        region.onClick = onClick
+        let origin = Point(x: bounds.origin.x + Pixels(Float(fresh.offsetX)), y: bounds.origin.y + Pixels(Float(fresh.offsetY)))
+        let area = Bounds(origin: origin, size: Size(width: Pixels(Float(fresh.viewportWidth)), height: Pixels(Float(fresh.viewportHeight))))
+        pass.registerHandlers(region, at: area, id: GlobalElementID.child(of: id, at: 0, name: ElementID("$tableEmptySpace")))
+    }
+
+    /// Cell mode's focus, from inside the frame (`TCM-F`): a new edit's editor takes it with its caret at the end of its text, and a
+    /// table whose edit ended while the editor held it takes it back.
+    private func seatCellModeFocus(_ id: GlobalElementID, layout: Layout, frame: Frame, pass: inout PrepaintPass) {
+        if pass.readState(id, initial: TableViewState()).refocus {
+            frame.seatFocus(on: id)
+            pass.withState(id, initial: TableViewState()) { $0.refocus = false }
+        }
+        guard let session = layout.editSession, session.isOpen, layout.editor != nil else { return }
+        let editorID = GlobalElementID.child(of: id, at: 0, name: tableEditorName)
+        if session.needsSeed {
+            session.needsSeed = false
+            let end = session.text.count
+            pass.withState(editorID, initial: TextEditState()) { $0.anchor = end; $0.head = end }
+        }
+        if session.needsFocus {
+            session.needsFocus = false
+            frame.seatFocus(on: editorID)
+        }
+    }
+
     /// A pending `scrollTo` or key reveal for a row, resolved by POSITION (`TBL-O`, spec 5.2): this table's own `TableLeadReveal`
     /// carries its position; a caller's `scrollTo(rowID)` goes through `tableRowIndex`, and without it scans the data (documented).
     /// The target is the row plus the pinned header above it, over the current horizontal band, so the horizontal position never
@@ -285,8 +473,23 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         let count = layout.rowCount
         for request in pending where !frame.isScrollRequestResolved(request.index) {
             var position: Int?
+            // Cell mode (`TCM-J`): the column to reveal as a DISPLAY position, `nil` for the horizontal band as it is.
+            var column: Int?
             if let reveal = request.key.base as? TableLeadReveal {
                 if reveal.body == id { position = reveal.position }
+            } else if let reveal = request.key.base as? TableCellReveal {
+                if reveal.body == id { position = reveal.position; column = reveal.column }
+            } else if let cell = request.key.base as? TableCell<Value.ID> {
+                // A caller's `scrollTo(TableCell)`: the row as for a row id, the column as a declared index.
+                if let found = rowIndex?(cell.row) {
+                    position = found
+                } else {
+                    for candidate in 0..<count {
+                        frame.tableWork.dataReads += 1
+                        if source.element(candidate).id == cell.row { position = candidate; break }
+                    }
+                }
+                if !layout.displayOf.isEmpty { column = layout.displayOf[Swift.min(Swift.max(0, cell.column), layout.displayOf.count - 1)] }
             } else if let row = request.key.base as? Value.ID {
                 if let found = rowIndex?(row) {
                     position = found
@@ -298,9 +501,17 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                 }
             }
             guard let position, position >= 0, position < count else { continue }
-            let target = Bounds(origin: Point(x: Pixels(Float(Double(bounds.origin.x.value) + layout.plan.offsetX)),
+            // The horizontal band: the viewport's as it is, or (cell mode) the column's own, widened by the frozen columns it must
+            // clear, so a scrolled cell never ends up under them (`TCM-E`). A frozen column never moves the scroll sideways.
+            var left = layout.plan.offsetX, width = layout.plan.viewportWidth
+            if let column, column >= layout.frozen, column < layout.index.count {
+                let frozenWidth = layout.index.offset(of: layout.frozen)
+                left = layout.index.offset(of: column) - frozenWidth
+                width = layout.index.width(at: column) + frozenWidth
+            }
+            let target = Bounds(origin: Point(x: Pixels(Float(Double(bounds.origin.x.value) + left)),
                                               y: Pixels(Float(Double(bounds.origin.y.value) + Double(position) * rowHeight))),
-                                size: Size(width: Pixels(Float(layout.plan.viewportWidth)),
+                                size: Size(width: Pixels(Float(width)),
                                            height: Pixels(Float(rowHeight + headerHeight))))
             frame.resolveScrollRequest(request.index, target: target)
         }
@@ -312,6 +523,12 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         frame.withEnvironment(layout.values) {
             for i in layout.rows.indices {
                 layout.rows[i].paintGroup(layout: &layout.rowLayouts[i], prepaint: &prepaint.rows[i], pass: &pass)
+            }
+            if var editor = layout.editor, var editorLayout = layout.editorLayout, var held = prepaint.editor {
+                editor.paintGroup(layout: &editorLayout, prepaint: &held, pass: &pass)
+                layout.editor = editor
+                layout.editorLayout = editorLayout
+                prepaint.editor = held
             }
             if var header = layout.header, var headerLayout = layout.headerLayout {
                 header.paintGroup(layout: &headerLayout, prepaint: &prepaint.header, pass: &pass)
@@ -339,6 +556,8 @@ struct TableBodyLayout: ProposalLayout {
     var hasHeader: Bool
     /// The table's clamped vertical offset: the header's place in the content.
     var offsetY: Double
+    /// Cell mode's editor, placed after the rows and before the header (`TCM-F`); `nil` without an open edit.
+    var editor: TableEditorPlacement?
 
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
         LayoutMeasurement(size: SizeD(width: Swift.max(totalWidth, viewportWidth),
@@ -350,11 +569,26 @@ struct TableBodyLayout: ProposalLayout {
             subviews[slot].place(at: Point(x: bounds.x, y: bounds.y + headerHeight + Double(firstRow + slot) * rowHeight),
                                  anchor: .topLeading, proposal: ProposedSize(width: bounds.width, height: rowHeight))
         }
-        if hasHeader, subviews.count > realisedRows {
-            subviews[realisedRows].place(at: Point(x: bounds.x, y: bounds.y + offsetY), anchor: .topLeading,
+        var next = realisedRows
+        if let editor, subviews.count > next {
+            // The editor is as tall as its lines need (`nil`), so it grows down over the rows under it.
+            subviews[next].place(at: Point(x: bounds.x + editor.x, y: bounds.y + editor.y), anchor: .topLeading,
+                                 proposal: ProposedSize(width: editor.width, height: nil))
+            next += 1
+        }
+        if hasHeader, subviews.count > next {
+            subviews[next].place(at: Point(x: bounds.x, y: bounds.y + offsetY), anchor: .topLeading,
                                          proposal: ProposedSize(width: bounds.width, height: headerHeight))
         }
     }
+}
+
+/// Where cell mode's editor sits in content space (`TCM-F`): its cell's x and top, and the larger of the column's width and 120.
+struct TableEditorPlacement {
+    static let minimumWidth = 120.0
+    var x: Double
+    var y: Double
+    var width: Double
 }
 
 /// A table's own frame (`TBL-E`): a table is greedy and self-scrolling, so it answers its proposal on each axis and 0 where it

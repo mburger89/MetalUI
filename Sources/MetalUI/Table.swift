@@ -38,6 +38,8 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
     var selection: ListSelection<Value.ID> = .none
     var sort: TableSortControl?
     var menu: SelectionContextMenu?
+    /// Cell mode (`TCM-A`), set by `tableActiveCell`, `tableCellEditing` and `tableCellBackground`.
+    var cellMode = TableCellModeSpec<Value.ID>()
     @State var columnState = TableColumnState()
     var inner: EnvironmentScope<ProposalScrollView<TableBody<Value>>>?
 
@@ -98,6 +100,7 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
         body.rowIndex = rowIndexLookup
         body.sort = sort
         body.menu = menu
+        body.cellMode = cellMode
         var scrolled = ProposalScrollView([.horizontal, .vertical]) { body }
             .contentMargins(.top, Pixels(Float(headerHeight)), for: .scrollIndicators)
         var cursor = 0
