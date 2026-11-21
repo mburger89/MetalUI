@@ -35,6 +35,10 @@ struct TableSource<Value> {
 struct TableColumnState: Equatable {
     var widths: [TableColumnKey: Double] = [:]
     var order: [TableColumnKey] = []
+    /// The divider drag in progress (`TBL-R`): a reference, so moving it writes no state; one per table, never compared.
+    var resizeDrag = TableResizeDragBox()
+
+    static func == (l: TableColumnState, r: TableColumnState) -> Bool { l.widths == r.widths && l.order == r.order }
 }
 
 /// A table body's state at its own id (`TBL-L`), written through `withState(…, unchanged: sameEntry)` and never `write`, so a
@@ -67,6 +71,8 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
     var frozenCount: Int
     var headerHeight: Double
     var columnState: TableColumnState
+    /// Where a divider drag writes the widths (`TBL-R`): the table's `@State`.
+    var columnBinding: Binding<TableColumnState>?
     var selection: ListSelection<Value.ID> = .none
     var rowIndex: (@MainActor (Value.ID) -> Int?)?
     var sort: TableSortControl?
@@ -178,9 +184,14 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         var editSession: TableEditSession<Value.ID>?
         var cursor = 0
         let sort = self.sort
-        func headerCell(_ spec: AnyTableColumn<Value>, paintsBackground: Color?) -> TableHeaderCell {
+        let columnBinding = self.columnBinding
+        func headerCell(_ spec: AnyTableColumn<Value>, column: Int, paintsBackground: Color?) -> TableHeaderCell {
             var cell = TableHeaderCell(title: spec.title, name: spec.elementID, alignment: spec.alignment,
                                        paintsBackground: paintsBackground)
+            if spec.width.isResizable, let columnBinding {
+                cell.divider.resize = TableResizeDrag(key: spec.key, width: index.width(at: column), spec: spec.width,
+                                                      state: columnBinding)
+            }
             if let prototype = spec.sortPrototype, let sort {
                 cell.sortOrder = sortLeading?(prototype)
                 cell.handlers.onClick = { sort.click(prototype) }
@@ -313,15 +324,15 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                 var xs: [Double] = [], cellWidths: [Double] = []
                 for column in plan.columns {
                     let spec = ordered[column]
-                    cells.append(headerCell(spec, paintsBackground: nil))
+                    cells.append(headerCell(spec, column: column, paintsBackground: nil))
                     xs.append(index.offset(of: column)); cellWidths.append(index.width(at: column))
                 }
                 for column in plan.frozen {
                     let spec = ordered[column]
-                    cells.append(headerCell(spec, paintsBackground: Color.background))
+                    cells.append(headerCell(spec, column: column, paintsBackground: Color.background))
                     xs.append(plan.offsetX + index.offset(of: column)); cellWidths.append(index.width(at: column))
                 }
-                var row = TableHeaderRow(cells: cells, xs: xs, widths: cellWidths, height: headerHeight)
+                var row = TableHeaderRow(cells: cells, xs: xs, widths: cellWidths, height: headerHeight, frozenCells: plan.frozen.count)
                 let (headerNodes, built) = row.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
                 header = row
                 headerLayout = built
@@ -615,6 +626,8 @@ struct TableHeaderRow: Element, ProposalElement {
     var xs: [Double]
     var widths: [Double]
     var height: Double
+    /// How many of the last `cells` are frozen (they paint over the scrolled ones, so those ones' dividers hide under them).
+    var frozenCells = 0
 
     var elementID: ElementID? { ElementID("$tableHeader") }
 
@@ -642,6 +655,14 @@ struct TableHeaderRow: Element, ProposalElement {
         pass.insertHitbox(bounds, id: id, opaque: true)
         var states: [TableHeaderCell.Prepaint?] = []
         for i in cells.indices { states.append(cells[i].prepaintGroup(layout: &layout.cells[i], pass: &pass)) }
+        // The dividers register after every cell, so a divider's half over the next column's header ranks above that header's click
+        // (`TBL-R`); a scrolled column's divider under the frozen columns is not registered.
+        var frozenEdge = -Double.infinity
+        for i in (cells.count - Swift.min(frozenCells, cells.count))..<cells.count { frozenEdge = Swift.max(frozenEdge, xs[i] + widths[i]) }
+        for i in cells.indices {
+            let hidden = i < cells.count - frozenCells && xs[i] + widths[i] < frozenEdge
+            if !hidden { cells[i].divider.registerResize(pass: &pass) }
+        }
         return states
     }
 
@@ -785,11 +806,17 @@ struct TableHeaderCellLayout: ProposalLayout {
     }
 }
 
-/// The column divider (`TBL-R`): a 6-point hit area centred on the column's trailing edge, drawing a 1-point separator. PR B draws
-/// it; PR D gives it the drag and the pointer.
+/// The column divider (`TBL-R`): a 6-point hit area centred on the column's trailing edge, drawing a 1-point separator. A resizable
+/// column's divider takes the `.columnResize` pointer and the drag; a fixed-width column's draws only the line. The header row
+/// registers the hit area after every cell (`registerResize`), so it ranks above the next column's header.
 struct TableColumnDivider: Element, ProposalElement {
     struct Layout { var node: LayoutNodeID }
     private struct LeafKey: Hashable {}
+
+    /// The drag, for a resizable column.
+    var resize: TableResizeDrag?
+    /// Where the last prepaint placed the divider, for `registerResize`.
+    private var placed: (id: GlobalElementID, bounds: Bounds<Pixels>)?
 
     mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let node = pass.requestNativeLeaf(key: LeafKey()) { proposal in
@@ -798,7 +825,18 @@ struct TableColumnDivider: Element, ProposalElement {
         return (node, Layout(node: node.layoutNodeID))
     }
 
-    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout, pass: inout PrepaintPass) {}
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout, pass: inout PrepaintPass) {
+        placed = resize == nil ? nil : (id, bounds)
+    }
+
+    /// Registers the drag and the pointer over the placed hit area.
+    func registerResize(pass: inout PrepaintPass) {
+        guard let resize, let placed else { return }
+        var handlers = Handlers()
+        handlers.gestures = [GestureAttachment(resize.gesture(), priority: .normal)]
+        handlers.pointer = PointerAttachment.style(.columnResize, over: nil)
+        pass.registerHandlers(handlers, at: placed.bounds, id: placed.id)
+    }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout, prepaint: inout Void,
                         pass: inout PaintPass) {

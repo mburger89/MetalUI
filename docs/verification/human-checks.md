@@ -2629,3 +2629,9 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **TCM4.** Edit a cell, scroll it out of view with the wheel and back, then press Return: the typed text is intact and committed once (the log line above the table names it). Edited cells are tinted orange: is the tint readable on a selected row? **Observed:**
 - [ ] **TCM5.** With an input method (Japanese Kana) selected, begin an edit and type `nihon`: the marked text shows in the editor and Return confirms the conversion before it commits. Does Return commit the cell while a conversion is still open? **Observed:**
 
+
+## TBL. Table - column resize (records 389-392; ruling TBL-R, TBL-S, TBL-AA; probe `docs/probes/swiftui-table.swift`)
+
+*An agent cannot: the tests read the harness's pointer style and the laid-out frames; how the resize pointer and the drag feel on a trackpad, and how the divider looks next to the header's separator, need a person at a real Mac. Rows TBL1 to TBL3 and TBL5, TBL6 arrive with the other table records.*
+
+- [ ] **TBL4.** macOS, `METALUI_TABLE_DEMO=1 swift run MetalUIDemo`: hover each header's trailing edge. The pointer becomes the left-right resize arrows over about 6 points (3 on each side of the line), also over the left edge of the NEXT header, and only on the header, never over the rows; the "#" column (fixed width) shows no resize pointer. Drag a divider: the column follows the pointer, stops at its minimum and maximum without the pointer ever "slipping" (drag back and the width follows again at once), and the later columns move with it. A press on the right half of a divider does not sort that column. Drag a header's title across other headers: nothing reorders (SwiftUI's do not either). In cell mode, begin an edit, then resize the column: the editor stays over its cell with its text. **Observed:**
