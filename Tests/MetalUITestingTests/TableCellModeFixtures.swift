@@ -45,12 +45,13 @@ import Testing
 @MainActor func cellTableValue<Data: RandomAccessCollection>(
     data: Data, columns: Int = 6, frozen: Int = 0, model: CellModel, selection: TableSel? = nil, cellMode: Bool = true,
     editable: Bool = true, editableCell: (@MainActor (TableCell<Int>) -> Bool)? = nil, tint: Bool = false, lookup: Bool = false,
-    rawPrefix: String = "") -> Table<RowRef, TableForEachContent<Data>, TableColumnGroup<RowRef, Never>> where Data.Element == RowRef {
+    rawPrefix: String = "", resizable: Bool = false) -> Table<RowRef, TableForEachContent<Data>, TableColumnGroup<RowRef, Never>> where Data.Element == RowRef {
     @TableColumnBuilder<RowRef, Never> var columnsBuilder: TableColumnGroup<RowRef, Never> {
         TableColumnForEach(0..<columns) { c in
-            TableColumn("c\(c)") { r in
+            let column = TableColumn("c\(c)") { (r: RowRef) in
                 Text(model.value(TableCell(row: r.id, column: c))).id("r\(r.id)c\(c)")
-            }.width(Pixels(100))
+            }
+            if resizable { column.width(min: Pixels(50), ideal: Pixels(100), max: Pixels(300)) } else { column.width(Pixels(100)) }
         }
     }
     let table: Table<RowRef, TableForEachContent<Data>, TableColumnGroup<RowRef, Never>>

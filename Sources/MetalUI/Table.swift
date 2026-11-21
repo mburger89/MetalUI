@@ -96,6 +96,7 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
         menu = pass.frame.environmentTop.selectionContextMenu.flatMap { $0.applies(to: Value.ID.self) ? $0 : nil }
         var body = TableBody(source: source, resolveColumns: resolveColumns, rowHeight: rowHeight, frozenCount: frozenCount,
                              headerHeight: headerHeight, columnState: columnState)
+        body.columnBinding = $columnState
         body.selection = selection
         body.rowIndex = rowIndexLookup
         body.sort = sort
