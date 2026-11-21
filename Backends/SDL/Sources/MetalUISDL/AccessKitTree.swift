@@ -28,7 +28,11 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         case tree, treeItem, cell
         /// A split view's divider (ruling `HS-K`): `SPLITTER`.
         case splitter
+        /// A data table's column header cell (`TBL-T`): `COLUMN_HEADER`.
+        case columnHeader
     }
+    /// A column header's sort direction, AccessKit's `sort_direction` (`TBL-T`).
+    public enum SortDirection: Equatable, Sendable { case ascending, descending }
     /// Which way a node lies: AccessKit's `orientation` (ruling `HS-K`).
     public enum Orientation: Equatable, Sendable { case horizontal, vertical }
     public enum Action: Equatable, Hashable, Sendable {
@@ -94,6 +98,12 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         /// (`OG-F`).
         public var level: Int? = nil
         public var expanded: Bool? = nil
+        /// A data table's column count, a cell's or column header's column and a column header's sort direction: AccessKit's
+        /// `column_count`, `column_index` and `sort_direction` (`TBL-T`). `rowCount` and `rowIndex` above already count the
+        /// header row for a data table, which AccessKit's indices do (the tree's own exclude it).
+        public var columnCount: Int? = nil
+        public var columnIndex: Int? = nil
+        public var sortDirection: SortDirection? = nil
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value
@@ -107,6 +117,7 @@ public struct AccessKitSnapshot: Equatable, Sendable {
                 && a.hasPopupMenu == b.hasPopupMenu && a.numericRange == b.numericRange
                 && a.level == b.level && a.expanded == b.expanded
                 && a.range == b.range && a.orientation == b.orientation
+                && a.columnCount == b.columnCount && a.columnIndex == b.columnIndex && a.sortDirection == b.sortDirection
         }
 
         /// What AccessKit's `selected` is set to: the selection when it is
@@ -170,9 +181,20 @@ extension AccessKitSnapshot {
         // Depth first from the roots, so a parent precedes its children.
         var stack = Array(tree.roots.reversed())
         var seen = Set<AccessibilityNodeID>()
+        // A data table's rows and their cells are indexed below its header row (`TBL-T`): the tree's `rowIndex` excludes the
+        // header and AccessKit's counts it, so each child of a table, and each cell of a row, carries the table's header count.
+        var headerShift: [AccessibilityNodeID: Int] = [:]
         while let id = stack.popLast() {
             guard !seen.contains(id), let node = tree.nodes[id] else { continue }
             seen.insert(id)
+            let shift = headerShift[id] ?? 0
+            if node.role == .table, node.columnCount != nil, let headers = node.headerRowCount {
+                for child in node.children { headerShift[child] = headers }
+            } else if node.role == .row, shift > 0 {
+                for child in node.children { headerShift[child] = shift }
+            }
+            // The header row has no index in the tree and is row 0 here.
+            let isHeaderRow = node.role == .row && node.rowIndex == nil && shift > 0
             var actions = Set<Action>()
             if node.actions.contains(.press) { actions.insert(.click) }
             if node.actions.contains(.increment) { actions.insert(.increment) }
@@ -193,12 +215,15 @@ extension AccessKitSnapshot {
                 children: node.children.map(ids.number(for:)), actions: actions,
                 isDisabled: !node.isEnabled, isSelected: node.isSelected,
                 toggled: toggled(node), numericValue: numericValue(node),
-                rowCount: node.rowCount, rowIndex: node.rowIndex, hint: node.hint,
+                rowCount: node.role == .table && node.columnCount != nil ? node.rowCount.map { $0 + (node.headerRowCount ?? 0) } : node.rowCount,
+                rowIndex: isHeaderRow ? 0 : node.rowIndex.map { $0 + shift }, hint: node.hint,
                 authorID: node.identifier, customActions: node.customActions,
                 isSelectable: node.isSelectable, hasPopupMenu: node.role == .menuButton || node.role == .popUpButton,
                 numericRange: node.role == .progressIndicator,
                 range: node.numericRange, orientation: node.orientation.map { $0 == .vertical ? .vertical : .horizontal },
-                level: node.outlineLevel.map { $0 + 1 }, expanded: node.isExpanded))
+                level: node.outlineLevel.map { $0 + 1 }, expanded: node.isExpanded,
+                columnCount: node.columnCount, columnIndex: node.columnIndex,
+                sortDirection: node.sortDirection.map { $0 == .ascending ? .ascending : .descending }))
             stack.append(contentsOf: node.children.reversed())
         }
         let focus = tree.focused.flatMap { tree.nodes[$0] != nil ? ids.number(for: $0) : nil } ?? rootID
@@ -284,6 +309,8 @@ extension AccessKitSnapshot {
         case .disclosureTriangle: .button
         case .cell: .cell
         case .splitter: .splitter
+        // A data table's column header (`TBL-T`): `COLUMN_HEADER`, with `column_index` and `sort_direction`.
+        case .columnHeader: .columnHeader
         }
     }
 

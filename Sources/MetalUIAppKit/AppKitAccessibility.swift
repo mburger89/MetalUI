@@ -348,6 +348,32 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         mainActorAnswer(self, fallback: []) { $0.rows(visibleOnly: true) }
     }
     override func accessibilityIndex() -> Int { mainActorAnswer(self, fallback: 0) { $0.node.rowIndex ?? 0 } }
+    // A data table (`Table`, ruling `TBL-T`): its column count, its header row and the header cells, a body cell's row and column
+    // ranges, and a header cell's sort direction. There are no `AXColumn` elements (divergence 1107).
+    override func accessibilityColumnCount() -> Int { mainActorAnswer(self, fallback: 0) { $0.node.columnCount ?? 0 } }
+    override func accessibilityHeader() -> Any? { mainActorAnswer(self, fallback: nil) { $0.headerElement } }
+    override func accessibilityColumnHeaderUIElements() -> [Any]? {
+        mainActorAnswer(self, fallback: []) { $0.columnHeaderElements }
+    }
+    override func accessibilityRowIndexRange() -> NSRange {
+        mainActorAnswer(self, fallback: NSRange(location: NSNotFound, length: 0)) { element in
+            element.node.rowIndex.map { NSRange(location: $0, length: 1) } ?? NSRange(location: NSNotFound, length: 0)
+        }
+    }
+    override func accessibilityColumnIndexRange() -> NSRange {
+        mainActorAnswer(self, fallback: NSRange(location: NSNotFound, length: 0)) { element in
+            element.node.columnIndex.map { NSRange(location: $0, length: 1) } ?? NSRange(location: NSNotFound, length: 0)
+        }
+    }
+    override func accessibilitySortDirection() -> NSAccessibilitySortDirection {
+        mainActorAnswer(self, fallback: .unknown) { element in
+            switch element.node.sortDirection {
+            case .ascending?: .ascending
+            case .descending?: .descending
+            case nil: .unknown
+            }
+        }
+    }
     override func isAccessibilityFocused() -> Bool { mainActorAnswer(self, fallback: false) { $0.isFocused } }
     override func setAccessibilityFocused(_ focused: Bool) {
         mainActorAnswer(self, fallback: ()) { $0.requestFocus(focused) }
@@ -460,8 +486,11 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         // SwiftUI's `List` is an `AXOutline` of `AXRow`s with subrole
         // `AXOutlineRow` (arms L1, R16, LA0; ruling `IX-AA` item 3). The
         // neutral role stays `.table`; AccessKit keeps `TABLE`.
-        case .table: .outline
-        case .row: .row
+        // A DATA table (`Table`, ruling `TBL-T`: it has a column count) is an `AXTable`, so VoiceOver announces its rows and
+        // columns; SwiftUI's own is an `AXOutline` with no counts (probe `A1`), recorded in `TBL-AB`.
+        case .table: node.columnCount != nil ? .table : .outline
+        // A data table's header row is the table's `AXHeader` group; its other rows are `AXRow`s.
+        case .row: isHeaderRow ? .group : .row
         case .textField, .secureTextField: .textField
         case .textArea: .textArea
         case .checkBox: .checkBox
@@ -496,14 +525,49 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
         // A group row of an outline holds its triangle in one cell (`OG-F`, probe `P-A`).
         case .cell: .cell
         case .splitter: .splitter
+        // A data table's header cell is an `AXButton` with subrole `AXSortButton`, as SwiftUI's is (probe `A1`).
+        case .columnHeader: .button
         }
     }
 
-    /// `AXOutlineRow` for a row (`IX-AA` item 3), `AXDialog` for a drawn alert
-    /// (`SV-S`); nothing else has a subrole.
+    /// The parent's node, while attached.
+    private var parentNode: AccessibilityNode? {
+        guard let bridge = liveBridge, let parent = bridge.parents[id] else { return nil }
+        return bridge.tree.nodes[parent]
+    }
+
+    /// A row of a data table (`TBL-T`): its parent has a column count.
+    private var isDataTableRow: Bool { node.role == .row && parentNode?.columnCount != nil }
+
+    /// A data table's header row: a row with no index inside a data table.
+    private var isHeaderRow: Bool { isDataTableRow && node.rowIndex == nil }
+
+    /// A data table's header row, as the table's `AXHeader`.
+    private var headerElement: Any? {
+        guard let bridge = liveBridge, node.columnCount != nil, (node.headerRowCount ?? 0) > 0 else { return nil }
+        guard let header = node.children.first(where: {
+            let child = bridge.tree.nodes[$0]
+            return child?.role == .row && child?.rowIndex == nil
+        }) else { return nil }
+        return bridge.element(for: header)
+    }
+
+    /// The header row's cells, in column order (`AXColumnHeaderUIElements`).
+    private var columnHeaderElements: [Any] {
+        guard let bridge = liveBridge, node.columnCount != nil, (node.headerRowCount ?? 0) > 0,
+              let header = node.children.first(where: {
+                  let child = bridge.tree.nodes[$0]
+                  return child?.role == .row && child?.rowIndex == nil
+              }), let row = bridge.tree.nodes[header] else { return [] }
+        return row.children.filter { bridge.tree.nodes[$0]?.role == .columnHeader }.map { bridge.element(for: $0) }
+    }
+
+    /// `AXOutlineRow` for a row (`IX-AA` item 3), `AXTableRow` for a data table's, `AXSortButton` for its header cells,
+    /// `AXDialog` for a drawn alert (`SV-S`); nothing else has a subrole.
     private var subrole: NSAccessibility.Subrole? {
         switch node.role {
-        case .row: .outlineRow
+        case .row: isHeaderRow ? nil : (isDataTableRow ? .tableRow : .outlineRow)
+        case .columnHeader: .sortButton
         case .secureTextField: .secureTextField   // `SCF-F`
         case .alert: .dialog
         default: nil
@@ -637,8 +701,11 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
     private func rows(visibleOnly: Bool) -> [Any] {
         guard let bridge = liveBridge, node.role == .table else { return [] }
         bridge.noteClientRead()
+        let isData = node.columnCount != nil
         return node.children.filter { child in
             guard bridge.tree.nodes[child]?.role == .row else { return false }
+            // A data table's header row is its `AXHeader`, not one of its rows (`TBL-T`).
+            if isData, bridge.tree.nodes[child]?.rowIndex == nil { return false }
             guard visibleOnly else { return true }
             let visible = bridge.tree.geometry[child]?.visibleFrame
             return (visible?.size.width.value ?? 0) > 0 && (visible?.size.height.value ?? 0) > 0
@@ -684,7 +751,14 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
              #selector(NSAccessibilityElement.accessibilityRows),
              #selector(NSAccessibilityElement.accessibilityVisibleRows):
             node.role == .table
-        case #selector(NSAccessibilityElement.accessibilityIndex): node.role == .row
+        case #selector(NSAccessibilityElement.accessibilityIndex): node.role == .row && !isHeaderRow
+        // A data table's own and its cells' attributes (`TBL-T`): offered only where they mean something.
+        case #selector(NSAccessibilityElement.accessibilityColumnCount),
+             #selector(NSAccessibilityElement.accessibilityHeader),
+             #selector(NSAccessibilityElement.accessibilityColumnHeaderUIElements): node.columnCount != nil
+        case #selector(NSAccessibilityElement.accessibilityRowIndexRange): node.role == .cell && node.rowIndex != nil
+        case #selector(NSAccessibilityElement.accessibilityColumnIndexRange): node.columnIndex != nil
+        case #selector(NSAccessibilityElement.accessibilitySortDirection): node.role == .columnHeader
         // A split divider's range, orientation and settable value (`HS-K`); every other node keeps the default answer.
         case #selector(NSAccessibilityElement.accessibilityMinValue),
              #selector(NSAccessibilityElement.accessibilityMaxValue): node.numericRange != nil ? true : nil

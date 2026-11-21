@@ -24,6 +24,9 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
     var paintsRowBackground: Color?
     /// Cell mode's fill, ring and click (`TCM-D`, `TCM-I`); `nil` for every cell of a row table.
     var decor: TableCellDecor?
+    /// What an accessibility client reads of this cell (`TBL-T`); `nil` unless a client is collecting, so a table with none
+    /// builds and records exactly as before.
+    var accessibility: TableCellAccessibility?
 
     var elementID: ElementID? { columnID }
 
@@ -59,6 +62,14 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
         // Registered without a synthesized node: a clickable cell would publish as a button and fold its content's elements and
         // identifiers into one label; the click still lands, and the row it runs is the accessibility node that selects.
         if let handlers = decor?.handlers { pass.registerHandlers(handlers, at: bounds, id: id, synthesizesAccessibility: false) }
+        // `TBL-T`: the cell is its own `.cell` node with its row and column, recorded before its content so the content's
+        // elements (and their identifiers) are its children. The record writes no hitbox and no state (`AB-U`).
+        if let accessibility {
+            pass.frame.recordAccessibility(text: nil, declared: AXNode(), at: bounds, id: id,
+                                           table: .cell(row: accessibility.row, column: accessibility.column,
+                                                        isActive: accessibility.isActive, table: accessibility.table))
+            accessibility.anchor?.cell = id
+        }
         guard Self.overflows(bounds, nodes: layout.contentNodes, of: { pass.bounds(of: $0) }) else {
             return content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
@@ -102,6 +113,28 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
     }
 }
 
+/// What a realised cell tells an accessibility client (`TBL-T`), made only while one collects.
+struct TableCellAccessibility {
+    /// The row's position in the data.
+    var row: Int
+    /// The column's DISPLAY position.
+    var column: Int
+    /// Whether this is the active cell of a cell-mode table (`TCM-A`): reported as the selected cell, and the focused one
+    /// while the table has focus.
+    var isActive: Bool
+    /// The table body the cell belongs to, so the builder can name the active cell as that body's focus.
+    var table: GlobalElementID
+    /// Set on the cell an open edit is over: the cell writes its id here when it prepaints, so the editor, which prepaints
+    /// after the rows, is recorded as that cell's child.
+    var anchor: TableEditAnchor?
+}
+
+/// Where the editor of an open cell edit belongs in the accessibility tree (`TBL-T`): the id of the cell it covers.
+@MainActor
+final class TableEditAnchor {
+    var cell: GlobalElementID?
+}
+
 /// Places a cell's content (`TBL-K`): proposed the cell's width less the insets and its height, aligned across the cell and
 /// centred down it.
 struct TableCellLayout: ProposalLayout {
@@ -138,6 +171,8 @@ class AnyTableCell {
     var rowBackground: Color? { get { nil } set {} }
     /// Cell mode's fill, ring and click (`TCM-D`); `nil` and ignored for a row table.
     var decor: TableCellDecor? { get { nil } set {} }
+    /// What an accessibility client reads of the cell (`TBL-T`); `nil` and ignored while none collects.
+    var accessibility: TableCellAccessibility? { get { nil } set {} }
     func requestLayout(under parent: GlobalElementID?, at cursor: inout Int, pass: inout LayoutPass) -> ProposalNodeID {
         fatalError("AnyTableCell is abstract")
     }
@@ -163,6 +198,11 @@ final class TableCellHolder<Content: ElementGroup>: AnyTableCell {
     override var decor: TableCellDecor? {
         get { box.decor }
         set { box.decor = newValue }
+    }
+
+    override var accessibility: TableCellAccessibility? {
+        get { box.accessibility }
+        set { box.accessibility = newValue }
     }
 
     override func requestLayout(under parent: GlobalElementID?, at cursor: inout Int,

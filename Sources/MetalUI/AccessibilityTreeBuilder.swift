@@ -213,10 +213,13 @@ enum AccessibilityTreeBuilder {
         let rowSelection = ObjectIdentifier(AccessibilityRowSelection.self)
         var selectableRows = Set<GlobalElementID>()
         var disclosedBy: [GlobalElementID: GlobalElementID] = [:]
+        // A cell-mode table's active cell by table body (`TBL-T`): where a focus on the body is published.
+        var activeCells: [GlobalElementID: GlobalElementID] = [:]
         var pending = publishedRoots
         while let id = pending.popLast() {
             let node = state[id]!
-            var kids = (placed[id] ?? []).map(AccessibilityNodeID.init)
+            let ordered = Self.tableOrdered(placed[id] ?? [], records: records)
+            var kids = ordered.map(AccessibilityNodeID.init)
             pending.append(contentsOf: placed[id] ?? [])
             if node.record.declared.outlineHint?.state == .list {
                 Self.deriveDisclosure(of: placed[id] ?? [], records: records, into: &disclosedBy)
@@ -241,6 +244,17 @@ enum AccessibilityTreeBuilder {
                 geometry[contained] = placedGeometry
             }
             let publishedRole = publishedRole(of: node)
+            // A `Table`'s node, header cell or cell (`TBL-T`): the counts and indices its client reads.
+            var columnCount: Int?, headerRowCount: Int?, columnIndex: Int?, rowIndex = declared.logicalIndex
+            var sortDirection: AccessibilitySortDirection?, isActiveCell = false
+            switch node.record.table {
+            case .table(let columns, let headerRows): columnCount = columns; headerRowCount = headerRows
+            case .columnHeader(let column, let sort): columnIndex = column; sortDirection = sort
+            case .cell(let row, let column, let isActive, let table):
+                columnIndex = column; rowIndex = row; isActiveCell = isActive
+                if isActive { activeCells[table] = id }
+            case .headerRow, nil: break
+            }
             // An outline row (`OG-F`): its level, whether a group is open, the realised row it is disclosed by, and for
             // a group row the cell and triangle a client reads (`P-A`): the row's one child is the cell, which holds
             // the triangle first and then the row's own content.
@@ -267,35 +281,76 @@ enum AccessibilityTreeBuilder {
                 label: node.label,
                 value: node.value,
                 isSelected: declared.traits.contains(.selected) || declared.selectionHint
-                    || node.traits.contains(.isSelected),
+                    || node.traits.contains(.isSelected) || isActiveCell,
                 isEnabled: node.record.isEnabled && !declared.traits.contains(.disabled)
                     && (splitters[id]?.canMove ?? true),
                 isFocusable: node.isFocusable,
                 actions: node.actions,
                 children: kids,
                 rowCount: declared.logicalCount,
-                rowIndex: declared.logicalIndex,
+                rowIndex: rowIndex,
                 hint: node.hint,
                 identifier: node.identifier ?? declared.declarations.derivedIdentifier,
                 customActions: node.customActions,
-                isSelectable: publishedRole == .row && selectableRows.contains(id),
+                isSelectable: publishedRole == .row && selectableRows.contains(id) && node.record.table != .headerRow,
                 isOutline: publishedRole == .table && outline?.state == .list,
                 outlineLevel: isRow.map { Int($0.level) },
                 isExpanded: isRow.flatMap { $0.state == .leaf ? nil : $0.state == .expanded },
                 disclosedBy: isRow == nil ? nil : disclosedBy[id].map(AccessibilityNodeID.init),
                 numericRange: publishedRole == .splitter ? splitters[id].map { 0...$0.total } : nil,
                 orientation: publishedRole == .splitter
-                    ? splitters[id].map { $0.isVertical ? .vertical : .horizontal } : nil)
+                    ? splitters[id].map { $0.isVertical ? .vertical : .horizontal } : nil,
+                columnCount: columnCount, columnIndex: columnIndex, headerRowCount: headerRowCount,
+                sortDirection: sortDirection)
             if !node.customTargets.isEmpty { result.customActions[id] = node.customTargets }
             geometry[nodeID] = placedGeometry
         }
 
         // The window's focus after the frame's read-back, if it published —
         // so a focus outside a modal subtree publishes none.
-        let published = focused.flatMap { nodes[AccessibilityNodeID($0)] == nil ? nil : AccessibilityNodeID($0) }
+        // A cell-mode table's focus is its active cell (`TBL-T`, cell-mode spec section 8): the table body holds the window's
+        // focus, and the cell that keys act on is what a client reads as focused.
+        let focusedID = focused.flatMap { activeCells[$0] ?? $0 }
+        let published = focusedID.flatMap { nodes[AccessibilityNodeID($0)] == nil ? nil : AccessibilityNodeID($0) }
         result.tree = AccessibilityTree(roots: publishedRoots.map(AccessibilityNodeID.init), nodes: nodes,
                                         geometry: geometry, focused: published)
         return result
+    }
+
+    /// A `Table` node's children with the header row first, and a row's (or the header's) cells by column (`TBL-T`): the records
+    /// come in prepaint order, which paints frozen cells after the scrolled ones and the header after every row. Stable; a node with
+    /// no table child keeps its order untouched.
+    private static func tableOrdered(_ ids: [GlobalElementID], records: [GlobalElementID: AXEmission]) -> [GlobalElementID] {
+        guard ids.count > 1 else { return ids }
+        var needsOrder = false
+        for id in ids {
+            switch records[id]?.table {
+            case .headerRow, .cell, .columnHeader: needsOrder = true
+            case .table, nil: break
+            }
+            if needsOrder { break }
+        }
+        guard needsOrder else { return ids }
+        // The header row sorts before every row (-2), cells by column, anything else (the editor) keeps its place after its
+        // siblings of the same key.
+        func key(_ id: GlobalElementID) -> Int {
+            switch records[id]?.table {
+            case .headerRow: return -2
+            case .cell(_, let column, _, _), .columnHeader(let column, _): return column
+            case .table, nil: return -1
+            }
+        }
+        let headerFirst = ids.contains { records[$0]?.table == .headerRow }
+        if headerFirst {
+            return ids.enumerated().sorted { a, b in
+                let (ka, kb) = (key(a.element) == -2 ? 0 : 1, key(b.element) == -2 ? 0 : 1)
+                return ka != kb ? ka < kb : a.offset < b.offset
+            }.map(\.element)
+        }
+        return ids.enumerated().sorted { a, b in
+            let (ka, kb) = (key(a.element), key(b.element))
+            return ka != kb ? ka < kb : a.offset < b.offset
+        }.map(\.element)
     }
 
     /// A divider's size as the string a client reads: whole points without a fraction (`133`, as the probe read), else the
@@ -488,7 +543,7 @@ enum AccessibilityTreeBuilder {
         for id in ids {
             let kids = placed[id] ?? []
             switch role(of: state[id]!) {
-            case .button, .checkBox, .radioButton:
+            case .button, .checkBox, .radioButton, .columnHeader:
                 var descendants: [GlobalElementID] = []
                 var stack = Array(kids.reversed())
                 var foldable = true
@@ -670,6 +725,13 @@ enum AccessibilityTreeBuilder {
     private static func role(of node: Resolving) -> AccessibilityRole {
         if node.record.declared.logicalCount != nil { return .table }
         if node.record.declared.logicalIndex != nil { return .row }
+        // A `Table`'s own records (`TBL-T`): the header row is a row, a body cell a cell, a header cell a column header.
+        switch node.record.table {
+        case .headerRow: return .row
+        case .cell: return .cell
+        case .columnHeader: return .columnHeader
+        case .table, nil: break
+        }
         switch node.role {
         case .button: return .button
         case .text: return .staticText
