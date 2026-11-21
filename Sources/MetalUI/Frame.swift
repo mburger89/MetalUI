@@ -2265,14 +2265,14 @@ public final class Frame {
     /// `StateTable` slot (so no `$ax` write, AB-U), reading `isEnabled` and the
     /// suppression exactly as `registerHandlers`' record does.
     func recordAccessibility(text: String?, declared: AXNode, at bounds: Bounds<Pixels>,
-                             id: GlobalElementID) {
+                             id: GlobalElementID, table: AXTableInfo? = nil) {
         guard collectsAccessibility, !isAccessibilitySuppressed(for: id) else { return }
         axEmissions.append(AXEmission(id: id, declared: declared, text: text, isClickable: false,
                                       isEnabled: environmentTop.isEnabled, synthesizes: true,
                                       portal: portalStack.last ?? 0,
                                       geometry: accessibilityGeometry(for: bounds),
                                       local: accessibilityLocalRects(for: bounds),
-                                      clipDepth: clipDepth, adopter: accessibilityAdopter))
+                                      clipDepth: clipDepth, adopter: accessibilityAdopter, table: table))
     }
 
     /// `bounds` inset by a declared content shape, or `bounds` itself — the

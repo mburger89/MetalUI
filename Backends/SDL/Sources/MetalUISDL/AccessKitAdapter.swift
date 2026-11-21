@@ -239,6 +239,12 @@ final class AccessKitAdapter: @unchecked Sendable {
         }
         if let rowCount = node.rowCount { accesskit_node_set_row_count(out, rowCount) }
         if let rowIndex = node.rowIndex { accesskit_node_set_row_index(out, rowIndex) }
+        if let columnCount = node.columnCount { accesskit_node_set_column_count(out, columnCount) }   // `TBL-T`
+        if let columnIndex = node.columnIndex { accesskit_node_set_column_index(out, columnIndex) }
+        if let direction = node.sortDirection {
+            accesskit_node_set_sort_direction(out, UInt8((direction == .ascending ? ACCESSKIT_SORT_DIRECTION_ASCENDING
+                                                                                  : ACCESSKIT_SORT_DIRECTION_DESCENDING).rawValue))
+        }
         if let level = node.level { accesskit_node_set_level(out, level) }          // `OG-F`: a tree item's level
         if let expanded = node.expanded { accesskit_node_set_expanded(out, expanded) }   // and a group row's state
         if let hint = node.hint { accesskit_node_set_description(out, hint) }
@@ -285,6 +291,7 @@ final class AccessKitAdapter: @unchecked Sendable {
         case .treeItem: ACCESSKIT_ROLE_TREE_ITEM.rawValue
         case .cell: ACCESSKIT_ROLE_CELL.rawValue
         case .splitter: ACCESSKIT_ROLE_SPLITTER.rawValue
+        case .columnHeader: ACCESSKIT_ROLE_COLUMN_HEADER.rawValue
         }
         return UInt8(value)
     }

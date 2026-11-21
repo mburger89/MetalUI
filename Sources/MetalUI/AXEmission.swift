@@ -51,6 +51,34 @@ struct AXEmission {
     /// The content list row this record was made inside (`OG-F`), or `nil`: the builder parents a record under its row
     /// when no recorded ancestor shares the row (`AccessibilityTreeBuilder`, step 2).
     var adopter: GlobalElementID?
+    /// What a `Table` says of this record (`TBL-T`), or `nil`. **On the record, not on `AXNode`**: `AXNode` and `Handlers`
+    /// are size-pinned and the table's fields are made only while a client collects, so no declared node carries them and
+    /// a table with no client pays nothing.
+    var table: AXTableInfo?
+}
+
+/// A `Table`'s part in the accessibility tree (`TBL-T`): which node a record is and the indices its published node carries.
+/// Made by `TableBody` and its header and cells through `Frame.recordAccessibility(…table:)`, read by
+/// `AccessibilityTreeBuilder`.
+enum AXTableInfo: Equatable {
+    /// The table's own node, recorded at the body's id over the viewport: its column count and header row count. Its row
+    /// count is the record's `declared.logicalCount`.
+    case table(columns: Int, headerRows: Int)
+    /// The header row: a `.row` with no row index, whose cells are column headers.
+    case headerRow
+    /// One body cell: its row position, its column's display position, whether it is the active cell of a cell-mode table
+    /// (`TCM-A`), and the table body it belongs to.
+    case cell(row: Int, column: Int, isActive: Bool, table: GlobalElementID)
+    /// One header cell: its column's display position and the direction it sorts, when its column leads the sort.
+    case columnHeader(column: Int, sort: AccessibilitySortDirection?)
+
+    /// The column a cell or a header cell sits in, for ordering a row's children.
+    var column: Int? {
+        switch self {
+        case .cell(_, let column, _, _), .columnHeader(let column, _): return column
+        case .table, .headerRow: return nil
+        }
+    }
 }
 
 /// One open render effect as an accessibility replay re-derives it (`AT-G`): its own map and the clip in force at its entry.
