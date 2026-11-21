@@ -101,6 +101,22 @@ public enum AccessibilityRole: Equatable, Sendable {
     /// AccessKit `SPLITTER`). Its value is the size in points of the pane before it; the value is settable
     /// (`AccessibilityRequest.setValue`), and a divider that cannot move is disabled.
     case splitter
+    /// A data table's column header cell (`Table`, ruling `TBL-T`; AppKit `AXButton`, with subrole `AXSortButton` where it
+    /// sorts, SwiftUI's own arm `A1`; AccessKit `COLUMN_HEADER`). It carries its `columnIndex`, and `sortDirection` when
+    /// its column leads the sort.
+    ///
+    /// **Migration** (`TBL-T`): an exhaustive `switch` over `AccessibilityRole` outside this package adds the new case or
+    /// a `default:`.
+    case columnHeader
+}
+
+/// Which way a sorted column sorts (`Table`, ruling `TBL-T`; AppKit's `AXSortDirection` `AXAscendingSortDirection` or
+/// `AXDescendingSortDirection`, AccessKit's `sort_direction`).
+public enum AccessibilitySortDirection: Equatable, Sendable {
+    /// Smallest first.
+    case ascending
+    /// Largest first.
+    case descending
 }
 
 /// Which way a node lies (AppKit's `AXOrientation`, AccessKit's `orientation`): a splitter between side-by-side panes is
@@ -195,6 +211,18 @@ public struct AccessibilityNode: Equatable {
     public var numericRange: ClosedRange<Double>?
     /// `AXOrientation`: a split divider's (`HS-K`); `nil` for every other node.
     public var orientation: AccessibilityOrientation?
+    /// A data table's column count (`AXColumnCount`, AccessKit `column_count`; ruling `TBL-T`). **A `.table` with a
+    /// non-nil `columnCount` is a data table, not a `List`**: AppKit publishes it as `AXTable`, its rows as table rows;
+    /// `nil` for every other node.
+    public var columnCount: Int?
+    /// A cell's or a column header's column (`AXColumnIndexRange`, AccessKit `column_index`; `TBL-T`): the DISPLAY position
+    /// of its column, in the order the columns are shown. A cell's row is its `rowIndex`. `nil` for every other node.
+    public var columnIndex: Int?
+    /// How many header rows a data table has above its data rows (`TBL-T`): 1, or 0 when its column headers are hidden.
+    /// AppKit's row count and indices exclude the header, AccessKit's count it; `nil` for every other node.
+    public var headerRowCount: Int?
+    /// The direction a column header's column sorts, when it leads the table's sort order (`TBL-T`); `nil` otherwise.
+    public var sortDirection: AccessibilitySortDirection?
 
     /// A node; every field but `role` defaults to absent, enabled and not
     /// focusable.
@@ -205,7 +233,8 @@ public struct AccessibilityNode: Equatable {
                 identifier: String? = nil, customActions: [String] = [], isSelectable: Bool = false,
                 isOutline: Bool = false, outlineLevel: Int? = nil, isExpanded: Bool? = nil,
                 disclosedBy: AccessibilityNodeID? = nil, numericRange: ClosedRange<Double>? = nil,
-                orientation: AccessibilityOrientation? = nil) {
+                orientation: AccessibilityOrientation? = nil, columnCount: Int? = nil, columnIndex: Int? = nil,
+                headerRowCount: Int? = nil, sortDirection: AccessibilitySortDirection? = nil) {
         self.role = role
         self.label = label
         self.value = value
@@ -226,6 +255,10 @@ public struct AccessibilityNode: Equatable {
         self.disclosedBy = disclosedBy
         self.numericRange = numericRange
         self.orientation = orientation
+        self.columnCount = columnCount
+        self.columnIndex = columnIndex
+        self.headerRowCount = headerRowCount
+        self.sortDirection = sortDirection
     }
 }
 

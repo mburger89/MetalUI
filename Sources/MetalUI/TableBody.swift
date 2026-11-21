@@ -100,6 +100,8 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         var editorLayout: LegacyContent<TextField>.GroupLayout?
         var displayOf: [Int] = []
         var editSession: TableEditSession<Value.ID>?
+        /// `TBL-T`: where an open edit's editor belongs in the accessibility tree; `nil` unless a client collects.
+        var editAnchor: TableEditAnchor?
     }
 
     struct Prepaint {
@@ -172,6 +174,10 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
             }
         }
         let sortLeading = sort?.leading()
+        // `TBL-T`: the accessibility fields below are made only while a client collects, so a table with none builds as before.
+        let collects = pass.collectsAccessibility
+        let editingCell = collects ? cellContext?.openSession?.cell : nil
+        let editAnchor = editingCell == nil ? nil : TableEditAnchor()
         var realisedIDs: [Value.ID] = []
         var rows: [TableRowElement] = []
         var rowLayouts: [SingleElementLayout<TableRowElement>] = []
@@ -188,6 +194,7 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         func headerCell(_ spec: AnyTableColumn<Value>, column: Int, paintsBackground: Color?) -> TableHeaderCell {
             var cell = TableHeaderCell(title: spec.title, name: spec.elementID, alignment: spec.alignment,
                                        paintsBackground: paintsBackground)
+            if collects { cell.accessibilityColumn = column }
             if spec.width.isResizable, let columnBinding {
                 cell.divider.resize = TableResizeDrag(key: spec.key, width: index.width(at: column), spec: spec.width,
                                                       state: columnBinding)
@@ -219,6 +226,13 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                     }
                 }
                 @MainActor func decorate(_ cell: AnyTableCell, column: Int) {
+                    if collects {
+                        // `TBL-T`: the cell's row, column, active state, and the anchor of an open edit over it.
+                        let tableCell = cellContext == nil ? nil : TableCell(row: value.id, column: declaredAt[column])
+                        cell.accessibility = TableCellAccessibility(
+                            row: position, column: column, isActive: tableCell != nil && activeCell == tableCell, table: id,
+                            anchor: tableCell != nil && tableCell == editingCell ? editAnchor : nil)
+                    }
                     guard let cellContext else { return }
                     let tableCell = TableCell(row: value.id, column: declaredAt[column])
                     var handlers = Handlers()
@@ -260,11 +274,11 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                         row.handlers.onClick = rowClick
                         row.handlers.contextual = rowContextual
                     }
-                    // A clickable row is a row, as a bounded `List`'s is (`AB-L`): the hint makes it `.row`, not a button, so the
-                    // builder does not fold its cells into one label and each keeps its element and identifier. Stripped before
-                    // `isEmpty` and written to no `$ax` slot, so retention does not move.
-                    if row.handlers.onClick != nil, pass.collectsAccessibility { row.handlers.axNode.logicalIndex = position }
                 }
+                // Every realised row is a row, as a bounded `List`'s is (`AB-L`; `TBL-T`): the hint makes a clickable one `.row`,
+                // not a button, so the builder does not fold its cells into one label and each keeps its element and
+                // identifier. Stripped before `isEmpty` and written to no `$ax` slot, so retention does not move.
+                if collects { row.handlers.axNode.logicalIndex = position }
                 let (rowNodes, rowLayout) = row.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
                 rows.append(row)
                 rowLayouts.append(rowLayout)
@@ -368,7 +382,8 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         if plan.mode == .cold { frame.tableWork.coldFrames += 1 }
         return (node, Layout(node: node.layoutNodeID, plan: plan, index: index, rowCount: rowCount, frozen: frozen, values: values,
                              rows: rows, rowLayouts: rowLayouts, header: header, headerLayout: headerLayout,
-                             editor: editor, editorLayout: editorLayout, displayOf: displayOf, editSession: editSession))
+                             editor: editor, editorLayout: editorLayout, displayOf: displayOf, editSession: editSession,
+                             editAnchor: editAnchor))
     }
 
     /// Cell mode's after-frame notes (`TCM-F`, `TCM-H`): the `editing` binding's changes (a caller's `nil` cancels, a cell begins
@@ -412,6 +427,7 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
             // `TBL-N`: the body's own region (focus, keys, the accessibility selection) registers before its rows, so a row's
             // hitbox is above it.
             if handlers.isFocusable { pass.registerHandlers(handlers, at: bounds, id: id) }
+            recordTableNode(id, bounds: bounds, layout: layout, fresh: fresh, pass: &pass)
             registerEmptySpace(id, bounds: bounds, fresh: fresh, pass: &pass)
             resolveScrollRequests(id, bounds: bounds, layout: layout, frame: frame)
             @MainActor func run() -> Prepaint {
@@ -422,7 +438,13 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                         result.rows.append(layout.rows[i].prepaintGroup(layout: &layout.rowLayouts[i], pass: &pass))
                     }
                     if var editor = layout.editor, var editorLayout = layout.editorLayout {
-                        result.editor = editor.prepaintGroup(layout: &editorLayout, pass: &pass)
+                        // `TBL-T`: the editor is a child of the cell it covers (a no-op while no client collects).
+                        let host = layout.editAnchor?.cell
+                        if let host {
+                            result.editor = frame.withAccessibilityAdopter(host) { editor.prepaintGroup(layout: &editorLayout, pass: &pass) }
+                        } else {
+                            result.editor = editor.prepaintGroup(layout: &editorLayout, pass: &pass)
+                        }
                         layout.editor = editor
                         layout.editorLayout = editorLayout
                     }
@@ -441,6 +463,19 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
             }
             return run()
         }
+    }
+
+    /// The table's own node (`TBL-T`): recorded at the body's id over the VIEWPORT (the body is as large as its content, which for
+    /// a million rows is a frame no client can use), with the logical row count, the column count and the header row count. After
+    /// the body's own handlers, so it is the record's last content and its geometry stands. Nothing while no client collects.
+    private func recordTableNode(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: Layout, fresh: TableWindowPlan,
+                                 pass: inout PrepaintPass) {
+        guard pass.collectsAccessibility else { return }
+        let origin = Point(x: bounds.origin.x + Pixels(Float(fresh.offsetX)), y: bounds.origin.y + Pixels(Float(fresh.offsetY)))
+        let viewport = Bounds(origin: origin, size: Size(width: Pixels(Float(fresh.viewportWidth)),
+                                                         height: Pixels(Float(fresh.viewportHeight))))
+        pass.frame.recordAccessibility(text: nil, declared: AXNode(logicalCount: layout.rowCount), at: viewport, id: id,
+                                       table: .table(columns: layout.index.count, headerRows: layout.header == nil ? 0 : 1))
     }
 
     /// While an edit is open, a click anywhere in the viewport that no row or cell takes commits it (`TCM-F`): the body is only as
@@ -653,6 +688,8 @@ struct TableHeaderRow: Element, ProposalElement {
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                            pass: inout PrepaintPass) -> [TableHeaderCell.Prepaint?] {
         pass.insertHitbox(bounds, id: id, opaque: true)
+        // `TBL-T`: the header is a row with no index; its cells are column headers (a no-op while no client collects).
+        pass.frame.recordAccessibility(text: nil, declared: AXNode(), at: bounds, id: id, table: .headerRow)
         var states: [TableHeaderCell.Prepaint?] = []
         for i in cells.indices { states.append(cells[i].prepaintGroup(layout: &layout.cells[i], pass: &pass)) }
         // The dividers register after every cell, so a divider's half over the next column's header ranks above that header's click
@@ -688,9 +725,11 @@ struct TableHeaderCell: Element, ProposalElement {
     /// The order the table sorts by when this column leads it, else `nil`.
     var sortOrder: SortOrder?
     var handlers = Handlers()
+    /// The column's display position, set only while a client collects (`TBL-T`).
+    var accessibilityColumn: Int?
     var label: LegacyContent<Text>?
     var divider = TableColumnDivider()
-    var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>?
+    var indicator: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>?
 
     var elementID: ElementID? { name }
 
@@ -698,13 +737,13 @@ struct TableHeaderCell: Element, ProposalElement {
         var node: LayoutNodeID
         var label: LegacyContent<Text>.GroupLayout
         var divider: SingleElementLayout<TableColumnDivider>
-        var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupLayout?
+        var indicator: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>.GroupLayout?
     }
 
     struct Prepaint {
         var label: LegacyContent<Text>.GroupPrepaint?
         var divider: Void?
-        var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupPrepaint?
+        var indicator: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>.GroupPrepaint?
     }
 
     mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
@@ -714,11 +753,12 @@ struct TableHeaderCell: Element, ProposalElement {
         label = content
         let (dividerNodes, dividerLayout) = divider.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
         var nodes = labelNodes + dividerNodes
-        var indicatorLayout: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupLayout?
+        var indicatorLayout: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>.GroupLayout?
         indicator = nil
         if let sortOrder {
-            // `chevron.down` is the one chevron every platform has (`SYM-I`): ascending turns it over.
-            var chevron = LegacyContent(Image(systemName: "chevron.down").rotationEffect(.degrees(sortOrder == .forward ? 180 : 0)))
+            // `chevron.down` is the one chevron every platform has (`SYM-I`): ascending turns it over. Hidden from a client: the
+            // header's label is its title, and the direction is the node's `sortDirection` (`TBL-T`).
+            var chevron = LegacyContent(Image(systemName: "chevron.down").accessibilityHidden(true).rotationEffect(.degrees(sortOrder == .forward ? 180 : 0)))
             let (indicatorNodes, built) = chevron.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
             nodes += indicatorNodes
             indicatorLayout = built
@@ -733,7 +773,14 @@ struct TableHeaderCell: Element, ProposalElement {
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                            pass: inout PrepaintPass) -> Prepaint {
-        if handlers.onClick != nil { pass.registerHandlers(handlers, at: bounds, id: id) }
+        // The click lands without synthesizing a button: the cell is its own `.columnHeader` node below (`TBL-T`), with the press
+        // the click gives it, and its title is that node's label.
+        if handlers.onClick != nil { pass.registerHandlers(handlers, at: bounds, id: id, synthesizesAccessibility: false) }
+        if let column = accessibilityColumn {
+            pass.frame.recordAccessibility(text: nil, declared: AXNode(), at: bounds, id: id,
+                                           table: .columnHeader(column: column,
+                                                                sort: sortOrder.map { $0 == .forward ? .ascending : .descending }))
+        }
         var prepaint = Prepaint(label: nil, divider: nil, indicator: nil)
         if var content = label {
             prepaint.label = content.prepaintGroup(layout: &layout.label, pass: &pass)

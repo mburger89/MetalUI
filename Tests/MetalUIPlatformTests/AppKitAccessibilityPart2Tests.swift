@@ -180,7 +180,8 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         actions: [.press, .increment, .decrement], children: [nid("kid")], rowCount: 7, rowIndex: 3,
         hint: "H", identifier: "I", customActions: ["C"], isSelectable: true,
         isOutline: false, outlineLevel: 3, isExpanded: true, disclosedBy: nid("parent"),
-        numericRange: 0...265, orientation: .vertical)
+        numericRange: 0...265, orientation: .vertical, columnCount: 5, columnIndex: 2, headerRowCount: 1,
+        sortDirection: .descending)
     let (bridge, _) = makeBridge(tree(roots: ["full", "parent"], ["full": full, "kid": AccessibilityNode(role: .staticText),
                                                                    "parent": AccessibilityNode(role: .row)]))
     let element = bridge.element(for: nid("full"))
@@ -212,13 +213,26 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         // A split divider's range and orientation (`HS-K`): `AXMinValue`/`AXMaxValue` and `AXOrientation`.
         "numericRange": { ($0.accessibilityMinValue() as? NSNumber) == 0 && ($0.accessibilityMaxValue() as? NSNumber) == 265 },
         "orientation": { $0.accessibilityOrientation() == .vertical },
+        // A data table's fields (`TBL-T`): the column count, a cell's column range, a column header's direction, and the header
+        // row count, which decides whether the table has an `AXHeader` (`TableAppKitAccessibilityTests` pins each in full).
+        "columnCount": { $0.accessibilityColumnCount() == 5 },
+        "columnIndex": { $0.accessibilityColumnIndexRange() == NSRange(location: 2, length: 1) },
+        "sortDirection": { $0.accessibilitySortDirection() == .descending },
+        "headerRowCount": { _ in
+            @MainActor func header(_ count: Int) -> Bool {
+                let table = AccessibilityNode(role: .table, children: [nid("h")], columnCount: 2, headerRowCount: count)
+                let (bridge, _) = makeBridge(tree(roots: ["t"], ["t": table, "h": AccessibilityNode(role: .row)]))
+                return bridge.element(for: nid("t")).accessibilityHeader() != nil
+            }
+            return header(1) && !header(0)
+        },
         "isOutline": { _ in
             let (list, _) = makeBridge(tree(roots: ["l"], ["l": AccessibilityNode(role: .table, isOutline: true)]))
             return list.element(for: nid("l")).accessibilityRole() == .outline
         },
     ]
     let fields = Set(Mirror(reflecting: full).children.compactMap(\.label))
-    #expect(fields.count == 20, "the neutral node's field count: \(fields.sorted())")
+    #expect(fields.count == 24, "the neutral node's field count: \(fields.sorted())")
     #expect(Set(arms.keys) == fields, "one arm per field — missing \(fields.subtracting(arms.keys).sorted())")
     for (field, arm) in arms.sorted(by: { $0.key < $1.key }) { #expect(arm(element), "\(field)'s arm") }
 

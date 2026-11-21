@@ -141,6 +141,21 @@ Result column: **P** pass, **F** fail, **N/A** with a reason.
 | F6 | VO-→ | "A multi-line editor: return, up and down, the wheel, text area" <!-- ax: step=F6 tree=textinput role=textArea label="A multi-line editor: return, up and down, the wheel" value="" --> | | | |
 | F7 | A `@FocusState`-bound field | a `.focus` request writes the `@FocusState` bound to the field and a `@FocusState` write is the tree's focus (`IX-AC` item 3, F1/F2) — no demo window binds a `@FocusState`, so this is pinned by the root suite's 3.3 and 3.4 only; mark N/A | | | |
 
+## 5. The table demo — `METALUI_TABLE_DEMO=1` (record 392, `TBL-T`, `TBL-AB`; no machine-checked markers)
+
+*This section carries no `ax:` markers: test 3.10 reads the three demo windows above, and the table's tree is pinned by `TableAccessibilityTests` and `TableAppKitAccessibilityTests` instead. Every expectation is a claim about what VoiceOver does with that tree, and is labelled **(VoiceOver behaviour, not pinned)**. Run with the table focused, the window at its default size, and rows 0 to about 25 and columns 0 to 8 realised.*
+
+| Step | Action | Expected (spoken) | Observed (human) | P/F | Notes |
+|---|---|---|---|---|---|
+| T1 | VO-→ into the table | "table, 1,000,000 rows, 200 columns" — the table is an `AXTable` with its logical `AXRowCount` and `AXColumnCount`, not the realised 25 and 9 **(VoiceOver behaviour, not pinned)** | | | |
+| T2 | VO-↓ into the first row, then VO-→ across it | each cell reads its text with its column header ("#, 0", "Name, …") — a cell is an `AXCell` with `AXColumnIndexRange` and the header row's cells are its `AXColumnHeaderUIElements` **(VoiceOver behaviour, not pinned)** | | | |
+| T3 | VO-↑ to the header row, VO-→ across it | each header reads as a button with its title, "sort button", and the sorted column's direction ("ascending") — an `AXButton` with subrole `AXSortButton` and `AXSortDirection` | | | |
+| T4 | VO+Space on a sortable header | the data re-sorts, the header now reads the new direction, VoiceOver announces it **(VoiceOver behaviour, not pinned)** | | | |
+| T5 | VO-↓ onto a row, Space (or VO+Space) | the row reads "selected"; the table's selection binding is written (the demo's status line names it) | | | |
+| T6 | Scroll with the wheel while the VO cursor is on a row | the VO cursor stays on a realised row, never a blank band; after the scroll VO-→ reads the rows now realised, each with its row index **(VoiceOver behaviour, not pinned)** | | | |
+| T7 | Switch on "Cell mode", click a cell, press VO-Shift-F3 or ask for the focused element | the active cell is the focused and selected element; arrow keys move it and VO follows **(VoiceOver behaviour, not pinned)** | | | |
+| T8 | In cell mode press Return on a cell | an editor opens over the cell; VO reads "text field" inside that cell, with the cell's text; Escape closes it and VO is back on the cell **(VoiceOver behaviour, not pinned)** | | | |
+
 ---
 
 ## Sign-off

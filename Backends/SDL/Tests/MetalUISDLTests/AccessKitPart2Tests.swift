@@ -155,7 +155,8 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
         actions: [.press, .increment, .decrement], children: [nid("kid")], rowCount: 7, rowIndex: 3,
         hint: "H", identifier: "I", customActions: ["C"], isSelectable: true,
         isOutline: false, outlineLevel: nil, isExpanded: nil, disclosedBy: nil,
-        numericRange: 0...265, orientation: .vertical)
+        numericRange: 0...265, orientation: .vertical, columnCount: 5, columnIndex: 2, headerRowCount: 1,
+        sortDirection: .descending)
     let tree = AccessibilityTree(roots: [nid("full")],
                                  nodes: [nid("full"): full, nid("kid"): AccessibilityNode(role: .staticText)],
                                  geometry: [:], focused: nil)
@@ -196,6 +197,11 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
             let o = accesskit_node_orientation(c)
             return o.has_value && o.value == UInt8(ACCESSKIT_ORIENTATION_VERTICAL.rawValue)
         },
+        // A data table's fields (`TBL-T`; `AccessKitTableTests` pins each in full).
+        "columnCount": { let n = accesskit_node_column_count($0); return n.has_value && n.value == 5 },
+        "columnIndex": { let n = accesskit_node_column_index($0); return n.has_value && n.value == 2 },
+        "sortDirection": { let d = accesskit_node_sort_direction($0)
+            return d.has_value && d.value == UInt8(ACCESSKIT_SORT_DIRECTION_DESCENDING.rawValue) },
     ]
     // The four outline fields (`OG-F`) are read off an outline's own nodes: a list that `isOutline` is a `TREE`, a row with an
     // `outlineLevel` a `TREE_ITEM` at that level plus one, `isExpanded` its `expanded`, and `disclosedBy` nests it under its
@@ -215,11 +221,19 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
             "outlineLevel": p?.role == .treeItem && p?.level == 5,
             "isExpanded": p?.expanded == true,
             "disclosedBy": p?.children == [oids.number(for: nid("c"))] && l?.children == [oids.number(for: nid("p"))],
+            // The header row count shifts a data table's row count and its rows' indices (`TBL-T`).
+            "headerRowCount": {
+                let table = AccessibilityNode(role: .table, children: [nid("r")], rowCount: 10, columnCount: 2, headerRowCount: 1)
+                let row = AccessibilityNode(role: .row, rowIndex: 4)
+                let shifted = translate(AccessibilityTree(roots: [nid("t")], nodes: [nid("t"): table, nid("r"): row],
+                                                          geometry: [:], focused: nil), ids: AccessKitIDs())
+                return shifted.first { $0.role == .table }?.rowCount == 11 && shifted.first { $0.role == .row }?.rowIndex == 5
+            }(),
         ]
     }()
     for (field, holds) in outlineArms.sorted(by: { $0.key < $1.key }) { #expect(holds, "\(field)'s arm") }
     let fields = Set(Mirror(reflecting: full).children.compactMap(\.label))
-    #expect(fields.count == 20, "the neutral node's field count: \(fields.sorted())")
+    #expect(fields.count == 24, "the neutral node's field count: \(fields.sorted())")
     #expect(Set(arms.keys).union(outlineArms.keys) == fields,
             "one arm per field — missing \(fields.subtracting(arms.keys).subtracting(outlineArms.keys).sorted())")
     withCNode(node) { c in
