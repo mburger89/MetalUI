@@ -729,7 +729,7 @@ struct TableHeaderCell: Element, ProposalElement {
     var accessibilityColumn: Int?
     var label: LegacyContent<Text>?
     var divider = TableColumnDivider()
-    var indicator: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>?
+    var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>?
 
     var elementID: ElementID? { name }
 
@@ -737,13 +737,13 @@ struct TableHeaderCell: Element, ProposalElement {
         var node: LayoutNodeID
         var label: LegacyContent<Text>.GroupLayout
         var divider: SingleElementLayout<TableColumnDivider>
-        var indicator: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>.GroupLayout?
+        var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupLayout?
     }
 
     struct Prepaint {
         var label: LegacyContent<Text>.GroupPrepaint?
         var divider: Void?
-        var indicator: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>.GroupPrepaint?
+        var indicator: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupPrepaint?
     }
 
     mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
@@ -753,12 +753,14 @@ struct TableHeaderCell: Element, ProposalElement {
         label = content
         let (dividerNodes, dividerLayout) = divider.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
         var nodes = labelNodes + dividerNodes
-        var indicatorLayout: LegacyContent<ModifiedContent<AccessibilityModifier<Image>, LayoutModifier>>.GroupLayout?
+        var indicatorLayout: LegacyContent<ModifiedContent<Image, LayoutModifier>>.GroupLayout?
         indicator = nil
         if let sortOrder {
             // `chevron.down` is the one chevron every platform has (`SYM-I`): ascending turns it over. Hidden from a client: the
-            // header's label is its title, and the direction is the node's `sortDirection` (`TBL-T`).
-            var chevron = LegacyContent(Image(systemName: "chevron.down").accessibilityHidden(true).rotationEffect(.degrees(sortOrder == .forward ? 180 : 0)))
+            // header's label is its title, and the direction is the node's `sortDirection` (`TBL-T`). Hidden by the suppression scope
+            // around its prepaint below, not by a wrapper: `.accessibilityHidden(true)` is an element, one more request on every
+            // build with no client attached (record 392, "Fixes after merge").
+            var chevron = LegacyContent(Image(systemName: "chevron.down").rotationEffect(.degrees(sortOrder == .forward ? 180 : 0)))
             let (indicatorNodes, built) = chevron.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
             nodes += indicatorNodes
             indicatorLayout = built
@@ -788,7 +790,8 @@ struct TableHeaderCell: Element, ProposalElement {
         }
         prepaint.divider = divider.prepaintGroup(layout: &layout.divider, pass: &pass)
         if var chevron = indicator, var built = layout.indicator {
-            prepaint.indicator = chevron.prepaintGroup(layout: &built, pass: &pass)
+            let frame = pass.frame
+            prepaint.indicator = frame.withAccessibilitySuppressed(except: nil) { chevron.prepaintGroup(layout: &built, pass: &pass) }
             indicator = chevron
             layout.indicator = built
         }
