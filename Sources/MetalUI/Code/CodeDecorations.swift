@@ -48,8 +48,8 @@ public struct CodeUnderline: Hashable, Sendable {
     }
 }
 
-/// What a highlight run looks like: a text colour, a background, an underline, or any of them. Colour and lines
-/// only: v1 has no weight or slope, because a different face would change where glyphs go (`CV-L`).
+/// What a highlight run looks like: a text colour, a background, an underline, an italic slope, a weight, or any of
+/// them. Slope and weight are the font's real faces (`CV-BY`, amending `CV-L`).
 public struct CodeStyle: Hashable, Sendable {
     /// The glyph colour; `nil` keeps the layer below's, else the theme's.
     public var foreground: Color?
@@ -58,12 +58,23 @@ public struct CodeStyle: Hashable, Sendable {
     /// A line drawn under the run's text; `nil` draws none. Never part of what a cached line layout depends
     /// on (`CV-AM`).
     public var underline: CodeUnderline?
+    /// Whether the run's text is in the font's italic face; `nil` keeps the layer below's, `false` turns italic off
+    /// (`CV-BY`). Drawn with the family's real italic face: a family without one keeps its upright face, nothing is
+    /// slanted by the framework.
+    public var italic: Bool?
+    /// The run's weight; `nil` keeps the layer below's, `.regular` turns weight off (`CV-BY`). Drawn with the family's
+    /// real face of that weight (the nearest the family has); nothing is emboldened by the framework. A different
+    /// face reshapes the line, so a run's text takes its own advances.
+    public var weight: Font.Weight?
 
-    /// A style of `foreground` text over `background`, underlined by `underline`.
-    public init(foreground: Color? = nil, background: Color? = nil, underline: CodeUnderline? = nil) {
+    /// A style of `foreground` text over `background`, underlined by `underline`, in the `italic` slope and `weight`.
+    public init(foreground: Color? = nil, background: Color? = nil, underline: CodeUnderline? = nil,
+                italic: Bool? = nil, weight: Font.Weight? = nil) {
         self.foreground = foreground
         self.background = background
         self.underline = underline
+        self.italic = italic
+        self.weight = weight
     }
 }
 
