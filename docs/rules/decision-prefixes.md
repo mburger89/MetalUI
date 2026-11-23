@@ -14,7 +14,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
   `2026-10-02-menus-popovers-decisions.md`, next `MN-AT`), `CR-` (colour, colour scheme, palette:
-  `2026-10-03-colour-decisions.md`, next `CR-AE`), `LC-` (lifecycle modifiers:
+  `2026-10-03-colour-decisions.md`, next `CR-AF`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AQ`), `PE-` (controls in
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
@@ -50,7 +50,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-12-guides-decisions.md`, then `2026-10-13-guides-followup-decisions.md`, next `DG-X`), `BL-` (performance baselines:
   `2026-10-13-perf-baselines-decisions.md`, next `BL-D`), `RU-` (`runUntilIdle()` on Linux:
   `2026-10-13-rununtilidle-linux-decisions.md`, next `RU-C`), `IV-` (incremental invalidation:
-  `2026-10-13-incremental-invalidation-decisions.md`, next `IV-S`), `SB-` (retained subtrees:
+  `2026-10-13-incremental-invalidation-decisions.md`, next `IV-T`), `SB-` (retained subtrees:
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AF`), `RK-` (retained build skip, prepaint replay, the graft:
   `2026-10-13-retained-build-skip-decisions.md`, next `RK-AG`), `HP-` (hot paths:
   `2026-10-13-hot-paths-decisions.md`, next `HP-L`), `CW-` (window chrome on SDL:

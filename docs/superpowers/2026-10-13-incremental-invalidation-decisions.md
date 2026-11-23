@@ -18,7 +18,7 @@ baseline `Tests/MetalUITestingTests/IncrementalInvalidationBaselineTests.swift`
 to borrow: it re-requests layout for a whole view each time the entity is
 notified; where this document says "SwiftUI" a probe arm backs it.
 
-**Next unused id: `IV-S`.**
+**Next unused id: `IV-T`.**
 
 ## IV-A — Measure first: the build recursion is half a frame, the layout kernel a fifth, and nothing is a hot spot
 
@@ -548,3 +548,28 @@ tests; reverting `RetainedHandle`'s alone reddens the same two (each handle is a
 
 **Cost if wrong.** A weak hold that lost an entry early would drop a stale mark; the entry is
 held by the store for as long as the serial it compares could matter.
+
+## IV-S — A write read only below a memo boundary rebuilds each plain ancestor once (Sift gap G14; divergence 243; record 395)
+
+**Finding.** `@Observable` property read only in an `.equatable()` component's getter: a write re-evaluates that getter
+(its own session, `IV-C`) and **every plain `Component` above it once**, though none reads the model. Not a mis-attribution:
+the read dirties the window (the memo's own session and, as reads merge upward, the whole-frame session), and a dirty window runs the whole build recursion,
+which evaluates every plain component and skips only the `.equatable()` ones whose value, state and reads are unchanged.
+`IV-C` (4) already ruled per-scope attribution (SwiftUI's "re-evaluate only readers", probe `swiftui-incremental-invalidation.swift`
+arm `R`: the parent does not re-run) out of this item, `IV-H`'s prerequisite. Sift's `RelationDetailView` and `GridView` were
+that parent chain (`GridCostTests.aPageArrivingRebuildsOnlyTheTable`).
+
+**Ruling.** Not changed. (1) The cost is **exactly** one evaluation of the reader and of each plain ancestor, the
+memoized siblings 0, and a settled window then asks for no frame (pin `aWriteReadOnlyBelowAMemoBoundaryCostsThatSubtreeAndOneBuildOfEachPlainAncestor`).
+(2) The remedy is the opt-in `IV-B` names: a plain ancestor written `.equatable()` (its `==` true while its inputs are the same
+model) is skipped, and then only the reader rebuilds (pin `memoizedAncestorsAboveAMemoBoundaryAreNotRebuiltByItsWrite`).
+(3) A write nobody reads draws no frame (`aWriteNobodyReadsRebuildsNothing`). (4) Divergence 243 records the difference.
+
+**Pins.** `MemoBoundaryWriteCostTests`. Mutations: `MemoFlags.fireMemo` not setting `_stale` reddens the first two (the reader
+never rebuilds; dirtying the window is not what it guards, the whole-frame session sees the read as well, `IV-C` item 4); `MbTop.==`
+returning false reddens the second; reading the written property in the "nobody reads" write reddens the third. Off Darwin a write
+sometimes takes a second frame (the observation hop, `IV-Q`), which rebuilds every plain component again and the memoized reader not
+at all, so the first pin counts plain builds per frame, and exactly one frame on Darwin.
+
+**Cost if wrong.** An app with a thin plain parent chain above a memoized hot subtree pays the parents' bodies per write; a body is
+a few allocations, the memoized subtree is the heavy part. Real per-scope attribution is `IV-H`'s work.

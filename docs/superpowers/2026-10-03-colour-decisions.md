@@ -17,7 +17,7 @@ byte-identical, and the reading), and the language probes
 (must fail). Where SwiftUI has no answer (an app palette, a theme), the
 ruling says so and names gpui's approach as the comparison, not as evidence.
 
-Prefix **`CR-`**, lettered. **Next unused: `CR-AE`.** (This line moves in the
+Prefix **`CR-`**, lettered. **Next unused: `CR-AF`.** (This line moves in the
 commit that appends a ruling; read the last `## CR-` heading.)
 
 Branch `feat/colour` from `30a3dbf` (master: menus, popovers and tooltips
@@ -942,3 +942,23 @@ runs S2/S3.
 **Pins.** `theTextLevelOverridesReplaceTheDerivedLevelsAndUnsetKeepsThem` (`ColorValueTests`), `TextLevelThemeTests` (unset derived, set override in light and dark, runtime assignment inside an `.equatable()` panel with a build count of 0, scheme flip). Mutations: `textLevel` ignoring `textSecondary` reddens all but the unset arm; `Color.secondary` and the hierarchical level reading `textPrimary` bare reddens the unset arm and the rest; `Window.lightTheme`'s `theme = lightTheme` removed reddens the runtime-assignment test and `aSetOverrideIsUsedDirectly`.
 
 **Cost if wrong.** Item 4: an app that wanted SwiftUI's absolute 0.498 over a non-black text colour sets `textSecondary` itself.
+
+## CR-AE — There is no `Color.tertiary` or `Color.quaternary`; `foregroundStyle(.tertiary)` is the spelling (Sift gap G13; record 395)
+
+**Finding.** Sift asked for a tertiary label colour because `Color` has `.primary` and `.secondary` only (divergence 116). SwiftUI's
+`Color` has exactly those two as well (`Color.tertiary` does not compile there); `.tertiary` and `.quaternary` are `ShapeStyle`s,
+and MetalUI has had them since `HY-A` (`HierarchicalShapeStyle`: 0.306 light / 0.292 dark and 0.116 of the theme text colour over no
+parent, `CR-AD` item 4 for the measured SwiftUI ratios; `Theme.textTertiary` overrides the first). `CR-AD` item 2 recorded "there
+is no `Color.tertiary` (SwiftUI has none)".
+
+**Ruling.** No API is added: a `Color.tertiary` would be a MetalUI-only spelling of what `.foregroundStyle(.tertiary)`,
+`.fill(.tertiary)` and `Text.foregroundStyle(.tertiary)` already give, in both appearances and over a parent style (a quarter of it).
+Divergence 116 is **unchanged** (it is about `primary`, `secondary` and `accentColor`, not the levels). Sift replaces
+`Color.secondary.opacity(0.6)` by `.foregroundStyle(.tertiary)`; where a `Color` value is unavoidable it takes
+`Color.primary.opacity(0.306)`-style values at its own risk.
+
+**Pin.** `aCellMarkerInTheTertiaryAndQuaternaryLevelsResolvesInBothAppearances` (`TertiaryLabelTests`, italic sized text in both
+schemes); the existing `TextLevelThemeTests` and `ColorValueTests` pin the levels, the override and the theme switch.
+
+**Cost if wrong.** A caller needing a `Color` constant for a level (a `Canvas` fill) writes the level through `HierarchicalShapeStyle`
+or its own `Color`.
