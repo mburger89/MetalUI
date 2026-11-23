@@ -10,8 +10,8 @@ import MetalUITesting
 private let red = Color(red: 1, green: 0, blue: 0)
 
 /// **1** A style carries italic and weight, equal styles share an id, differing faces do not, and the id reads
-/// the faces back. **Mutation:** the new fields left out of the memberwise init's assignments (every style reads
-/// `nil`), and separately `italic` dropped from the interning table's equality (an italic style shares a plain id).
+/// the faces back. **Mutation:** `self.italic = italic` removed from the init (an italic style reads `nil`
+/// and shares the plain style's id).
 @Test @MainActor func aStyleCarriesItalicAndWeightAndInternsThem() {
     let decorations = CodeDecorations(buffer: CodeBuffer("a\n"))
     let plain = decorations.register(CodeStyle(foreground: red))
