@@ -19,7 +19,7 @@ write to the property only the reader reads gives reader +1, `Top` +1, `Middle` 
 a mis-attribution. The read dirties the window and a dirty window runs the whole build recursion, which evaluates every plain `Component`
 and skips only `.equatable()` ones. Per-scope attribution (SwiftUI's "re-run only the readers": probe `swiftui-incremental-invalidation.swift`
 arm `R`, parent not re-run, already on record) was ruled out of C14 slice 1 by `IV-C` item 4 and left to `IV-H`. Not fixed here: it needs every
-read site wrapped, a missed one goes silently stale. Ruling `IV-S`, divergence 243 (live 234, next label 244). The remedy that works today is
+read site wrapped, a missed one goes silently stale. Ruling `IV-S`, divergence 243 (live 236, next label 244). The remedy that works today is
 the one Sift already uses: write the ancestors `.equatable()` (pinned: ancestors 0, reader 1). No new SwiftUI probe: arm `R` answers it.
 
 ## Linux: the first redraw after a window settles: not reproduced; one nondeterminism found

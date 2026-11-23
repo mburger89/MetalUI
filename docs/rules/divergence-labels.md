@@ -1,6 +1,6 @@
 # Divergence labels: reservations and use
 
-`docs/divergences.md` labels are stable ids: a retired label is never reused. **234 live, next label 244**
+`docs/divergences.md` labels are stable ids: a retired label is never reused. **236 live, next label 244**
 (also in `CLAUDE.md`). A milestone that expects divergences reserves a block of ten; a new divergence takes the
 next sequential label or the next unused label of its milestone's block. Update this list and `CLAUDE.md`'s
 "next label" in the commit that adds the row.
