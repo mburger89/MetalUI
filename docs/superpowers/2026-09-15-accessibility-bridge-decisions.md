@@ -4,7 +4,7 @@ Rulings for the accessibility-bridge half of plan task 12
 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`). They are prefixed
 **`AB-`** and **lettered** (`AB-A`, `AB-B`, …), with two-letter tails after
 `AB-Z`. **A bare `AB-3` is a typo, not a citation.** The next unused letter is
-`AB-AH`.
+`AB-AI`.
 
 Read alongside:
 
@@ -2092,3 +2092,32 @@ cites it.
 | 14 | "a hidden root draws nothing, unreachable" is unmeasured and contradicts CLAUDE.md | **Applied: measured and fixed.** `aHiddenRootPublishesNothing` red (two records, the root at 20×20), fixed in `Frame.render` (`AB-AD`, `6bd208c`), M40 reddens it; `AB-AA`'s claim withdrawn in place |
 | 15 | lane 1 alone is inert in production; demo state counts will move | **Applied as record entries** owed to the integration step: an inert-table row to delete when lane 2 merges, and a re-take of CLAUDE.md's warm resident `StateTable` counts after lane 3 (the spec's demo section says why) |
 
+## AB-AH — `accessibilityLabel` and `accessibilityValue` on a `Component` (Sift gap G18; record 400; class `A`, no divergence)
+
+**Ruling.**
+
+1. `Component` offers `accessibilityLabel(_:)` and `accessibilityValue(_:)` (`ComponentAccessibility.swift`), SwiftUI's modifiers on
+   any view: the declaration goes to the accessibility element(s) the component produces. Before this neither compiled
+   (`value of type 'X' has no member 'accessibilityValue'`: a component is no `StyledElement` and no `ProposalElementGroup`), so Sift
+   set the modifier on each `Text` branch of an `if`/`else` body.
+2. **Mechanism.** The component is wrapped in one `ModifierLayer` whose `Handlers` carry the declaration: the value `Component.frame(...)`
+   already returns (`ModifiedElement`), so a following `StyledElement` modifier (`.accessibilityValue`, `.accessibilityIdentifier`)
+   lands on the same layer. `AccessibilityTreeBuilder` distributes a declaration on a plain container to its texts (`AB-T`, SwiftUI
+   probe P3), so an `if`/`else` body labels whichever `Text` it drew and a two-text component labels both. A `Component` that is also a
+   `ProposalElementGroup` takes the same overload (the more specialised extension settles the choice, as `padding(_:)` does, `DX-B`).
+   The semantics on the `Text` are `StyledElement`'s: `Text("bad").accessibilityValue("V")` reads `bad`, `V` (AB-F R1); a label on a
+   text with no value is published as its value.
+3. **Layout** is the one cost: the wrapper is a layout node (a default-style flex row over the members), so over one member it is the
+   member's own size (pinned) and over several it is a row, where SwiftUI leaves each member alone. Same shape as `Component.frame`
+   (`LR-BH`); not a new divergence, as a layout-transparent declaring group would need a per-member bounds hook in the builder.
+4. Not offered: `accessibilityHint`, `accessibilityIdentifier` and the others on `Component` (nothing asked); `onClick` stays absent (`CO-U`).
+
+**Evidence.** The probe was a compile error, not a silent no-op: `ChipLabel().accessibilityLabel("L")` failed with `no member`. Sift's
+only hit is `Sources/SiftKit/Grid/GridToolbar.swift:37` (a `Text` in a chip, where it works); the gap was its other branches.
+
+**Mutation** (`ComponentAccessibilityTests`): `declareAccessibilityValue` writing the label reddens the value test; the label modifier
+dropping its declaration reddens the chain test; the layer registering nothing reddens the distribution test; a padded wrapper style
+reddens the layout test (compare the neighbour's frame too: the row is centred, so padding moves the text and its neighbour in opposite senses).
+
+**Cost if wrong.** A component with a layout-sensitive parent (a `Grid` cell) gains one row node; the author writes the modifier
+on the `Text` as before.

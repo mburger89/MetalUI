@@ -66,7 +66,7 @@ are the one place (`DE-B`). A drop wrapper silences a wrapper directly inside it
 the window (sticky). Synthesized nodes are records (`Frame.axEmissions`),
 never `axNodes` or `$ax` (`AB-U`). Every `NSAccessibility` override answers
 through `mainActorAnswer(_:fallback:_:)`, never a bare `assumeIsolated`
-(`AB-AE`). A hidden layer suppresses everything inside
+(`AB-AE`). A `Component` offers `accessibilityLabel`/`accessibilityValue` as one declaring layer the builder distributes to its texts, a layout node over the members (`AB-AH`, record 400). A hidden layer suppresses everything inside
 (`Frame.suppressingAccessibilityIfHidden`). A text-painting conformer passes
 `accessibleText:`. Both bridges translate every neutral field — enforced by a
 `Mirror` count; a new `AccessibilityNode` field needs a row on both bridges.
