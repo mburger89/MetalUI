@@ -4628,6 +4628,7 @@ public final class Frame {
             // abandons a frame that replayed a prepaint the same way, to compare it with the rebuild (`RK-N`).
             glyphAtlas.endFrame()
             textSystem.endFrame()
+            stateTable.contentMemos.pendingGrafts = []   // the frame is built again (`RK-AG`)
             isRendering = false
             return
         }
@@ -4692,6 +4693,7 @@ public final class Frame {
         // The sweep keeps what it resets only when the last build held an
         // `onDisappear` that may read it (ruling `LC-I` item 1).
         stateTable.retainsDepartedValues = animationStore.lifecycle.hasDisappearActions
+        flushPendingGrafts()   // `RK-AG`: after paint, which decides whether a record can be grafted from
         stateTable.sweep()
         // **Focus leaves with its identity** (plan task 12 part 1, ruling
         // `IX-I`; probe arms F1, F2): when this frame's sweep reset the focused
