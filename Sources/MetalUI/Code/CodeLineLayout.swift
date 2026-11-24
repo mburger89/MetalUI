@@ -24,6 +24,20 @@ struct CodeLineKey: Hashable {
     var windowEnd: Int
 }
 
+/// What a resolved face depends on (`CV-BY`).
+struct CodeFaceKey: Hashable {
+    var base: FontKey
+    var code: UInt8
+    var system: ObjectIdentifier
+}
+
+/// How a line with faces is shaped (`CV-BY`): the font of each face code, and the view font's baseline in device pixels
+/// from the row's top. Both are asked only when a line is shaped, never for a layout the cache holds.
+struct CodeFaces {
+    var font: (UInt8) -> FontKey
+    var baselinePx: () -> Int
+}
+
 /// What an underline cache entry depends on.
 struct CodeDecorationKey: Hashable {
     var font: FontKey
@@ -144,7 +158,7 @@ package final class CodeLineCache {
         let key = CodeNumberKey(number: n, font: font, scaleBits: scale.bitPattern, system: ObjectIdentifier(system))
         func build() -> CodeLineLayout {
             let digits = Array(String(n).utf8)
-            return buildCodeLine(bytes: digits[...], windowStart: 0, windowX: 0, parts: [(digits.count, nil)], partOffset: 0,
+            return buildCodeLine(bytes: digits[...], windowStart: 0, windowX: 0, parts: [(digits.count, nil, 0)], partOffset: 0,
                                  font: font, scale: scale, tabColumns: 0, spaceAdvance: spaceAdvance, system: system)
         }
         if let hit = numbersCurrent[key] {
@@ -169,7 +183,7 @@ package final class CodeLineCache {
                               scaleBits: scale.bitPattern, tabColumns: 0, system: ObjectIdentifier(system),
                               windowStart: 0, windowEnd: 0)
         return layout(key, gutter: true) {
-            buildCodeLine(bytes: bytes[...], windowStart: 0, windowX: 0, parts: [(bytes.count, nil)], partOffset: 0,
+            buildCodeLine(bytes: bytes[...], windowStart: 0, windowX: 0, parts: [(bytes.count, nil, 0)], partOffset: 0,
                           font: font, scale: scale, tabColumns: 0, spaceAdvance: spaceAdvance, system: system)
         }
     }
@@ -213,6 +227,26 @@ package final class CodeLineCache {
         return made
     }
 
+    /// Faces resolved since creation (a miss in the face table, `CV-BY`): a view that sets no faces resolves none.
+    private(set) var faceResolutions = 0
+    private var faceTable: [CodeFaceKey: FontKey] = [:]
+
+    /// The font of face `code` over `base`: the view's own descriptor (`request`, asked only on a miss) with the
+    /// code's weight and slope, resolved by `system` and cached by (base, code, system) (`CV-BY`). A family without
+    /// the face resolves to the face it has, so the result may equal `base`: nothing is synthesised.
+    func face(_ code: UInt8, base: FontKey, request: @autoclosure () -> FontDescriptor, system: any TextSystem) -> FontKey {
+        guard code != 0 else { return base }
+        let key = CodeFaceKey(base: base, code: code, system: ObjectIdentifier(system))
+        if let known = faceTable[key] { return known }
+        var descriptor = request()
+        if let weight = CodeDecorations.faceWeight(code) { descriptor.weight = weight.value }
+        if CodeDecorations.faceItalic(code) { descriptor.italic = true }
+        let made = system.resolveFont(descriptor)
+        faceTable[key] = made
+        faceResolutions += 1
+        return made
+    }
+
     /// The space advance, digit advance and line height of `font`, in points (cached per face).
     func metrics(of font: FontKey, system: any TextSystem) -> (space: Double, digit: Double, height: Double) {
         if let known = advances[font] { return known }
@@ -248,9 +282,9 @@ func codeHash(_ bytes: [UInt8], _ start: Int, _ end: Int) -> UInt64 {
 /// part colours it, and placed at the next tab stop (a multiple of `tabColumns` space advances, from the
 /// pen's real end — never a glyph count).
 @MainActor
-func buildCodeLine(bytes: ArraySlice<UInt8>, windowStart: Int, windowX: Double, parts: [(bytes: Int, style: CodeStyleID?)],
+func buildCodeLine(bytes: ArraySlice<UInt8>, windowStart: Int, windowX: Double, parts: [(bytes: Int, style: CodeStyleID?, face: UInt8)],
                    partOffset: Int, font: FontKey, scale: Float, tabColumns: Int, spaceAdvance: Double,
-                   system: any TextSystem) -> CodeLineLayout {
+                   system: any TextSystem, faces: CodeFaces? = nil) -> CodeLineLayout {
     var glyphs: [TextGlyph] = []
     var glyphParts: [UInt16] = []
     var boundaries = [0]
@@ -284,44 +318,86 @@ func buildCodeLine(bytes: ArraySlice<UInt8>, windowStart: Int, windowX: Double, 
                 // Runs: one per foreground part the segment touches.
                 var runs: [StyledTextRun] = []
                 var runParts: [Int] = []
+                var runFaces: [UInt8] = []   // `CV-BY`: the face code of each run, with the bytes it spans
+                var runByteLengths: [Int] = []
                 var cursor = segment.startIndex
                 var units = 0
                 var lastPart = -1
+                var lastFace: UInt8 = 0
                 var consumed = 0
+                var runStart = 0
+                func closeRun() {
+                    let style = lastFace == 0 || faces == nil ? runStyle : TextRunStyle(font: faces!.font(lastFace))
+                    runs.append(StyledTextRun(length: units, style: style))
+                    runParts.append(lastPart)
+                    runFaces.append(lastFace)
+                    runByteLengths.append(consumed - runStart)
+                    runStart = consumed
+                }
                 while cursor < segment.endIndex {
                     advancePart()
                     let lead = segment[cursor]
                     let length = lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4
                     if partIndex != lastPart {
-                        if lastPart >= 0 { runs.append(StyledTextRun(length: units, style: runStyle)); runParts.append(lastPart) }
+                        if lastPart >= 0 { closeRun() }
                         units = 0
                         lastPart = partIndex
+                        lastFace = faces == nil ? 0 : parts[min(partCursor, parts.count - 1)].face
                     }
                     units += length == 4 ? 2 : 1
                     cursor += length
                     consumed += length
                     partLeft = max(0, partLeft - length)
                 }
-                if lastPart >= 0 { runs.append(StyledTextRun(length: units, style: runStyle)); runParts.append(lastPart) }
+                if lastPart >= 0 { closeRun() }
+                let faced = runFaces.contains { $0 != 0 }
                 // The segment's origin: a whole device pixel.
                 let originPx = (pen * Double(scale)).rounded()
                 let origin = originPx / Double(scale)
                 let laid = system.layOut(StyledText(keepingNeighbours: string, runs: runs), wrappingAt: nil,
                                          options: TextLayoutOptions(), origin: (x: 0, y: 0), scaleFactor: scale)
                 let shift = Int(originPx)
+                // A face may have another ascent than the view's: the line's baseline is then not the view font's, and
+                // the glyphs are put back on it so every face sits on one baseline (`CV-BY`).
+                var baselineShift = 0
+                if faced, let faces, let first = laid.glyphs.first { baselineShift = faces.baselinePx() - first.glyph.baselineY }
                 for styled in laid.glyphs {
                     glyphs.append(TextGlyph(key: styled.glyph.key, pixelX: styled.glyph.pixelX + shift,
-                                            baselineY: styled.glyph.baselineY))
+                                            baselineY: styled.glyph.baselineY + baselineShift))
                     glyphParts.append(UInt16(truncatingIfNeeded: runParts[min(styled.run, runParts.count - 1)]))
                 }
-                let offsets = system.caretOffsets(string, font: font)
                 var byte = boundaries[boundaries.count - 1]
-                var graphemeIndex = 1
-                for character in string {
-                    byte += character.utf8.count
-                    boundaries.append(byte)
-                    caretX.append(origin + offsets[min(graphemeIndex, offsets.count - 1)])
-                    graphemeIndex += 1
+                if faced, let faces {
+                    // Each run's carets from its own face, shifted to where its shaped piece starts: a bold run's
+                    // advances are the bold face's, and the run after it begins where the bold run ended (`CV-BY`).
+                    var runByteStart = segment.startIndex
+                    var previousEnd = 0.0
+                    for index in runs.indices {
+                        let slice = segment[runByteStart..<(runByteStart + runByteLengths[index])]
+                        runByteStart += runByteLengths[index]
+                        let text = String(decoding: slice, as: UTF8.self)
+                        let runFont = runFaces[index] == 0 ? font : faces.font(runFaces[index])
+                        let offsets = system.caretOffsets(text, font: runFont)
+                        let piece = laid.segments.first { $0.run == index }
+                        let minX = piece?.minX ?? previousEnd
+                        previousEnd = piece?.maxX ?? (minX + (offsets.last ?? 0))
+                        var graphemeIndex = 1
+                        for character in text {
+                            byte += character.utf8.count
+                            boundaries.append(byte)
+                            caretX.append(origin + minX + offsets[min(graphemeIndex, offsets.count - 1)])
+                            graphemeIndex += 1
+                        }
+                    }
+                } else {
+                    let offsets = system.caretOffsets(string, font: font)
+                    var graphemeIndex = 1
+                    for character in string {
+                        byte += character.utf8.count
+                        boundaries.append(byte)
+                        caretX.append(origin + offsets[min(graphemeIndex, offsets.count - 1)])
+                        graphemeIndex += 1
+                    }
                 }
                 pen = origin + laid.measurement.widestLine
             }

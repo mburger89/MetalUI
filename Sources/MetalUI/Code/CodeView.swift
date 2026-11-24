@@ -268,9 +268,15 @@ public struct CodeView: Element, StyledElement {
 
     @MainActor
     func resolvedFont(in environment: EnvironmentValues, system: any TextSystem) -> FontKey {
+        system.resolveFont(fontDescriptor(in: environment))
+    }
+
+    /// The font request the view's own face is resolved from; a style's italic and weight are laid over it (`CV-BY`).
+    @MainActor
+    func fontDescriptor(in environment: EnvironmentValues) -> FontDescriptor {
         var request = TextStyleRequest(font: fontRequest)
         request.monospaced = fontIsMonospaceDefault
-        return system.resolveFont(resolveTextStyle(request, in: environment).descriptor)
+        return resolveTextStyle(request, in: environment).descriptor
     }
 
     // MARK: Layout
