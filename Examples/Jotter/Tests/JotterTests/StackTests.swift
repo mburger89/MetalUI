@@ -41,14 +41,15 @@ func buildJotterTrees(onAThreadOf stackSize: Int) {
 
 #if canImport(Darwin)
 /// Not vacuous: the same harness with a thread far too small fails (measured on macOS arm64, debug:
-/// 64 KB is `SIGBUS`, 128 KB passes). Darwin only, because swift-corelibs keeps its 8 MB default for
+/// 48 KB is `SIGBUS`, 64 KB passes since the builder is linear (`PE-AB`); it was 64 KB `SIGBUS` and 128 KB passing
+/// with the `buildPartialBlock` chain). Darwin only, because swift-corelibs keeps its 8 MB default for
 /// a request this small.
 @Test func aThreadTooSmallForTheTreesFailsTheSameHarness() async {
     let thread = Thread {}
-    thread.stackSize = 64 * 1024
-    #expect(thread.stackSize == 64 * 1024, "Foundation did not keep the stack request")
+    thread.stackSize = 48 * 1024
+    #expect(thread.stackSize == 48 * 1024, "Foundation did not keep the stack request")
     await #expect(processExitsWith: .failure) {
-        buildJotterTrees(onAThreadOf: 64 * 1024)
+        buildJotterTrees(onAThreadOf: 48 * 1024)
     }
 }
 #endif
