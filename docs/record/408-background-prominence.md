@@ -17,7 +17,7 @@ Class `A` (SwiftUI-aligned API, one divergence). Branch `feat/background-promine
 - `BackgroundProminence.swift`: `enum BackgroundProminence { standard, increased }` (`Sendable`, `Hashable`); `EnvironmentValues.backgroundProminence` (public stored, doc comment); the field is in `EnvironmentFingerprint` (so in the retained replay and graft keys) and in `differences(from:)`.
 - `Frame.withIncreasedProminence`: sets the one field in `environmentTop` in place and restores it, uncounted by `environmentPushCount`, no copy of the values.
 - A selected row's three phases run inside it: `ListRows.increased` (selected positions in the window; empty set for a list with none) for the data `List`; `LazyStackEngine.unitIncreased` (asked before a unit is realised, set only while the binding holds a selection) plus the unit wrapper's prepaint and paint for the content form (flat `ForEach`, `DisclosureGroup`, `OutlineGroup`, `List(_:children:)`); `TableRowElement.increased` for a table row, off in cell mode (the unemphasised fill, `TCM-D`).
-- `LazyForEachSource` and `LazyLegacyForEachSource` answer `lazySelectionTag` without calling the row closure when the content type is not `ListRowTagged`: the pre-realise selection check would otherwise call every untagged `ForEach` closure twice (measured: 22 calls against master's 11).
+- `LazyForEachSource` and `LazyLegacyForEachSource` answer `lazySelectionTag` without calling the row closure when the content type is not `ListRowTagged`: the pre-realise selection check would otherwise call every untagged `ForEach` closure twice (measured: 22 calls against master's 11); a tagged one hands the element it built for the tag to the realise (`PrebuiltUnit`), pinned by `aTaggedForEachCallsItsClosureOncePerRealisedUnitWhileASelectionIsHeld` (held: idle 12, change 12, scroll 30, equal to no selection; without the hand-off 24/24/60).
 
 ## Decisions
 
@@ -41,7 +41,7 @@ Counts over `frameWork`, after `runUntilIdle()` then `tick()`; the master litera
 
 ## Tests
 
-16 new in `BackgroundProminenceTests` (flat, multi, no selection, explicit write, the two pins, set and clear, the three steady-frame arms, outline leaf and header, tagged rows, `Table`, cell mode, the three phases), and the two fingerprint guards gained a row (37 fields). Full run: root 7335 tests in 79 suites green (`--build-system native`, `--no-parallel`); divergences 241 live, next label 250.
+17 new in `BackgroundProminenceTests` (flat, multi, no selection, explicit write, the two pins, set and clear, the three steady-frame arms, outline leaf and header, tagged rows, `Table`, cell mode, the three phases), and the two fingerprint guards gained a row (37 fields). Full run: root 7335 tests in 79 suites green (`--build-system native`, `--no-parallel`); divergences 241 live, next label 250.
 
 ## Not done
 

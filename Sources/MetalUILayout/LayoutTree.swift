@@ -2802,6 +2802,23 @@ package struct LayoutSegment {
     fileprivate let rightToLeft: [Int]
 }
 
+/// The marks half of a segment (`RK-AG`), captured when the occurrence's window closes. **`package`**: not API.
+package struct SegmentMarks {
+    fileprivate let lower: Int
+    fileprivate let upper: Int
+    fileprivate let tops: [Int]
+    fileprivate let leafKeys: [(Int, LeafKey)]
+    fileprivate let spacerAxes: [(Int, ProposalStackAxis)]
+    fileprivate let spacingMarks: [(Int, SpacingEdge)]
+    fileprivate let rowTokens: [(Int, Int)]
+    fileprivate let rowAlignments: [(Int, ProposalAlignment?)]
+    fileprivate let cellColumns: [(Int, Int)]
+    fileprivate let cellAnchors: [(Int, ProposalAnchor)]
+    fileprivate let cellColumnAlignments: [(Int, ProposalAlignment)]
+    fileprivate let cellUnsizedAxes: [(Int, ProposalAxes)]
+    fileprivate let rightToLeft: [Int]
+}
+
 extension LayoutSegment {
     /// The segment with its leaf keys dropped (`RK-N`'s exit tests damage a graft this way: the grafted tree then differs
     /// from a fresh build in the digest of every keyed leaf). **`package`**: a test hook, not API.
@@ -2834,6 +2851,15 @@ extension LayoutTree {
     /// none (`RK-F`): a child outside the range, a parentless node that is not a top, a top inside another's
     /// subtree, a node with no kernel case.
     package func captureSegment(from lower: Int, tops: [LayoutNodeID]) -> (segment: LayoutSegment?, refusal: String?) {
+        let (marks, refusal) = captureSegmentMarks(from: lower, tops: tops)
+        guard let marks else { return (nil, refusal) }
+        return completeSegment(marks)
+    }
+
+    /// The first half of `captureSegment` (`RK-AG`): the range's marks, which a container built after the occurrence may still
+    /// write (`markSpacers` walks down through a top's wrappers to the spacers, the grid marks its cells), and the checks of the
+    /// tops. What it answers is a value; `completeSegment` copies the rest later, when the frame knows the segment is wanted.
+    package func captureSegmentMarks(from lower: Int, tops: [LayoutNodeID]) -> (marks: SegmentMarks?, refusal: String?) {
         let upper = childLists.count
         guard lower >= 0, lower <= upper else { return (nil, "range") }
         var topIndices: [Int] = []
@@ -2843,12 +2869,36 @@ extension LayoutTree {
             guard index >= lower, index < upper, nativeParents[index] == nil else { return (nil, "top") }
             topIndices.append(index - lower)
         }
+        guard Set(topIndices).count == topIndices.count else { return (nil, "strayRoots") }
+        func rows<V>(_ table: [Int: V]) -> [(Int, V)] {
+            var out: [(Int, V)] = []
+            for index in lower..<upper { if let value = table[index] { out.append((index - lower, value)) } }
+            return out
+        }
+        // Dictionaries are scanned by node, not by key, so a mark on a node outside the range is not read.
+        let marks = SegmentMarks(
+            lower: lower, upper: upper, tops: topIndices,
+            leafKeys: rows(leafKeys), spacerAxes: rows(spacerAxes), spacingMarks: rows(spacingMarks),
+            rowTokens: rows(gridRowTokens), rowAlignments: rows(gridRowAlignments), cellColumns: rows(gridCellColumns),
+            cellAnchors: rows(gridCellAnchors), cellColumnAlignments: rows(gridCellColumnAlignments),
+            cellUnsizedAxes: rows(gridCellUnsizedAxes),
+            rightToLeft: rightToLeftNodes.isEmpty ? [] : (lower..<upper).filter { rightToLeftNodes.contains($0) }.map { $0 - lower })
+        return (marks, nil)
+    }
+
+    /// The second half (`RK-AG`): the children, the kernel cases and the parents of the range `marks` names. Those rows are written
+    /// once, at registration, and never after, except a top's parent, which the container built after the occurrence sets and a
+    /// segment does not carry: a top is parentless in the segment whatever it has now.
+    package func completeSegment(_ marks: SegmentMarks) -> (segment: LayoutSegment?, refusal: String?) {
+        let lower = marks.lower, upper = marks.upper
+        guard upper <= childLists.count else { return (nil, "range") }
+        let topSet = Set(marks.tops.map { $0 + lower })
         var children: [[Int]] = []
         var cases: [NativeNode] = []
         var parents: [(Int, Int)] = []
         children.reserveCapacity(upper - lower)
         cases.reserveCapacity(upper - lower)
-        var parentless = 0
+        var strays = 0
         for index in lower..<upper {
             var list: [Int] = []
             list.reserveCapacity(childLists[index].count)
@@ -2859,29 +2909,18 @@ extension LayoutTree {
             children.append(list)
             guard let node = nativeNodes[index] else { return (nil, "noKernelCase") }
             cases.append(node)
-            if let parent = nativeParents[index] {
-                guard parent >= lower, parent < upper else { return (nil, "parentOutsideRange") }
-                parents.append((index - lower, parent - lower))
-            } else {
-                parentless += 1
-            }
+            if topSet.contains(index) { continue }
+            guard let parent = nativeParents[index] else { strays += 1; continue }
+            guard parent >= lower, parent < upper else { return (nil, "parentOutsideRange") }
+            parents.append((index - lower, parent - lower))
         }
-        guard parentless == topIndices.count, Set(topIndices).count == topIndices.count else {
-            return (nil, "strayRoots")
-        }
-        func rows<V>(_ table: [Int: V]) -> [(Int, V)] {
-            var out: [(Int, V)] = []
-            for index in lower..<upper { if let value = table[index] { out.append((index - lower, value)) } }
-            return out
-        }
-        // Dictionaries are scanned by node, not by key, so a mark on a node outside the range is not read.
+        guard strays == 0 else { return (nil, "strayRoots") }
         let segment = LayoutSegment(
-            nodeCount: upper - lower, rebaseOrigin: lower, tops: topIndices, children: children, cases: cases,
-            leafKeys: rows(leafKeys), spacerAxes: rows(spacerAxes), spacingMarks: rows(spacingMarks), parents: parents,
-            rowTokens: rows(gridRowTokens), rowAlignments: rows(gridRowAlignments), cellColumns: rows(gridCellColumns),
-            cellAnchors: rows(gridCellAnchors), cellColumnAlignments: rows(gridCellColumnAlignments),
-            cellUnsizedAxes: rows(gridCellUnsizedAxes),
-            rightToLeft: rightToLeftNodes.isEmpty ? [] : (lower..<upper).filter { rightToLeftNodes.contains($0) }.map { $0 - lower })
+            nodeCount: upper - lower, rebaseOrigin: lower, tops: marks.tops, children: children, cases: cases,
+            leafKeys: marks.leafKeys, spacerAxes: marks.spacerAxes, spacingMarks: marks.spacingMarks, parents: parents,
+            rowTokens: marks.rowTokens, rowAlignments: marks.rowAlignments, cellColumns: marks.cellColumns,
+            cellAnchors: marks.cellAnchors, cellColumnAlignments: marks.cellColumnAlignments,
+            cellUnsizedAxes: marks.cellUnsizedAxes, rightToLeft: marks.rightToLeft)
         return (segment, nil)
     }
 
