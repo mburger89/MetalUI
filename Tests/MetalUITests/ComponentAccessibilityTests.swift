@@ -55,15 +55,20 @@ private struct TwoTexts: Component {
     #expect(values == ["A=V", "B=V"], "\(values)")
 }
 
-/// `AB-AH` item 2: over one member the wrapper is the member's own size, so the text sits where it did.
-/// Mutation: the wrapper takes a padding (`Style()` becomes a padded one) must redden it.
-@Test @MainActor func aComponentsAccessibilityWrapperLeavesAOneTextBodyWhereItWas() throws {
-    let (_, plain) = try accessibilityBuild(HStack { Text("lead"); ChipText(rejected: true) })
-    let (_, wrapped) = try accessibilityBuild(HStack { Text("lead"); ChipText(rejected: true).accessibilityValue("V") })
+/// `AB-AH` item 2: the modifier is layout-transparent. A two-text component in a `VStack` and in an `HStack` has the
+/// same frames with and without `.accessibilityValue` (SwiftUI's accessibility modifiers move nothing).
+/// Mutation: the group registers a layout node (a padded wrapper) or lays the members out as a row must redden it.
+@Test @MainActor func aComponentsAccessibilityModifierMovesNoFrame() throws {
     func frame(_ build: AccessibilityBuild, _ text: String) throws -> Bounds<Pixels> {
-        let id = try build.tree.one(text).id
-        return try #require(build.tree.geometry[id]?.frame)
+        try #require(build.tree.geometry[try build.tree.one(text).id]?.frame)
     }
-    // The row is centred, so padding moves the text it holds and its neighbour in opposite senses: compare both.
-    #expect(try frame(plain, "bad") == frame(wrapped, "bad") && frame(plain, "lead") == frame(wrapped, "lead"))
+    func frames(_ build: AccessibilityBuild) throws -> [Bounds<Pixels>] { try ["lead", "A", "B"].map { try frame(build, $0) } }
+    let (_, vPlain) = try accessibilityBuild(VStack { Text("lead"); TwoTexts() })
+    let (_, vMod) = try accessibilityBuild(VStack { Text("lead"); TwoTexts().accessibilityValue("V") })
+    #expect(try frames(vPlain) == frames(vMod), "VStack")
+    let (_, hPlain) = try accessibilityBuild(HStack { Text("lead"); TwoTexts() })
+    let (_, hMod) = try accessibilityBuild(HStack { Text("lead"); TwoTexts().accessibilityValue("V") })
+    #expect(try frames(hPlain) == frames(hMod), "HStack")
+    // control: the frames are distinct, so equality is not vacuous.
+    #expect(try Set(frames(vPlain).map { "\($0)" }).count == 3)
 }
