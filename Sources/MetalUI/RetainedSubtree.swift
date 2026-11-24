@@ -447,6 +447,7 @@ private final class RetainedHandle: @unchecked Sendable {
 
     @MainActor private func bookkeep(_ live: Bool) {
         guard live, let session, let store else { return }
+        if let entry { store.noteRetainedFire(entry) }   // `SB-AF`
         RetainedTrace.emit("retained session fired: \(session.label)\(RetainedTrace.causeSuffix(of: entry))")
         store.markDirty?()
     }
