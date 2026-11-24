@@ -18,8 +18,11 @@ import MetalUICore
 //   container's node. For a focusable or adjustable one that is a recorded
 //   divergence from SwiftUI (AB-T, arms C1, C5).
 //
-// **Not offered on `Component`**, on `onClick`'s footing: a caller's modifier
-// distributes to each top-level node (CO-U), so one label would become several.
+// **On `Component`** (`AB-AH`, Sift G18) `accessibilityLabel(_:)` and
+// `accessibilityValue(_:)` are offered, `ComponentAccessibility.swift`: they
+// wrap the component in one declaring layer, which the builder distributes to
+// its texts as it does for any container (AB-T). `onClick` stays absent: it
+// would be one handler, not a declaration each member can share (CO-U).
 
 extension StyledElement {
     /// Replaces what an accessibility client reads as this element's label.
