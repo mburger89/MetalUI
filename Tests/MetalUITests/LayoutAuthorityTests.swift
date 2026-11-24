@@ -425,7 +425,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
 /// Mutation that must redden it: **M1h**, recording defaults on.
 @MainActor
 @Test func theElementBoundsLogIsEmptyUnlessRequested() throws {
-    func tree() -> Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>> {
+    func tree() -> Stack<TupleGroup<Box<EmptyGroup>, Box<EmptyGroup>>> {
         Stack(alignment: .topLeading) {
             Box().cssWidth(px(20)).cssHeight(px(10))
             Box().cssWidth(px(30)).cssHeight(px(40))

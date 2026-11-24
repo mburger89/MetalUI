@@ -37,8 +37,8 @@ extension Menu: Element, StyledElement {
     /// What `requestLayout` hands the later phases: the chrome's button and
     /// its own layout.
     public struct LayoutState {
-        var button: Button<Pair<Label, Text>>
-        var inner: Button<Pair<Label, Text>>.LayoutState
+        var button: Button<TupleGroup<Label, Text>>
+        var inner: Button<TupleGroup<Label, Text>>.LayoutState
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
@@ -68,7 +68,7 @@ extension Menu: Element, StyledElement {
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout LayoutState,
-                                  pass: inout PrepaintPass) -> Button<Pair<Label, Text>>.PrepaintState {
+                                  pass: inout PrepaintPass) -> Button<TupleGroup<Label, Text>>.PrepaintState {
         // The button's action opens the menu, anchored at this frame's bounds
         // (`MN-H` item 1): a click, Space/Return when focused, an
         // accessibility press — and none of them while disabled, `Button`'s
@@ -94,7 +94,7 @@ extension Menu: Element, StyledElement {
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout LayoutState,
-                               prepaint: inout Button<Pair<Label, Text>>.PrepaintState, pass: inout PaintPass) {
+                               prepaint: inout Button<TupleGroup<Label, Text>>.PrepaintState, pass: inout PaintPass) {
         layout.button.paint(id, bounds: bounds, layout: &layout.inner, prepaint: &prepaint, pass: &pass)
     }
 }

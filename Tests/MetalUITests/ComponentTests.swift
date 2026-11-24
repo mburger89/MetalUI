@@ -357,8 +357,9 @@ private struct Wrapper: Component {
         Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
     }
 
-    #expect(tree.content.first.count == 3, "got \(tree.content.first.count)")
-    #expect(tree.content.second.count == 3, "got \(tree.content.second.count)")
+    let members = tree.content.members   // bound first: the pack tuple through `#expect` crashes SILGen (swiftlang-6.4.2)
+    #expect(members.0.count == 3, "got \(members.0.count)")
+    #expect(members.1.count == 3, "got \(members.1.count)")
 }
 
 /// Spec §6 assertion 5, both halves in one test, because the ASYMMETRY is the
@@ -387,8 +388,9 @@ private struct Wrapper: Component {
     }
     Frame(contentSize: size, scaleFactor: 1, stateTable: namedTable).render(&swapped)
 
-    #expect(swapped.content.first.count == 3, "\"b\" kept its own slot across the swap")
-    #expect(swapped.content.second.count == 3, "\"a\" kept its own slot across the swap")
+    let members = swapped.content.members   // bound first: the pack tuple through `#expect` crashes SILGen (swiftlang-6.4.2)
+    #expect(members.0.count == 3, "\"b\" kept its own slot across the swap")
+    #expect(members.1.count == 3, "\"a\" kept its own slot across the swap")
 
     // Unnamed: the counts stay with the POSITIONS, so the swap is invisible to
     // the table and both still read 3 — but for the opposite reason. To make
@@ -406,10 +408,11 @@ private struct Wrapper: Component {
     Frame(contentSize: size, scaleFactor: 1, stateTable: unnamedTable).render(&pair)
 
     // Position 0 inherits the slot the single unnamed component built up.
-    #expect(pair.content.first.count == 3,
-            "an unnamed component at position 0 ADOPTS the slot a previous unnamed component at position 0 left; got \(pair.content.first.count)")
-    #expect(pair.content.second.count == 1,
-            "position 1 is fresh; got \(pair.content.second.count)")
+    let pairMembers = pair.content.members   // bound first: the pack tuple through `#expect` crashes SILGen (swiftlang-6.4.2)
+    #expect(pairMembers.0.count == 3,
+            "an unnamed component at position 0 ADOPTS the slot a previous unnamed component at position 0 left; got \(pairMembers.0.count)")
+    #expect(pairMembers.1.count == 1,
+            "position 1 is fresh; got \(pairMembers.1.count)")
 }
 
 /// Spec §4.3 second half. A childless component still has an identity level,
@@ -484,8 +487,9 @@ private struct Wrapper: Component {
     }
     Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&withSibling)
 
-    #expect(withSibling.content.second.inner.count == 2,
-            "a named component's content state must survive a sibling inserted before it; got \(withSibling.content.second.inner.count)")
+    let members = withSibling.content.members   // bound first: the pack tuple through `#expect` crashes SILGen (swiftlang-6.4.2)
+    #expect(members.1.inner.count == 2,
+            "a named component's content state must survive a sibling inserted before it; got \(members.1.inner.count)")
 }
 
 /// Added by Task 2 beyond the brief's five. **Measured** (fix round 2; the

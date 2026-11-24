@@ -212,6 +212,15 @@ extension Pair: LazyFlattenable where First: ProposalElementGroup, Second: Propo
     }
 }
 
+extension TupleGroup: LazyFlattenable where repeat each Member: ProposalElementGroup {
+    func lazyFlatten(into sources: inout [any LazyUnitSource]) -> Bool {
+        for member in repeat each members {
+            if !lazyFlattenMember(member, into: &sources) { return false }
+        }
+        return true
+    }
+}
+
 extension ForEach: LazyFlattenable where Content: ProposalElementGroup {
     func lazyFlatten(into sources: inout [any LazyUnitSource]) -> Bool {
         if Content.self is any LazySectionContent.Type {   // `SP-H`: a `ForEach` of `Section`s
