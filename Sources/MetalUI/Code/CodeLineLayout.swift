@@ -144,7 +144,7 @@ package final class CodeLineCache {
         let key = CodeNumberKey(number: n, font: font, scaleBits: scale.bitPattern, system: ObjectIdentifier(system))
         func build() -> CodeLineLayout {
             let digits = Array(String(n).utf8)
-            return buildCodeLine(bytes: digits[...], windowStart: 0, windowX: 0, parts: [(digits.count, nil)], partOffset: 0,
+            return buildCodeLine(bytes: digits[...], windowStart: 0, windowX: 0, parts: [(digits.count, nil, 0)], partOffset: 0,
                                  font: font, scale: scale, tabColumns: 0, spaceAdvance: spaceAdvance, system: system)
         }
         if let hit = numbersCurrent[key] {
@@ -169,7 +169,7 @@ package final class CodeLineCache {
                               scaleBits: scale.bitPattern, tabColumns: 0, system: ObjectIdentifier(system),
                               windowStart: 0, windowEnd: 0)
         return layout(key, gutter: true) {
-            buildCodeLine(bytes: bytes[...], windowStart: 0, windowX: 0, parts: [(bytes.count, nil)], partOffset: 0,
+            buildCodeLine(bytes: bytes[...], windowStart: 0, windowX: 0, parts: [(bytes.count, nil, 0)], partOffset: 0,
                           font: font, scale: scale, tabColumns: 0, spaceAdvance: spaceAdvance, system: system)
         }
     }
@@ -248,7 +248,7 @@ func codeHash(_ bytes: [UInt8], _ start: Int, _ end: Int) -> UInt64 {
 /// part colours it, and placed at the next tab stop (a multiple of `tabColumns` space advances, from the
 /// pen's real end — never a glyph count).
 @MainActor
-func buildCodeLine(bytes: ArraySlice<UInt8>, windowStart: Int, windowX: Double, parts: [(bytes: Int, style: CodeStyleID?)],
+func buildCodeLine(bytes: ArraySlice<UInt8>, windowStart: Int, windowX: Double, parts: [(bytes: Int, style: CodeStyleID?, face: UInt8)],
                    partOffset: Int, font: FontKey, scale: Float, tabColumns: Int, spaceAdvance: Double,
                    system: any TextSystem) -> CodeLineLayout {
     var glyphs: [TextGlyph] = []
