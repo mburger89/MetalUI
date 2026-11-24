@@ -6,7 +6,7 @@ SwiftUI's `View.textSelection(_:)` with `TextSelectability` (`.enabled` / `.disa
 (recorded 2026-11-23, macOS 27.2.1; arm ids below are its). Prefix `TXS-` (new; the table row is in
 `docs/rules/decision-prefixes.md`). Class: API class A, behaviour class D (divergences from label 244, pending the build).
 
-Next unused ruling: `TXS-I`.
+Next unused ruling: `TXS-J`.
 
 ## What the probe could and could not measure (read first)
 
@@ -171,7 +171,41 @@ colour when the window is not key.
 (64 KiB: `Text` already measures and places every glyph each paint with or without this feature; selection adds one geometry
 build per press.)
 
-## Divergences this implies (labels from 244; reserved at the build, not yet written)
+## TXS-I: what the build ruled (record 399)
+
+The probe fixed the behaviour; the build fixed these shapes, each marked where it differs from the design text.
+
+1. **The region carries no geometry and no closure** (changes TXS-D's "built at press time"). A `SelectableTextRegion` is the
+   element id, the index of its hitbox and its string; an idle selectable `Text` therefore adds one hitbox and one array
+   entry, no allocation (TXS-H). The press is recorded in the session with its point in the `Text`'s local space (the
+   hitbox's `elementLocalPoint`, the glyph box's origin being the hitbox's) and **applied at the first prepaint of the
+   pressed `Text`**, which has its environment and the frame's text system; a drag after that applies at once against the
+   cached geometry. A harness `click`, `drag` and `doubleClick` each draw a frame, so a test sees the result.
+2. **The selection hitbox shares the `Text`'s own id** (no `$select` child): a press there finds no handler on the topmost
+   hitbox, so no click fires; it is registered inside the decoration's scope after the `Text`'s own hitbox, so it ranks above
+   it and above an ancestor's. The rule that a `Text` with handlers of its own would skip registration is one function,
+   `Frame.skipsRegistration(forHandlers:)`, returning `false` until `HC-TXS-4` says otherwise.
+3. **A selectable `Text` leaves no prepaint ledger.** Its occurrence's prepaint is refused (`prepaintLog.taint("textSelection")`):
+   the region array is not a journal channel and replaying the hitbox alone would orphan the region. Its paint record still
+   replays while nothing is selected; `retainedSubtreeHasPointerPressOrFocus` is true for a subtree holding the selected `Text`
+   (`Frame.textSelection`), so the selected occurrence paints in full and the highlight is never replayed. No `withState` write
+   is made anywhere (the session is on `Window`).
+4. **One string read.** A selectable `Text` reads its string once in `prepaint`; every other `Text` reads it exactly as before.
+5. **A triple click selects the visual line and a fourth click the paragraph** (provisional, `HC-TXS-2`); a drag after a
+   triple click moves the head from the line's start.
+6. **Select All is a clipboard command.** `ClipboardCommands.selectAll` (the platform seam) is sent while the session exists,
+   `.copy` while it has a range; AppKit's Edit > Select All and the drawn menu bar read it (`TXS-E`).
+7. **The session ends** on a focus move to an element (the `focusedElement` observer), on a press on another selectable `Text`,
+   when the frame did not produce its `Text` with its string (`Window.settleTextSelection`, run after each adopted frame).
+   A string change drops it in the `Text`'s own prepaint, the same frame it is painted.
+8. **The accessibility state is one field**, `AccessibilityNode.textSelection: AccessibilityTextSelection?` (non-nil: the node
+   answers the three text-area attributes; its `range` is nil with nothing selected), carried on the record
+   (`AXEmission.textSelection`) like a table's, so `AXNode` and `Handlers` keep their sizes. AppKit answers the three
+   attributes read-only (a client cannot set the selection, divergence 1127); AccessKit publishes nothing (1125).
+9. **The inactive colour** is `.separator`, the accent at 0.3 in a key window; neither is measured (`HC-TXS-6`).
+10. **No pointer cursor is declared** (`HC-TXS-8`): the I-beam row of `docs/divergences.md`'s absences names the selectable `Text`.
+
+## Divergences this implies (labels 1125-1128, written at the build; 245-248 were already live, so the block is TXS's own)
 
 1. AccessKit publishes no selection for a selectable `Text` (as drafted).
 2. The right-click menu is `[Copy, Select All]` and a declared `.contextMenu` wins; SwiftUI's is the full text-editing menu and

@@ -667,6 +667,7 @@ M	MetalUI	Text.swift	.*	.*	.*	text
 M	MetalUI	TextSelection.swift	.*	.*	.*	text-selection
 M	MetalUI	SecureField.swift	-|SecureField	.*	.*	secure-field
 M	MetalUI	TextSelectability.swift	.*	.*	.*	text-selection-enabled
+M	MetalUI	SelectableText.swift	SelectionMenu	_menuNodes	.*	text-selection-enabled
 M	MetalUI	TextField.swift	TextField	init	.*selectedOffsets.*prompt: Text\?.*	text-selection-offsets
 A	MetalUI	TextField.swift	TextField	init	.*prompt: Text\?.*	text-field-prompt
 M	MetalUI	TextField.swift	TextField	init	.*axis: Axis.*	vertical-text-field

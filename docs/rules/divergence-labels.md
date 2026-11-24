@@ -1,6 +1,6 @@
 # Divergence labels: reservations and use
 
-`docs/divergences.md` labels are stable ids: a retired label is never reused. **236 live, next label 244**
+`docs/divergences.md` labels are stable ids: a retired label is never reused. **240 live, next label 244**
 (also in `CLAUDE.md`). A milestone that expects divergences reserves a block of ten; a new divergence takes the
 next sequential label or the next unused label of its milestone's block. Update this list and `CLAUDE.md`'s
 "next label" in the commit that adds the row.
@@ -10,6 +10,7 @@ Moved verbatim from `CLAUDE.md` on 2026-11-18, one entry per item:
 - 243 used by `IV-S` (a write read only below a memo boundary rebuilds each plain ancestor once)
 - 242 used by `MN-AP` (`Label` has no `labelStyle`), 1085 used by `OG-L` (the same-transaction reveal), 1086 used by `OG-M` (the ⌥ cascade over bindings), 1087 used by `OG-O` (the content list's flatten cache), 1088 used by `OG-P` (the splice animation is paint only and realised rows only) and 1089–1094 unused (1085–1094 reserved by OG)
 - 241 used by `WB-C`, 232–234 and 237–240 used by `VT` (235 and 236 are the gesture rows), 230–231 used by `SYM-I`/`SYM-J`, 227–229 used by `SYM-C`/`SYM-H`, 226 used by `DSA-A`, 224 used by `CM-H`, 225 used, 91 and 92 retired by `CM-A` and `CM-B`, 109 retired by `TZ-B`, 217 used by `FC-G`, 218 by `LI-G`, 219 by `VF-D`, 220 by `VF-E`, 221 (retired by `GF-A`) and 222 by `GO-H`, 223 by `GF-H`, 1066 retired by `GF-A`
+- 1125–1134 reserved by TXS: 1125 (AccessKit publishes no selection), 1126 (a string change drops the selection), 1127 (a client cannot set it) and 1128 (the right-click menu) used by record 399, 1129–1134 unused; the block is TXS's own because 245–248 were already live when the milestone was planned ("from 244"), and 244 stays the next label
 - 1115–1124 reserved by SCF: 1115–1117 used and 1118–1124 unused
 - 1105–1114 reserved by TBL: 1105 (uniform rows, `TBL-F`), 1106 (the default string comparator off Darwin, `TBL-X`; the shrink use the plan reserved it for is unneeded, the probe having shown SwiftUI does not shrink, `W3`) and 1110 (the type shape, `TBL-B`) used by record 389; 1108 (RTL) unused, MetalUI mirroring as SwiftUI does (`L1`); 1109 (no type-select, `TBL-O`) used by record 390 (probe arm `K6`); 1111 (resize compensation, `TBL-R`) used by record 391 (the probe `R2` confirmed it); 1107 (the AppKit shape of a table's accessibility, `TBL-T`, `TBL-AB`) used by record 392; 1112–1114 unused
 - 1095–1104 reserved by TRM: unused

@@ -265,6 +265,20 @@ also `inlinePresentationIntent`. Links are styled in the accent and clickable
 only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
 defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
 
+**Selecting text** (`TXS-A`..`TXS-H`, record 399; A for the API, D for the behaviour; 1125-1128).
+`.textSelection(.enabled)` / `.textSelection(.disabled)` over any container, inherited by every `Text` below, the
+nearest writer winning, with `TextSelectability`, `EnabledTextSelectability` and `DisabledTextSelectability` as SwiftUI
+spells them. A primary press on a selectable `Text` starts a selection (and blurs a focused field), a drag extends it, a
+double click takes a word, a triple click a line; ⌘C/Ctrl+C copies exactly the range (the whole string even for a `Text`
+truncated by a line limit), ⌘A takes that `Text` whole, Edit > Copy and Select All enable with it; a right-click offers
+`[Copy, Select All]` and a declared `.contextMenu` wins (1128). The selection ends when focus moves to an element,
+another selectable `Text` is pressed, its `Text` leaves the tree or its string changes (1126); it survives a press on
+empty space and the window losing key. An accessibility client reads the range, the selected text and the character
+count of every selectable `Text` and cannot set them (1127); AccessKit publishes none (1125). A tree with no
+`textSelection` does the work it did, an idle selectable `Text` adds one hitbox, and the geometry is built once per
+press (`TXS-H`) — M for `AccessibilityTextSelection`, `AccessibilityNode.textSelection` and
+`ClipboardCommands.selectAll`.
+
 **Measuring text.** `@Environment(\.textMeasurer)` is a get-only `TextMeasurer`
 (no public initialiser): `resolve(_:)` takes a `Text` or a `ProposalText` in the
 environment of the element reading it, and `ResolvedText.measure(in:)` answers
