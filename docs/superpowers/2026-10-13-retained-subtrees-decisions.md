@@ -1,7 +1,7 @@
 # Retained subtrees — decisions
 
 Rulings for item C14b of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AF`.**
+task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AG`.**
 Spec: [`specs/2026-10-13-retained-subtrees-design.md`](specs/2026-10-13-retained-subtrees-design.md);
 fixture: [`specs/2026-10-13-retained-subtrees-fixture.md`](specs/2026-10-13-retained-subtrees-fixture.md).
 Record: `../record/109-retained-subtrees.md` (Record phase). Branch `perf/retained-subtrees` from
@@ -647,3 +647,43 @@ that landed cost?
 **Cost if wrong.** If the carried four are simply the next slice's work, nothing; if grafting turns out slower than
 the build, the fixture's remaining build share (about a third of a release frame) stays and the next lever is the
 placement memo's cousin for prepaint, not a graft.
+
+## SB-AF — A retained session that fires flags every enclosing occurrence too
+
+**Question.** Alloy (a code editor on MetalUI) reported a `CodeDecorations` write after the window went idle that dirtied nothing
+(`needsRedraw` false, `observationDirtyings` unmoved, a second write no better, only a resize recovering it), 4 runs in 6, and none
+with `METALUI_RETAINED_PREPAINT=0`. Their suspicion was an unarmed interval (`RX-S`) around the record's frame. Is it?
+
+**Evidence.** It is not. Tracing the failing run frame by frame (the sessions, the decision and the records of every occurrence), the
+read of `decorations.revision` sat in armed sessions the whole time. The sequence, with `A` the outer `.equatable()` occurrence
+(`EditorGroupView`'s ancestor), `B` the one holding the code panel and `C` the panel:
+1. Frame 1 runs everything; `A`, `B`, `C` each record with all three windows observed. `C`'s prepaint reads `revision` and the read
+   merges upward into `B`'s and `A`'s prepaint sessions (`SB-V`: the reads inside a nested window merge upward).
+2. Frame 2: an unrelated observed read changes (`FileTreeModel.snapshot`) and `A`'s build session fires. `A` misses, opens its windows
+   again and runs a **new** prepaint session (`RetainedSession.run` retires the old one). `B` is unchanged, so it replays its prepaint
+   and paint: `C`'s prepaint never runs, so `A`'s new session never sees `revision`. `A` then records `covPrepaint = true`.
+3. Frame 3: `A` replays its whole ledger. `C`'s own sessions, armed in frame 1, are the only ones holding `revision`.
+4. The write fires `C`'s and `B`'s sessions (`live`), sets their `observedChange`, dirties the window. Frame 4: `A` has no flag, so it
+   replays, and neither `B` nor `C` is reached to act on theirs. The frame is stale, the sessions are spent, and a second write finds
+   none armed: `needsRedraw` stays false. A resize changes the key of every occurrence.
+`SB-AC` closed the same hole for a descendant's *content* (a descendant whose getter ran kills its ancestor's record); this is its
+twin for a descendant's *prepaint, paint and build windows*, which an ancestor cannot see in a frame where the descendant replays.
+
+**Ruling.**
+1. When a retained session fires live (`RetainedHandle.bookkeep`), the occurrence's identity is queued on the store
+   (`ContentMemoStore.noteRetainedFire`). The next `entry(for:)` (every build and prepaint decision starts there, ancestors before
+   descendants) walks each queued identity's `GlobalElementID.parent` chain once and fires the retained flag
+   (`MemoFlags.fireRetained`, which also moves `changes` so `MO-F`'s clear does not erase it) of every entry whose identity encloses a
+   fired one. The ancestor then misses on `observedChange` in the build, prepaint and paint decisions and in the graft check, opens
+   its windows, descends to the descendant, whose own flag makes it run.
+2. **Nothing is done in a steady frame**: one emptiness check on an array per `entry(for:)`; no session is opened or armed that was not.
+   A fire costs one pass over the entries, once per build that follows it, however many sessions fired.
+3. The same hole is closed for any `@Observable` read in a replayed descendant's build, prepaint or paint window, not only `CodeView`'s
+   (`aWriteReadOnlyByAReplayedDescendantsPrepaintRedraws`, a custom element reading in `prepaint`).
+4. The unarmed-interval theory (`RX-S`) does not apply: a retained session arms when its body returns, which is before any write a
+   test or the app makes; `RX-S` stands as written.
+
+**Cost if wrong.** An ancestor flagged by a fire it would have been flagged by anyway (its merged session fired too) is unchanged. One
+flagged where its old record was in fact still right (a fire in a descendant whose picture is the same) re-runs the ancestor's
+prepaint and paint once: a work cost only after a write, never in a steady frame.
+
