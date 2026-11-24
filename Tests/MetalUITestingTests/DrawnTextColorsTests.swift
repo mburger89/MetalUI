@@ -32,6 +32,7 @@ private func mixed() -> AttributedString {
             Text("solid").foregroundColor(Color(red)).accessibilityIdentifier("solid")
             Text(mixed()).accessibilityIdentifier("mixed")
             Text("faded").foregroundColor(Color(blue)).opacity(0.5).accessibilityIdentifier("faded")
+            Text("round").foregroundColor(Color(red)).clipShape(Ellipse()).accessibilityIdentifier("round")
         }
         .accessibilityElement(children: .contain).accessibilityIdentifier("all")
     }
@@ -59,16 +60,26 @@ private func mixed() -> AttributedString {
     for scale: Float in [1, 2] {
         let w = try openDemo(scale: scale)
         let all = try w.drawnTextColors(in: w.element(identifier: "all"))
-        // red (the solid text and the first run share one), blue, then the faded blue: runs merge across elements.
-        #expect(all.count == 3 && same(all[0], red) && same(all[1], blue) && all[2].a < 0.6, "x\(scale): \(all)")
+        // red (the solid text and the first run share one), blue, the faded blue, red: runs merge across elements.
+        #expect(all.count == 4 && same(all[0], red) && same(all[1], blue) && all[2].a < 0.6 && same(all[3], red), "x\(scale): \(all)")
         let solid = try w.drawnTextColors(in: w.element(identifier: "solid"))
         #expect(solid.count == 1 && same(solid[0], red), "x\(scale): \(solid)")
     }
 }
 
-/// Text inside an opacity group is reached, with the opacity folded into its alpha (`allGlyphs`).
+/// Text inside an offscreen group (an ellipse clip, which the per-primitive mask cannot express) is reached too
+/// (`allGlyphs`, `CT-A`): it is in `scene.groupScenes`, not `scene.glyphs`.
 /// Mutation: the query reads `scene.glyphs` instead of `allGlyphs` must redden it.
-@Test @MainActor func textInsideAnOpacityGroupIsReachedWithItsOpacity() throws {
+@Test @MainActor func textInsideAnOffscreenGroupIsReached() throws {
+    let w = try openDemo()
+    #expect(w.scene.groupScenes.count >= 1, "control: the ellipse clip made a group")
+    let round = try w.drawnTextColors(in: w.element(identifier: "round"))
+    #expect(round.count == 1 && same(round[0], red), "\(round)")
+}
+
+/// The opacity in effect is folded into the alpha of text drawn under it.
+/// Mutation: the opacity dropped from the colour must redden it.
+@Test @MainActor func textUnderAnOpacityKeepsItsOpacityInItsAlpha() throws {
     let w = try openDemo()
     let faded = try w.drawnTextColors(in: w.element(identifier: "faded"))
     try #require(faded.count == 1, "\(faded)")

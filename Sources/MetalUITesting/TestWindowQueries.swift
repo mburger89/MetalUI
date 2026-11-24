@@ -59,7 +59,9 @@ extension TestWindow {
     /// test asks. A container answers the colours of every text inside it, an element that drew no text answers
     /// `[]`. The colours are as drawn, theme and colour scheme resolved, with the opacity in effect folded into
     /// their alpha (``allGlyphs``, which also reaches text inside an opacity group or a masked clip). Compare
-    /// through ``Hsla/toRgba()``, not `==`, against a colour written by another route. MetalUI-only (`HT-B`).
+    /// through ``Hsla/toRgba()``, not `==`, against a colour written by another route. Paint order holds within the
+    /// scene; text in an offscreen group (an ellipse clip, a blur) comes after the scene's own, as ``allGlyphs`` lists
+    /// it. MetalUI-only (`HT-B`, `HT-AE`).
     public func drawnTextColors(in element: TestElement) -> [Hsla] {
         let scale = platformWindow.scaleFactor
         let frame = element.frame

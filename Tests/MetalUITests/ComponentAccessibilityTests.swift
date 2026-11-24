@@ -64,5 +64,6 @@ private struct TwoTexts: Component {
         let id = try build.tree.one(text).id
         return try #require(build.tree.geometry[id]?.frame)
     }
-    #expect(try frame(plain, "bad") == frame(wrapped, "bad"))
+    // The row is centred, so padding moves the text it holds and its neighbour in opposite senses: compare both.
+    #expect(try frame(plain, "bad") == frame(wrapped, "bad") && frame(plain, "lead") == frame(wrapped, "lead"))
 }
