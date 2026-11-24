@@ -22,12 +22,15 @@ private final class LoadLog: @unchecked Sendable {
 }
 
 @Test func aDirectoryScanFindsEveryFaceWithItsNamesInPathOrder() {
+    // Noto Sans Bold and Italic joined the directory with `CV-BY` (the `CodeStyle` faces tests), so a family has three faces.
     let faces = SystemFonts.scan([fontsDirectory, "/no/such/directory"])
     #expect(faces.map { ($0.path as NSString).lastPathComponent }
-            == ["NotoSans-Regular.ttf", "NotoSansArabic-Regular.ttf", "SourceSans3-Regular.otf"])
-    #expect(faces.map(\.names.postScript) == ["NotoSans-Regular", "NotoSansArabic-Regular", "SourceSans3-Regular"])
-    #expect(faces.map(\.names.family) == ["Noto Sans", "Noto Sans Arabic", "Source Sans 3"])
-    #expect(faces.allSatisfy { $0.names.style == "Regular" && $0.names.faceIndex == 0 })
+            == ["NotoSans-Bold.ttf", "NotoSans-Italic.ttf", "NotoSans-Regular.ttf", "NotoSansArabic-Regular.ttf", "SourceSans3-Regular.otf"])
+    #expect(faces.map(\.names.postScript)
+            == ["NotoSans-Bold", "NotoSans-Italic", "NotoSans-Regular", "NotoSansArabic-Regular", "SourceSans3-Regular"])
+    #expect(faces.map(\.names.family) == ["Noto Sans", "Noto Sans", "Noto Sans", "Noto Sans Arabic", "Source Sans 3"])
+    #expect(faces.map(\.names.style) == ["Bold", "Italic", "Regular", "Regular", "Regular"])
+    #expect(faces.allSatisfy { $0.names.faceIndex == 0 })
     #expect(SystemFonts.scan(["/no/such/directory"]).isEmpty)
 }
 
