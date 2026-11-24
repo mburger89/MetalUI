@@ -195,6 +195,8 @@ final class FrameWorkRecorder {
         pending.retainedGraftIneligible += work.retained.graftIneligible
         pending.retainedSkippedRequests += work.retained.skippedRequests
         pending.retainedGraftedNodes += work.retained.graftedNodes
+        pending.retainedGraftCaptures += work.retained.graftCaptures
+        pending.retainedGraftCapturesSkipped += work.retained.graftCapturesSkipped
         pending.retainedIneligibleReasons.merge(work.retained.ineligibleReasons, uniquingKeysWith: +)
         pending.retainedTranslationRefusedReasons.merge(work.retained.translationRefusedReasons, uniquingKeysWith: +)
         pending.lazyUnitsRealized += work.lazyUnitsRealized
