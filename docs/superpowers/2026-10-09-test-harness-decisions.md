@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-AD`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-AE`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -921,3 +921,23 @@ the title is user data; the id is the stable name. Enablement and depth follow t
 second and third; not drawing after a menu-bar id command reddens `aMenuBarCommandIsPerformedByIdentifier`.
 
 **Cost if wrong.** Two items sharing an identifier choose the first, silently.
+
+## HT-AD — `typeText` types a newline as Return and a tab as Tab (Sift gap G16; record 396; class `M`, no divergence)
+
+**Ruling.**
+
+1. In `TestWindow.typeText`, a `"\n"`, `"\r"` or `"\r\n"` Character is delivered exactly as `typeKey(.return)` delivers Return (a
+   key press and release of `ControlKeys.returnKey`, `"\r"`), and `"\t"` exactly as `typeKey(.tab)`, whether or not a field has the
+   caret. Every other character is unchanged (`HT-F` item 3: committed text while a field has the caret, else a key press).
+2. One frame at the end of the call, as before.
+
+**Reasoning.** On macOS pressing Return in a text view arrives as a key event for `"\r"` (`insertNewline:`), not as committed text;
+Tab likewise (`insertTab:`). Before this, `typeText("a\nb")` typed `ab`: the `"\n"` is a control character, so it never took the
+`.textInput` path, and as a key event carrying `"\n"` nothing handles it. `"\r\n"` is one Swift `Character`, so it is one Return.
+
+**Mutation** (`HarnessInputTests`): removing the newline branch in `typeText` reddens `typeTextTypesANewlineAsReturnInACodeView`,
+`aCarriageReturnLineFeedIsOneNewline` and `aNewlineSubmitsASingleLineField`; sending the tab as `.textInput("\t")` reddens
+`typeTextTypesATabAsTheTabKey` (a tab was already a key event, so removing the branch changes nothing: that test pins the ruling). No steady-frame cost test: a harness-only change, no shared view code.
+
+**Cost if wrong.** A test that wants a literal newline character as committed text into a focused field cannot get one from
+`typeText`; it uses `send(.textInput("\n"))`.
