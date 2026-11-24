@@ -183,6 +183,66 @@ public struct CodePaintedRun: Equatable, Sendable {
     }
 }
 
+/// A gutter bar as ``CodeView`` paints it (``CodePaintedLineDecoration/gutterBar``, `CV-BZ`).
+public struct CodePaintedGutterBar: Equatable, Sendable {
+    /// The bar's colour.
+    public var color: Color
+    /// The buffer rows the one bar spans: neighbouring rows with the same colour, tag and owner are one bar, however
+    /// an edit has split them. Every row of the span reads the same bar.
+    public var lines: Range<Int>
+    /// The tag the app gave the decoration (``CodeLineDecoration/tag``), the one a click on the bar reports.
+    public var tag: UInt64?
+    /// The name of the owner whose bar this is; `nil` for the default owner.
+    public var owner: String?
+
+    /// A painted gutter bar.
+    public init(color: Color, lines: Range<Int>, tag: UInt64? = nil, owner: String? = nil) {
+        self.color = color
+        self.lines = lines
+        self.tag = tag
+        self.owner = owner
+    }
+}
+
+/// What ``CodeView`` paints on one buffer row, merged across decoration owners
+/// (``CodeDecorations/paintedLineDecoration(row:)``, `CV-BZ`). Each field names the owner that won it, `nil` for the
+/// default owner: the owners can differ per field, as the higher priority wins each field alone.
+public struct CodePaintedLineDecoration: Equatable, Sendable {
+    /// The tint across the row, or `nil` for none.
+    public var background: Color?
+    /// The owner whose tint it is.
+    public var backgroundOwner: String?
+    /// The gutter bar over the row, or `nil` for none.
+    public var gutterBar: CodePaintedGutterBar?
+    /// The gutter marker on the row, or `nil` for none (an empty text paints nothing and reads as `nil`).
+    public var gutterMarker: CodeGutterMarker?
+    /// The tag of the marker's decoration.
+    public var gutterMarkerTag: UInt64?
+    /// The owner whose marker it is.
+    public var gutterMarkerOwner: String?
+    /// The change-lane mark on the row, or `nil` for none.
+    public var changeBar: CodeChangeBar?
+    /// The tag of the change mark's decoration.
+    public var changeBarTag: UInt64?
+    /// The owner whose change mark it is.
+    public var changeBarOwner: String?
+
+    /// A painted line decoration; every field defaults to none.
+    public init(background: Color? = nil, backgroundOwner: String? = nil, gutterBar: CodePaintedGutterBar? = nil,
+                gutterMarker: CodeGutterMarker? = nil, gutterMarkerTag: UInt64? = nil, gutterMarkerOwner: String? = nil,
+                changeBar: CodeChangeBar? = nil, changeBarTag: UInt64? = nil, changeBarOwner: String? = nil) {
+        self.background = background
+        self.backgroundOwner = backgroundOwner
+        self.gutterBar = gutterBar
+        self.gutterMarker = gutterMarker
+        self.gutterMarkerTag = gutterMarkerTag
+        self.gutterMarkerOwner = gutterMarkerOwner
+        self.changeBar = changeBar
+        self.changeBarTag = changeBarTag
+        self.changeBarOwner = changeBarOwner
+    }
+}
+
 /// An ordered family of highlight runs. A later layer's foreground wins; backgrounds are painted in layer
 /// order, so `annotations` (authorship tints, say) sit under the syntax text colours (`CV-K`).
 public enum CodeHighlightLayer: Int, Comparable, CaseIterable, Sendable {
@@ -955,16 +1015,21 @@ public final class CodeDecorations {
         id == 0 || Int(id) >= ownerTable.count ? nil : ownerTable[Int(id)]
     }
 
+    /// The owners' line trees in ascending (priority, name): a later owner overrides each field it has. The one order
+    /// the merge (`rebuildLines`) and the readback (``paintedLineDecoration(row:)``, `CV-BZ`) both resolve by.
+    private var lineTreesAscending: [(id: UInt16, tree: RunTree<LineDecorationPayload>)] {
+        lineTrees.sorted {
+            let a = ownerTable[Int($0.id)], b = ownerTable[Int($1.id)]
+            return (a.priority, a.name) < (b.priority, b.name)
+        }
+    }
+
     /// Points `lines` at the one tree, or merges every owner's into a tree of its own: O(total runs x owners), at a
     /// set only, never per frame or per edit (`CV-AO`).
     private func rebuildLines() {
         guard lineTrees.count > 1 else { lines = lineTrees[0].tree; return }
         ownerMerges += 1
-        // Ascending (priority, name): a later owner overrides each field it has.
-        let ordered = lineTrees.sorted {
-            let a = ownerTable[Int($0.id)], b = ownerTable[Int($1.id)]
-            return (a.priority, a.name) < (b.priority, b.name)
-        }
+        let ordered = lineTreesAscending
         let lists = ordered.map { $0.tree.allRuns }
         var index = [Int](repeating: 0, count: lists.count)
         let total = lines.total
@@ -1182,6 +1247,45 @@ public final class CodeDecorations {
             step *= 2
         }
         return (lower..<upper, payload.tag, payload.owner)
+    }
+
+    // MARK: Reading line decorations back (`CV-BZ`)
+
+    /// The decoration ``CodeView`` paints on buffer row `row`, resolved across owners exactly as the view resolves it:
+    /// the merged line-decoration tree the paint reads (``lineDecoration(row:)``, the higher priority winning each
+    /// field with no blending, a tie to the later name), the gutter bar's whole span from ``gutterBar(overRow:)``
+    /// and the marker as ``strongestMarker(in:)`` picks it (an empty marker text paints nothing and is absent).
+    /// Each field names the owner that won it. `nil` when nothing paints on the row, or `row` is outside the buffer.
+    ///
+    /// `row` is a buffer row. A virtual row (``CodeVirtualRow``) is not read back: it has no buffer row, and reading it
+    /// needs the plan the view built. A folded header's hidden-row marker and change mark (`CV-BM`, `CV-BS`) are view
+    /// state too and are not merged in. A read only: it allocates the result, keeps nothing and costs a view that
+    /// never calls it nothing.
+    public func paintedLineDecoration(row: Int) -> CodePaintedLineDecoration? {
+        sync()
+        guard let payload = lineDecoration(row: row) else { return nil }
+        let name: (UInt16) -> String? = { self.owner(ofID: $0)?.name }
+        var painted = CodePaintedLineDecoration()
+        if let background = payload.background {
+            painted.background = background
+            var winner = lineTrees.count == 1 ? lineTrees[0].id : 0
+            for entry in lineTreesAscending.reversed() where entry.tree.payload(at: row)?.background != nil { winner = entry.id; break }
+            painted.backgroundOwner = name(winner)
+        }
+        if let bar = payload.gutterBar, let span = gutterBar(overRow: row) {
+            painted.gutterBar = CodePaintedGutterBar(color: bar, lines: span.lines, tag: span.tag, owner: name(span.owner))
+        }
+        if let strongest = strongestMarker(in: row..<(row + 1)), let marker = strongest.marker {
+            painted.gutterMarker = marker
+            painted.gutterMarkerTag = strongest.markerTag
+            painted.gutterMarkerOwner = name(strongest.markerOwner)
+        }
+        if let change = payload.changeBar {
+            painted.changeBar = change
+            painted.changeBarTag = payload.changeTag
+            painted.changeBarOwner = name(payload.changeOwner)
+        }
+        return painted == CodePaintedLineDecoration() ? nil : painted
     }
 
     /// The change-lane mark over `row` and the whole row range it spans (`CV-BS`): the neighbouring runs with the same
