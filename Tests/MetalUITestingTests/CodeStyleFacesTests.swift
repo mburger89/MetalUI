@@ -5,6 +5,9 @@ import MetalUIScene
 import MetalUIPortableText
 import MetalUITesting
 @testable import MetalUI
+#if canImport(Darwin)
+import MetalUITestSupport
+#endif
 
 // `CodeStyle` faces (ruling `CV-BY`, record 396): `italic` and `weight` on a style, drawn with the font's real faces.
 // PLAIN imports; text is the harness's Noto Sans through `PortableTextSystem`.
@@ -267,4 +270,112 @@ private let sentence = "go The quick brown fox jumps over tail"
     #expect(abs((b.last!.x - a.last!.x) - expected) <= 1.5, "\(b.last!.x - a.last!.x) vs \(expected)")
     // The buffer rows are untouched.
     #expect(plain.glyphs(row: 0).map(\.x) == slanted.glyphs(row: 0).map(\.x))
+}
+
+// MARK: Cost
+
+private struct Card: Component, @MainActor Equatable {
+    let buffer: CodeBuffer
+    let decorations: CodeDecorations
+    var content: some ElementGroup {
+        CodeView(buffer: buffer, decorations: decorations).font(size: 12).showsLineNumbers(false).codeCaretBlink(.off)
+    }
+    static func == (l: Card, r: Card) -> Bool { l.buffer === r.buffer && l.decorations === r.decorations }
+}
+
+/// The bytes `from..<to` of buffer row `row`.
+@MainActor private func bytes(_ buffer: CodeBuffer, row: Int, _ from: Int, _ to: Int) -> Range<Int> {
+    let start = buffer.snapshot().lineRange(row).lowerBound
+    return (start + from)..<(start + to)
+}
+
+/// **4** The steady-frame cost of a view whose highlights set colour only is what master's is: five idle frames shape
+/// no line, resolve no face, ask the same element requests and retention as `changeBarsCostWhatNoneCost` (2 requests, 0
+/// hits, 1 miss, 0 ineligible), the decorations never report a face, and one warm scroll frame stays under master's
+/// 910-allocation ceiling. **Mutation:** `makePlan` resolving an italic face every frame (one `cache.face` call), which
+/// shows as `faceResolutions` of 1.
+@Test @MainActor func colourOnlyHighlightsCostWhatMasterCosts() async throws {
+    let buffer = CodeBuffer(codeText(lines: 60))
+    let decorations = CodeDecorations(buffer: buffer)
+    set(decorations, buffer, (0..<30).map { (bytes(buffer, row: $0, 0, 3), CodeStyle(foreground: red)) }, layer: .syntax)
+    let w = try harnessWindow(size: sz(400, 200)) {
+        HStack(spacing: 0) {   // the view of `CodeViewMultiCaretCostTests`, whose literals are master's
+            ForEach(0..<1, id: \.self) { _ in
+                Card(buffer: buffer, decorations: decorations).equatable().frame(width: Pixels(180), height: Pixels(150))
+            }
+        }
+    }
+    defer { withExtendedLifetime(w) {} }
+    w.click(at: pt(60, 6))
+    for _ in 0..<4 { w.window.setNeedsRedraw(); try await w.runUntilIdle() }
+    let resolvedBefore = decorations.lineCache.faceResolutions
+    var steady: [String] = []
+    for _ in 0..<5 {
+        w.resetFrameWork()
+        w.window.setNeedsRedraw()
+        try await w.runUntilIdle()
+        let f = totalWork(w)
+        steady.append("shaped \(f.codeLinesShaped) requests \(f.elementRequests) hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible) frames \(w.frameWork.count)")
+    }
+    let master = "shaped 0 requests 2 hits 0 misses 1 ineligible 0 frames 1"
+    #expect(steady == Array(repeating: master, count: 5), "\(steady)")
+    #expect(!decorations.hasFaces && decorations.lineCache.faceResolutions == 0 && resolvedBefore == 0)
+    #if canImport(Darwin)
+    // The fixture of `aWarmScrollFrameAllocatesTheSameAt1kAnd100kLinesAndAtAnyPosition` (1000 fixed-width rows, numbers off),
+    // with a colour on its first 30 rows, held to the same 910.
+    let fixed = CodeBuffer(fixedWidthText(lines: 1_000))
+    let coloured = CodeDecorations(buffer: fixed)
+    set(coloured, fixed, (0..<30).map { (bytes(fixed, row: $0, 0, 3), CodeStyle(foreground: red)) }, layer: .syntax)
+    let scrolling = try codeWindow(buffer: fixed, decorations: coloured, numbers: false)
+    for _ in 0..<6 { scrolling.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -1) }
+    let allocations = try #require(countAllocations { scrolling.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -1) })
+    #expect(allocations <= 910, "\(allocations) allocations in one warm scroll frame (ceiling 910)")
+    #expect(coloured.lineCache.faceResolutions == 0 && !coloured.hasFaces)
+    #endif
+}
+
+/// **5** Adding italic to one visible row reshapes exactly that row: the other rows keep their digests, so their layouts
+/// stay in the cache, and the one face is resolved once. **Mutation:** the face term dropped from `digest(of:)`, so the
+/// restyled row hits its old layout and shapes 0.
+@Test @MainActor func aFaceRestyleReshapesOnlyTheRowsItChanges() throws {
+    let buffer = CodeBuffer(codeText(lines: 60))
+    let decorations = CodeDecorations(buffer: buffer)
+    set(decorations, buffer, (0..<30).map { (bytes(buffer, row: $0, 0, 3), CodeStyle(foreground: red)) }, layer: .syntax)
+    let window = try codeWindow(buffer: buffer, decorations: decorations)
+    window.window.setNeedsRedraw(); window.tick()
+    window.resetFrameWork()
+    set(decorations, buffer, [(bytes(buffer, row: 2, 0, 4), CodeStyle(italic: true))], layer: .semantic)
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(totalWork(window).codeLinesShaped == 1, "shaped \(totalWork(window).codeLinesShaped)")
+    #expect(decorations.lineCache.faceResolutions == 1)
+    window.resetFrameWork()
+    set(decorations, buffer, [(bytes(buffer, row: 2, 0, 4), CodeStyle(italic: true)), (bytes(buffer, row: 4, 0, 2), CodeStyle(weight: .bold))],
+        layer: .semantic)
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(totalWork(window).codeLinesShaped == 1, "only the row that gained a face shaped, shaped \(totalWork(window).codeLinesShaped)")
+}
+
+/// **6** With faces on several rows, idle repaints recompute nothing (no line shaped, no styling computed again, no face
+/// resolved), and scrolling shapes the rows that enter while each distinct face is still resolved once.
+/// **Mutation:** the resolved face not stored in `faceTable`, so every faced line shaped re-resolves.
+@Test @MainActor func anIdleRepaintWithFacesRecomputesNothing() throws {
+    let buffer = CodeBuffer(codeText(lines: 60))
+    let decorations = CodeDecorations(buffer: buffer)
+    let faces: [CodeStyle] = [CodeStyle(italic: true), CodeStyle(weight: .bold), CodeStyle(italic: true, weight: .bold)]
+    set(decorations, buffer, (0..<40).map { (bytes(buffer, row: $0, 0, 3), faces[$0 % 3]) }, layer: .syntax)
+    let window = try codeWindow(buffer: buffer, decorations: decorations, numbers: false)
+    window.window.setNeedsRedraw(); window.tick()
+    let resolved = decorations.lineCache.faceResolutions
+    #expect(resolved == 3, "\(resolved)")
+    let stylings = decorations.stylingComputations, shaped = decorations.lineCache.shapedTotal
+    window.resetFrameWork()
+    for _ in 0..<5 { window.window.setNeedsRedraw(); window.tick() }
+    #expect(totalWork(window).codeLinesShaped == 0)
+    #expect(decorations.stylingComputations == stylings, "styling computed again: \(decorations.stylingComputations - stylings)")
+    #expect(decorations.lineCache.shapedTotal == shaped && decorations.lineCache.faceResolutions == resolved)
+    let pitch = codePitch(scale: 1)
+    window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: -pitch * 6)
+    window.window.setNeedsRedraw(); window.tick()
+    #expect(decorations.lineCache.shapedTotal > shaped, "rows entered and were shaped")
+    #expect(decorations.lineCache.faceResolutions == 3, "still three faces: \(decorations.lineCache.faceResolutions)")
 }
