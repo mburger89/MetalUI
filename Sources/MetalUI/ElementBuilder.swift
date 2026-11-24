@@ -2,7 +2,7 @@
 /// (spec §4.6, allocation mitigation 1).
 ///
 /// ```swift
-/// Column { Label("Nodes"); Button("Compile") }   // Column<Pair<Label, Button>>
+/// Column { Label("Nodes"); Button("Compile") }   // Column<TupleGroup<Label, Button>>
 /// ```
 ///
 /// **The static path boxes nothing, and that is the whole point of this type.**
@@ -33,7 +33,7 @@
 /// than the measurement assumed, but it measures nothing, so a boxing mutation
 /// has to give the type checker the non-generic path as well.
 ///
-/// Every method here returns a distinct concrete type — `Pair`, `OptionalGroup`,
+/// Every method here returns a distinct concrete type — `TupleGroup`, `OptionalGroup`,
 /// `EitherGroup`, `ArrayGroup`, `EmptyGroup` — so `if`, `if`/`else` and `for`
 /// stay unboxed too. `AnyElement` is reachable only by writing it out (§4.6).
 ///
@@ -43,29 +43,31 @@
 /// because the getter has returned before its children register. A sample is
 /// a no-op outside a measurement, off the main thread and in release builds.
 ///
-/// `buildPartialBlock` rather than a ladder of `buildBlock` overloads: it gives
-/// unbounded arity from two methods, and the left-nested `Pair<Pair<A, B>, C>`
-/// it produces flattens back to source order because `Pair` always visits
-/// `first` before `second`.
+/// `buildBlock<each Group>` rather than `buildPartialBlock` (ruling `PE-AB`, Sift gap G17): the block's members
+/// are one parameter pack, stored once in a `TupleGroup`'s tuple, the way SwiftUI's `ViewBuilder` makes a
+/// `TupleView`. A partial-block chain made one intermediate `Pair<Pair<…>>` per statement, and at `-Onone` each held
+/// the whole prefix in a stack slot of its own, so a closure's frame grew with the square of its child count.
+/// `TupleGroup` visits its members in source order with one cursor, so every id, path and phase order is what the
+/// chain gave. **The compiler prefers `buildPartialBlock` whenever a builder declares it**, so none may be added back.
 @MainActor
 @resultBuilder
 public enum ElementBuilder {
     /// `Box { }` — a container with no children.
     public static func buildBlock() -> EmptyGroup { StackMeter.sample(); return EmptyGroup() }
 
-    /// A block's first statement, unchanged.
-    public static func buildPartialBlock<Group: ElementGroup>(first: Group) -> Group {
+    /// One statement, unchanged: a single child gets no wrapper.
+    public static func buildBlock<Group: ElementGroup>(_ group: Group) -> Group {
         StackMeter.sample()
-        return first
+        return group
     }
 
-    /// Folds the next statement onto the ones before it as a left-nested
-    /// `Pair`, so node order is source order.
-    public static func buildPartialBlock<Accumulated: ElementGroup, Next: ElementGroup>(
-        accumulated: Accumulated, next: Next
-    ) -> Pair<Accumulated, Next> {
+    /// Two or more statements, in source order, as one `TupleGroup`. One parameter pack rather than a
+    /// `buildPartialBlock` chain: the chain's intermediate `Pair<Pair<…>>` values each took a stack slot holding the
+    /// whole prefix at `-Onone`, so a closure's frame grew with the square of its child count (Sift G17).
+    public static func buildBlock<each Group: ElementGroup>(_ groups: repeat each Group)
+        -> TupleGroup<repeat each Group> {
         StackMeter.sample()
-        return Pair(accumulated, next)
+        return TupleGroup(repeat each groups)
     }
 
     /// `if` with no `else`.

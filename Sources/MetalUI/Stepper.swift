@@ -32,7 +32,7 @@ public struct Stepper: Element, StyledElement {
     // Internal names for the body's parts. The public requirements below
     // spell the full types, so no name is added to the public API.
     typealias Mark = Box<EmptyGroup>
-    typealias Plus = Stack<Pair<Mark, Mark>>
+    typealias Plus = Stack<TupleGroup<Mark, Mark>>
     typealias Up = Box<Plus>
     typealias Down = Box<Mark>
     typealias Control = Box<Pair<Up, Down>>
@@ -149,7 +149,7 @@ public struct Stepper: Element, StyledElement {
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout) {
+        -> (LayoutNodeID, Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<TupleGroup<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout) {
         box.style = style
         box.decoration = decoration
         // `labelsHidden()` (`LB-A`): the title row and its gap go; the slot stays reserved.
@@ -162,8 +162,8 @@ public struct Stepper: Element, StyledElement {
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
-                                  pass: inout PrepaintPass) -> Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint {
+                                  layout: inout Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<TupleGroup<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
+                                  pass: inout PrepaintPass) -> Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<TupleGroup<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint {
         let increment = self.increment, decrement = self.decrement
         func run(_ direction: ControlKeys.Direction) {
             (direction == .forward ? increment : decrement)?()
@@ -195,8 +195,8 @@ public struct Stepper: Element, StyledElement {
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
-                               prepaint: inout Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<Pair<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint,
+                               layout: inout Box<Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<TupleGroup<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>>.Layout,
+                               prepaint: inout Pair<OptionalGroup<Text>, Box<Pair<Box<Stack<TupleGroup<Box<EmptyGroup>, Box<EmptyGroup>>>>, Box<Box<EmptyGroup>>>>>.Prepaint,
                                pass: inout PaintPass) {
         // The disabled look (`IX-G` item 2): the whole subtree in one 0.5 scope.
         pass.paintControl(disabled: !pass.frame.environmentTop.isEnabled) {

@@ -24,7 +24,7 @@ private func show(_ label: String, _ result: TypecheckResult) {
 
 /// **1.2** (`PE-B`). Proposal content keeps its type through
 /// `ProposalContentBuilder` — `HStack { Spacer(); Rectangle() }` is still
-/// `HStack<Pair<Spacer, Rectangle>>`, so the typed builder copies (`MC-H`) are
+/// `HStack<TupleGroup<Spacer, Rectangle>>`, so the typed builder copies (`MC-H`) are
 /// still the ones a stack reaches — and a legacy expression is adopted as
 /// `LegacyContent<_>`, per expression statement. The separating arm: a proposal
 /// expression is NOT wrapped (`HStack<LegacyContent<Spacer>>` must fail).
@@ -36,8 +36,8 @@ private func show(_ label: String, _ result: TypecheckResult) {
 func proposalContentKeepsItsTypeAndLegacyContentIsAdopted() throws {
     let positive = try typecheckFile("""
         @MainActor public func typed() {
-            let _: HStack<Pair<Spacer, Rectangle>> = HStack { Spacer(); Rectangle() }
-            let _: HStack<Pair<LegacyContent<Text>, Spacer>> = HStack { Text("a"); Spacer() }
+            let _: HStack<TupleGroup<Spacer, Rectangle>> = HStack { Spacer(); Rectangle() }
+            let _: HStack<TupleGroup<LegacyContent<Text>, Spacer>> = HStack { Text("a"); Spacer() }
         }
         """, importing: "MetalUI")
     show("1.2 positive", positive)

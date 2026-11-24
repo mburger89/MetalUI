@@ -108,6 +108,32 @@ extension Pair: ProposalElementGroup where First: ProposalElementGroup, Second: 
     }
 }
 
+extension TupleGroup: ProposalElementGroup where repeat each Member: ProposalElementGroup {
+    /// One cursor threaded through every member in order, as the untyped entry threads it; the members are mutated
+    /// where the tuple stores them (`TupleGroup.slot`).
+    public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
+                                                    at cursor: inout Int,
+                                                    pass: inout LayoutPass) -> ([ProposalNodeID], Layout) {
+        var nodes: [ProposalNodeID] = []
+        let layout = withUnsafeMutablePointer(to: &members) { tuple in
+            var offset = 0
+            return (repeat Self.visitProposal((each Member).self, in: UnsafeMutableRawPointer(tuple), at: &offset,
+                                              under: parent, at: &cursor, nodes: &nodes, pass: &pass))
+        }
+        return (nodes, layout)
+    }
+
+    private static func visitProposal<M: ProposalElementGroup>(
+        _ type: M.Type, in base: UnsafeMutableRawPointer, at offset: inout Int, under parent: GlobalElementID?,
+        at cursor: inout Int, nodes: inout [ProposalNodeID], pass: inout LayoutPass
+    ) -> M.GroupLayout {
+        let member = slot(type, in: base, at: &offset)
+        let (memberNodes, layout) = member.pointee.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
+        if nodes.isEmpty { nodes = memberNodes } else { nodes += memberNodes }
+        return layout
+    }
+}
+
 extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGroup {
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,

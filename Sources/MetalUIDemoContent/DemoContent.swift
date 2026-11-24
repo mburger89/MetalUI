@@ -266,8 +266,7 @@ struct CounterPanel: Element {
     /// above stable across a rebuild of the surrounding tree.
     var elementID: ElementID? { ElementID("counter") }
 
-    /// The panel's chrome: minus, the readout, plus. Left-nested exactly as
-    /// `@ElementBuilder`'s `buildPartialBlock` would nest it, because the three
+    /// The panel's chrome: minus, the readout, plus. Left-nested `Pair`s, not the builder's `TupleGroup`, because the three
     /// children are assembled by hand below — a builder block cannot close over
     /// the two handlers *and* be written at the point the handlers exist.
     ///

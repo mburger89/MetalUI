@@ -150,22 +150,23 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// then requires `AnyElement: Element`. The non-generic overload is what gives
 /// the type checker a path and turns the mutation back into a measurement.
 ///
-/// Both halves are needed. `contains("Pair")` alone passes against a
-/// `Pair<AnyElement, AnyElement>`; `!contains("AnyElement")` alone passes
+/// Both halves are needed. `contains("TupleGroup")` alone passes against a
+/// `TupleGroup<AnyElement, AnyElement>`; `!contains("AnyElement")` alone passes
 /// against a builder that flattened everything into one node type.
 @MainActor
 @Test func theBuilderPreservesConcreteTypesRatherThanBoxing() {
     let column = Column { Box(); Box() }
     let name = String(describing: type(of: column))
 
-    #expect(name.contains("Pair"))
+    #expect(name.contains("TupleGroup"))
     #expect(!name.contains("AnyElement"))
-    // The spec's own spelling: `Column<Pair<…>>`, not `Column<[…]>` and not a
+    // The spec's own spelling: `Column<TupleGroup<…>>` (`Column<Pair<…>>` until `PE-AB`), not `Column<[…]>` and not a
     // wrapper element between the column and its children.
-    #expect(name.hasPrefix("Column<Pair<"))
+    #expect(name.hasPrefix("Column<TupleGroup<"))
 }
 
-/// Three statements nest left — `Pair<Pair<A, B>, C>` — and stay concrete.
+/// Three statements are ONE `TupleGroup<A, B, C>` — flat, concrete, not nested `Pair`s (ruling `PE-AB`; the test's name
+/// is the history: until then the builder nested `Pair<Pair<A, B>, C>`, whose debug frame was quadratic).
 ///
 /// Arity is where a "preserve types" builder is most tempted to give up: a
 /// `buildBlock` ladder runs out, and `[AnyElement]` is the easy escape.
@@ -174,7 +175,8 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     let row = Row { Box(); Box(); Box() }
     let name = String(describing: type(of: row))
 
-    #expect(name.hasPrefix("Row<Pair<Pair<"))
+    #expect(name.hasPrefix("Row<TupleGroup<"))
+    #expect(!name.contains("Pair<"))
     #expect(!name.contains("AnyElement"))
 }
 

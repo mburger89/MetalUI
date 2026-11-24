@@ -55,6 +55,9 @@ struct AXEmission {
     /// are size-pinned and the table's fields are made only while a client collects, so no declared node carries them and
     /// a table with no client pays nothing.
     var table: AXTableInfo?
+    /// A selectable `Text`'s selection (`TXS-G`), or `nil` for every other record. **On the record, not on `AXNode`**, as
+    /// `table` is: set only while a client collects, so a window with none pays nothing.
+    var textSelection: AccessibilityTextSelection?
 }
 
 /// A `Table`'s part in the accessibility tree (`TBL-T`): which node a record is and the indices its published node carries.

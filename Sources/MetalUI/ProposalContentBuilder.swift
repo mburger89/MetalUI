@@ -7,9 +7,9 @@ import MetalUILayout
 /// `docs/superpowers/2026-10-06-proposal-controls-decisions.md`).
 ///
 /// ```swift
-/// HStack { Spacer(); Rectangle() }      // HStack<Pair<Spacer, Rectangle>>
+/// HStack { Spacer(); Rectangle() }      // HStack<TupleGroup<Spacer, Rectangle>>
 /// HStack { Text("Name"); TextField("Name", text: $name) }
-///                                       // HStack<Pair<LegacyContent<Text>, LegacyContent<TextField>>>
+///                                       // HStack<TupleGroup<LegacyContent<Text>, LegacyContent<TextField>>>
 /// ```
 ///
 /// It takes the place of `@ElementBuilder` on `HStack`, `VStack`, `ZStack`,
@@ -21,7 +21,7 @@ import MetalUILayout
 ///
 /// **The wrapping is per expression statement**, so an `if`, `switch` or `for`
 /// over legacy content wraps each branch's statements, and the builder products
-/// (`Pair`, `OptionalGroup`, `EitherGroup`, `ArrayGroup`) stay the typed copies
+/// (`TupleGroup`, `OptionalGroup`, `EitherGroup`, `ArrayGroup`) stay the typed copies
 /// every proposal container already reaches (`MC-H`). A `ForEach` is one
 /// expression: a `ForEach` of legacy rows is adopted whole.
 ///
@@ -52,17 +52,15 @@ public enum ProposalContentBuilder {
     /// `HStack { }` — no children. Forwards to `ElementBuilder.buildBlock()`.
     public static func buildBlock() -> EmptyGroup { ElementBuilder.buildBlock() }
 
-    /// A block's first statement, unchanged. Forwards to `ElementBuilder`.
-    public static func buildPartialBlock<Group: ElementGroup>(first: Group) -> Group {
-        ElementBuilder.buildPartialBlock(first: first)
+    /// One statement, unchanged. Forwards to `ElementBuilder`.
+    public static func buildBlock<Group: ElementGroup>(_ group: Group) -> Group {
+        ElementBuilder.buildBlock(group)
     }
 
-    /// Folds the next statement onto the ones before it as a left-nested `Pair`,
-    /// so node order is source order. Forwards to `ElementBuilder`.
-    public static func buildPartialBlock<Accumulated: ElementGroup, Next: ElementGroup>(
-        accumulated: Accumulated, next: Next
-    ) -> Pair<Accumulated, Next> {
-        ElementBuilder.buildPartialBlock(accumulated: accumulated, next: next)
+    /// Two or more statements as one `TupleGroup`, in source order. Forwards to `ElementBuilder`.
+    public static func buildBlock<each Group: ElementGroup>(_ groups: repeat each Group)
+        -> TupleGroup<repeat each Group> {
+        ElementBuilder.buildBlock(repeat each groups)
     }
 
     /// `if` with no `else`: one structural slot (`ID-B`). Forwards to `ElementBuilder`.
