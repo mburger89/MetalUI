@@ -103,11 +103,11 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         retainedBuild.closedOnRecord = !observed   // `AM-B`: `needsObservation` read a complete, clean record
         result.1.storage.retained = retainedBuild
         if let graftWindow {
-            let closed = frame.closeGraftWindow(graftWindow, tops: result.0, contentSerial: entry.serial, key: buildKey)
-            if let record = closed.record {
-                entry.graft = record
+            let closed = frame.closeGraftWindow(graftWindow, entry: entry, tops: result.0, contentSerial: entry.serial, key: buildKey)
+            entry.graft = nil   // the record a later build grafts from is made at the end of the frame, or not at all (`RK-AG`)
+            if let pending = closed.pending {
+                store.pendingGrafts.append(pending)
             } else {
-                entry.graft = nil
                 store.retained.noteIneligible(.graft, reason: closed.refusal ?? "unknown")
                 store.graftRefusals.append(closed.refusal ?? "unknown")
                 RetainedTrace.emit("retained graft ineligible \(RetainedTrace.path(id)) because \(closed.refusal ?? "?")")

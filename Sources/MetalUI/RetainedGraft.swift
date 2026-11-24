@@ -149,6 +149,24 @@ struct BuildAudit: Equatable {
     }
 }
 
+/// What an occurrence's closed window leaves for `flushPendingGrafts` to make a record of (`RK-AG`).
+struct PendingGraft {
+    let entry: ContentMemoStore.Entry
+    let marks: SegmentMarks
+    let key: BuildKey
+    let contentSerial: Int
+    let events: [BuildJournal.Event]
+    let requests: Int
+    let lifecycleOrders: Int
+    var topItems: [(index: Int, item: LoweredItem, originOffset: Int?)] = []
+
+    init(entry: ContentMemoStore.Entry, marks: SegmentMarks, key: BuildKey, contentSerial: Int,
+         events: [BuildJournal.Event], requests: Int, lifecycleOrders: Int) {
+        self.entry = entry; self.marks = marks; self.key = key; self.contentSerial = contentSerial
+        self.events = events; self.requests = requests; self.lifecycleOrders = lifecycleOrders
+    }
+}
+
 /// What a recorded build leaves for a later frame to graft (`RK-B`, `RK-F`), one per memo entry.
 @MainActor
 final class GraftRecord {
@@ -256,25 +274,29 @@ extension Frame {
         return recorder
     }
 
-    /// Closes the window and answers the record it made, or `nil` with the name of what stopped it.
-    func closeGraftWindow(_ recorder: GraftRecorder, tops: [LayoutNodeID], contentSerial: Int,
-                          key: BuildKey) -> (record: GraftRecord?, refusal: String?) {
+    /// Closes the window and answers what the occurrence's build left to capture, or `nil` with the name of what stopped it.
+    /// **The copy of the rows is not made here** (`RK-AG`): the marks, the journal and the top-level items are taken now, because a
+    /// container built after this occurrence may write to them; the children and kernel cases, which nothing writes after
+    /// registration, are copied by `flushPendingGrafts` at the end of the frame, and only for an occurrence whose paint and
+    /// prepaint left records, the only kind a later frame can graft from.
+    func closeGraftWindow(_ recorder: GraftRecorder, entry: ContentMemoStore.Entry, tops: [LayoutNodeID], contentSerial: Int,
+                          key: BuildKey) -> (pending: PendingGraft?, refusal: String?) {
         let journal = stateTable.contentMemos.journal
         journal.open.removeAll { $0 === recorder }
         defer { if journal.open.isEmpty { journal.events.removeAll(keepingCapacity: true) } }
         if let reason = recorder.taint { return (nil, reason) }
         if let moved = recorder.audit.movedChannel(to: buildAudit()) { return (nil, moved) }
-        let (segment, refusal) = tree.captureSegment(from: recorder.lower, tops: tops)
-        guard let segment else { return (nil, refusal ?? "segment") }
-        let record = GraftRecord(key: key, contentSerial: contentSerial, segment: segment,
-                                 events: journal.events[recorder.start...].map { (event: BuildJournal.Event) -> BuildJournal.Event in
-                                     if case .lifecycleNote(let write, let scope, let owner, let order) = event {
-                                         return .lifecycleNote(write, scope, owner, order - recorder.lifecycleBase)
-                                     }
-                                     return event
-                                 },
-                                 requests: elementRequests &+ stateTable.contentMemos.retained.skippedRequests - recorder.requests)
-        record.lifecycleOrders = animationStore.lifecycle.nextRegistrationOrder - recorder.lifecycleBase
+        let (marks, refusal) = tree.captureSegmentMarks(from: recorder.lower, tops: tops)
+        guard let marks else { return (nil, refusal ?? "segment") }
+        let events = journal.events[recorder.start...].map { (event: BuildJournal.Event) -> BuildJournal.Event in
+            if case .lifecycleNote(let write, let scope, let owner, let order) = event {
+                return .lifecycleNote(write, scope, owner, order - recorder.lifecycleBase)
+            }
+            return event
+        }
+        var pending = PendingGraft(entry: entry, marks: marks, key: key, contentSerial: contentSerial, events: events,
+                                   requests: elementRequests &+ stateTable.contentMemos.retained.skippedRequests - recorder.requests,
+                                   lifecycleOrders: animationStore.lifecycle.nextRegistrationOrder - recorder.lifecycleBase)
         // Items of the nodes the window registered: a top's is carried, an interior one must be consumed (a record no
         // container consumed would be reported by name at the end of the frame, `LR-AQ`: not a graft's to hide).
         let range = recorder.lower..<tree.nodeCount
@@ -289,12 +311,45 @@ extension Frame {
                     guard range.contains(originIndex) else { return (nil, "itemOriginOutside") }
                     offset = originIndex - recorder.lower
                 }
-                record.topItems.append((topIndex, item, offset))
+                pending.topItems.append((topIndex, item, offset))
             } else if !item.consumed, item.kind != .presentation, item.reportsFieldsIfUnconsumed {
                 return (nil, "interiorItemUnconsumed")   // diagnostics would report it; a graft must not hide that
             }
         }
-        return (record, nil)
+        return (pending, nil)
+    }
+
+    /// Makes the records of the occurrences whose windows closed this frame (`RK-AG`), at the end of the frame, after paint:
+    /// a record a later frame cannot graft from is not made. **Exact:** `graftRecord` answers `nil` unless the entry holds a paint
+    /// record with a prepaint ledger and complete coverage, and nothing writes those between this point and that call but the
+    /// paint of an occurrence the later build has already passed; an entry that holds none now cannot graft in the frame after
+    /// this one, whether a graft record exists or not.
+    func flushPendingGrafts() {
+        let memos = stateTable.contentMemos
+        guard !memos.pendingGrafts.isEmpty else { return }
+        let pending = memos.pendingGrafts
+        memos.pendingGrafts = []
+        for item in pending {
+            let entry = item.entry
+            guard let record = entry.record, record.prepaint != nil, record.coverageComplete else {
+                memos.retained.graftCapturesSkipped += 1
+                continue
+            }
+            memos.retained.graftCaptures += 1
+            let (segment, refusal) = tree.completeSegment(item.marks)
+            guard let segment else {
+                entry.graft = nil
+                memos.retained.noteIneligible(.graft, reason: refusal ?? "segment")
+                memos.graftRefusals.append(refusal ?? "segment")
+                RetainedTrace.emit("retained graft ineligible \(RetainedTrace.path(entry.id!)) because \(refusal ?? "?")")
+                continue
+            }
+            let graft = GraftRecord(key: item.key, contentSerial: item.contentSerial, segment: segment, events: item.events,
+                                    requests: item.requests)
+            graft.lifecycleOrders = item.lifecycleOrders
+            graft.topItems = item.topItems
+            entry.graft = graft
+        }
     }
 
     /// Applies a journal through the stores' own functions (`RK-F`): the calls the build made, in the order it made them.

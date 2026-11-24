@@ -407,6 +407,8 @@ package final class ContentMemoStore {
 
     /// Why occurrences could leave no graft record in the build in progress and in the last one, one name each (`RK-F`).
     var graftRefusals: [String] = []
+    /// The occurrences whose graft windows closed this frame and whose records `Frame.flushPendingGrafts` makes (`RK-AG`).
+    var pendingGrafts: [PendingGraft] = []
     package private(set) var lastGraftRefusals: [String] = []
 
     /// Calls `body` on every stored prepaint ledger and answers how many there were (`RK-N`'s exit tests).
@@ -437,6 +439,7 @@ package final class ContentMemoStore {
     func resetBuildCounters() {
         retained = RetainedCounters()
         graftRefusals = []
+        pendingGrafts = []
         evaluations = 0; skips = 0; refusals = 0
     }
 

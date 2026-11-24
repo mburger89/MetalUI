@@ -88,6 +88,11 @@ public struct FrameWork: Sendable, Equatable {
     public var retainedSkippedRequests: Int
     /// The layout nodes the grafts appended instead of registering.
     public var retainedGraftedNodes: Int
+    /// The graft records the end of the frame copied rows for (`RK-AG`): an occurrence whose paint or prepaint left no record
+    /// a later frame could graft with is not copied.
+    public var retainedGraftCaptures: Int
+    /// The occurrences that built and whose graft record was not made for that reason (`RK-AG`).
+    public var retainedGraftCapturesSkipped: Int
     /// The ineligible counts (``retainedIneligible``, ``retainedPrepaintIneligible`` and ``retainedGraftIneligible``)
     /// summed by the name of the channel that refused, as `METALUI_TRACE_RETAINED=1` prints it (`stateWrite`, `surface`,
     /// `presentationAnchor`, ...): one entry per refusal, so an occurrence refused at paint, prepaint and graft counts
@@ -175,7 +180,8 @@ public struct FrameWork: Sendable, Equatable {
                 retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0,
                 retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0,
                 retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
-                retainedGraftedNodes: Int = 0, retainedIneligibleReasons: [String: Int] = [:],
+                retainedGraftedNodes: Int = 0, retainedGraftCaptures: Int = 0, retainedGraftCapturesSkipped: Int = 0,
+                retainedIneligibleReasons: [String: Int] = [:],
                 retainedTranslationRefusedReasons: [String: Int] = [:],
                 lazyUnitsRealized: Int = 0, lazyLinesRealized: Int = 0, lazyUnbounded: Int = 0,
                 outlineChildrenReads: Int = 0, outlineIndexRebuilds: Int = 0, outlineIndexValidations: Int = 0,
@@ -227,6 +233,8 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedGraftIneligible = retainedGraftIneligible
         self.retainedSkippedRequests = retainedSkippedRequests
         self.retainedGraftedNodes = retainedGraftedNodes
+        self.retainedGraftCaptures = retainedGraftCaptures
+        self.retainedGraftCapturesSkipped = retainedGraftCapturesSkipped
         self.retainedIneligibleReasons = retainedIneligibleReasons
         self.retainedTranslationRefusedReasons = retainedTranslationRefusedReasons
         self.lazyUnitsRealized = lazyUnitsRealized
@@ -292,6 +300,8 @@ public struct FrameWork: Sendable, Equatable {
                   retainedGraftIneligible: l.retainedGraftIneligible + r.retainedGraftIneligible,
                   retainedSkippedRequests: l.retainedSkippedRequests + r.retainedSkippedRequests,
                   retainedGraftedNodes: l.retainedGraftedNodes + r.retainedGraftedNodes,
+                  retainedGraftCaptures: l.retainedGraftCaptures + r.retainedGraftCaptures,
+                  retainedGraftCapturesSkipped: l.retainedGraftCapturesSkipped + r.retainedGraftCapturesSkipped,
                   retainedIneligibleReasons: l.retainedIneligibleReasons.merging(r.retainedIneligibleReasons, uniquingKeysWith: +),
                   retainedTranslationRefusedReasons: l.retainedTranslationRefusedReasons.merging(r.retainedTranslationRefusedReasons, uniquingKeysWith: +),
                   lazyUnitsRealized: l.lazyUnitsRealized + r.lazyUnitsRealized,

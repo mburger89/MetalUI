@@ -59,6 +59,10 @@ package struct RetainedCounters: Sendable, Equatable {
     package var skippedRequests = 0
     /// Layout nodes the grafts appended instead of registering.
     package var graftedNodes = 0
+    /// Graft records the end of the frame copied rows for, and the occurrences it left without one because their paint or prepaint
+    /// left no record a later frame could graft with (`RK-AG`).
+    package var graftCaptures = 0
+    package var graftCapturesSkipped = 0
     /// The three ineligible counters summed by the name of the channel that refused (`RW-M`): a paint taint or entry
     /// refusal, a prepaint refusal or taint, a graft refusal. Filled only on the ineligible path.
     package var ineligibleReasons: [String: Int] = [:]
