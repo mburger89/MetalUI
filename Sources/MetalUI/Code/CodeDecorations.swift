@@ -1192,7 +1192,7 @@ public final class CodeDecorations {
         var found: [VirtualGroup] = []
         var display = rowMap.displayRow(ofBufferRow: gap) - 1
         var last: ObjectIdentifier?
-        while display >= 0, case .virtual(let group, _, let at) = rowMap.row(atDisplay: display), at == gap {
+        while display >= 0, case .virtual(let group, _, _) = rowMap.row(atDisplay: display) {
             if ObjectIdentifier(group) != last { found.append(group); last = ObjectIdentifier(group) }
             display -= 1
         }
