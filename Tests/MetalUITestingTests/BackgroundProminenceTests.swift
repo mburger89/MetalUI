@@ -262,6 +262,81 @@ private struct PaintLabel: Component, @MainActor Equatable {
     #expect(before != after, "the ink of r2 did not change on selection: \(before) \(after)")
 }
 
+// MARK: - Prepaint and paint
+
+/// A leaf whose prepaint and paint read the value off the pass, not off a body: only the three phases' own environment can
+/// tell it, and a retained replay can only notice through the key.
+private struct PhaseLeaf: Element {
+    let name: String
+    let log: ProminenceLog
+    var elementID: ElementID? { nil }
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 40, height: 20)) }.layoutNodeID, ())
+    }
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
+        log.note(name + ".prepaint", pass.environment.backgroundProminence)
+    }
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
+        let value = pass.environment.backgroundProminence
+        log.note(name + ".paint", value)
+        pass.fill(bounds, color: value == .increased ? Hsla(h: 0, s: 1, l: 0.5, a: 1) : Hsla(h: 0.66, s: 1, l: 0.5, a: 1))
+    }
+}
+
+private struct PhaseCard: Component, @MainActor Equatable {
+    let name: String
+    let log: ProminenceLog
+    static func == (a: PhaseCard, b: PhaseCard) -> Bool { a.name == b.name }
+    var content: some ElementGroup { PhaseLeaf(name: name, log: log) }
+}
+
+@MainActor private func redRects(_ w: TestWindow) -> Int { w.allRects.filter { $0.background.h == 0 && $0.background.s == 1 }.count }
+
+@MainActor @TableColumnBuilder<RowRef, Never> private func phaseColumns(_ log: ProminenceLog) -> TableColumnGroup<RowRef, Never> {
+    TableColumn("A") { r in PhaseCard(name: "t\(r.id)", log: log).equatable() }.width(Pixels(100))
+}
+
+/// **P13** Prepaint and paint of a selected row run under the value too, in a flat list, a content list and a table: a leaf
+/// that reads it off the pass at both phases sees `.increased` on the selected row alone, one red rect is drawn, and moving
+/// the selection moves it. Mutation: unwrap the phase in `ListRows.prepaintGroup`/`paintGroup`, `ListContentEngine`'s
+/// `prepaint`/`paint` helpers, or `TableRowElement.prepaint`/`paint`.
+@Test @MainActor func prepaintAndPaintOfASelectedRowRunUnderTheValueInEveryForm() async throws {
+    let model = PSelection(), log = ProminenceLog()
+    let rows = (0..<12).map(PRow.init)
+    let flat = try harnessWindow(size: sz(300, 300)) {
+        ScrollView {
+            List(rows, selection: model.oneBinding(), rowHeight: Pixels(28)) { r in
+                Column { PhaseCard(name: "f\(r.id)", log: log).equatable() }
+            }
+        }
+        .frame(width: Pixels(300), height: Pixels(300))
+    }
+    let content = try harnessWindow(size: sz(300, 300)) {
+        ProposalScrollView {
+            List(selection: model.textBinding()) {
+                ForEach(["c0", "c1", "c2", "c3"], id: \.self) { n in PhaseCard(name: n, log: log).equatable() }
+            }
+        }
+    }
+    let table = try harnessWindow(size: sz(800, 600)) {
+        Table(CountingRows(12), selection: model.manyBinding()) { phaseColumns(log) }.tableRowHeight(Pixels(24))
+    }
+    model.one = 2; model.text = "c1"; model.many = [3]
+    for w in [flat, content, table] { try await idle(w) }
+    for (name, w, selected, other) in [("f2", flat, "f2", "f1"), ("c1", content, "c1", "c0"), ("t3", table, "t3", "t2")] {
+        #expect(log.last[selected + ".prepaint"] == .increased && log.last[selected + ".paint"] == .increased,
+                "\(name): prepaint \(String(describing: log.last[selected + ".prepaint"])) paint \(String(describing: log.last[selected + ".paint"]))")
+        #expect(log.last[other + ".prepaint"] == .standard && log.last[other + ".paint"] == .standard, "\(name) neighbour")
+        #expect(redRects(w) == 1, "\(name): red rects \(redRects(w))")
+    }
+    model.one = 5; model.text = "c3"; model.many = [6]
+    for w in [flat, content, table] { try await idle(w) }
+    #expect(log.last["f5.paint"] == .increased && log.last["f2.paint"] == .standard)
+    #expect(log.last["c3.paint"] == .increased && log.last["c1.paint"] == .standard)
+    #expect(log.last["t6.paint"] == .increased && log.last["t3.paint"] == .standard)
+    for w in [flat, content, table] { #expect(redRects(w) == 1) }
+}
+
 // MARK: - Outline rows (the content form)
 
 /// A content `List` over an outline: folders `a` and `b`, each open with the children `a/x`, `a/y`, `a/z`, a label per row.
