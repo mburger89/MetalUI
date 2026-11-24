@@ -95,7 +95,7 @@ private struct VCard: Component, @MainActor Equatable {
     static func == (l: VCard, r: VCard) -> Bool { l.buffer === r.buffer && l.decorations === r.decorations }
 }
 
-@MainActor private func steadyCost(reads: Int) async throws -> (VCost, FrameWork) {
+@MainActor private func steadyCost(reads: Int) async throws -> (VCost, FrameWork, Int) {
     let buffer = CodeBuffer(codeText(lines: 60))
     let decorations = CodeDecorations(buffer: buffer)
     decorations.setVirtualRows([CodeVirtualRow(anchor: .before(line: 5), lines: ["- a"], gutterBar: planHue, tag: 1)],
@@ -112,11 +112,13 @@ private struct VCard: Component, @MainActor Equatable {
     for _ in 0..<4 { w.window.setNeedsRedraw(); try await w.runUntilIdle() }
     w.resetFrameWork()
     for _ in 0..<reads { _ = decorations.paintedVirtualRows(at: .before(line: 5)) }
+    try await w.runUntilIdle()
+    let framesFromReads = w.frameWork.count   // a read that touched observed state would ask for one
     w.window.setNeedsRedraw()
     try await w.runUntilIdle()
     let f = totalWork(w)
     return (VCost(requests: f.elementRequests, hits: f.retainedHits, misses: f.retainedMisses, ineligible: f.retainedIneligible, frames: w.frameWork.count),
-            f)
+            f, framesFromReads)
 }
 
 /// 4 - a view with virtual rows costs the same steady frame (2 requests, 0/1/0 retention, 0 lines shaped) whether or not
@@ -125,6 +127,6 @@ private struct VCard: Component, @MainActor Equatable {
 @Test @MainActor func readingVirtualRowsBackCostsTheViewNothing() async throws {
     let none = try await steadyCost(reads: 0), many = try await steadyCost(reads: 50)
     #expect(none.0 == VCost(requests: 2, hits: 0, misses: 1, ineligible: 0, frames: 1), "\(none.0)")
-    #expect(many.0 == none.0 && many.1 == none.1, "\(many.1) vs \(none.1)")
+    #expect(many.0 == none.0 && many.1 == none.1 && many.2 == 0 && none.2 == 0, "\(many.1) vs \(none.1), frames from the reads \(many.2)")
     #expect(none.1.codeLinesShaped == 0, "a steady frame shapes nothing")
 }
