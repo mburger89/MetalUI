@@ -108,6 +108,24 @@ extension Pair: ProposalElementGroup where First: ProposalElementGroup, Second: 
     }
 }
 
+extension TupleGroup: ProposalElementGroup where repeat each Member: ProposalElementGroup {
+    /// One cursor threaded through every member in order, as the untyped entry threads it.
+    public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
+                                                    at cursor: inout Int,
+                                                    pass: inout LayoutPass) -> ([ProposalNodeID], Layout) {
+        var nodes: [ProposalNodeID] = []
+        func visit<M: ProposalElementGroup>(_ member: M) -> Step<M, M.GroupLayout> {
+            var member = member
+            let (memberNodes, layout) = member.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)
+            nodes += memberNodes
+            return Step(group: member, state: layout)
+        }
+        let steps = (repeat visit(each members))
+        members = (repeat (each steps).group)
+        return (nodes, (repeat (each steps).state))
+    }
+}
+
 extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGroup {
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,

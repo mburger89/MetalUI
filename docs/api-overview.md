@@ -69,8 +69,11 @@ the window's top layer — a portal for modals, popovers and tooltips
 
 - **`ElementBuilder`** — `@ViewBuilder`'s shapes: blocks, `if`, `if`/`else`,
   `switch`, `for`; each `if`/`for` is one structural slot and content an
-  evaluated conditional removes resets on return (`ID-B`, `ID-C`).
-  `AnyElement` is `AnyView`.
+  evaluated conditional removes resets on return (`ID-B`, `ID-C`). A block of
+  two or more statements is one `TupleGroup` (`buildBlock<each>`, SwiftUI's
+  `TupleView`; one statement is itself), so a builder's debug stack frame is
+  linear in its child count (`PE-AB`; it was a `buildPartialBlock` chain of
+  `Pair`s). `AnyElement` is `AnyView`.
 - **`ProposalContentBuilder`** — the builder of every SwiftUI-vocabulary
   container's content (`HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`,
   `ProposalScrollView`, `ProposalLayoutContainer`, a `ProposalLayout`'s

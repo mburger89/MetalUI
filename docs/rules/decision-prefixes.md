@@ -18,7 +18,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AQ`), `PE-` (controls in
   SwiftUI stacks, `Component` stack: `2026-10-06-proposal-controls-decisions.md`,
-  next `PE-AB`), `MD-` (port gaps, medium: field chrome, environment objects,
+  next `PE-AC`), `MD-` (port gaps, medium: field chrome, environment objects,
   window toolbar: `2026-10-07-port-gaps-medium-decisions.md`, next `MD-AA`), `PX-` (portable
   app: images, `.task`, the SDL traits: `2026-10-07-portable-app-decisions.md`, next `PX-X`), `CI-` (input APIs: wheel, pinch, other
   buttons, tap location, pointer style: `2026-10-08-input-apis-decisions.md`, next `CI-AM`), `TF-` (`.task`

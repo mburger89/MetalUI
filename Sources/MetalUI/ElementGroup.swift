@@ -13,14 +13,14 @@ import MetalUILayout
 // **list** of nodes, which is what `ElementGroup` is.
 //
 // `Element` refines it, so any element is a group of one and
-// `Column { Label(…); Button(…) }` really does build `Column<Pair<Label,
+// `Column { Label(…); Button(…) }` really does build `Column<TupleGroup<Label,
 // Button>>` — the type the spec names, with no wrapper in between and nothing
 // boxed. `AnyElement` conforms too (below), so a genuinely dynamic child list
 // remains expressible without making erasure the default path.
 //
 // **The alternative that was rejected**: `buildExpression` wrapping every
 // element in a `Solo<E>` group, leaving `Element` untouched. It works, but the
-// spec writes `Column<Pair<Label, Button>>` and that spelling is load-bearing
+// spec writes `Column<TupleGroup<Label, Button>>` and that spelling is load-bearing
 // documentation — a reader who greps for it should find it.
 
 /// A list of elements contributing zero or more layout nodes to one container.
@@ -243,11 +243,11 @@ public struct EmptyGroup: ElementGroup {
                                     prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// Two groups, concatenated — the shape every multi-statement builder block
-/// folds into (§4.6 mitigation 1).
+/// Two groups, concatenated — what the framework's own controls assemble by hand.
 ///
-/// Left-nested: three statements give `Pair<Pair<A, B>, C>`, and the node order
-/// that falls out of `a` before `b` at every level is source order.
+/// **The builder no longer makes it** (ruling `PE-AB`): a block of two or more statements is a ``TupleGroup``, whose
+/// frame is linear in the statement count where a left-nested `Pair<Pair<A, B>, C>` chain's was quadratic at `-Onone`.
+/// Node order is `first` before `second` at every level, as `TupleGroup`'s is member by member.
 public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
     /// The statements before the last, themselves possibly a `Pair`.
     public var first: First
@@ -299,6 +299,86 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
                          prepaint: &prepaint.first, pass: &pass)
         second.paintGroup(layout: &layout.second,
                           prepaint: &prepaint.second, pass: &pass)
+    }
+}
+
+/// Any number of groups, concatenated — what a multi-statement builder block builds (ruling `PE-AB`;
+/// SwiftUI's `TupleView`).
+///
+/// **Why a pack and not a `Pair` chain.** A builder that folds `buildPartialBlock` creates one intermediate
+/// `Pair<Pair<…>>` per statement, and at `-Onone` each intermediate holds the whole prefix in a stack slot of its
+/// own, so a closure's frame grew with the square of its child count (11 children: 512 KiB; Sift gap G17). A
+/// parameter pack stores the members once, in one tuple, and the closure's frame is linear.
+///
+/// Every requirement visits the members in source order and hands the **same** cursor to each, exactly as `Pair`
+/// did, so `Column { A; B; C }` identifies its children `0, 1, 2` and the node, prepaint, paint and
+/// accessibility order are unchanged. Tuple storage is inline: nothing is boxed.
+public struct TupleGroup<each Member: ElementGroup>: ElementGroup {
+    /// The members, in source order.
+    public var members: (repeat each Member)
+
+    /// A group of these members, whose nodes follow each other in source order.
+    public init(_ members: repeat each Member) {
+        self.members = (repeat each members)
+    }
+
+    /// One member's group and the state it handed on from a phase.
+    struct Step<M: ElementGroup, State> {
+        var group: M
+        var state: State
+    }
+
+    public typealias Layout = (repeat (each Member).GroupLayout)
+    public typealias Prepaint = (repeat (each Member).GroupPrepaint)
+
+    /// The same cursor goes to every member, in order (see `Pair.requestGroupLayout`): the index space is flat.
+    public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
+                                            pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
+        var nodes: [LayoutNodeID] = []
+        let steps = (repeat Self.visit(each members, under: parent, at: &cursor, nodes: &nodes, pass: &pass))
+        members = (repeat (each steps).group)
+        return (nodes, (repeat (each steps).state))
+    }
+
+    /// One member's registration; its nodes join `nodes` (the first member's array is taken whole, as `Pair`'s
+    /// concatenation of two arrays allocates once for the pair and not once more for each).
+    private static func visit<M: ElementGroup>(_ member: M, under parent: GlobalElementID?, at cursor: inout Int,
+                                               nodes: inout [LayoutNodeID], pass: inout LayoutPass)
+        -> Step<M, M.GroupLayout> {
+        var member = member
+        let (memberNodes, layout) = member.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        if nodes.isEmpty { nodes = memberNodes } else { nodes += memberNodes }
+        return Step(group: member, state: layout)
+    }
+
+    public mutating func prepaintGroup(layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
+        func visit<M: ElementGroup>(_ member: M, _ layout: M.GroupLayout)
+            -> Step<M, (M.GroupLayout, M.GroupPrepaint)> {
+            var member = member
+            var layout = layout
+            let prepaint = member.prepaintGroup(layout: &layout, pass: &pass)
+            return Step(group: member, state: (layout, prepaint))
+        }
+        let steps = (repeat visit(each members, each layout))
+        members = (repeat (each steps).group)
+        layout = (repeat (each steps).state.0)
+        return (repeat (each steps).state.1)
+    }
+
+    public mutating func paintGroup(layout: inout Layout, prepaint: inout Prepaint, pass: inout PaintPass) {
+        func visit<M: ElementGroup>(_ member: M, _ layout: M.GroupLayout, _ prepaint: M.GroupPrepaint)
+            -> Step<M, (M.GroupLayout, M.GroupPrepaint)> {
+            var member = member
+            var layout = layout
+            var prepaint = prepaint
+            member.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+            return Step(group: member, state: (layout, prepaint))
+        }
+        let steps = (repeat visit(each members, each layout, each prepaint))
+        members = (repeat (each steps).group)
+        layout = (repeat (each steps).state.0)
+        prepaint = (repeat (each steps).state.1)
     }
 }
 

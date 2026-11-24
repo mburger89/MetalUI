@@ -425,7 +425,7 @@ M	MetalUI	ProposalNodeID.swift	.*	.*	.*	element-protocols
 M	MetalUI	Deferred.swift	.*	.*	.*	deferred
 M	MetalUI	Element.swift	.*	.*	.*	element-protocols
 M	MetalUI	ElementBuilder.swift	.*	.*	.*	builder
-M	MetalUI	ProposalContentBuilder.swift	(ProposalContentBuilder|-)	(ProposalContentBuilder|buildExpression|buildBlock|buildPartialBlock|buildOptional|buildEither|buildArray)	.*	proposal-content-builder
+M	MetalUI	ProposalContentBuilder.swift	(ProposalContentBuilder|-)	(ProposalContentBuilder|buildExpression|buildBlock|buildOptional|buildEither|buildArray)	.*	proposal-content-builder
 M	MetalUI	ProposalContentBuilder.swift	.*	.*	.*	legacy-content
 M	MetalUI	LegacyProposalModifiers.swift	ElementGroup	layoutPriority	.*	stacks
 M	MetalUI	LegacyProposalModifiers.swift	ElementGroup	fixedSize	.*	fixed-size
