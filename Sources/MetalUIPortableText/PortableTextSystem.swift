@@ -47,6 +47,9 @@ public final class PortableTextSystem: TextSystem {
     private(set) var styledHits = 0
     private(set) var styledMisses = 0
     private var generation = 0
+    /// This frame's lookups for `METALUI_TRACE_SHAPING` (`TS-E`): a shape is a hit when a measurement or a laid-out line list
+    /// answers, a miss when `PortableText.layOut` runs (the shaping), and a styled measure counts as the cache above does.
+    private var trace = ShapingTrace.Recorder()
     /// `PortableText.layOut` calls this system made for plain text — what the
     /// layout cache (ruling GT-E) is counted by.
     private(set) var layOutCount = 0
@@ -80,6 +83,7 @@ public final class PortableTextSystem: TextSystem {
                         options: TextLayoutOptions) -> TextMeasurement {
         let key = MeasureKey(string: string, font: font, width: width, options: options)
         if let hit = measurements[key] {
+            if ShapingTrace.active { trace.hit() }
             measurements[key]?.generation = generation
             return hit.value
         }
@@ -93,7 +97,10 @@ public final class PortableTextSystem: TextSystem {
 
     /// The caret's x offset before each character and after the last (`TI-E`).
     public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
-        trapping { try PortableText.caretOffsets(string, font: registered(font)) }
+        if ShapingTrace.active {
+            trace.bypass(ShapingTrace.quoted(string) + "(caretOffsets " + ShapingTrace.describe(font) + ")")
+        }
+        return trapping { try PortableText.caretOffsets(string, font: registered(font)) }
     }
 
     /// Each display line's character range when `string` is wrapped at `width`.
@@ -129,10 +136,12 @@ public final class PortableTextSystem: TextSystem {
         let key = StyledKey(text: text, width: width, options: options)
         if let hit = styledMeasurements[key] {
             styledHits += 1
+            if ShapingTrace.active { trace.hit() }
             styledMeasurements[key]?.generation = generation
             return hit.value
         }
         styledMisses += 1
+        if ShapingTrace.active { trace.miss(ShapingTrace.entry(text, width: width, options: options)) }
         let fonts = text.runs.map { registered($0.style.font) }
         let value = trapping {
             try PortableText.styledLines(text, fonts: fonts, wrappingAt: width, options: options).measurement
@@ -146,6 +155,7 @@ public final class PortableTextSystem: TextSystem {
     public func layOut(_ text: StyledText, wrappingAt width: Double?, options: TextLayoutOptions,
                        origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
         let fonts = text.runs.map { registered($0.style.font) }
+        if ShapingTrace.active { trace.bypass(ShapingTrace.entry(text, width: width, options: options)) }
         return trapping {
             try PortableText.styledLayout(text, fonts: fonts, wrappingAt: width, options: options, origin: origin,
                                           scaleFactor: scaleFactor)
@@ -177,6 +187,7 @@ public final class PortableTextSystem: TextSystem {
     /// Drops measurements no frame has asked for since the previous one — the
     /// same two-frame lifetime `ShapingCache` gives its entries.
     public func endFrame() {
+        if ShapingTrace.active { trace.finish(frame: generation, system: "portable") }
         measurements = measurements.filter { generation - $0.value.generation <= 1 }
         layouts = layouts.filter { generation - $0.value.generation <= 1 }
         styledMeasurements = styledMeasurements.filter { generation - $0.value.generation <= 1 }
@@ -185,10 +196,14 @@ public final class PortableTextSystem: TextSystem {
     /// The origin-free lines of `key`'s string.
     private func laidOut(_ key: MeasureKey, _ portable: PortableFont) -> [LaidOutLine] {
         if let hit = layouts[key] {
+            if ShapingTrace.active { trace.hit() }
             layouts[key]?.generation = generation
             return hit.value
         }
         layOutCount += 1
+        if ShapingTrace.active {
+            trace.miss(ShapingTrace.entry(key.string, font: key.font, width: key.width, options: key.options))
+        }
         let lines = trapping {
             try PortableText.layOut(key.string, font: portable, wrappingAt: key.width, options: key.options)
         }

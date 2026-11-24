@@ -294,7 +294,7 @@ var targets: [Target] = [
         // Tests/Fonts by #filePath (HT-J) and run on all three platforms.
         .target(name: "MetalUITesting", dependencies: ["MetalUI", "MetalUIScene"]),
         .testTarget(name: "MetalUITestingTests",
-                    dependencies: ["MetalUITesting", "MetalUI", "MetalUIScene", "MetalUIPortableText", "MetalUITestSupport", "MetalUIDemoContent"]),
+                    dependencies: ["MetalUITesting", "MetalUI", "MetalUIScene", "MetalUIPortableText", "MetalUITextSystem", "MetalUITestSupport", "MetalUIDemoContent"]),
         // The whole framework's frame, pinned byte-for-byte across platforms
         // (ruling XP-C): runs on macOS, Linux and Windows.
         // CStbImage for test 2.8b (stb alone, called directly; PX-O item 3);
@@ -405,7 +405,7 @@ targets += [
         .testTarget(name: "MetalUIFreeTypeTests", dependencies: ["MetalUIFreeType", "MetalUIText"]),
 
         .target(name: "MetalUIText", dependencies: ["MetalUICore", "MetalUIScene", "MetalUITextSystem"]),
-        .testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText"]),
+        .testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText", "MetalUITextSystem"]),
 
         // The `MetalUIText` edge is one-way and points this way on purpose (M2
         // text design §3.1): the renderer uploads the CPU-side `GlyphAtlas` to
