@@ -13,14 +13,14 @@ import MetalUILayout
 // **list** of nodes, which is what `ElementGroup` is.
 //
 // `Element` refines it, so any element is a group of one and
-// `Column { Label(…); Button(…) }` really does build `Column<Pair<Label,
+// `Column { Label(…); Button(…) }` really does build `Column<TupleGroup<Label,
 // Button>>` — the type the spec names, with no wrapper in between and nothing
 // boxed. `AnyElement` conforms too (below), so a genuinely dynamic child list
 // remains expressible without making erasure the default path.
 //
 // **The alternative that was rejected**: `buildExpression` wrapping every
 // element in a `Solo<E>` group, leaving `Element` untouched. It works, but the
-// spec writes `Column<Pair<Label, Button>>` and that spelling is load-bearing
+// spec writes `Column<TupleGroup<Label, Button>>` and that spelling is load-bearing
 // documentation — a reader who greps for it should find it.
 
 /// A list of elements contributing zero or more layout nodes to one container.
@@ -243,11 +243,11 @@ public struct EmptyGroup: ElementGroup {
                                     prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// Two groups, concatenated — the shape every multi-statement builder block
-/// folds into (§4.6 mitigation 1).
+/// Two groups, concatenated — what the framework's own controls assemble by hand.
 ///
-/// Left-nested: three statements give `Pair<Pair<A, B>, C>`, and the node order
-/// that falls out of `a` before `b` at every level is source order.
+/// **The builder no longer makes it** (ruling `PE-AB`): a block of two or more statements is a ``TupleGroup``, whose
+/// frame is linear in the statement count where a left-nested `Pair<Pair<A, B>, C>` chain's was quadratic at `-Onone`.
+/// Node order is `first` before `second` at every level, as `TupleGroup`'s is member by member.
 public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
     /// The statements before the last, themselves possibly a `Pair`.
     public var first: First
@@ -299,6 +299,121 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
                          prepaint: &prepaint.first, pass: &pass)
         second.paintGroup(layout: &layout.second,
                           prepaint: &prepaint.second, pass: &pass)
+    }
+}
+
+/// Any number of groups, concatenated — what a multi-statement builder block builds (ruling `PE-AB`;
+/// SwiftUI's `TupleView`).
+///
+/// **Why a pack and not a `Pair` chain.** A builder that folds `buildPartialBlock` creates one intermediate
+/// `Pair<Pair<…>>` per statement, and at `-Onone` each intermediate holds the whole prefix in a stack slot of its
+/// own, so a closure's frame grew with the square of its child count (11 children: 512 KiB; Sift gap G17). A
+/// parameter pack stores the members once, in one tuple, and the closure's frame is linear.
+///
+/// Every requirement visits the members in source order and hands the **same** cursor to each, exactly as `Pair`
+/// did, so `Column { A; B; C }` identifies its children `0, 1, 2` and the node, prepaint, paint and
+/// accessibility order are unchanged. Tuple storage is inline: nothing is boxed.
+public struct TupleGroup<each Member: ElementGroup>: ElementGroup {
+    /// The members, in source order.
+    public var members: (repeat each Member)
+
+    /// A group of these members, whose nodes follow each other in source order.
+    public init(_ members: repeat each Member) {
+        self.members = (repeat each members)
+    }
+
+    public typealias Layout = (repeat (each Member).GroupLayout)
+    public typealias Prepaint = (repeat (each Member).GroupPrepaint)
+
+    // **The members are mutated where they are stored.** A phase takes each member's address inside its tuple
+    // (`slot(_:in:at:)`: elements are laid out in order, each at its alignment, as a struct's fields are —
+    // `theTupleGroupFindsEachMemberWhereTheTupleStoresIt` pins that against the compiler's own offsets) and calls its
+    // mutating requirement there. The first version rebuilt the members tuple from a pack expansion of copies, and in a
+    // debug build each level of the layout recursion then held two copies of its whole subtree besides the layouts:
+    // it overflowed the 1 MB Windows main thread that `DemoCapture` lays the demo out on, where `Pair` (whose `first` and
+    // `second` are mutated through `self`) did not.
+
+    /// The address of the member of type `M` that starts at or after `offset`, and `offset` moved past it.
+    @inline(__always)
+    nonisolated static func slot<M>(_ type: M.Type, in base: UnsafeMutableRawPointer, at offset: inout Int)
+        -> UnsafeMutablePointer<M> {
+        let alignment = MemoryLayout<M>.alignment
+        offset = (offset + alignment - 1) & ~(alignment - 1)
+        let address = base + offset
+        offset += MemoryLayout<M>.size
+        return address.assumingMemoryBound(to: M.self)
+    }
+
+    /// The same cursor goes to every member, in order (see `Pair.requestGroupLayout`): the index space is flat.
+    public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
+                                            pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
+        var nodes: [LayoutNodeID] = []
+        let layout = withUnsafeMutablePointer(to: &members) { tuple in
+            var offset = 0
+            return (repeat Self.visit((each Member).self, in: UnsafeMutableRawPointer(tuple), at: &offset,
+                                      under: parent, at: &cursor, nodes: &nodes, pass: &pass))
+        }
+        return (nodes, layout)
+    }
+
+    /// One member's registration; its nodes join `nodes` (the first member's array is taken whole, as `Pair`'s
+    /// concatenation of two arrays allocates once for the pair and not once more for each).
+    private static func visit<M: ElementGroup>(_ type: M.Type, in base: UnsafeMutableRawPointer, at offset: inout Int,
+                                               under parent: GlobalElementID?, at cursor: inout Int,
+                                               nodes: inout [LayoutNodeID], pass: inout LayoutPass)
+        -> M.GroupLayout {
+        let member = slot(type, in: base, at: &offset)
+        let (memberNodes, layout) = member.pointee.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        if nodes.isEmpty { nodes = memberNodes } else { nodes += memberNodes }
+        return layout
+    }
+
+    public mutating func prepaintGroup(layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
+        withUnsafeMutablePointer(to: &members) { tuple in
+            withUnsafeMutablePointer(to: &layout) { layouts in
+                var memberOffset = 0
+                var layoutOffset = 0
+                return (repeat Self.visitPrepaint((each Member).self, in: UnsafeMutableRawPointer(tuple), at: &memberOffset,
+                                                  layouts: UnsafeMutableRawPointer(layouts), at: &layoutOffset,
+                                                  pass: &pass))
+            }
+        }
+    }
+
+    private static func visitPrepaint<M: ElementGroup>(_ type: M.Type, in base: UnsafeMutableRawPointer,
+                                                       at offset: inout Int, layouts: UnsafeMutableRawPointer,
+                                                       at layoutOffset: inout Int, pass: inout PrepaintPass)
+        -> M.GroupPrepaint {
+        let member = slot(type, in: base, at: &offset)
+        let layout = slot(M.GroupLayout.self, in: layouts, at: &layoutOffset)
+        return member.pointee.prepaintGroup(layout: &layout.pointee, pass: &pass)
+    }
+
+    public mutating func paintGroup(layout: inout Layout, prepaint: inout Prepaint, pass: inout PaintPass) {
+        withUnsafeMutablePointer(to: &members) { tuple in
+            withUnsafeMutablePointer(to: &layout) { layouts in
+                withUnsafeMutablePointer(to: &prepaint) { prepaints in
+                    var memberOffset = 0
+                    var layoutOffset = 0
+                    var prepaintOffset = 0
+                    repeat Self.visitPaint((each Member).self, in: UnsafeMutableRawPointer(tuple), at: &memberOffset,
+                                           layouts: UnsafeMutableRawPointer(layouts), at: &layoutOffset,
+                                           prepaints: UnsafeMutableRawPointer(prepaints), at: &prepaintOffset,
+                                           pass: &pass)
+                }
+            }
+        }
+    }
+
+    private static func visitPaint<M: ElementGroup>(_ type: M.Type, in base: UnsafeMutableRawPointer,
+                                                    at offset: inout Int, layouts: UnsafeMutableRawPointer,
+                                                    at layoutOffset: inout Int, prepaints: UnsafeMutableRawPointer,
+                                                    at prepaintOffset: inout Int, pass: inout PaintPass) {
+        let member = slot(type, in: base, at: &offset)
+        let layout = slot(M.GroupLayout.self, in: layouts, at: &layoutOffset)
+        let prepaint = slot(M.GroupPrepaint.self, in: prepaints, at: &prepaintOffset)
+        member.pointee.paintGroup(layout: &layout.pointee, prepaint: &prepaint.pointee, pass: &pass)
     }
 }
 

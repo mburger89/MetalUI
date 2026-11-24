@@ -376,7 +376,10 @@ extension Window {
         case .rightMouseDown(let mouse):
             pendingContextMenu = nil
             guard let index = contextualTarget(at: mouse.position, where: { $0.menu != nil }),
-                  let attachment = lastHitboxes[index].handlers.contextual else { return false }
+                  let attachment = lastHitboxes[index].handlers.contextual else {
+                // No declared menu: a selectable `Text` offers `[Copy, Select All]` (`TXS-E`; a declared one wins).
+                return !lastSelectableRegions.isEmpty && openSelectionContextMenu(at: mouse)
+            }
             let region = lastHitboxes[index]
             let inRegion = region.localPoint(mouse.position)
             let location = Point(x: inRegion.x - region.origin.x, y: inRegion.y - region.origin.y)

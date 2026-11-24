@@ -288,9 +288,36 @@ public struct Text: Element, StyledElement {
                      Text.glyphBox(in: pass.frame, node: layout.node, bounds: bounds), environment.openURL)
         }
         let frame = pass.frame
+        // **Selectable (`TXS-C`, `TXS-H`).** One load of the environment's flag, in place (no counted snapshot): a tree with
+        // no `textSelection` takes this branch false for every `Text` and does exactly the work it did.
+        let selectable = frame.environmentTop.textSelectionEnabled
+        let selectableBox = selectable ? Text.glyphBox(in: frame, node: layout.node, bounds: bounds) : nil
+        // The string is read once by a selectable `Text` (a styled one joins its runs on every read) and exactly as before by
+        // every other, so the work of a tree with no `textSelection` is unchanged (`TXS-H`).
+        let selectableText: String?
+        let accessible: String?
+        if selectable {
+            let text = string
+            selectableText = text
+            accessible = text.isEmpty ? nil : text
+        } else {
+            selectableText = nil
+            accessible = string.isEmpty ? nil : string
+        }
         pass.registerAndScope(handlers, decoration, at: bounds, for: id,
-                              accessibleText: string.isEmpty ? nil : string,
+                              accessibleText: accessible,
                               synthesizesAccessibility: true) {
+            // The selection first: its accessibility mark is made on the `Text`'s own record, the newest one until the link
+            // runs below add theirs, and its hitbox ranks below the links' (a press on a link still selects, `TXS-C`).
+            if let box = selectableBox, let text = selectableText {
+                frame.registerSelectableText(id: id, box: box, string: text, handlers: handlers)
+                if let session = frame.textSelection, session.id == id {
+                    frame.prepaintSelected(session, string: text, box: box) {
+                        resolveRichText(content, own: styleRequest, rich: rich, in: frame.environmentSnapshot(),
+                                        system: frame.textSystem)
+                    }
+                }
+            }
             if let links {
                 frame.registerTextLinks(links.resolved, id: id, origin: links.box.origin, width: links.box.width,
                                         height: links.box.height, action: links.action)
@@ -382,12 +409,12 @@ public struct Text: Element, StyledElement {
         // the border rect lands at paint position 0 and the two glyphs at 1
         // and 2.
         pass.paintDecoration(decoration, in: bounds, for: id) {
-            paintGlyphs(bounds: bounds, layout: &layout, pass: &pass)
+            paintGlyphs(id, bounds: bounds, layout: &layout, pass: &pass)
         }
     }
 
     /// The glyph half of `paint`, as `paintDecoration`'s `content()`.
-    private mutating func paintGlyphs(bounds: Bounds<Pixels>, layout: inout Layout,
+    private mutating func paintGlyphs(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                       pass: inout PaintPass) {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
@@ -437,6 +464,12 @@ public struct Text: Element, StyledElement {
         // measured width.
         let box = Text.glyphBox(in: pass.frame, node: layout.node, bounds: bounds)
         let origin = box.origin, width = box.width
+        // The selection's highlight, under the glyphs (`TXS-F`): only the selected `Text`'s, from the geometry its prepaint
+        // cached; every other `Text` pays one nil check.
+        if let session = pass.frame.textSelection, session.id == id, !session.isDropped, !session.isEmpty,
+           let geometry = session.geometry {
+            pass.fillSelection(geometry.rects(for: session.selection), at: origin)
+        }
         // **The line cap is re-derived from the box** (TE-H item 2): `max(1,
         // ⌊h / lineHeight⌋)` of the node's final height, capped by the limit —
         // the leaf's own answer where nothing frames it, so the lines layout

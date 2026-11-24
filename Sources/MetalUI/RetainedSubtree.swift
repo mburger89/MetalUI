@@ -447,6 +447,7 @@ private final class RetainedHandle: @unchecked Sendable {
 
     @MainActor private func bookkeep(_ live: Bool) {
         guard live, let session, let store else { return }
+        if let entry { store.noteRetainedFire(entry) }   // `SB-AF`
         RetainedTrace.emit("retained session fired: \(session.label)\(RetainedTrace.causeSuffix(of: entry))")
         store.markDirty?()
     }
@@ -682,6 +683,9 @@ extension Frame {
         if let hovered = hoveredElement, hovered.isOrDescends(from: id) { return true }
         if let active = activeElement, active.isOrDescends(from: id) { return true }
         if let focused = focusedElement, focused.isOrDescends(from: id) { return true }
+        // The selected `Text` misses retained replay as a focused element does (`TXS-B`, `TXS-H`): its highlight and its
+        // pending press are state a recorded paint knows nothing of.
+        if let selected = textSelection?.id, selected.isOrDescends(from: id) { return true }
         return false
     }
 

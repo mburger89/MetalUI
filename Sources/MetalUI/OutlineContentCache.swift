@@ -140,6 +140,12 @@ extension Pair: LazyStampable {
     }
 }
 
+extension TupleGroup: LazyStampable {
+    func lazyStamp(into stamp: inout LazyStamp) {
+        for member in repeat each members { lazyStampMember(member, into: &stamp) }
+    }
+}
+
 extension OptionalGroup: LazyStampable {
     func lazyStamp(into stamp: inout LazyStamp) {
         stamp.values.append(wrapped != nil)

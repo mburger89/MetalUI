@@ -1,4 +1,5 @@
 import MetalUI
+import MetalUICore
 
 // Queries over the published accessibility tree (ruling `HT-G` items 1, 3,
 // 4): XCUITest's model — identifier, label, role — on the tree the window
@@ -47,6 +48,34 @@ extension TestWindow {
     /// Every element `predicate` accepts, in tree order.
     public func elements(where predicate: (TestElement) -> Bool) throws -> [TestElement] {
         try Self.preOrder(accessibilityTree).filter(predicate)
+    }
+
+    /// The colours the last presented frame drew text in inside `element`'s frame, in paint order, one per
+    /// run: consecutive glyphs of one colour are one entry, so a `Text` of one colour answers one colour and a
+    /// styled run (a link inside a sentence) adds its own (Sift G19).
+    ///
+    /// **Read from the frame's own scene, after the fact**: a glyph belongs to the element whose ``TestElement/frame``
+    /// holds its centre, so nothing is recorded while a frame draws and a frame's cost is the same whether or not a
+    /// test asks. A container answers the colours of every text inside it, an element that drew no text answers
+    /// `[]`. The colours are as drawn, theme and colour scheme resolved, with the opacity in effect folded into
+    /// their alpha (``allGlyphs``, which also reaches text inside an opacity group or a masked clip). Compare
+    /// through ``Hsla/toRgba()``, not `==`, against a colour written by another route. Paint order holds within the
+    /// scene; text in an offscreen group (an ellipse clip, a blur) comes after the scene's own, as ``allGlyphs`` lists
+    /// it. MetalUI-only (`HT-B`, `HT-AE`).
+    public func drawnTextColors(in element: TestElement) -> [Hsla] {
+        let scale = platformWindow.scaleFactor
+        let frame = element.frame
+        let left = Float(frame.origin.x.value) * scale, top = Float(frame.origin.y.value) * scale
+        let right = left + Float(frame.size.width.value) * scale, bottom = top + Float(frame.size.height.value) * scale
+        var runs: [Hsla] = []
+        for glyph in allGlyphs {
+            let cx = glyph.bounds.origin.x + glyph.bounds.size.width / 2
+            let cy = glyph.bounds.origin.y + glyph.bounds.size.height / 2
+            guard cx >= left, cx < right, cy >= top, cy < bottom else { continue }
+            let color = Hsla(h: glyph.color.h, s: glyph.color.s, l: glyph.color.l, a: glyph.color.a)
+            if runs.last != color { runs.append(color) }
+        }
+        return runs
     }
 
     /// The element with the window's keyboard focus, or `nil`.

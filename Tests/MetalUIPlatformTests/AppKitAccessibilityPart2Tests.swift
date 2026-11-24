@@ -181,7 +181,7 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         hint: "H", identifier: "I", customActions: ["C"], isSelectable: true,
         isOutline: false, outlineLevel: 3, isExpanded: true, disclosedBy: nid("parent"),
         numericRange: 0...265, orientation: .vertical, columnCount: 5, columnIndex: 2, headerRowCount: 1,
-        sortDirection: .descending)
+        sortDirection: .descending, textSelection: AccessibilityTextSelection(range: 0..<1))
     let (bridge, _) = makeBridge(tree(roots: ["full", "parent"], ["full": full, "kid": AccessibilityNode(role: .staticText),
                                                                    "parent": AccessibilityNode(role: .row)]))
     let element = bridge.element(for: nid("full"))
@@ -218,6 +218,10 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         "columnCount": { $0.accessibilityColumnCount() == 5 },
         "columnIndex": { $0.accessibilityColumnIndexRange() == NSRange(location: 2, length: 1) },
         "sortDirection": { $0.accessibilitySortDirection() == .descending },
+        // A selectable `Text` (`TXS-G`): the range over the value "V", its text and its length (`aSelectableTextAnswersItsRangeAndRefusesToSetIt`
+        // pins the rest, the unselected answer and the read-only setter).
+        "textSelection": { $0.accessibilitySelectedTextRange() == NSRange(location: 0, length: 1)
+            && $0.accessibilitySelectedText() == "V" && $0.accessibilityNumberOfCharacters() == 1 },
         "headerRowCount": { _ in
             @MainActor func header(_ count: Int) -> Bool {
                 let table = AccessibilityNode(role: .table, children: [nid("h")], columnCount: 2, headerRowCount: count)
@@ -232,7 +236,7 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         },
     ]
     let fields = Set(Mirror(reflecting: full).children.compactMap(\.label))
-    #expect(fields.count == 24, "the neutral node's field count: \(fields.sorted())")
+    #expect(fields.count == 25, "the neutral node's field count: \(fields.sorted())")
     #expect(Set(arms.keys) == fields, "one arm per field — missing \(fields.subtracting(arms.keys).sorted())")
     for (field, arm) in arms.sorted(by: { $0.key < $1.key }) { #expect(arm(element), "\(field)'s arm") }
 
@@ -290,4 +294,27 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         let sent = await MainActor.run { held.value.3.requests.map { "\($0)" } }
         precondition(sent.isEmpty, "nothing sent off the main thread: \(sent)")
     }
+}
+
+/// **1.5** (`TXS-G`, probe `swiftui-text-selection-enabled.swift` `X1`) A selectable `Text` answers the three text-area attributes
+/// on every instance — `{NSNotFound, 0}`, `""` and the length with nothing selected, the range, its text and the length with one
+/// (UTF-16 units, a surrogate pair counting two) — a plain one answers none of them (the framework's defaults), and a client cannot
+/// set the selection: `setAccessibilitySelectedTextRange:` is not allowed (divergence 1127).
+/// Mutations: the unselected arm answering `{0, 0}`; the plain node answering the length; the setter allowed.
+@Test @MainActor func aSelectableTextAnswersItsRangeAndRefusesToSetIt() throws {
+    let text = "a\u{1F600}b"
+    let (bridge, log) = makeBridge(tree(roots: ["none", "some", "plain"], [
+        "none": AccessibilityNode(role: .staticText, value: text, textSelection: AccessibilityTextSelection(range: nil)),
+        "some": AccessibilityNode(role: .staticText, value: text, textSelection: AccessibilityTextSelection(range: 1..<3)),
+        "plain": AccessibilityNode(role: .staticText, value: text),
+    ]))
+    let none = bridge.element(for: nid("none")), some = bridge.element(for: nid("some")), plain = bridge.element(for: nid("plain"))
+    #expect(none.accessibilitySelectedTextRange() == NSRange(location: NSNotFound, length: 0))
+    #expect(none.accessibilitySelectedText() == "" && none.accessibilityNumberOfCharacters() == 4)
+    #expect(some.accessibilitySelectedTextRange() == NSRange(location: 1, length: 2))
+    #expect(some.accessibilitySelectedText() == "\u{1F600}" && some.accessibilityNumberOfCharacters() == 4)
+    #expect(plain.accessibilitySelectedText() == nil && plain.accessibilityNumberOfCharacters() == 0, "a plain Text answers none of them")
+    let setter = NSSelectorFromString("setAccessibilitySelectedTextRange:")
+    #expect(!some.isAccessibilitySelectorAllowed(setter), "a client cannot set the selection")
+    #expect(log.requests.isEmpty)
 }

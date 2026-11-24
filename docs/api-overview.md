@@ -69,8 +69,11 @@ the window's top layer — a portal for modals, popovers and tooltips
 
 - **`ElementBuilder`** — `@ViewBuilder`'s shapes: blocks, `if`, `if`/`else`,
   `switch`, `for`; each `if`/`for` is one structural slot and content an
-  evaluated conditional removes resets on return (`ID-B`, `ID-C`).
-  `AnyElement` is `AnyView`.
+  evaluated conditional removes resets on return (`ID-B`, `ID-C`). A block of
+  two or more statements is one `TupleGroup` (`buildBlock<each>`, SwiftUI's
+  `TupleView`; one statement is itself), so a builder's debug stack frame is
+  linear in its child count (`PE-AB`; it was a `buildPartialBlock` chain of
+  `Pair`s). `AnyElement` is `AnyView`.
 - **`ProposalContentBuilder`** — the builder of every SwiftUI-vocabulary
   container's content (`HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`,
   `ProposalScrollView`, `ProposalLayoutContainer`, a `ProposalLayout`'s
@@ -264,6 +267,20 @@ also `inlinePresentationIntent`. Links are styled in the accent and clickable
 (`OpenURLAction`, `\.openURL`: the nearest action runs on a click, the default opens the URL through the window's platform; one `.link` accessibility child per run; inert under `.disabled`, 218); underlines and strikethroughs are the face's unsnapped bands (152);
 only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
 defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
+
+**Selecting text** (`TXS-A`..`TXS-H`, record 399; A for the API, D for the behaviour; 1125-1128).
+`.textSelection(.enabled)` / `.textSelection(.disabled)` over any container, inherited by every `Text` below, the
+nearest writer winning, with `TextSelectability`, `EnabledTextSelectability` and `DisabledTextSelectability` as SwiftUI
+spells them. A primary press on a selectable `Text` starts a selection (and blurs a focused field), a drag extends it, a
+double click takes a word, a triple click a line; ⌘C/Ctrl+C copies exactly the range (the whole string even for a `Text`
+truncated by a line limit), ⌘A takes that `Text` whole, Edit > Copy and Select All enable with it; a right-click offers
+`[Copy, Select All]` and a declared `.contextMenu` wins (1128). The selection ends when focus moves to an element,
+another selectable `Text` is pressed, its `Text` leaves the tree or its string changes (1126); it survives a press on
+empty space and the window losing key. An accessibility client reads the range, the selected text and the character
+count of every selectable `Text` and cannot set them (1127); AccessKit publishes none (1125). A tree with no
+`textSelection` does the work it did, an idle selectable `Text` adds one hitbox, and the geometry is built once per
+press (`TXS-H`) — M for `AccessibilityTextSelection`, `AccessibilityNode.textSelection` and
+`ClipboardCommands.selectAll`.
 
 **Measuring text.** `@Environment(\.textMeasurer)` is a get-only `TextMeasurer`
 (no public initialiser): `resolve(_:)` takes a `Text` or a `ProposalText` in the
@@ -1170,7 +1187,9 @@ On both vocabularies: `.accessibilityLabel`, `.accessibilityValue`,
 `.accessibilityElement(children:)`, `.accessibilityAddTraits`/
 `.accessibilityRemoveTraits` (`AccessibilityTraits`),
 `.accessibilityAction(_:)`, `.accessibilityAction(named:_:)`,
-`.accessibilityAdjustableAction` (A; 29–31, 33, 34, 82, 95). `AXNode`/`AXRole`/
+`.accessibilityAdjustableAction` (A; 29–31, 33, 34, 82, 95). A `Component` takes
+`.accessibilityLabel` and `.accessibilityValue` too (`AB-AH`): a layout-transparent `AccessibilityGroup`, distributed to its
+texts. `AXNode`/`AXRole`/
 `AXTrait` are the neutral record a `StyledElement` declares (M); `AXNode.actions`
 and `AXActionKind` are deprecated (X). Bridged to NSAccessibility on macOS and
 AccessKit through `Backends/SDL`.
@@ -1405,7 +1424,7 @@ Typical use: keep one `CodeBuffer` per open file; make an edit cursor and `drain
 - The input method: marked text is drawn at the caret (underlined, the selected clause doubly) and **never reaches the buffer or its edit stream until committed**, so `version` does not move while composing; the candidate window follows the caret. The caret blinks twice a second while the view is focused (`codeCaretBlink(.off)` for a solid one) at the cost of two frames a second and no display link. A drag past the view's edge scrolls and extends the selection at a speed that grows with the distance.
 - Gutter bars (`CV-AB`): `CodeLineDecoration` and `CodeVirtualRow` take a `tag: UInt64?`; `onGutterBarClick { (hit: CodeGutterHit) in }` runs when a bar is pressed and `gutterBarContextMenu { hit in Button(...) }` builds the context menu for it, each handed `CodeGutterHit(lines:tag:source:displayRow:)` (`lines` the whole bar's buffer lines, or a virtual row's anchor line; `source` `.lineDecoration` or `.virtualRow`). The bars of virtual rows (a diff's removed lines) are hit like any other. A press in the gutter off a bar selects the line.
 - Reading decorations back (`CV-AT`, record 284): `decorations.highlights(in:layer:)` answers the `CodeStyleRun`s a layer stores over a byte range (clipped, in order, offsets of the buffer's current version; `style(_:)` resolves an id), and `paintedRuns(in:)` the merged `[CodePaintedRun]` (`range`, resolved `CodeStyle`) `CodeView` paints there, from the paint path's own per-line styling, so a test can assert "bytes 0..<3 are painted with the keyword colour". Read-only, no cost when unused.
-- Reading a row's decoration back (`CV-BZ`, record 401): `decorations.paintedLineDecoration(row:)` answers the `CodePaintedLineDecoration` `CodeView` paints on a buffer row, merged across owners by the paint path's own resolution: `background`, `gutterBar` (`CodePaintedGutterBar`: `color`, the whole `lines` span, `tag`, `owner`), `gutterMarker` and `changeBar`, each with the name of the owner that won it (`nil` for the default owner; the owners can differ per field), `nil` when nothing paints there. Rows are buffer rows (virtual rows and a folded header's merged marker are not read back). Read-only, no cost when unused.
+- Reading a row's decoration back (`CV-BZ`, record 402): `decorations.paintedLineDecoration(row:)` answers the `CodePaintedLineDecoration` `CodeView` paints on a buffer row, merged across owners by the paint path's own resolution: `background`, `gutterBar` (`CodePaintedGutterBar`: `color`, the whole `lines` span, `tag`, `owner`), `gutterMarker` and `changeBar`, each with the name of the owner that won it (`nil` for the default owner; the owners can differ per field), `nil` when nothing paints there. Rows are buffer rows (virtual rows and a folded header's merged marker are not read back). Read-only, no cost when unused.
 - Gutter tooltips (`CV-BT`, record 370): `gutterHelp { (hit: CodeGutterHit) -> String? in }` answers the tooltip of a bar or marker under the pointer (the view's model-driven `.help`, in input only); other points fall back to the view's own `.help`, if any.
 - Owner-keyed highlights (`CV-BV`, record 373): `setHighlights(_:in:layer:asOf:owner:)` and `highlights(in:layer:owner:)` give a named `CodeDecorationOwner` a sub-layer of its own in each layer, so a language server's and a plugin's underlines coexist. Sub-layers merge by (layer, priority, name), the higher priority winning each field with no blending; a named owner's runs are push-only and always valid (the provider is never asked for them) and follow edits; `removeDecorations(of:)` drops them in every layer. No named owner, no cost.
 - Decoration owners and gutter markers (`CV-AO`, `CV-AP`, record 272): `setLineDecorations(_:asOf:owner:)` and `setVirtualRows(_:asOf:owner:)` take a `CodeDecorationOwner("lsp", priority: 5)` (default `.default`; owners are told apart by name), `removeDecorations(of:)` clears only that owner's. Where owners overlap the higher priority wins each of tint, gutter bar (with its tag) and marker, with no blending (ties: the later name); virtual groups at one gap sit in ascending priority, so a diff's removed lines come before a diagnostic's note. `CodeLineDecoration(lines:gutterBar:background:gutterMarker:tag:)` marks buffer rows in the gutter; the marker draws in a lane two space advances wide at the gutter's left. `gutterMarkerLane(_:)`: `true` reserves the lane from the first frame (the text never moves), unset reserves it once any owner has given a marker and keeps it (the text moves once), `false` has no lane and a marker replaces its row's number. A press on a marker is `CodeGutterHit(source: .gutterMarker)` with the row, tag and `owner` (`nil` for the default owner) in `onGutterBarClick` and `gutterBarContextMenu`. A set costs time linear in the owners' runs and groups, an edit O(log n) per owner, a frame no merge.

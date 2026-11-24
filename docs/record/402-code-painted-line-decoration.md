@@ -1,6 +1,6 @@
-# 401: `CodeDecorations.paintedLineDecoration(row:)` (`CV-BZ`, Alloy)
+# 402: `CodeDecorations.paintedLineDecoration(row:)` (`CV-BZ`, Alloy)
 
-Class `M` (MetalUI-only API; SwiftUI has no code view), no divergence (labels unchanged). Branch `feat/code-line-decoration-readback`, base master `a306e124`. Requested by Alloy, whose plugin-decoration tests found gutter bars by scanning drawn rects for 3 pt-wide ones (brittle, flaky). It follows `CV-AT` (`paintedRuns(in:)`, Alloy G36). **Numbering:** open PRs hold 398 (#409 linear element builder), 399 (#410 text selection) and 400 (#411 and #412, both), so this is 401.
+Class `M` (MetalUI-only API; SwiftUI has no code view), no divergence (labels unchanged). Branch `feat/code-line-decoration-readback`, base master `a306e124`. Requested by Alloy, whose plugin-decoration tests found gutter bars by scanning drawn rects for 3 pt-wide ones (brittle, flaky). It follows `CV-AT` (`paintedRuns(in:)`, Alloy G36). **Numbering:** written as 401; renumbered to 402 because #411 (`fix/titlebar-live-resize`) merged first as 401 (#412 took 400 and #414 took 403).
 
 ## Change
 
@@ -31,4 +31,4 @@ Run on the committed code and restored from a backup copy (`cp`), `git status --
 | `theReadBackIsWhatTheViewPaints` | (first attempt: `lineTreesAscending.first`, the empty default owner's tree, so it fell back to the real value and nothing reddened: a broken instrument, replaced by the `compactMap` form above) | |
 | `anUndecoratedRowReadsNil` | the `guard` on an undecorated row and the final collapse to `nil` both removed (an empty result for every row) | itself, and four others |
 
-Root 7260 to 7266 tests in 79 suites (+6), `--build-system native`, `--no-parallel`, green; both closeout probes print nothing.
+Root 7309 to 7315 tests in 79 suites (+6, over master with #414), `--build-system native`, `--no-parallel`, green; both closeout probes print nothing.

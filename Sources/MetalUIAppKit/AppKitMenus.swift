@@ -244,6 +244,7 @@ extension MetalHostView: NSMenuItemValidation {
         case #selector(cut(_:)): return clipboardCommands.contains(.cut)
         case #selector(copy(_:)): return clipboardCommands.contains(.copy)
         case #selector(paste(_:)): return clipboardCommands.contains(.paste)
+        case #selector(selectAll(_:)): return clipboardCommands.contains(.selectAll)   // `TXS-E`: a selected `Text`'s
         default: return false
         }
     }

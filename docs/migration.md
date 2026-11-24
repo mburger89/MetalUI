@@ -436,7 +436,10 @@ threads, **1 MB on Windows**:
    configurator's root overflowed an 8 MB main thread). A `switch` over
    **inline** subtrees in one builder still grows with the sum of its branches
    (measured 1.3 MB for two to 4.3 MB for twelve branches of a pane-sized
-   subtree) — a compiler property no MetalUI change can remove.
+   subtree) — a compiler property no MetalUI change can remove. A builder's own
+   frame is linear in its child count since `PE-AB` (eleven `Button`s: 381 KiB, it was
+   802), so a wide toolbar no longer overflows a 1 MB thread by itself; give a very wide
+   builder its own `Component` anyway.
 2. **Build a section in its own function**, not inline in one large builder
    (the demo's rule: `everyProductionTreeBuildsOnAOneMegabyteThread`).
 

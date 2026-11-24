@@ -508,7 +508,7 @@ Amends `CV-L` and `CV-M`. Sift's SQL editor wants comments in `.secondary` itali
 
 Pinned by `aStyleCarriesItalicAndWeightAndInternsThem`, `theHighestLayerThatSetsAFaceWinsPerStretch`, `aFaceFreePartitionDigestsAsBefore` (a literal digest taken from master), `paintedRunsReportTheWinningFace`, `anItalicRunShapesInTheItalicFace`, `aBoldRunKeepsCaretHitAndSelectionOnItsShapedAdvances`, `aFacedLineSitsOnTheViewFacesBaseline`, `aFamilyWithoutAnItalicKeepsItsUprightFace`, `aVirtualRowRunCanBeItalic`, `colourOnlyHighlightsCostWhatMasterCosts`, `aFaceRestyleReshapesOnlyTheRowsItChanges`, `anIdleRepaintWithFacesRecomputesNothing` (`Tests/MetalUITestingTests/CodeStyleFacesTests.swift`) and `monospacedFacesKeepOneAdvance` with its portable arm (`Tests/MetalUITests/CodeStyleFacesFontsTests.swift`). Next unused: `CV-BZ` (`CV-BX` stays reserved).
 
-## CV-BZ: `paintedLineDecoration(row:)` reads back a row's merged decoration, with the owner of each field (record 401; class M, no divergence; Alloy plugin-decoration tests)
+## CV-BZ: `paintedLineDecoration(row:)` reads back a row's merged decoration, with the owner of each field (record 402; class M, no divergence; Alloy plugin-decoration tests)
 
 Follows `CV-AT`. Alloy's tests found gutter bars by scanning drawn rects for 3 pt-wide ones, which was brittle and flaky. No divergence (SwiftUI has no code view), labels unchanged.
 

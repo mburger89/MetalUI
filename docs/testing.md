@@ -296,7 +296,11 @@ test reads, not everything. A window opened with `recordsLayout: false` (a
 benchmark's) throws `.notRecorded`.
 
 `scene` is the last presented frame's scene, in device pixels, for a test
-that reads draw rects.
+that reads draw rects. `drawnTextColors(in: element)` answers the colours the
+element's text was drawn in, one `Hsla` per run in paint order (a link inside
+a sentence adds its own), read from that scene when you ask, so asking costs a
+frame nothing; compare through `toRgba()` with a tolerance, not `==`. Text in a
+`GPUSurface` is not in the headless scene.
 
 ## Alerts, dialogs, menus and the toolbar
 

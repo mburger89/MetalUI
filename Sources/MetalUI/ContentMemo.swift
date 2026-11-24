@@ -146,6 +146,8 @@ package final class ContentMemoStore {
         /// the exponent of the next quarantine: a redo this occurrence caused doubles it (`RK-D` item 3).
         var quarantineUntil = 0
         var redoExponent = 0
+        /// The identity this entry was made for (`SB-AF`): what a fired session's ancestors are found from.
+        var id: GlobalElementID?
         /// What the last build of this occurrence left for a graft (`RK-B`, `RK-F`), or `nil` (ineligible, by name in
         /// `retainedGraftIneligible`).
         var graft: GraftRecord?
@@ -266,7 +268,36 @@ package final class ContentMemoStore {
     func noteRefusal() { refusals += 1 }
 
     /// The memo entry of an occurrence, or `nil` (retained subtrees, `SB-`).
-    func entry(for key: Key) -> Entry? { entries[key] }
+    func entry(for key: Key) -> Entry? {
+        if !firedIDs.isEmpty { flagAncestorsOfFires() }
+        return entries[key]
+    }
+
+    /// Identities of the occurrences whose retained session fired since the last build looked at an entry (`SB-AF`),
+    /// appended on the main actor by the fire's bookkeeping and read by ``flagAncestorsOfFires``.
+    var firedIDs: [GlobalElementID] = []
+
+    /// A retained session fired for `entry`: remember it for the next build (`SB-AF`).
+    func noteRetainedFire(_ entry: Entry) {
+        if let id = entry.id { firedIDs.append(id) }
+    }
+
+    /// Marks every occurrence enclosing a fired one as changed (`SB-AF`). A session sees only the reads made while it
+    /// is open: an ancestor that re-armed in a frame where this descendant replayed its prepaint or paint holds
+    /// none of the descendant's reads, so a write to one fires the descendant's session alone, and the ancestor
+    /// (its record complete, its flag clear) would replay over the descendant for ever. The flag makes the
+    /// ancestor run its windows again, which reaches the descendant, whose own flag then re-runs it. Costs nothing
+    /// in a frame no session fired for: one emptiness check per entry lookup.
+    private func flagAncestorsOfFires() {
+        var enclosing = Set<GlobalElementID>()
+        for fired in firedIDs {
+            var up = fired.parent
+            while let id = up, enclosing.insert(id).inserted { up = id.parent }
+        }
+        firedIDs.removeAll(keepingCapacity: true)
+        guard !enclosing.isEmpty else { return }
+        for (key, entry) in entries where enclosing.contains(key.id) { entry.flags.fireRetained() }
+    }
 
     /// Test switch (`OG-O`): off, a content `List` flattens its tree on every frame, as it did before lane 8.
     package var cachesOutlineContent = true
@@ -281,6 +312,7 @@ package final class ContentMemoStore {
             return entry
         }
         let entry = Entry(previous: (), pristine: (), versions: [], readings: [])
+        entry.id = list
         entries[key] = entry
         return entry
     }
@@ -318,6 +350,7 @@ package final class ContentMemoStore {
             entry = existing
         } else {
             entry = Entry(previous: component, pristine: (), versions: versions, readings: readings)
+            entry.id = id
             entries[key] = entry
         }
         // Retire the previous session first (`IV-L` item 5): the serial moves on,

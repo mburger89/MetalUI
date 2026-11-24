@@ -63,7 +63,11 @@ wrapper (`PE-R`). A `ProposalScrollView` publishes its `ScrollContext` so a
 in one heap box** (`PE-J`; `withPayload` mutates in place — a copy traps): a
 `switch` over `Component` panes does not grow a debug stack with their sum, but an
 inline `switch` in one builder still does, so **a branch holding a large subtree
-goes in its own `Component`** (`PE-K`). `StackMeter` (debug, internal) is the
+goes in its own `Component`** (`PE-K`). **A builder block's own frame is linear in its
+child count since `PE-AB`** (`buildBlock<each>` makes one `TupleGroup`, not a `buildPartialBlock`
+chain of `Pair`s: 11 buttons 802 to 381 KiB, 16 over 8 buttons 3.0 to 2.0, Sift's 11-child
+toolbar 926 to 522 KiB; the rest is the children's own expression temporaries), so a very wide
+builder still earns a `Component` split but no longer needs one to fit a 1 MB thread. `StackMeter` (debug, internal) is the
 instrument; **its `Window` warning is suspended** (`PE-T`: four production trees
 exceed the 512 KiB threshold, owner a `PE-L` re-take).
 

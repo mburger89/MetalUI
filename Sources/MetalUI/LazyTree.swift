@@ -63,6 +63,15 @@ extension Pair: LazyTreeType {
     static var lazyTreeCapable: Bool { lazyTreeCapableType(First.self) || lazyTreeCapableType(Second.self) }
 }
 
+extension TupleGroup: LazyTreeType {
+    static var lazyTreeCapable: Bool {
+        for member in repeat (each Member).self {
+            if lazyTreeCapableType(member) { return true }
+        }
+        return false
+    }
+}
+
 extension OptionalGroup: LazyTreeType {
     static var lazyTreeCapable: Bool { lazyTreeCapableType(Wrapped.self) }
 }
@@ -157,6 +166,16 @@ extension Pair: LazyTreeFlattenable {
                          pass: inout LayoutPass) -> Bool {
         lazyFlattenTree(first, into: &sources, parent: parent, pass: &pass)
             && lazyFlattenTree(second, into: &sources, parent: parent, pass: &pass)
+    }
+}
+
+extension TupleGroup: LazyTreeFlattenable {
+    func lazyTreeFlatten(into sources: inout [any LazyUnitSource], parent: GlobalElementID,
+                         pass: inout LayoutPass) -> Bool {
+        for member in repeat each members {
+            if !lazyFlattenTree(member, into: &sources, parent: parent, pass: &pass) { return false }
+        }
+        return true
     }
 }
 

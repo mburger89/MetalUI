@@ -485,7 +485,13 @@ enum TextEditing {
     /// caret, two select the word, three select everything; shift extends.
     static func press(at index: Int, clickCount: Int, extend: Bool,
                       text: String, state: TextEditState) -> TextEditState {
-        let characters = Array(text)
+        press(at: index, clickCount: clickCount, extend: extend, characters: Array(text), state: state)
+    }
+
+    /// `press(at:clickCount:extend:text:state:)` over the text's graphemes already split — a selectable `Text`
+    /// (`TXS-D`) splits its string once per session, not once per pointer event.
+    static func press(at index: Int, clickCount: Int, extend: Bool,
+                      characters: [Character], state: TextEditState) -> TextEditState {
         var state = state.clamped(to: characters.count)
         state.history.openGroup = nil
         state.goalX = nil
@@ -520,7 +526,11 @@ enum TextEditing {
     /// A drag to boundary `index` extends from the press, by the granularity
     /// the press selected at.
     static func drag(to index: Int, text: String, state: TextEditState) -> TextEditState {
-        let characters = Array(text)
+        drag(to: index, characters: Array(text), state: state)
+    }
+
+    /// `drag(to:text:state:)` over the text's graphemes already split (`TXS-D`).
+    static func drag(to index: Int, characters: [Character], state: TextEditState) -> TextEditState {
         var state = state.clamped(to: characters.count)
         state.history.openGroup = nil
         state.goalX = nil

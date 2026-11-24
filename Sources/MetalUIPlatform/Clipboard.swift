@@ -33,6 +33,8 @@ public struct ClipboardCommands: OptionSet, Sendable {
     public static let copy = ClipboardCommands(rawValue: 1 << 1)
     /// A `pasteDestination` is on the focus chain.
     public static let paste = ClipboardCommands(rawValue: 1 << 2)
+    /// A selectable `Text`'s selection session exists: Select All is enabled (`TXS-E`; AppKit's Edit › Select All).
+    public static let selectAll = ClipboardCommands(rawValue: 1 << 3)
 }
 
 /// The pure identifier-to-mime table of the SDL clipboard (ruling `CB-D`),

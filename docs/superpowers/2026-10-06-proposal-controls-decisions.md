@@ -401,6 +401,11 @@ neither needed nor recommended for stack depth. `docs/migration.md` and the
 `Component` doc comment state the rule with `PE-J`'s numbers. An
 `ElementGroup` eraser (MG-22) is deferred: nothing in this item needs it.
 
+**Amended by `PE-AB` (record 398).** The builder's own frame is no longer quadratic in its
+child count: a block is one `TupleGroup`, so eleven children cost 381 KiB (it was 802) and the rule
+below stays advice for very wide builders and for inline `switch`es, not a necessity for a
+toolbar of eleven controls on a 1 MB thread.
+
 ---
 
 ## PE-L — The failure is loud: a stack meter and a one-time warning
@@ -925,3 +930,42 @@ named open.
 
 **Cost if wrong.** None silent: each open item is a named deferral.
 
+---
+
+## PE-AB — The builder is linear: `buildBlock<each>` and `TupleGroup`, not a `buildPartialBlock` chain
+
+Class `A` (SwiftUI's `ViewBuilder` makes a `TupleView` from a parameter pack since Swift 5.9); no divergence; record 398.
+Raised by Sift's gap G17: a debug build of an 11-child toolbar `HStack` (a segmented `Picker` over three tagged `Text`s,
+a `TextField` and seven more controls) needed about 0.93 MB of stack and overflowed the 1 MB Windows test-worker thread.
+
+**Measured** (`StackMeter`, macOS arm64, debug, high-water of one component's `content` getter): a closure of 4, 8, 11 and 16
+`Button`s cost **195, 491, 802 and 1472 KiB** with the `buildPartialBlock` chain (16 over 8: 3.0), and **139, 277, 381 and 553 KiB**
+with the pack (2.0). Sift's toolbar getter went from **926 KiB to 522 KiB**; the smallest thread that builds it, by bisection at 64 KiB
+steps, from **1024 KiB to 576 KiB**. At `-Onone` each intermediate `Pair<Pair<…>>` the chain made held the whole prefix in a stack slot
+of its own, so a closure's frame grew with the square of its child count. In a release build the toolbar getter's frame
+is 2000 bytes (`sub sp` in the object file) against 3632, both negligible.
+
+**Ruling.**
+1. `ElementBuilder` (and `ProposalContentBuilder`, which forwards) declares `buildBlock()`, `buildBlock<G>(_:) -> G` (one statement,
+   no wrapper) and `buildBlock<each G: ElementGroup>(_:) -> TupleGroup<repeat each G>`. **No `buildPartialBlock`**: the compiler
+   prefers it whenever it exists, so adding one back silently restores the chain (`aBuilderBlocksStackGrowsLinearlyWithItsChildren`
+   and `theSiftToolbarShapeBuildsOnA768KiBThread` are the guards).
+2. `TupleGroup<each Member>` (mutating its members where the tuple stores them: a rebuild from copies held two copies of each
+   level's subtree in a debug frame and overflowed the 1 MB Windows main thread at layout) is a public `ElementGroup` (and `ProposalElementGroup`, and every internal protocol `Pair` conformed to:
+   the lazy readers, `LazyStampable`, `ToolbarPickerOptions`) holding its members in one inline tuple, nothing boxed. Every requirement
+   visits the members in source order with **one** cursor, so ids, paths, node, prepaint, paint, hit and accessibility order are what the
+   chain gave (`elevenChildrenOfOneBlockKeepTheirFlatIdsAndTheirState`, `elevenChildrenKeepTheirAccessibilityIdsAndTheirTabOrder`,
+   both green unchanged at `595c474a`). `Pair` stays, for the framework's own hand-built groups; the builder no longer makes it.
+3. A block's type is `TupleGroup<A, B, C>`, not `Pair<Pair<A, B>, C>`: `type(of:)` assertions changed (`theBuilderPreservesConcreteTypesRatherThanBoxing`,
+   `aThreeChildBlockNestsPairsRatherThanFlattening`, a compile guard and three typed helpers in tests). No other expectation moved.
+4. Steady-frame cost and allocations are unchanged: the first version of `requestGroupLayout` allocated two more per frame
+   (`aNonAnimatableComponentAllocatesWhatItDid` read 399 for 397: a closure capturing the node array, and an append where `Pair`
+   concatenated); a static helper with `inout` parameters and the first member's array taken whole restored 397.
+5. The thread of the cross-platform guard is **768 KiB**, not the 512 KiB first proposed: the new builder needs about 560, and what
+   remains is the children's own expression temporaries (`Button(…).keyboardShortcut(…).accessibilityIdentifier(…)` is four 4 KB values
+   per child in a debug build), which no builder removes. A `Component` split still helps a very wide builder.
+
+**Cost if wrong.** A member added to `TupleGroup`'s phases that skips the shared cursor changes every identity under a block of two or
+more children; the flat-id test is the pin. A `buildPartialBlock` added back is invisible except in a debug frame.
+
+**Next unused id: `PE-AC`.**
