@@ -2100,24 +2100,22 @@ cites it.
    any view: the declaration goes to the accessibility element(s) the component produces. Before this neither compiled
    (`value of type 'X' has no member 'accessibilityValue'`: a component is no `StyledElement` and no `ProposalElementGroup`), so Sift
    set the modifier on each `Text` branch of an `if`/`else` body.
-2. **Mechanism.** The component is wrapped in one `ModifierLayer` whose `Handlers` carry the declaration: the value `Component.frame(...)`
-   already returns (`ModifiedElement`), so a following `StyledElement` modifier (`.accessibilityValue`, `.accessibilityIdentifier`)
-   lands on the same layer. `AccessibilityTreeBuilder` distributes a declaration on a plain container to its texts (`AB-T`, SwiftUI
-   probe P3), so an `if`/`else` body labels whichever `Text` it drew and a two-text component labels both. A `Component` that is also a
-   `ProposalElementGroup` takes the same overload (the more specialised extension settles the choice, as `padding(_:)` does, `DX-B`).
-   The semantics on the `Text` are `StyledElement`'s: `Text("bad").accessibilityValue("V")` reads `bad`, `V` (AB-F R1); a label on a
-   text with no value is published as its value.
-3. **Layout** is the one cost: the wrapper is a layout node (a default-style flex row over the members), so over one member it is the
-   member's own size (pinned) and over several it is a row, where SwiftUI leaves each member alone. Same shape as `Component.frame`
-   (`LR-BH`); not a new divergence, as a layout-transparent declaring group would need a per-member bounds hook in the builder.
+2. **Mechanism.** `AccessibilityGroup` (`ComponentAccessibility.swift`) is `IdentifiedGroup`'s shape: a layout-transparent group (no node,
+   one identity level, content numbered under it) that in prepaint registers the declaration at the union of the rects its content handed
+   its parent (`Frame.union(of:)`) and prepaints the content inside, as `AccessibilityModifier` does for one child. `AccessibilityTreeBuilder`
+   distributes a declaration on a plain container to its texts (`AB-T`, SwiftUI probe P3), so an `if`/`else` body labels whichever `Text` it drew
+   and a two-text component labels both. It is proposal content over proposal content, and a `Component` that is also a `ProposalElementGroup`
+   takes the same overload (as `padding(_:)`, `DX-B`). `Text("bad").accessibilityValue("V")` reads `bad`, `V` (AB-F R1).
+3. **No layout change**, as SwiftUI's accessibility modifiers: pinned over a two-text component in a `VStack` and an `HStack`. An earlier build
+   wrapped the component in a `ModifierLayer` (a row over several members, as `Component.frame`); the coordinator ruled that out for a
+   declaration-only modifier. The one cost is the identity level the group adds, gained only by a caller who writes the modifier. The group
+   keeps its members' node list only while a client collects accessibility, so a normal frame stores nothing extra.
 4. Not offered: `accessibilityHint`, `accessibilityIdentifier` and the others on `Component` (nothing asked); `onClick` stays absent (`CO-U`).
 
 **Evidence.** The probe was a compile error, not a silent no-op: `ChipLabel().accessibilityLabel("L")` failed with `no member`. Sift's
 only hit is `Sources/SiftKit/Grid/GridToolbar.swift:37` (a `Text` in a chip, where it works); the gap was its other branches.
 
 **Mutation** (`ComponentAccessibilityTests`): `declareAccessibilityValue` writing the label reddens the value test; the label modifier
-dropping its declaration reddens the chain test; the layer registering nothing reddens the distribution test; a padded wrapper style
-reddens the layout test (compare the neighbour's frame too: the row is centred, so padding moves the text and its neighbour in opposite senses).
+dropping its declaration reddens the chain test; the layer registering nothing reddens the distribution test; a wrapper node (a padded `lowerLegacyNode`) reddens the no-frame-moves test.
 
-**Cost if wrong.** A component with a layout-sensitive parent (a `Grid` cell) gains one row node; the author writes the modifier
-on the `Text` as before.
+**Cost if wrong.** One extra identity level under the component: state of its content resets if the modifier is added or removed.

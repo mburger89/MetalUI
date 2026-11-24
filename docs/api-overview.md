@@ -1171,8 +1171,8 @@ On both vocabularies: `.accessibilityLabel`, `.accessibilityValue`,
 `.accessibilityRemoveTraits` (`AccessibilityTraits`),
 `.accessibilityAction(_:)`, `.accessibilityAction(named:_:)`,
 `.accessibilityAdjustableAction` (A; 29–31, 33, 34, 82, 95). A `Component` takes
-`.accessibilityLabel` and `.accessibilityValue` too (`AB-AH`): one declaring wrapper, distributed to its
-texts, a layout node over the members. `AXNode`/`AXRole`/
+`.accessibilityLabel` and `.accessibilityValue` too (`AB-AH`): a layout-transparent `AccessibilityGroup`, distributed to its
+texts. `AXNode`/`AXRole`/
 `AXTrait` are the neutral record a `StyledElement` declares (M); `AXNode.actions`
 and `AXActionKind` are deprecated (X). Bridged to NSAccessibility on macOS and
 AccessKit through `Backends/SDL`.

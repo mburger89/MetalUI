@@ -14,14 +14,15 @@ compile error, not an inert overload. `ChipLabel().accessibilityLabel("L")` fail
 is `GridToolbar.swift:37`, on the `Text` of a rejected-filter chip. The workaround that already compiled was
 `Component.frame(...)` followed by the `StyledElement` modifier.
 
-Fix (`AB-AH`): `Component.accessibilityLabel(_:)` and `accessibilityValue(_:)` in `ComponentAccessibility.swift` wrap the component in one
-`ModifierLayer` carrying the declaration (the shape `Component.frame` returns), and the tree builder distributes it to the texts (`AB-T`,
-probe P3). A `Component` that is also a `ProposalElementGroup` gets the same overload so the call is not ambiguous. Cost: the wrapper is a
-layout node, a row over several members, the member's own size over one.
+Fix (`AB-AH`): `Component.accessibilityLabel(_:)` and `accessibilityValue(_:)` in `ComponentAccessibility.swift` return an `AccessibilityGroup`: a
+layout-transparent group (`IdentifiedGroup`'s shape) that registers the declaration at the union of its members' rects in prepaint, and the tree builder
+distributes it to the texts (`AB-T`, probe P3). A first version wrapped the component in a `ModifierLayer` (a row over several members); the coordinator
+rejected it, since an accessibility modifier moves no frame in SwiftUI. A `Component` that is also a `ProposalElementGroup` gets the same overload.
+Cost: one identity level.
 
 Tests (`ComponentAccessibilityTests`, 4): the value reaches the text of either `if` branch with its string as the label; a label
-and a value chain; two texts both get the declaration; a one-text body keeps its frame. Mutations: `declareAccessibilityValue` writing the
-label; the label dropping its declaration; the layer registering nothing; a padded wrapper style. Each seen red, restored.
+and a value chain; two texts both get the declaration; a two-text component in a `VStack` and an `HStack` has identical frames with and without the modifier. Mutations: the value writing the
+label; the label dropping its declaration; the group registering nothing; a padded wrapper node around the members. Each seen red, restored.
 
 ## G19: the colours a text was drawn in
 
@@ -37,5 +38,4 @@ windows, one asked every frame, over four steady frames: equal summed `FrameWork
 
 Tests (`DrawnTextColorsTests`, 6). Mutations: the frame filter dropped; run dedupe dropped; order reversed; scale ignored; `scene.glyphs` for
 `allGlyphs` (found unguarded while an opacity-only arm stood in for it, since `.opacity` on a `Text` makes no offscreen group; an ellipse clip arm
-was added); opacity dropped from the alpha. Each seen red, restored. G18 mutation M4 (padded wrapper) was also unguarded at first, for the same
-kind of reason: a centred row hides a symmetric shift, so the layout test compares the neighbour's frame too.
+was added); opacity dropped from the alpha. Each seen red, restored. 

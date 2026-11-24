@@ -20,8 +20,7 @@ import MetalUICore
 //
 // **On `Component`** (`AB-AH`, Sift G18) `accessibilityLabel(_:)` and
 // `accessibilityValue(_:)` are offered, `ComponentAccessibility.swift`: they
-// wrap the component in one declaring layer, which the builder distributes to
-// its texts as it does for any container (AB-T). `onClick` stays absent: it
+// return a layout-transparent group the builder distributes to its texts (AB-T). `onClick` stays absent: it
 // would be one handler, not a declaration each member can share (CO-U).
 
 extension StyledElement {
