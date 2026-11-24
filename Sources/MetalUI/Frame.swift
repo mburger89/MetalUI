@@ -5007,6 +5007,11 @@ extension Frame {
             accessibilityPressOnly[id] = action
             prepaintLog?.pressOnly.append((id, action))
         }
+        for stored in l.regions {   // `TXS-I` item 3: the region beside its hitbox, at the new base
+            let region = SelectableTextRegion(id: stored.id, hitbox: firstHitbox + stored.hitbox, string: stored.string)
+            selectableTextRegions.append(region)
+            prepaintLog?.regions.append(region)
+        }
         for (id, stored) in l.contextMenus {
             let record = windowShift == nil ? stored
                 : ContextMenuRecord(attachment: stored.attachment, isEnabled: stored.isEnabled, bounds: shifted(stored.bounds))

@@ -33,7 +33,7 @@ final class PrepaintLog {
     }
 
     struct Marks: Equatable {
-        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0, inertBlockers = 0, liveValues = 0
+        var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0, inertBlockers = 0, liveValues = 0, regions = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -47,6 +47,9 @@ final class PrepaintLog {
     /// Disabled controls' chrome-only rects (`AS-S`).
     var inertBlockers: [Bounds<Pixels>] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
+    /// The selectable `Text`s' regions registered under the prepaint, each naming its hitbox by the frame's absolute index
+    /// (`TXS-C`, `TXS-I` item 3).
+    var regions: [SelectableTextRegion] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Presentation anchors recorded under the prepaint, window-space (`RW-K`).
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
@@ -63,7 +66,7 @@ final class PrepaintLog {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
               contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
               anchors: anchors.count, geometry: geometry.count, modifiers: modifiers.count,
-              inertBlockers: inertBlockers.count, liveValues: liveValues.count)
+              inertBlockers: inertBlockers.count, liveValues: liveValues.count, regions: regions.count)
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -158,6 +161,9 @@ final class PrepaintLedger {
     /// Disabled controls' chrome-only rects, replayed as recorded (`AS-S`); a translation refuses.
     var inertBlockers: [Bounds<Pixels>] = []
     var contextMenus: [(GlobalElementID, ContextMenuRecord)] = []
+    /// Selectable `Text` regions, each naming its hitbox relative to the occurrence's first (`TXS-I` item 3): a replay appends the
+    /// hitboxes and then these at the new base, so neither is orphaned.
+    var regions: [SelectableTextRegion] = []
     var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
     /// Presentation anchors, window-space, replayed through `Frame.replayPresentationAnchor` (`RW-K`).
     var anchors: [(GlobalElementID, Bounds<Pixels>)] = []
@@ -520,6 +526,9 @@ extension Frame {
         ledger.liveValues = Array(log.liveValues[from.liveValues..<to.liveValues])
         ledger.inertBlockers = Array(log.inertBlockers[from.inertBlockers..<to.inertBlockers])
         ledger.contextMenus = Array(log.contextMenus[from.contextMenus..<to.contextMenus])
+        ledger.regions = log.regions[from.regions..<to.regions].map {
+            SelectableTextRegion(id: $0.id, hitbox: $0.hitbox - recorder.hitboxLow, string: $0.string)
+        }
         ledger.elementBounds = Array(log.elementBounds[from.elementBounds..<to.elementBounds])
         ledger.anchors = Array(log.anchors[from.anchors..<to.anchors])
         ledger.geometry = Array(log.geometry[from.geometry..<to.geometry])
@@ -588,6 +597,7 @@ struct RetainedVerifySnapshot {
     let axNodes: Set<GlobalElementID>
     let tallies: RegionTallies
     let contextMenus: Set<GlobalElementID>
+    let regions: [String]
     let pressOnly: Set<GlobalElementID>
     let inertBlockers: [String]
     let bounds: [GlobalElementID: Bounds<Pixels>]
@@ -627,6 +637,7 @@ struct RetainedVerifySnapshot {
         }
         if tallies != other.tallies { return "region tallies \(tallies) vs \(other.tallies)" }
         if contextMenus != other.contextMenus { return "context menus" }
+        if regions != other.regions { return "selectable text regions \(regions) vs \(other.regions)" }
         if pressOnly != other.pressOnly { return "press-only actions" }
         if inertBlockers != other.inertBlockers { return "inert chrome blockers" }
         if bounds != other.bounds { return "element bounds" }
@@ -657,6 +668,7 @@ extension Frame {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },
             axNodes: Set(axNodes.keys), tallies: regionTallies, contextMenus: Set(contextMenuRecords.keys),
+            regions: selectableTextRegions.map { "\($0.id)|\($0.hitbox)|\($0.string)" },
             pressOnly: Set(accessibilityPressOnly.keys), inertBlockers: inertChromeBlockers.map { "\($0)" }, bounds: elementBounds, tree: tree.structureDigest(),
             channels: stateTable.buildChannels(animation: animationStore))
     }

@@ -301,10 +301,10 @@ extension Frame {
 
         let bounds = Bounds(origin: box.origin, size: Size(width: Pixels(Float(box.width)), height: Pixels(Float(box.height))))
         let hitbox = insertHitbox(bounds, id: id, opaque: true, origin: box.origin)
-        selectableTextRegions.append(SelectableTextRegion(id: id, hitbox: hitbox.index, string: string))
-        // An occurrence holding a selectable `Text` prepaints in full (no prepaint ledger): the region list is not a journal
-        // channel, and replaying its hitbox alone would orphan the region (`TXS-C`, record).
-        prepaintLog?.taint("textSelection")
+        let region = SelectableTextRegion(id: id, hitbox: hitbox.index, string: string)
+        selectableTextRegions.append(region)
+        // A prepaint ledger carries the region beside its hitbox (`TXS-I` item 3): replayed together, never one without the other.
+        prepaintLog?.regions.append(region)
     }
 
     /// Whether a `Text` with these handlers registers no selection region. **Provisionally never** (`TXS-C`, `HC-TXS-4`).

@@ -697,6 +697,71 @@ private struct RetainedCard: Component, @MainActor Equatable {
     #expect(highlightFills(w) == 0, "and no highlight")
 }
 
+// MARK: 5c — a retained pane holding an idle selectable Text (TXS-I item 3)
+
+private struct PaneRow: Component {
+    let index: Int
+    var content: some ElementGroup { Text(verbatim: "setting \(index)").frame(width: 160) }
+}
+
+/// Alloy's shape: a mostly static pane (20 rows) holding one log `Text`, in an `.equatable()` component.
+private struct Pane: Component, @MainActor Equatable {
+    let selectable: Bool
+    var content: some ElementGroup {
+        Column {
+            ForEach(0..<20, id: \.self) { PaneRow(index: $0) }
+            if selectable { Text(verbatim: alpha).textSelection(.enabled) } else { Text(verbatim: alpha).textSelection(.disabled) }
+        }
+    }
+    static func == (l: Pane, r: Pane) -> Bool { l.selectable == r.selectable }
+}
+
+/// The pane under a clickable square, so the pane's hitbox is not index 0 (a replay that forgets the base lands on the square's).
+@MainActor private func paneWindow(selectable: Bool) throws -> TestWindow {
+    try harnessWindow(size: sz(400, 4_000), options: .init(accessibilityClientActive: false)) {
+        Column {
+            Box().frame(width: 10, height: 10).onClick {}
+            Pane(selectable: selectable).equatable()
+        }
+    }
+}
+
+@MainActor private func paneWork(selectable: Bool) async throws -> (work: FrameWork, hitboxes: Int, regions: Int) {
+    try await steadyFrame(try paneWindow(selectable: selectable))
+}
+
+/// **5c.1** A retained (`.equatable()`) pane of 20 rows holding one enabled idle selectable `Text` costs what its flag-false twin
+/// costs plus the one hitbox and region: the same requests, prepaints, paints, retained hits and prepaint hits, the occurrence's
+/// prepaint replayed (not re-run) with the region recorded beside its hitbox.
+/// **Mutation:** the region not carried by the ledger (the replay drops it: no region, the press finds nothing) and the old
+/// refusal (`taint`: the prepaint runs in full every frame, `retainedPrepaintHits` 0).
+@Test @MainActor func aRetainedPaneHoldingAnIdleSelectableTextReplaysLikeItsTwin() async throws {
+    let off = try await paneWork(selectable: false), on = try await paneWork(selectable: true)
+    #expect(on.work == off.work, "an enabled idle Text in a retained pane does the disabled twin's work")
+    #expect(on.hitboxes == off.hitboxes + 1 && on.regions == 1 && off.regions == 0, "\(on.hitboxes) \(off.hitboxes) \(on.regions)")
+    #expect(on.work.retainedPrepaintHits >= 1 && on.work.retainedGrafts == off.work.retainedGrafts, "its prepaint is replayed: \(on.work.retainedPrepaintHits)")
+    #expect(on.work.elementRequests < 5 && on.work.retainedSkippedPrepaints >= 42,
+            "the build was grafted and 42 prepaints stood for: \(on.work.elementRequests) requests, \(on.work.retainedSkippedPrepaints) skipped (the taint it replaced: 42 requests, 43 prepaints, none skipped)")
+}
+
+/// **5c.2** The replayed region still selects: with the pane replayed from its ledger, a press on its `Text` starts the session
+/// (the region's hitbox index is the replay's, not the recording's), a drag selects and the real copy key writes the range.
+/// **Mutation:** the replay appends the hitboxes but not the regions (no press finds a region); the replay keeps the recorded
+/// index instead of rebasing it (the press finds the clickable square's hitbox, not the `Text`'s).
+@Test @MainActor func aReplayedRegionStillSelects() async throws {
+    let w = try paneWindow(selectable: true)
+    let work = try await steadyFrame(w)
+    try #require(work.work.retainedPrepaintHits >= 1, "the pane's prepaint is replayed")
+    try #require(w.window.lastSelectableRegions.count == 1)
+    try await press(w)
+    #expect(w.window.textSelectionSession?.id == w.window.lastSelectableRegions[0].id, "the press found the replayed region")
+    w.drag(from: try boundaryPoint(w, 0), to: try boundaryPoint(w, 5))
+    try await w.runUntilIdle()
+    #expect(selected(w) == "alpha")
+    w.typeKey("c", modifierFlags: .primary)
+    #expect(w.platformWindow.clipboard == "alpha")
+}
+
 // MARK: 7 — accessibility
 
 /// **7.1** While a client collects, every selectable `Text` answers the text-area state — `range == nil` with nothing
