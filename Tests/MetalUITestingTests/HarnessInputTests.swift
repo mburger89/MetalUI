@@ -264,3 +264,83 @@ private struct HarnessKAction: Action {}
     let degrees = try #require(pinch.degrees)
     #expect(abs(degrees - 30) < 1e-9, "30° (summed through radians)")
 }
+
+// Sift G16 (`HT-AD`, record 396): `typeText` delivers a newline as Return and a tab as Tab, through the key path
+// `typeKey` uses, whether or not a field has the caret.
+
+@MainActor private func codeWindow(_ buffer: CodeBuffer) throws -> TestWindow {
+    let window = try harnessWindow {
+        CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12).showsLineNumbers(false)
+            .codeCaretBlink(.off).frame(width: Pixels(300), height: Pixels(200))
+    }
+    window.click(at: pt(200, 150))   // the view takes the caret
+    return window
+}
+
+/// A newline in `typeText` types Return: two lines, not `select 1;select 2;`. Mutation: `typeText` without the
+/// newline branch (the `"\n"` goes to a key event no one handles) reddens this and the next three.
+@Test @MainActor func typeTextTypesANewlineAsReturnInACodeView() throws {
+    let buffer = CodeBuffer("")
+    let window = try codeWindow(buffer)
+    window.typeText("select 1;\nselect 2;")
+    #expect(buffer.snapshot().text == "select 1;\nselect 2;")
+    #expect(buffer.lineCount == 2)
+}
+
+/// `"\r\n"` is one Character and one Return; a bare `"\r"` is one too. Mutation: matching only `"\n"` reddens it.
+@Test @MainActor func aCarriageReturnLineFeedIsOneNewline() throws {
+    let buffer = CodeBuffer("")
+    let window = try codeWindow(buffer)
+    window.typeText("a\r\nb\rc")
+    #expect(buffer.snapshot().text == "a\nb\nc")
+    #expect(buffer.lineCount == 3)
+}
+
+@MainActor private struct TwoFields: Component {
+    @State var first = ""
+    @State var second = ""
+    var content: some ElementGroup {
+        VStack {
+            TextField("one", text: $first).accessibilityIdentifier("one")
+            TextField("two", text: $second).accessibilityIdentifier("two")
+        }
+    }
+}
+
+/// A tab in `typeText` is exactly `typeKey(.tab)`: with the caret in the first of two fields both move it to the
+/// second, so the next letter lands there. A tab was already a key event (`producesText` refuses control
+/// characters), so this pins the ruling rather than a fix. Mutation: the tab branch sends `.textInput("\t")`.
+@Test @MainActor func typeTextTypesATabAsTheTabKey() throws {
+    func run(_ tab: (TestWindow) -> Void) throws -> [String] {
+        let window = try harnessWindow { VStack { TwoFields() } }
+        try window.click(window.element(identifier: "one"))
+        window.typeText("a")
+        tab(window)
+        window.typeText("b")
+        return [try window.element(identifier: "one").value ?? "", try window.element(identifier: "two").value ?? ""]
+    }
+    let viaText = try run { $0.typeText("\t") }
+    let viaKey = try run { $0.typeKey(.tab) }
+    #expect(viaText == viaKey)
+    #expect(viaKey == ["a", "b"], "Tab moved the caret to the second field")
+}
+
+@MainActor private struct SubmitField: Component {
+    let log: HarnessLog
+    @State var text = ""
+    var content: some ElementGroup {
+        TextField("name", text: $text).accessibilityIdentifier("f")
+            .onSubmit { log.add("submit \(text)") }
+            .frame(width: Pixels(200), height: Pixels(24))
+    }
+}
+
+/// Return submits a single-line field: `typeText("ab\n")` types `ab` as text and then Return as a key.
+/// Mutation: no newline branch reddens it (the field would never see Return).
+@Test @MainActor func aNewlineSubmitsASingleLineField() throws {
+    let log = HarnessLog()
+    let window = try harnessWindow { VStack { SubmitField(log: log) } }
+    try window.click(window.element(identifier: "f"))
+    window.typeText("ab\n")
+    #expect(log.entries == ["submit ab"])
+}
