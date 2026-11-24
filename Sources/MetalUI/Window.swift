@@ -618,6 +618,8 @@ public final class Window {
         didSet {
             syncRawOptionKeys()   // `TRM-X`
             syncRawKeypadKeys()   // `TRM-BM`
+            // Focus moving to an element ends a text selection (`TXS-F`, probes `C2`, `C3`, `C6`).
+            if textSelectionSession != nil, focusedElement != nil, focusedElement != oldValue { dropTextSelection() }
             if lastFocusRegistry.hasRestoreScopes, !suppressRestoreTracking { noteRestoreTransition(from: oldValue) }
             // A composition does not survive its field losing focus (ruling
             // `IM-I`): AppKit discards the input context's marked text and
@@ -1371,6 +1373,12 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // A selectable `Text` (rulings `TXS-B`, `TXS-F`): a press over one starts a selection, a drag extends it. Right
+            // after the text fields and ahead of every gesture or click, so its opaque hitbox wins (`TXS-C`).
+            if self.textSelectionSession != nil || !self.lastSelectableRegions.isEmpty, self.dispatchTextSelection(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             // A slider's track (ruling `DD-W` item 5): a press writes the value
             // under the pointer and a drag from it writes again. Beside the
             // text fields and on their footing — ahead of click dispatch, and
@@ -1453,6 +1461,11 @@ public final class Window {
             // focus chain, after the keymap, `onKeyPress`, a focused field's own
             // copy and `onKey`, and before shortcuts and commands.
             if self.dispatchClipboardKey(event) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // A selected `Text`'s ⌘C and ⌘A, once the focus chain and its clipboard handlers declined (`TXS-E`).
+            if self.textSelectionSession != nil, self.dispatchTextSelectionKey(event) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -2319,6 +2332,10 @@ public final class Window {
                               recordsElementBounds: recordsElementBounds,
                               capacityHints: frameCapacityHints)   // `HP-K`
             frame.timing = frameTiming   // `FP-B`: the phase stamps
+            if let session = textSelectionSession {   // `TXS-B`: the selected `Text`'s prepaint and paint read it
+                session.producedThisFrame = false
+                frame.textSelection = session
+            }
             frame.clipboardAccess = clipboardAccess   // CP-D
             frame.pointerOwner = lastMousePosition.flatMap { topmostHitboxOwner(at: $0) }   // BY-D
             // The window's key state is stamped OVER `environment` (ruling EV-AB):
@@ -2463,6 +2480,8 @@ public final class Window {
         syncRawKeypadKeys()   // `TRM-BM`
         lastAccessibilityPressOnly = frame.accessibilityPressOnly
         lastContextMenus = frame.contextMenuRecords
+        lastSelectableRegions = frame.selectableTextRegions   // `TXS-C`
+        settleTextSelection()   // `TXS-F`: a `Text` that was not produced, or whose string changed, ends the session
         lastPresentationAnchors = frame.presentationAnchors
         lastPresentationSpaces = frame.presentationSpaces
         lastOpenPopovers = frame.openPopovers
@@ -3232,6 +3251,15 @@ public final class Window {
     /// The context menus the last frame recorded, by element (spec §3.1): the
     /// keyboard and accessibility openers' table (`MN-G`).
     var lastContextMenus: [GlobalElementID: ContextMenuRecord] = [:]
+
+    /// The window's one text selection (`TXS-B`): a selectable `Text`'s session, never a `StateTable` entry (a read would
+    /// create one). Dropped when focus moves to an element, another `Text` is pressed, the `Text` leaves the tree or its
+    /// string changes (`TXS-F`).
+    var textSelectionSession: TextSelectionSession?
+
+    /// The selectable `Text`s the last adopted frame registered (`TXS-C`); empty for a tree with no `textSelection`, which
+    /// is what makes the window stage a single `isEmpty` test there (`TXS-H`).
+    var lastSelectableRegions: [SelectableTextRegion] = []
 
     /// The platform convention the keyboard context-menu opener reads (`MN-G`
     /// item 1): `TextEditing.platform` always, in production. A test sets it to

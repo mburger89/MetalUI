@@ -403,6 +403,28 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
             _ = element.perform(.setValue, .setValue(element.id, number))
         }
     }
+    // A selectable `Text` (`TXS-G`, probe `X1`): the three text-area attributes, on every selectable `Text` — the range
+    // `{NSNotFound, 0}` with nothing selected. The selection is read-only here: a client cannot set it (divergence).
+    override func accessibilitySelectedTextRange() -> NSRange {
+        mainActorAnswer(self, fallback: NSRange(location: NSNotFound, length: 0)) { element in
+            guard let selection = element.node.textSelection?.range else { return NSRange(location: NSNotFound, length: 0) }
+            return NSRange(location: selection.lowerBound, length: selection.count)
+        }
+    }
+    override func accessibilitySelectedText() -> String? {
+        mainActorAnswer(self, fallback: nil) { element in
+            guard let selection = element.node.textSelection else { return nil }
+            guard let range = selection.range, let value = element.node.value else { return "" }
+            let units = Array(value.utf16)
+            guard range.lowerBound >= 0, range.upperBound <= units.count else { return "" }
+            return String(decoding: units[range], as: UTF16.self)
+        }
+    }
+    override func accessibilityNumberOfCharacters() -> Int {
+        mainActorAnswer(self, fallback: 0) { element in
+            element.node.textSelection == nil ? 0 : (element.node.value?.utf16.count ?? 0)
+        }
+    }
     override func accessibilityPerformPress() -> Bool {
         mainActorAnswer(self, fallback: false) { $0.perform(.press, .press($0.id)) }
     }
