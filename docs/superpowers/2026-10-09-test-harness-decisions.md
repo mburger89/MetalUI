@@ -7,7 +7,7 @@ MG-12). Spec: `docs/superpowers/specs/2026-10-09-test-harness-design.md`.
 Record: `docs/record/91-test-harness.md`. Branch `feat/test-harness` from
 `70e9389`.
 
-**Next unused id: `HT-AE`.** (Read the last `## HT-` heading, not this line,
+**Next unused id: `HT-AF`.** (Read the last `## HT-` heading, not this line,
 if they disagree.)
 
 Evidence:
@@ -941,3 +941,31 @@ Tab likewise (`insertTab:`). Before this, `typeText("a\nb")` typed `ab`: the `"\
 
 **Cost if wrong.** A test that wants a literal newline character as committed text into a focused field cannot get one from
 `typeText`; it uses `send(.textInput("\n"))`.
+
+## HT-AE — `TestWindow.drawnTextColors(in:)` reads the colours an element's text was drawn in (Sift gap G19; record 400; class `M`, no divergence)
+
+**Ruling.**
+
+1. `TestWindow.drawnTextColors(in element: TestElement) -> [Hsla]`: the colours of the last presented frame's glyphs whose centre lies in
+   `element.frame` (window points times the scale factor, against the scene's device pixels), in paint order, consecutive equal colours
+   as one entry (one per styled run). An element with no text answers `[]`; a container answers every text inside it. The colours are as
+   drawn: theme and scheme resolved, the opacity in effect folded into the alpha. It reads `allGlyphs`, so text inside an opacity group,
+   a blur or a masked clip is reached.
+2. **Zero production cost.** Nothing is recorded while a frame draws: the association is made at query time from the scene the
+   headless renderer already keeps (`lastScene`) and the element's published frame. `Sources/MetalUI`, `MetalUIScene` and
+   `HeadlessWindowRenderer` are unchanged; the new code is one method in `MetalUITesting`. No element-id to glyph-run table was
+   needed, so none is recorded on any platform.
+3. Not `TestElement.drawnTextColors`: a `TestElement` is a value snapshot of a tree node with no window to read a scene from.
+   The spelling is the window's, beside `allGlyphs`, taking the element as the input actions do.
+4. Order is paint order within the scene; text in an offscreen group follows the scene's own (`allGlyphs`).
+5. Limits: glyph containment is by centre, so overlapping elements (a label drawn over another's frame) both see the glyph; compare with
+   `Hsla.toRgba()` within a tolerance, not `==`, against a colour written another way (an HSLA round trip moves low bits).
+
+**Mutation** (`DrawnTextColorsTests`): ignoring the frame reddens the one-colour test; dropping the run dedupe or reversing the order
+reddens the run test; ignoring the scale factor reddens the 2x arm; reading `scene.glyphs` for `allGlyphs` reddens the offscreen-group test (an ellipse clip) and the container test; dropping the opacity from the alpha reddens the opacity test.
+`askingForDrawnTextColorsCostsTheFrameNothing` pins the cost: two identical windows, one asked every frame, sum equal `FrameWork`
+(builds, requests, prepaints, paints, memo counters) over four steady frames, equal glyph counts, and `MemoryLayout<MUIGlyph>.stride`
+unchanged.
+
+**Cost if wrong.** Text drawn through a `GPUSurface` is not in the headless scene (`HT-Q`) and answers `[]`.
+
