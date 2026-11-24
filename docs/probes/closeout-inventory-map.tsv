@@ -129,6 +129,7 @@ F	text-selection-offsets	M	-	-	-	-	SL-Q	TextField/TextEditor(_:text:selectedOffs
 F	vertical-text-field	D	swiftui-vertical-text-field.swift	S	aVerticalFieldIsAsTallAsItsLinesBetweenTheBoundsOfLineLimit	232 233 234 237 238 239 240	VT-A VT-B VT-C VT-D VT-E VT-F VT-G	TextField(_:text:axis:) (controlled, Binding, selection and selectedOffsets spellings) and the five lineLimit spellings written on the field: a vertical field is as tall as its lines between the lineLimit bounds (a floor only with a lower bound), scrolls inside itself, takes the wheel while focused with room and submits on Return (S, R, W, K); the differences are the control-return line break, no select-all, the one-line field submitting on option/command-return, the caret reveal on external text, the unmeasured wheel routing, the small control size and finding K
 F	text-input-binding	M	-	-	-	-	DD-E	TextField(_:text:)/TextEditor(_:text:) over Binding<String>, forwarding to the controlled initialisers; MetalUI-only evidence: no probe arm exercises TextField(text:)/TextEditor(text:) (data-and-scrolling's B4 is a Binding built outside any view), so the forwarding is pinned by aTextFieldBoundToStateUpdatesItOnEveryEdit alone; the Binding surface itself is the binding family's (B4/B5)
 F	secure-field	D	swiftui-secure-field.swift	A	aSecureFieldDrawsOnlyBulletsAndNeverHandsTheTextToTheTextSystem	1115 1116 1117	SCF-A SCF-B SCF-C SCF-D SCF-E SCF-F SCF-G SCF-H SCF-I SCF-J SCF-K	SecureField(_:text:), (_:text:prompt:), (text:prompt:label:), font, foregroundColor, textFieldStyle, onSubmit over TextField's editor: one bullet per grapheme drawn, measured and published (never the text), copy and cut do nothing, paste and undo work, no marked text, Carbon secure event input on AppKit, AXSecureTextField with U+F79A values (probe arm A), AccessKit PASSWORD_INPUT; the bullet's metrics, SDL's missing secure entry and the bypassed input method differ (1115-1117)
+F	text-selection-enabled	A	swiftui-text-selection-enabled.swift	E0	textSelectionIsInheritedAndTheNearestWriterWins	1125 1126 1127 1128	TXS-A TXS-B TXS-C TXS-D TXS-E TXS-F TXS-G TXS-H TXS-I	TextSelectability/EnabledTextSelectability/DisabledTextSelectability (.enabled, .disabled) and textSelection(_:) on every element group, inherited by every Text below, the nearest writer winning (E0, E1, E1b); a selectable Text registers one hitbox and no allocation (TXS-H), a press blurs a focused field and starts the window's one session, a drag, a double click (word) and a triple click (line) select, the real copy key writes exactly the range even for a truncated Text, select-all takes that Text whole, Edit > Copy and Select All enable, a right-click offers Copy and Select All unless a declared .contextMenu wins, the selection survives a press on empty space and the window losing key and ends on a focus move, another Text, the Text leaving or its string changing; AccessibilityTextSelection/AccessibilityNode.textSelection answer the three text-area attributes on every selectable Text (X1); ClipboardCommands.selectAll; AccessKit publishes none, a client cannot set the selection, the menu and the string change differ (1125-1128)
 F	shapes	A	swiftui-shapes-and-rendering.swift	S1	everyBuiltInShapeAnswersItsProposalAndACircleTheSmallerSquare	90	TE-AC TE-AG TE-AH TE-AE	Shape/ShapeGeometry/Rectangle/RoundedRectangle/Circle/Capsule/Ellipse/ShapeView/.fill/.stroke/.strokeBorder; continuous corners drawn as SwiftUI's curve (CC-); a continuous clip is still circular (90)
 F	clip-shape	A	swiftui-shapes-and-rendering.swift	C3	clippedAndCornerRadiusClipOnTheProposalPath	224	TE-AJ CM-A CM-B	.clipShape/.clipped/.cornerRadius/.clip on proposal content: one clip layer; an ellipse, path or crossing clip is a masked group (91); crossing rounded clips square (92)
 F	shape-background	A	swiftui-shapes-and-rendering.swift	O2	backgroundInAShapeIsTheFilledShapeAndDefaultsToTheBackgroundToken	-	TE-AK	.background(_:in:)/.background(in:): a filled shape behind the content
@@ -425,7 +426,7 @@ M	MetalUI	ProposalNodeID.swift	.*	.*	.*	element-protocols
 M	MetalUI	Deferred.swift	.*	.*	.*	deferred
 M	MetalUI	Element.swift	.*	.*	.*	element-protocols
 M	MetalUI	ElementBuilder.swift	.*	.*	.*	builder
-M	MetalUI	ProposalContentBuilder.swift	(ProposalContentBuilder|-)	(ProposalContentBuilder|buildExpression|buildBlock|buildPartialBlock|buildOptional|buildEither|buildArray)	.*	proposal-content-builder
+M	MetalUI	ProposalContentBuilder.swift	(ProposalContentBuilder|-)	(ProposalContentBuilder|buildExpression|buildBlock|buildOptional|buildEither|buildArray)	.*	proposal-content-builder
 M	MetalUI	ProposalContentBuilder.swift	.*	.*	.*	legacy-content
 M	MetalUI	LegacyProposalModifiers.swift	ElementGroup	layoutPriority	.*	stacks
 M	MetalUI	LegacyProposalModifiers.swift	ElementGroup	fixedSize	.*	fixed-size
@@ -665,6 +666,8 @@ M	MetalUI	Text.swift	Text	\+	.*	text-concatenation
 M	MetalUI	Text.swift	.*	.*	.*	text
 M	MetalUI	TextSelection.swift	.*	.*	.*	text-selection
 M	MetalUI	SecureField.swift	-|SecureField	.*	.*	secure-field
+M	MetalUI	TextSelectability.swift	.*	.*	.*	text-selection-enabled
+M	MetalUI	SelectableText.swift	SelectionMenu	_menuNodes	.*	text-selection-enabled
 M	MetalUI	TextField.swift	TextField	init	.*selectedOffsets.*prompt: Text\?.*	text-selection-offsets
 A	MetalUI	TextField.swift	TextField	init	.*prompt: Text\?.*	text-field-prompt
 M	MetalUI	TextField.swift	TextField	init	.*axis: Axis.*	vertical-text-field
@@ -748,6 +751,7 @@ M	MetalUIPlatform	InputEvent.swift	(-|PlatformDropOperation)	(PlatformDropOperat
 M	MetalUIPlatform	AccessibilityTree.swift	(-|AccessibilitySortDirection)	(AccessibilitySortDirection|ascending|descending)	.*	table-accessibility
 M	MetalUIPlatform	AccessibilityTree.swift	AccessibilityRole	columnHeader	.*	table-accessibility
 M	MetalUIPlatform	AccessibilityTree.swift	AccessibilityNode	(columnCount|columnIndex|headerRowCount|sortDirection)	.*	table-accessibility
+M	MetalUIPlatform	AccessibilityTree.swift	(-|AccessibilityTextSelection|AccessibilityNode)	(AccessibilityTextSelection|range|textSelection)	.*	text-selection-enabled
 M	MetalUIPlatform	.*	.*	.*	.*	platform
 M	MetalUIPrimitives	.*	.*	.*	.*	render
 M	MetalUIRender	.*	.*	.*	.*	render

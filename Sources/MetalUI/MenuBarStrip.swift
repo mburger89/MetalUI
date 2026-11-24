@@ -160,6 +160,7 @@ extension Window {
             case .cut: return clipboardCommands.contains(.cut)
             case .copy: return clipboardCommands.contains(.copy)
             case .paste: return clipboardCommands.contains(.paste)
+            case .selectAll: return clipboardCommands.contains(.selectAll)
             default: return false
             }
         }

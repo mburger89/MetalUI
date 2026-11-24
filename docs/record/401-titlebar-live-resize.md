@@ -47,7 +47,7 @@ reads the insets with the buttons placed, so `onReplaced` is not needed from the
 
 ## 5. Tests and mutations
 
-Two new tests in `AppKitAppShellTests.swift` (root 7262 tests in 79 suites after merging master (7260, record 397)):
+Two new tests in `AppKitAppShellTests.swift` (root 7297 tests in 79 suites after merging master (7295, record 398)):
 
 - `appKitTitleBarButtonsAreAtTheirPlacementOnEveryFrameOfALiveResize`: 40 steps, bracketed by `willStartLiveResize` / `didEndLiveResize` and the host
   view's `viewWillStartLiveResize` / `viewDidEndLiveResize`; after every `setFrame(_:display: true)`, before any run-loop turn, each button's window

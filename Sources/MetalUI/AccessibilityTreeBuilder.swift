@@ -301,7 +301,7 @@ enum AccessibilityTreeBuilder {
                 orientation: publishedRole == .splitter
                     ? splitters[id].map { $0.isVertical ? .vertical : .horizontal } : nil,
                 columnCount: columnCount, columnIndex: columnIndex, headerRowCount: headerRowCount,
-                sortDirection: sortDirection)
+                sortDirection: sortDirection, textSelection: node.record.textSelection)
             if !node.customTargets.isEmpty { result.customActions[id] = node.customTargets }
             geometry[nodeID] = placedGeometry
         }

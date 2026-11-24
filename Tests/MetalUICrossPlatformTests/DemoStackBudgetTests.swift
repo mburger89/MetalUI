@@ -51,6 +51,7 @@ private func buildEveryProductionTree() {
     buildTheTabStripDemo()         // the tab strip (TBS-, record 238)
     buildTheOutlineDemo()          // the outline performance demo (OG-O, record 318)
     buildTheTableDemo()            // the table demo (TBL-V, record 389)
+    buildTheTextSelectionDemo()    // the selectable log (TXS-, record 399)
     buildTheLiquidGlassDemo()      // Liquid Glass (LG-P, LG-V)
     buildTheProjectionStrip()      // 3D render effects (PJ-, test 33)
     buildTheGroupFilterStrip()     // a filter over a group (GF-)
@@ -157,6 +158,13 @@ private func buildTheOutlineDemo() {
 @MainActor @inline(never)
 private func buildTheTableDemo() {
     _ = tableDemoContent()
+}
+
+/// The text-selection demo's tree and its controls component, in its own frame (`TXS-`, record 399).
+@MainActor @inline(never)
+private func buildTheTextSelectionDemo() {
+    _ = textSelectionDemoContent()
+    _ = TextSelectionControls().content
 }
 
 /// The Liquid Glass demo's tree and its container component, in its own frame.
