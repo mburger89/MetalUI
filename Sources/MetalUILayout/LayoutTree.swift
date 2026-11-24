@@ -2898,6 +2898,7 @@ extension LayoutTree {
         var parents: [(Int, Int)] = []
         children.reserveCapacity(upper - lower)
         cases.reserveCapacity(upper - lower)
+        var strays = 0
         for index in lower..<upper {
             var list: [Int] = []
             list.reserveCapacity(childLists[index].count)
@@ -2909,10 +2910,11 @@ extension LayoutTree {
             guard let node = nativeNodes[index] else { return (nil, "noKernelCase") }
             cases.append(node)
             if topSet.contains(index) { continue }
-            guard let parent = nativeParents[index] else { return (nil, "strayRoots") }
+            guard let parent = nativeParents[index] else { strays += 1; continue }
             guard parent >= lower, parent < upper else { return (nil, "parentOutsideRange") }
             parents.append((index - lower, parent - lower))
         }
+        guard strays == 0 else { return (nil, "strayRoots") }
         let segment = LayoutSegment(
             nodeCount: upper - lower, rebaseOrigin: lower, tops: marks.tops, children: children, cases: cases,
             leafKeys: marks.leafKeys, spacerAxes: marks.spacerAxes, spacingMarks: marks.spacingMarks, parents: parents,
