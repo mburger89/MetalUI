@@ -344,12 +344,12 @@ private struct Card: Component, @MainActor Equatable {
     let window = try codeWindow(buffer: buffer, decorations: decorations)
     window.window.setNeedsRedraw(); window.tick()
     window.resetFrameWork()
-    set(decorations, buffer, [(bytes(buffer, row: 2, 0, 4), CodeStyle(italic: true))], layer: .semantic)
+    set(decorations, buffer, [(bytes(buffer, row: 2, 0, 3), CodeStyle(italic: true))], layer: .semantic)   // the colour run's own bytes: the partition is the same, only a face is new
     window.window.setNeedsRedraw(); window.tick()
     #expect(totalWork(window).codeLinesShaped == 1, "shaped \(totalWork(window).codeLinesShaped)")
     #expect(decorations.lineCache.faceResolutions == 1)
     window.resetFrameWork()
-    set(decorations, buffer, [(bytes(buffer, row: 2, 0, 4), CodeStyle(italic: true)), (bytes(buffer, row: 4, 0, 2), CodeStyle(weight: .bold))],
+    set(decorations, buffer, [(bytes(buffer, row: 2, 0, 3), CodeStyle(italic: true)), (bytes(buffer, row: 4, 0, 3), CodeStyle(weight: .bold))],
         layer: .semantic)
     window.window.setNeedsRedraw(); window.tick()
     #expect(totalWork(window).codeLinesShaped == 1, "only the row that gained a face shaped, shaped \(totalWork(window).codeLinesShaped)")
