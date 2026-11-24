@@ -100,6 +100,19 @@ private let alpha = "alpha beta gamma delta"
     #expect(EnabledTextSelectability.allowsSelection && !DisabledTextSelectability.allowsSelection)
 }
 
+// MARK: 2b — the retained fingerprint
+
+/// **2.2** Two environments differing only in the selection flag have different retained fingerprints (a retained occurrence
+/// is replayed only under an equal one), and the difference is named `textSelectionEnabled`.
+/// **Mutation:** `retainedFingerprint` carries `false` for the flag.
+@Test @MainActor func theRetainedFingerprintCarriesTheSelectionFlag() {
+    let off = EnvironmentValues()
+    var on = off
+    on.textSelectionEnabled = true
+    #expect(off.retainedFingerprint != on.retainedFingerprint)
+    #expect(on.retainedFingerprint.differences(from: off.retainedFingerprint) == ["textSelectionEnabled"])
+}
+
 // MARK: 3 — the geometry
 
 /// **3.1** A press at a point lands on the nearest grapheme boundary of its line, above the text is the start and below it
@@ -140,21 +153,21 @@ private let alpha = "alpha beta gamma delta"
     #expect(rects.count == 1 && abs(Double(rects[0].origin.x.value) - shortLine.originX) < 0.01, "\(rects)")
 }
 
-/// **3.3** Styled runs: a bold run's boundaries come from its own face (per-run `caretOffsets`), and the offsets are
-/// monotonic across the run boundaries.
-/// **Mutation:** measure the whole line in the first run's font (the bold part's offsets shrink).
+/// **3.3** Styled runs: a larger run's boundaries come from its own font (per-run `caretOffsets`), and the offsets are monotonic
+/// across the run boundaries.
+/// **Mutation:** measure every run in the first run's font (the larger run's offsets shrink to the first's).
 @Test @MainActor func aStyledTextMeasuresEachRunInItsOwnFace() async throws {
     let w = try harnessWindow(size: sz(400, 300)) {
-        Column { (Text("iiii ") + Text("MMMM").bold() + Text(" iiii")).textSelection(.enabled) }
+        Column { (Text("MMMM ") + Text("MMMM").font(size: 26) + Text(" MMMM")).textSelection(.enabled) }
     }
     try await w.runUntilIdle()
     try await press(w)
     let geometry = try #require(w.window.textSelectionSession?.geometry)
     let offsets = geometry.lines[0].offsets
     #expect(offsets.count == 15 && zip(offsets, offsets.dropFirst()).allSatisfy { $0 <= $1 }, "\(offsets)")
-    let narrow = offsets[4] - offsets[0], capitals = offsets[9] - offsets[5], tail = offsets[14] - offsets[10]
-    #expect(capitals > narrow * 2, "four bold capitals are wider than four narrow letters: \(capitals) vs \(narrow)")
-    #expect(abs(tail - narrow) < 1, "the same four narrow letters either side: \(tail) vs \(narrow)")
+    let first = offsets[4] - offsets[0], large = offsets[9] - offsets[5], last = offsets[14] - offsets[10]
+    #expect(large > first * 1.7, "four capitals at 26 pt are wider than four at the default size: \(large) vs \(first)")
+    #expect(abs(last - first) < 1, "the same four capitals either side: \(last) vs \(first)")
 }
 
 /// A log of about `kib` KiB.
@@ -226,7 +239,7 @@ private func logOf(kib: Int) -> String {
 }
 
 /// **3.5** A drag across a tall log does not build the geometry again: the press builds it once, a drag only moves the head.
-/// **Mutation:** clear `session.geometry` in `enqueue`.
+/// **Mutation:** clear `session.geometry` in `enqueue` (the build count reaches the drag's steps).
 @Test @MainActor func aDragBuildsNoSecondGeometry() async throws {
     let w = try oneText(logOf(kib: 2), width: 380, size: sz(400, 4_000))
     try await press(w)
@@ -235,6 +248,7 @@ private func logOf(kib: Int) -> String {
     try await w.runUntilIdle()
     let after = try #require(w.window.textSelectionSession?.geometry)
     #expect(after.lines.count == before.lines.count && after.width == before.width)
+    #expect(w.window.textSelectionSession?.geometryBuilds == 1, "built once for the press, never for the drag: \(String(describing: w.window.textSelectionSession?.geometryBuilds))")
     #expect((selected(w) ?? "").count > 100, "the drag selected a run: \((selected(w) ?? "").count)")
 }
 
@@ -668,6 +682,7 @@ private struct RetainedCard: Component, @MainActor Equatable {
     let idle = totalWork(w)
     try await press(w)
     w.typeKey("a", modifierFlags: .primary)
+    w.hover(at: pt(5, 295))   // off the card: only the selection keeps the occurrence from replaying (`SB-F` would anyway under the pointer)
     for _ in 0..<2 { w.window.setNeedsRedraw(); try await w.runUntilIdle() }
     w.resetFrameWork(); w.window.setNeedsRedraw(); try await w.runUntilIdle()
     let selectedFrame = totalWork(w)
@@ -713,8 +728,9 @@ private struct RetainedCard: Component, @MainActor Equatable {
 
 /// **7.2** Accessibility work happens only while a client collects: a window with no client publishes no tree and records
 /// nothing, and the same tree with a client publishes the text-area state (`TXS-G`, `TXS-H`).
-/// **Mutation:** mark the record without testing `collectsAccessibility` (7.2's no-client arm cannot see the record, so the cost
-/// arms 4.2 and 4.3, which run with no client, redden on the extra work instead).
+/// **Mutation:** the mark attached only to the selected `Text` (the loud arm reddens). A mark made without testing
+/// `collectsAccessibility` is invisible here — with no client there is no tree and the record it would patch does not exist — and
+/// is a finding, not a gap this arm can close: the record's own gate (`registerHandlers`) is what keeps a quiet window clean.
 @Test @MainActor func theTextAreaStateIsRecordedOnlyForAClient() async throws {
     let quiet = try harnessWindow(size: sz(400, 300), options: .init(accessibilityClientActive: false)) {
         Column { Text("x").textSelection(.enabled) }

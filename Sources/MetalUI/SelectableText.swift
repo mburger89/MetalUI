@@ -192,6 +192,8 @@ final class TextSelectionSession {
     var state = TextEditState()
     var geometry: SelectableTextGeometry?
     var pending: [Operation] = []
+    /// How many times the geometry was built for this session (test observability: a press builds it once, a drag never).
+    private(set) var geometryBuilds = 0
     /// A primary press is down on this `Text`: drags extend.
     var isDragging = false
     /// Whether the last frame's prepaint produced this `Text` with its string unchanged; the window drops a session that
@@ -215,6 +217,8 @@ final class TextSelectionSession {
     var selectedUTF16: Range<Int>? {
         isEmpty ? nil : index.utf16Range(selection.clamped(to: 0..<(index.count + 1)))
     }
+
+    func noteGeometryBuilt() { geometryBuilds += 1 }
 
     func selectAll() {
         state.anchor = 0
@@ -322,6 +326,7 @@ extension Frame {
         guard session.geometry == nil, !session.pending.isEmpty || !session.isEmpty else { return }
         session.geometry = SelectableTextGeometry.make(resolve(), index: session.index, wrappingAt: width,
                                                        height: box.height, system: textSystem)
+        session.noteGeometryBuilt()
         session.drainPending()
     }
 
