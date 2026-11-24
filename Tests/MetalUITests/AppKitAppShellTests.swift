@@ -631,14 +631,14 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     override func draw(_ dirtyRect: NSRect) { note("draw") }
 }
 
-/// **AS-U 1** (record 400). During a live resize AppKit resets the buttons and their container on every
+/// **AS-U 1** (record 401). During a live resize AppKit resets the buttons and their container on every
 /// `setFrame`; the placement must put them back **before the frame is displayed**, not one run-loop pass later
 /// (the deferred pass alone left every frame of Alloy's live resize at the system position, about 20 pt too
 /// high and too far left, then back). 40 steps of a step-by-step resize of a real off-screen window, bracketed
 /// by the live-resize notifications, with a run-loop turn between steps as a drag has. After each
 /// `setFrame(_:display: true)` returns, **before any run-loop turn**, each button's frame in window coordinates
 /// is the settled one, as are the container's and the title-bar view's; and no layout or draw of the title-bar
-/// view saw a button elsewhere. Mutation (record 400): skip installing the layout anchor (the deferred pass
+/// view saw a button elsewhere. Mutation (record 401): skip installing the layout anchor (the deferred pass
 /// only): every step reads the system position.
 @MainActor
 @Test func appKitTitleBarButtonsAreAtTheirPlacementOnEveryFrameOfALiveResize() throws {

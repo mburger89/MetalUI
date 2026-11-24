@@ -1,7 +1,6 @@
-# 400: the window buttons stay placed during a live resize (Alloy; `AS-U`)
+# 401: the window buttons stay placed during a live resize (Alloy; `AS-U`)
 
-Class `M`, no divergence, no public API. Branch `fix/titlebar-live-resize`, base master `595c474a`. **Number:** open PRs held 396 (twice) and 398
-and another branch may take 397 and 399, so this is the first free number above 399.
+Class `M`, no divergence, no public API. Branch `fix/titlebar-live-resize`, base master `595c474a`. **Number:** 400 is taken by open PR #412, so this is 401.
 
 ## 1. The report
 
@@ -48,7 +47,7 @@ reads the insets with the buttons placed, so `onReplaced` is not needed from the
 
 ## 5. Tests and mutations
 
-Two new tests in `AppKitAppShellTests.swift` (root 7248 tests in 79 suites after merging master (7246, record 396), 7244 before it):
+Two new tests in `AppKitAppShellTests.swift` (root 7262 tests in 79 suites after merging master (7260, record 397)):
 
 - `appKitTitleBarButtonsAreAtTheirPlacementOnEveryFrameOfALiveResize`: 40 steps, bracketed by `willStartLiveResize` / `didEndLiveResize` and the host
   view's `viewWillStartLiveResize` / `viewDidEndLiveResize`; after every `setFrame(_:display: true)`, before any run-loop turn, each button's window

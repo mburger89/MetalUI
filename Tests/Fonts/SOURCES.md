@@ -1,6 +1,7 @@
 # Test fonts (rulings FT-G, SH-F)
 
-Three static, open-licensed faces. The first two are the FreeType
+Five static, open-licensed faces (Noto Sans Bold and Italic were added for `CodeStyle` faces, `CV-BY`: the
+`CodeView` faces tests build a resolver over all three Noto Sans files, kept out of `harnessTextSystem`). The first two are the FreeType
 rasterizer's CoreText oracle (`Tests/MetalUIFreeTypeTests/
 FreeTypeOracleTests.swift`), one per outline format so both FreeType drivers
 are exercised; all three are the HarfBuzz shaper's CoreText oracle
@@ -13,6 +14,8 @@ from the WebKit goldens only).
 | --- | --- | --- | --- |
 | `NotoSans-Regular.ttf` | TrueType (`glyf`/`loca`), no `fvar` | Noto Sans v2.015, unhinted build | SIL OFL 1.1, `NotoSans-OFL.txt` |
 | `SourceSans3-Regular.otf` | CFF (`CFF `), no `fvar` | Source Sans 3 3.052R | SIL OFL 1.1, `SourceSans3-LICENSE.md` |
+| `NotoSans-Bold.ttf` | TrueType (`glyf`/`loca`), no `fvar` | Noto Sans v2.015, unhinted build | SIL OFL 1.1, `NotoSans-OFL.txt` |
+| `NotoSans-Italic.ttf` | TrueType (`glyf`/`loca`), no `fvar` | Noto Sans v2.015, unhinted build | SIL OFL 1.1, `NotoSans-OFL.txt` |
 | `NotoSansArabic-Regular.ttf` | TrueType (`glyf`/`loca`), no `fvar` | Noto Sans Arabic v2.013, unhinted build | SIL OFL 1.1, `NotoSansArabic-OFL.txt` |
 
 Outline tables were checked by reading each file's sfnt table directory:
@@ -30,6 +33,15 @@ Arabic has `00 01 00 00` and the same table list as Noto Sans.
   `f3961a9cde016d41a4879aecda1474d3a36d6bf54fa0e4643de029cc2248b0e8`
 - Member `OFL.txt` -> `NotoSans-OFL.txt`, SHA-256
   `cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a`
+
+## Noto Sans Bold and Italic
+
+- Same release and archive as Noto Sans Regular above (the archive's SHA-256 was recomputed on download and matches).
+- Member `NotoSans/unhinted/ttf/NotoSans-Bold.ttf`, SHA-256
+  `87cb2d84472a7d66da659ee47b6cdb9552326e8c128245231f191b6ac72529d9`
+- Member `NotoSans/unhinted/ttf/NotoSans-Italic.ttf`, SHA-256
+  `678288f868807d4d64a6f3b51466871d117d915780381ce9d0ed4b3bcbd06d37`
+- Licence: the same `NotoSans-OFL.txt`.
 
 ## Source Sans 3 Regular
 

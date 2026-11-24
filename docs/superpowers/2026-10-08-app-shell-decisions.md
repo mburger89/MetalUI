@@ -1001,7 +1001,7 @@ first frame; only how AppKit gets there changes.
    and `titleBarStyleMaskChanges` see no change after init, and mask, flags, frame, content rect and insets equal the
    post-open path).
 
-## AS-U — The window buttons are placed from a layout pass, so no live-resize frame shows the system layout (Alloy; record 400; amends `AS-R` item 3a)
+## AS-U — The window buttons are placed from a layout pass, so no live-resize frame shows the system layout (Alloy; record 401; amends `AS-R` item 3a)
 
 **Finding.** Under `.hiddenTitleBar` with `.windowTitleBarMetrics`, the traffic lights flickered during a live resize, frame to
 frame between the placed position and the system one (about 20 pt higher and 20 pt left). Cause: AppKit resets the buttons (and
@@ -1013,7 +1013,7 @@ steps with a run-loop turn between them: the deferred pass alone read the system
 **Ruling.**
 
 1. **A layout anchor.** `TitleBarPlacement` adds an invisible subview (`LayoutAnchor`: fills the title-bar view, takes no hit test,
-   no accessibility) whose `layout()` calls `place()`. AppKit runs it after the reset and before display. Candidates measured (record 400, 30 steps; counts at the
+   no accessibility) whose `layout()` calls `place()`. AppKit runs it after the reset and before display. Candidates measured (record 401, 30 steps; counts at the
    system position of title-bar layouts / draws / reads after `setFrame`): the deferred pass alone 27 / 23 / 30 (of 54 / 50 / 30),
    the anchor 0 / 0 / 0, `place()` from the host view's `setFrameSize` 27 / 0 / 0, `place()` from `didResize` (gpui's
    `window_did_resize`) 27 / 0 / 0. The two notification-ordered hooks leave a layout pass at the
@@ -1030,7 +1030,7 @@ steps with a run-loop turn between them: the deferred pass alone read the system
    anchor places from the stored pair during that resize.
 6. Pinned by `appKitTitleBarButtonsAreAtTheirPlacementOnEveryFrameOfALiveResize` (40 steps with the live-resize notifications,
    asserted before any run-loop turn, plus a spy subview counting layouts and draws at the system position) and
-   `appKitTitleBarPlacementWritesNothingWhenNothingChangedAndNothingWithoutMetrics`. Mutations: record 400. Human check `TBH8`.
+   `appKitTitleBarPlacementWritesNothingWhenNothingChangedAndNothingWithoutMetrics`. Mutations: record 401. Human check `TBH8`.
 
 **Cost if wrong.** An OS release that no longer lays the buttons out inside the title-bar view's layout leaves the deferred
 pass as before (the flicker returns, nothing else); an anchor that AppKit stops laying out is the same.

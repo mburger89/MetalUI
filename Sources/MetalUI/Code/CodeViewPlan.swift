@@ -780,13 +780,18 @@ extension CodeView {
         // (kept on the plan) a key's vertical motion all go through it (`CV-X`).
         let advancePx = max(1.0, metrics.space * scaleD)
         let view = self
+        // Faces (`CV-BY`): resolved only for a line that is shaped, and only when some run sets one.
+        let faces: CodeFaces? = decorations.hasFaces
+            ? CodeFaces(font: { code in cache.face(code, base: font, request: view.fontDescriptor(in: environment), system: system) },
+                        baselinePx: { cache.underlineMetrics(of: font, scale: scale, system: system).baselinePx })
+            : nil
         func layoutOfRow(_ row: Int, _ snapshot: CodeSnapshot, _ scrollXPx: Int) -> CodeLineLayout {
             view.decorations.sync()
             let range = snapshot.lineRange(row)
             let styling = view.decorations.stylingOfLine(range)
             return view.lineLayout(bytes: snapshot.utf8(in: range), knownHash: nil, parts: styling.foreground, digest: styling.digest,
                                    font: font, system: system, scale: scale, cache: cache, spaceAdvance: metrics.space,
-                                   scrollXPx: scrollXPx, textViewPx: textViewPx, advancePx: advancePx)
+                                   scrollXPx: scrollXPx, textViewPx: textViewPx, advancePx: advancePx, faces: faces)
         }
 
         // Horizontal extent: estimated from the longest line, corrected upward by what was laid out.
@@ -872,7 +877,7 @@ extension CodeView {
                 }
                 let layout = lineLayout(bytes: bytes, knownHash: nil, parts: styling.foreground, digest: styling.digest,
                                         font: font, system: system, scale: scale, cache: cache, spaceAdvance: metrics.space,
-                                        scrollXPx: state.scrollXPx, textViewPx: textViewPx, advancePx: advancePx)
+                                        scrollXPx: state.scrollXPx, textViewPx: textViewPx, advancePx: advancePx, faces: faces)
                 widest = max(widest, Int((layout.width * scaleD).rounded(.up)))
                 var label: CodeLineLayout?
                 var labelWidth = 0
@@ -938,7 +943,7 @@ extension CodeView {
                 let line = group.lines[lineIndex]
                 let layout = lineLayout(bytes: line.bytes, knownHash: line.hash, parts: line.styling.foreground, digest: line.styling.digest,
                                         font: font, system: system, scale: scale, cache: cache, spaceAdvance: metrics.space,
-                                        scrollXPx: state.scrollXPx, textViewPx: textViewPx, advancePx: advancePx)
+                                        scrollXPx: state.scrollXPx, textViewPx: textViewPx, advancePx: advancePx, faces: faces)
                 widest = max(widest, Int((layout.width * scaleD).rounded(.up)))
                 var label: CodeLineLayout?
                 var labelWidth = 0
@@ -1072,37 +1077,38 @@ extension CodeView {
     }
 
     /// `parts` (a line's foreground partition) with an unstyled stretch of `length` bytes inserted at byte `at`.
-    static func splittingParts(_ parts: [(bytes: Int, style: CodeStyleID?)], at: Int,
-                               inserting length: Int) -> [(bytes: Int, style: CodeStyleID?)] {
-        var out: [(bytes: Int, style: CodeStyleID?)] = []
+    static func splittingParts(_ parts: [(bytes: Int, style: CodeStyleID?, face: UInt8)], at: Int,
+                               inserting length: Int) -> [(bytes: Int, style: CodeStyleID?, face: UInt8)] {
+        var out: [(bytes: Int, style: CodeStyleID?, face: UInt8)] = []
         out.reserveCapacity(parts.count + 2)
         var position = 0
         var done = false
         for part in parts {
             if !done && at == position {
-                out.append((length, nil))
+                out.append((length, nil, 0))
                 done = true
             }
             if !done && at < position + part.bytes {
-                out.append((at - position, part.style))
-                out.append((length, nil))
-                out.append((position + part.bytes - at, part.style))
+                out.append((at - position, part.style, part.face))
+                out.append((length, nil, 0))
+                out.append((position + part.bytes - at, part.style, part.face))
                 done = true
             } else {
                 out.append(part)
             }
             position += part.bytes
         }
-        if !done { out.append((length, nil)) }
+        if !done { out.append((length, nil, 0)) }
         return out
     }
 
     /// One line's layout, from the cache or shaped (a long line only in its column window). `knownHash` is the
     /// hash of `bytes` when the caller has it (a virtual line's).
     @MainActor
-    func lineLayout(bytes: [UInt8], knownHash: UInt64?, parts partsIn: [(bytes: Int, style: CodeStyleID?)], digest digestIn: UInt64,
+    func lineLayout(bytes: [UInt8], knownHash: UInt64?, parts partsIn: [(bytes: Int, style: CodeStyleID?, face: UInt8)], digest digestIn: UInt64,
                             font: FontKey, system: any TextSystem, scale: Float, cache: CodeLineCache,
-                            spaceAdvance: Double, scrollXPx: Int, textViewPx: Int, advancePx: Double) -> CodeLineLayout {
+                            spaceAdvance: Double, scrollXPx: Int, textViewPx: Int, advancePx: Double,
+                            faces: CodeFaces? = nil) -> CodeLineLayout {
         var windowStart = 0, windowEnd = bytes.count
         var windowX = 0.0
         var parts = partsIn
@@ -1132,7 +1138,7 @@ extension CodeView {
         let tabs = tabColumns
         return cache.layout(key) {
             buildCodeLine(bytes: bytes[windowStart..<windowEnd], windowStart: windowStart, windowX: windowX, parts: parts, partOffset: 0,
-                          font: font, scale: scale, tabColumns: tabs, spaceAdvance: spaceAdvance, system: system)
+                          font: font, scale: scale, tabColumns: tabs, spaceAdvance: spaceAdvance, system: system, faces: faces)
         }
     }
 

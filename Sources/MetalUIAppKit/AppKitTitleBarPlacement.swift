@@ -16,7 +16,7 @@ import AppKit
 // `NSWindow` notifications are a backstop for a reset the observers miss (probe: a `title` change fires none,
 // the observers catch it). Measured in the AS-a probe (record 249).
 //
-// **The deferred pass alone shows the system layout during a live resize** (Alloy; record 400): each
+// **The deferred pass alone shows the system layout during a live resize** (Alloy; record 401): each
 // `setFrame` resets the buttons inside the title-bar view's own layout, the pass puts them back one run-loop
 // pass later, and the frames displayed in between sit about 20 pt high and 20 pt left. So a `LayoutAnchor`,
 // an invisible subview filling the title-bar view, re-places **synchronously from its `layout()`**, which AppKit
@@ -189,7 +189,7 @@ final class TitleBarPlacement {
 /// An invisible subview of the title-bar view that fills it and re-runs the placement from `layout()`.
 /// AppKit resets the buttons (and the container) inside the title-bar view's own layout, which runs from
 /// each `setFrame`; a subview's `layout()` runs after that and before display, which a KVO observer or a
-/// notification cannot promise (measured, record 400: the deferred pass left every live-resize frame at the
+/// notification cannot promise (measured, record 401: the deferred pass left every live-resize frame at the
 /// system position). It takes no events and no accessibility.
 @MainActor
 private final class LayoutAnchor: NSView {

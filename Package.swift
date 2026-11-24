@@ -443,7 +443,7 @@ targets += [
         .testTarget(
             name: "MetalUITests",
             dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent",
-                           "MetalUIPortableText", "MetalUIAppKit", "MetalUITerminalUI",
+                           "MetalUIPortableText", "MetalUISystemFonts", "MetalUITextSystem", "MetalUIAppKit", "MetalUITerminalUI",
                            // The harness's plain-import guards (ruling HT-M):
                            // its module is built where `#filePath` expects.
                            "MetalUITesting"]
