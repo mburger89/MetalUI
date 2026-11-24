@@ -8,7 +8,7 @@ import MetalUITextSystem
 import MetalUIText
 #endif
 
-// `CodeStyle` faces over real monospaced families (`CV-BY`, record 396): a face may reshape a line, but the families an
+// `CodeStyle` faces over real monospaced families (`CV-BY`, record 397): a face may reshape a line, but the families an
 // editor uses keep one advance in every face, so the carets of a line with faces are the carets of the same line without.
 // The numbers are the fonts' own, so they are relations, never literals.
 

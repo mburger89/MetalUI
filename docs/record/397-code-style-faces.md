@@ -1,6 +1,6 @@
-# 396: `CodeStyle` italic and weight (`CV-BY`, Sift G15)
+# 397: `CodeStyle` italic and weight (`CV-BY`, Sift G15)
 
-Class `M` (MetalUI-only API; SwiftUI has no code highlighting), no divergence (236 live, next label 244, unchanged). Branch `feat/code-style-faces`, base master `595c474a`. Requested by Sift (its SQL editor wants comments in `.secondary` italic; Alloy will want bold keywords). The design is `docs/superpowers/specs/2026-11-23-code-style-faces-design.md`; the ruling is `CV-BY`, amending `CV-L` and `CV-M`. **Numbering:** 395 was the highest merged record when this branch started and no open PR held 396; if another line took 396 first, the later merge renumbers and says so here.
+Class `M` (MetalUI-only API; SwiftUI has no code highlighting), no divergence (236 live, next label 244, unchanged). Branch `feat/code-style-faces`, base master `595c474a`. Requested by Sift (its SQL editor wants comments in `.secondary` italic; Alloy will want bold keywords). The design is `docs/superpowers/specs/2026-11-23-code-style-faces-design.md`; the ruling is `CV-BY`, amending `CV-L` and `CV-M`. **Numbering:** written as 396; `fix/typetext-newline` merged as 396 first, so this is 397.
 
 ## Change
 

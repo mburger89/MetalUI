@@ -9,7 +9,7 @@ import MetalUITesting
 import MetalUITestSupport
 #endif
 
-// `CodeStyle` faces (ruling `CV-BY`, record 396): `italic` and `weight` on a style, drawn with the font's real faces.
+// `CodeStyle` faces (ruling `CV-BY`, record 397): `italic` and `weight` on a style, drawn with the font's real faces.
 // PLAIN imports; text is the harness's Noto Sans through `PortableTextSystem`.
 
 private let red = Color(red: 1, green: 0, blue: 0)
