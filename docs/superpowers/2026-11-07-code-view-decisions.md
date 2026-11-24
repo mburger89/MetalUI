@@ -519,3 +519,15 @@ Follows `CV-AT`. Alloy's tests found gutter bars by scanning drawn rects for 3 p
 - **Cost.** A read only: no stored state, no cache, nothing on the paint path changes (`rebuildLines` runs at a set, never per frame, and its order is the same sort), so no steady-frame pin is owed.
 
 Pinned by `theHigherPriorityOwnerWinsTheTintAndBarAndIsNamed`, `aBarSpanReadsTheSameFromEveryRow`, `aMarkersWinnerFollowsStrongestMarker`, `anUndecoratedRowReadsNil`, `anEditAboveShiftsTheReadBackRows` and `theReadBackIsWhatTheViewPaints` (every row of a scripted three-owner view against the scene's tints, bars and marker glyphs, before and after an edit). Next unused: `CV-CA`.
+
+## CV-CA: `paintedVirtualRows(at:)` reads back the virtual rows at a gap (record 405; class M, no divergence; Alloy follow-up to `CV-BZ`)
+
+`CV-BZ` named virtual rows as a limit: Alloy's plugin message row paints a bar on its virtual row and its test could only assert `virtualLineCount == 1`. No divergence, labels unchanged.
+
+- **API.** `CodeDecorations.paintedVirtualRows(at anchor: CodeVirtualRow.Anchor) -> [CodePaintedVirtualRow]`. `CodePaintedVirtualRow` (`Equatable, Sendable`): `anchor`, `lines: [String]` (each cut at its first line break, as painted), `background`, `gutterBar`, `gutterMarker` (empty text reads `nil`), `tag`, `owner: String?` (`nil` the default owner).
+- **Addressing.** A virtual row has no id and no buffer row; the public API identifies it by its `CodeVirtualRow.Anchor`, so the read is by anchor, and the position in the returned array when owners share a gap (ascending priority, one owner's in the order given: the paint order). `.before(line: n)` and `.after(line: n - 1)` are one gap and read the same groups; each result's `anchor` is the spelling it was given in. An anchor past the end clamps as `setVirtualRows` does.
+- **Not `CodePaintedLineDecoration`.** A group belongs to one owner, so one owner covers every field and there is no merge to report, and `CodePaintedGutterBar.lines` is a span of buffer rows, which a virtual row has none of. A separate small type is honest where reusing the shape would invent a span.
+- **Resolution is the paint path's.** The groups are read off the row map by `rowMap.row(atDisplay:)` from the row below the gap upward, the call the plan makes per display row; a group's lines are stored once, so the walk de-duplicates by group. Cost: the lines at the gap and a logarithm, at the call only. No stored state, nothing on the paint path changes.
+- **Follows edits** like the rows (`CV-S`): read at the anchor's new row after an edit above.
+
+Pinned by `aVirtualRowsBarOwnerTagAndLinesReadBack`, `anEditAboveMovesTheReadBackGap`, `theVirtualReadBackIsWhatTheViewPaints` (bar rects and tint against the scene) and `readingVirtualRowsBackCostsTheViewNothing` (the reads schedule no frame and leave the steady frame's whole `FrameWork` unchanged). Next unused: `CV-CB`.
