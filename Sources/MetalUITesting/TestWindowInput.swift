@@ -167,9 +167,22 @@ extension TestWindow {
     /// Types `text`, one key per `Character`, then one frame. While a text
     /// field has the caret each arrives as committed text (`.textInput`),
     /// otherwise as a key press and release — as AppKit and SDL route them
-    /// (ruling `HT-F` item 3). An uppercase letter is typed with Shift.
+    /// (ruling `HT-F` item 3). An uppercase letter is typed with Shift. A
+    /// newline (`"\n"`, `"\r"` or `"\r\n"`, one Return) is delivered as
+    /// ``typeKey(_:modifierFlags:)`` delivers `.return`, and `"\t"` as `.tab`,
+    /// whether or not a field has the caret: AppKit sends Return and Tab as
+    /// key events (`insertNewline:`, `insertTab:`), never as committed text
+    /// (ruling `HT-AD`).
     public func typeText(_ text: String) {
         for character in text {
+            if character == "\n" || character == "\r" || character == "\r\n" {
+                deliverKey(String(KeyEquivalent.return.character), modifiers: heldModifiers, asKeyEvent: true)
+                continue
+            }
+            if character == "\t" {
+                deliverKey(String(KeyEquivalent.tab.character), modifiers: heldModifiers, asKeyEvent: true)
+                continue
+            }
             let shift: EventModifiers = character.isUppercase ? .shift : []
             deliverKey(String(character), modifiers: heldModifiers.union(shift))
         }
@@ -209,12 +222,12 @@ extension TestWindow {
     /// `producesText`), else a key press and release. While a natively
     /// presented menu is open the key never reaches the window (`HT-AA`):
     /// AppKit tracks the menu modally. Escape closes the menu.
-    func deliverKey(_ characters: String, modifiers: EventModifiers) {
+    func deliverKey(_ characters: String, modifiers: EventModifiers, asKeyEvent: Bool = false) {
         if presentedMenu != nil {
             if characters == String(KeyEquivalent.escape.character) { try? dismissMenu() }
             return
         }
-        if isTextInputActive, Self.producesText(characters),
+        if !asKeyEvent, isTextInputActive, Self.producesText(characters),
            !modifiers.contains(.command), !modifiers.contains(.control) {
             send(.textInput(characters))
             return

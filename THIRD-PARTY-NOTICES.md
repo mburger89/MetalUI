@@ -87,7 +87,7 @@ SDL3 is zlib-licensed, so ship its `LICENSE.txt` from the SDL release. `MetalUIS
 
 ## What the repository does not ship
 
-`Tests/Fonts/` (Noto Sans, Noto Sans Arabic, Source Sans 3) are test inputs
+`Tests/Fonts/` (Noto Sans in Regular, Bold and Italic, Noto Sans Arabic, Source Sans 3) are test inputs
 (`FT-G`), loaded by `#filePath`, never a resource of a product. If you copy them
 into an app, ship their licences beside them: `Tests/Fonts/NotoSans-OFL.txt`,
 `Tests/Fonts/NotoSansArabic-OFL.txt` (SIL OFL 1.1) and
