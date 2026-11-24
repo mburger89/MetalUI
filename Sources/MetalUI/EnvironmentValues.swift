@@ -441,6 +441,11 @@ public struct EnvironmentValues {
     /// none (rulings `MD-B` item 2, `MD-F`; `TextFieldStyle.swift`). Internal.
     var fieldStyles = FieldStyles()
 
+    /// Whether a `Text` below registers a selection region (ruling `TXS-A`): written by `ElementGroup.textSelection(_:)`.
+    /// **Internal** — SwiftUI publishes no key — and stored, so `Text.prepaint` reads it in place (one load, no counted
+    /// snapshot) and the retained fingerprint carries it.
+    var textSelectionEnabled = false
+
     /// The `@Observable` objects `.environment(_ object:)` provided, keyed by the
     /// **static** type each was written as (port gaps, medium, ruling `MD-H`
     /// item 2; probe `swiftui-environment-object.swift` `K1`–`K2b`). Internal:
@@ -549,6 +554,7 @@ struct EnvironmentFingerprint: Equatable {
     var contentMargins: ContentMargins
     var fieldStyle: TextFieldStyle
     var editorStyle: TextEditorStyle
+    var textSelectionEnabled: Bool
     var theme: Theme
     /// Whether a text system is stamped: the box is new each frame and the system behind it is
     /// the window's, constant for its life.
@@ -596,6 +602,7 @@ extension EnvironmentFingerprint {
         if contentMargins != other.contentMargins { out.append("contentMargins") }
         if fieldStyle != other.fieldStyle { out.append("fieldStyle") }
         if editorStyle != other.editorStyle { out.append("editorStyle") }
+        if textSelectionEnabled != other.textSelectionEnabled { out.append("textSelectionEnabled") }
         if theme != other.theme { out.append("theme") }
         if hasTextSystem != other.hasTextSystem { out.append("hasTextSystem") }
         if objects != other.objects { out.append("objects") }
@@ -624,7 +631,8 @@ extension EnvironmentValues {
             multilineTextAlignment: multilineTextAlignment, foregroundStyle: foregroundStorage, tint: tint,
             fontWeight: fontWeight, italic: italic, isBold: isBold, textRich: textRich,
             textLineLimit: textLineLimit, contentMargins: contentMargins,
-            fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor, theme: theme,
+            fieldStyle: fieldStyles.field, editorStyle: fieldStyles.editor,
+            textSelectionEnabled: textSelectionEnabled, theme: theme,
             hasTextSystem: textSystemBox != nil,
             objects: objects.mapValues { ObjectIdentifier($0) },
             custom: custom.mapValues(\.reading))

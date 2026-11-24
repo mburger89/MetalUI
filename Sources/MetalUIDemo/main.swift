@@ -134,6 +134,10 @@ func runDemo() throws {
     // 200 columns, windowed on both axes, with a pinned header and a frozen "#" column.
     let tableDemo = ProcessInfo.processInfo.environment["METALUI_TABLE_DEMO"] == "1"
 
+    // Text selection (`TXS-A`..`TXS-I`, record 399, human checks group TXS): a plugin's stderr log as one selectable `Text` in a
+    // scroller, beside a field, a tapped selectable `Text` and a plain one.
+    let textSelectionDemo = ProcessInfo.processInfo.environment["METALUI_TEXT_SELECTION_DEMO"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
     let window: Window
@@ -142,6 +146,10 @@ func runDemo() throws {
         window = try app.openWindow(title: "MetalUI — Terminal",
                                     size: Size(width: Pixels(900), height: Pixels(560)),
                                     content: { terminalDemoContent(session) })
+    } else if textSelectionDemo {
+        window = try app.openWindow(title: "MetalUI — Text Selection",
+                                    size: Size(width: Pixels(760), height: Pixels(560)),
+                                    content: textSelectionDemoContent)
     } else if tableDemo {
         window = try app.openWindow(title: "MetalUI — Table (1 000 000 × 200)",
                                     size: Size(width: Pixels(1100), height: Pixels(700)),
