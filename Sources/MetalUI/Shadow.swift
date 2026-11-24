@@ -381,5 +381,5 @@ extension Frame {
 /// key, never a `StateTable` slot (the reserved names stay seven).
 @MainActor
 func legacyShadowColourKey(for id: GlobalElementID, index: Int) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim-effects.shadow\(index)"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim-effects.shadow\(index)"))
 }

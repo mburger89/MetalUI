@@ -107,7 +107,7 @@ struct OptionSink<Content: ElementGroup>: ElementGroup {
 
     mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], Content.GroupLayout) {
-        let id = GlobalElementID.child(of: parent, at: cursor, name: nil)
+        let id = GlobalElementID.internedChild(of: parent, at: cursor, name: nil)
         cursor += 1
         var inner = 0
         return holder.content.requestGroupLayout(under: id, at: &inner, pass: &pass)

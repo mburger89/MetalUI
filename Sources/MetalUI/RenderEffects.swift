@@ -658,7 +658,7 @@ extension Frame {
 /// seven (`theSevenRetentionSlotsAreMutuallyDistinct`).
 @MainActor
 func legacyEffectsAnimationKey(for id: GlobalElementID) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim-effects"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim-effects"))
 }
 
 /// A legacy element's `Decoration.renderEffects` at this frame (ruling
@@ -670,7 +670,7 @@ func legacyEffectsAnimationKey(for id: GlobalElementID) -> GlobalElementID {
 func animatedRenderEffects(_ declared: [RenderEffectSpec], for id: GlobalElementID, frame: Frame,
                            transaction: Animation?) -> [RenderEffectSpec] {
     let key = legacyEffectsAnimationKey(for: id)
-    let kindsKey = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-effects.kinds"))
+    let kindsKey = GlobalElementID.internedChild(of: id, at: 0, name: ElementID("$anim-effects.kinds"))
     let kinds = declared.map(\.kindTag)
     let numbers = declared.flatMap(\.numbers).map { Optional($0) }
     let store = frame.animationStore

@@ -69,6 +69,36 @@ struct Branch: Component {
     report(name, "warm_work", workLine(w.lastFrameWork))
 }
 
+// MARK: Deep tree (G33 c): 50 rows, each ~60 path components deep, a `@State` at every leaf
+
+struct DeepRow: Component {
+    var depth: Int
+    var content: some ElementGroup {
+        if depth == 0 { DeepLeaf() } else { VStack(spacing: 0) { DeepRow(depth: depth - 1) } }
+    }
+}
+struct DeepLeaf: Component {
+    @State var n = 0
+    var content: some ElementGroup { Text("row \(n)") }
+}
+
+/// Warm frames of a tree whose ids are deep: every lookup against an earlier frame's table walks the whole chain unless ids are interned.
+@MainActor func deepTreeScenario(reps: Int) throws {
+    let w = try TestWindow(size: Size(width: px(800), height: px(600)), scaleFactor: 2) {
+        VStack(spacing: 0) { ForEach(Array(0..<50), id: \.self) { _ in DeepRow(depth: 30) } }
+    }
+    for _ in 0..<5 { w.window.setNeedsRedraw(); w.tick() }
+    var wall: [Double] = [], cpu: [Double] = []
+    for _ in 0..<reps {
+        w.window.setNeedsRedraw()
+        let t0 = now(), c0 = cpuNow(); w.tick()
+        wall.append(now() - t0); cpu.append(cpuNow() - c0)
+    }
+    report("deeptree", "frame_ms_median", ms(median(wall)))
+    report("deeptree", "frame_cpu_ms_median", ms(median(cpu)))
+    report("deeptree", "warm_work", workLine(w.lastFrameWork))
+}
+
 // MARK: The real demo tree (920x560, scale 2, dark)
 
 @MainActor func demoScenario(reps: Int) throws {
@@ -348,6 +378,7 @@ MainActor.assumeIsolated {
             try treeScenario(name: "tree_d12_b2", depth: 12, b: 2, nodes: 8191, reps: reps)
             try treeScenario(name: "tree_d10_b3", depth: 10, b: 3, nodes: 88573, reps: max(5, reps / 4))
         }
+        if which == "all" || which == "deeptree" { try deepTreeScenario(reps: quick ? 10 : 60) }
         if which == "all" || which == "demo" { try demoScenario(reps: quick ? 20 : 200) }
         if which == "all" || which == "list" {
             try listScenario(rows: 40, reps: quick ? 20 : 200)

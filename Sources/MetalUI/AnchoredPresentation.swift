@@ -93,7 +93,7 @@ struct AnchoredPresentation<Content: Element>: Element {
         var placed = node
         if let reported, case .content(let alignment, let make) = reported.kind {
             var element = make()
-            let backgroundID = GlobalElementID.child(of: id, at: 0, name: PresentationBackgroundSpec.contentName)
+            let backgroundID = GlobalElementID.internedChild(of: id, at: 0, name: PresentationBackgroundSpec.contentName)
             frame.stateTable.noteNamed(backgroundID, at: 0)   // `ID-R`
             let inner = frame.beginPresentationPreferences()   // its own preferences stay out of the main tree
             let backgroundNode = pass.withoutScrollContext { element.requestLayout(backgroundID, pass: &pass) }

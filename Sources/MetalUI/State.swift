@@ -161,7 +161,7 @@ extension State {
     func bind(to table: StateTable, id: GlobalElementID, slot: Int, owner: Any.Type? = nil) {
         box.table = table
         box.owner = owner; box.ordinal = slot
-        let slotID = GlobalElementID.child(of: id, at: slot,
+        let slotID = GlobalElementID.internedChild(of: id, at: slot,
                                            name: ElementID("$state\(slot)"))
         // **One element VALUE placed twice aliases one box.** `Box` is a class,
         // so `Row { sep; sep }` gives two occurrences that share it; the second

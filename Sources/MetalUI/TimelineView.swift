@@ -70,7 +70,7 @@ public struct TimelineView<Schedule: TimelineSchedule, Content: ProposalElementG
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], TimelineViewLayout<Content>) {
         let store = pass.frame.animationStore.timeline
-        let (context, live) = store.context(owner: .child(of: parent, at: cursor, name: nil), schedule: schedule,
+        let (context, live) = store.context(owner: .internedChild(of: parent, at: cursor, name: nil), schedule: schedule,
                                             timestamp: pass.frame.timestamp, stateTable: pass.frame.stateTable)
         if live { pass.frame.noteActiveAnimation() }
         var built = content(context)
@@ -87,7 +87,7 @@ public struct TimelineView<Schedule: TimelineSchedule, Content: ProposalElementG
                                                     pass: inout LayoutPass)
         -> ([ProposalNodeID], TimelineViewLayout<Content>) {
         let store = pass.frame.animationStore.timeline
-        let (context, live) = store.context(owner: .child(of: parent, at: cursor, name: nil), schedule: schedule,
+        let (context, live) = store.context(owner: .internedChild(of: parent, at: cursor, name: nil), schedule: schedule,
                                             timestamp: pass.frame.timestamp, stateTable: pass.frame.stateTable)
         if live { pass.frame.noteActiveAnimation() }
         var built = content(context)

@@ -31,13 +31,13 @@ import MetalUILayout
 /// item 3). A store key, not a `StateTable` slot: the reserved names stay seven.
 @MainActor
 func borderColourStoreKey(for id: GlobalElementID) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim-border"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim-border"))
 }
 
 /// The `AnimationStore` key of one of a proposal layer's tracks.
 @MainActor
 func layerAnimationKey(_ id: GlobalElementID, _ name: String) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim-layer.\(name)"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim-layer.\(name)"))
 }
 
 /// The `AnimationStore` key of op `k` on member `member` of the component `id`
@@ -46,7 +46,7 @@ func layerAnimationKey(_ id: GlobalElementID, _ name: String) -> GlobalElementID
 /// `$anim` baseline is never read or written.
 @MainActor
 func componentOpAnimationKey(_ id: GlobalElementID, member: Int, op k: Int) -> GlobalElementID {
-    .child(of: .child(of: id, at: member, name: nil), at: 0, name: ElementID("$anim-op\(k)"))
+    .internedChild(of: .internedChild(of: id, at: member, name: nil), at: 0, name: ElementID("$anim-op\(k)"))
 }
 
 /// A colour's animated value (keyed on the declared `Color`, `CR-H`) on a track in the `AnimationStore` —

@@ -108,7 +108,7 @@ final class MatchedGeometryStore {
 
     /// The store key of the group at `cursor` under `parent`.
     static func key(under parent: GlobalElementID?, at cursor: Int) -> GlobalElementID {
-        .child(of: .child(of: parent, at: cursor, name: nil), at: 0, name: ElementID("$matched"))
+        .internedChild(of: .internedChild(of: parent, at: cursor, name: nil), at: 0, name: ElementID("$matched"))
     }
 
     /// Claims the position for a group; `false` when another group already holds it (two stacked modifiers:

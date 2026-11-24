@@ -253,9 +253,9 @@ struct LazySectionForEachSource<Data: RandomAccessCollection, ID: Hashable, Cont
                          cursorBase: Int, pass: inout LayoutPass) -> LazyUnitBox {
         let (index, part, local) = locate(unit)
         let built = sections[index]
-        let slot = GlobalElementID(component: .positional(cursorBase), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursorBase), parent: parent)
         let needsKey = !(ID.self is DescriptionInjectiveID.Type)   // `FI-B`
-        let scope = GlobalElementID.child(
+        let scope = GlobalElementID.internedChild(
             of: slot, at: index,
             name: ElementID(name: String(describing: built.key),
                             key: needsKey ? IdentityKey(AnyHashable(built.key)) : nil))
@@ -263,7 +263,7 @@ struct LazySectionForEachSource<Data: RandomAccessCollection, ID: Hashable, Cont
         pass.frame.forEachIdentityWork.elements += 1
         if needsKey { pass.frame.forEachIdentityWork.keyed += 1 }
         built.parts[part].beginLazyFrame(
-            slot: GlobalElementID(component: .positional(part), parent: scope), pass: &pass)
+            slot: GlobalElementID.interned(component: .positional(part), parent: scope), pass: &pass)
         let box = built.parts[part].realizeLazyUnit(local, globalIndex: globalIndex, segment: part, parent: scope,
                                                     cursorBase: part, pass: &pass)
         return box

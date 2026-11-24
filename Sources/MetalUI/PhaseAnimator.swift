@@ -179,8 +179,8 @@ public struct PhaseAnimator<Phase: Equatable, Content: ElementGroup>: ElementGro
     func resolveStep(under parent: GlobalElementID?, at cursor: Int, frame: Frame) -> (Phase, Transaction) {
         precondition(!phases.isEmpty, "phaseAnimator needs at least one phase; got none")
         let store = frame.animationStore
-        let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
-        let key = GlobalElementID.child(of: owner, at: 0, name: ElementID("$phase\(store.keyframeDepth)"))
+        let owner = GlobalElementID.internedChild(of: parent, at: cursor, name: nil)
+        let key = GlobalElementID.internedChild(of: owner, at: 0, name: ElementID("$phase\(store.keyframeDepth)"))
         let record = store.value(at: key, as: PhaseRecord.self)
         let phases = self.phases
         let resolution = PhaseStepping.resolve(record, mode: mode, count: phases.count, now: frame.timestamp,

@@ -97,7 +97,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
         layoutNode: (Node) -> LayoutNodeID,
         register: (inout Content, GlobalElementID, inout LayoutPass) -> ([Node], Content.GroupLayout)
     ) -> (slot: GlobalElementID, extent: Int, nodes: [Node], layout: Layout) {
-        let slot = GlobalElementID(component: .positional(cursor), parent: parent)
+        let slot = GlobalElementID.interned(component: .positional(cursor), parent: parent)
         cursor += 1
         var seenIDs = Set<ID>()
         seenIDs.reserveCapacity(data.count)  // `PA-G`: sized, never a different name or key
@@ -126,7 +126,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Eleme
             // floating-point id also dedupes by name (`FI-K`).
             guard seenIDs.insert(key).inserted else { continue }
             if dedupesNames, !seenNames.insert(name).inserted { continue }
-            let scope = GlobalElementID.child(
+            let scope = GlobalElementID.internedChild(
                 of: slot, at: offset,
                 name: ElementID(name: name, key: needsKey ? IdentityKey(AnyHashable(key)) : nil))
             pass.frame.stateTable.noteNamed(scope, at: offset)  // `ID-R`, the scope's own copy

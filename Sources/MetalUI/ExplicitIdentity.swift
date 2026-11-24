@@ -61,7 +61,7 @@ public struct IdentifiedGroup<Content: ElementGroup>: ElementGroup {
     /// its position so a name the group leaves is reset (`ID-R`).
     func slot(under parent: GlobalElementID?, at cursor: inout Int,
               table: StateTable) -> GlobalElementID {
-        let id = GlobalElementID.child(of: parent, at: cursor, name: name)
+        let id = GlobalElementID.internedChild(of: parent, at: cursor, name: name)
         table.noteNamed(id, at: cursor)
         cursor += 1
         return id

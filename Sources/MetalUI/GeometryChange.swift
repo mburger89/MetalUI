@@ -259,7 +259,7 @@ extension GeometryChangeScope: Element where Content: Element {
         let store = pass.frame.animationStore.lifecycle
         let depth = store.geometryDepth
         let (node, state) = store.withGeometryScope { content.requestLayout(id, pass: &pass) }
-        let key = GlobalElementID.child(of: id, at: 0, name: ElementID("$geometry\(depth)"))
+        let key = GlobalElementID.internedChild(of: id, at: 0, name: ElementID("$geometry\(depth)"))
         return (node, ScopeLayerState(plain: GeometryChangeScopeLayout(content: state, nodes: [node], key: key,
                                                                        owner: id),
                                       layered: nil))

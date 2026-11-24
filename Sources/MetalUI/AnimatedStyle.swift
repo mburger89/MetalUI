@@ -210,7 +210,7 @@ import MetalUILayout
 /// extended in place three times rather than replaced.
 @MainActor
 func animRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim"))
 }
 
 /// `ScrollView`'s own two reserved child ids (the fifth and sixth slot
@@ -232,12 +232,12 @@ func animRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
 /// rename in either can only ever be a rename in one place.
 @MainActor
 func scrollViewContentAnimID(for id: GlobalElementID) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim-content"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim-content"))
 }
 
 @MainActor
 func scrollViewViewportAnimID(for id: GlobalElementID) -> GlobalElementID {
-    .child(of: id, at: 0, name: ElementID("$anim-viewport"))
+    .internedChild(of: id, at: 0, name: ElementID("$anim-viewport"))
 }
 
 /// One element's whole `$anim` slot (ruling U).

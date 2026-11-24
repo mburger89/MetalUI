@@ -108,10 +108,15 @@ public final class GlobalElementID: Hashable, Sendable {
     public init(component: PathComponent, parent: GlobalElementID?) {
         self.component = component
         self.parent = parent
+        self.cachedHash = GlobalElementID.pathHash(component: component, parent: parent)
+    }
+
+    /// The hash `init` stores, so the interner can key a lookup without allocating.
+    static func pathHash(component: PathComponent, parent: GlobalElementID?) -> Int {
         var hasher = Hasher()
         hasher.combine(parent?.cachedHash ?? 0)
         hasher.combine(component)
-        self.cachedHash = hasher.finalize()
+        return hasher.finalize()
     }
 
     /// The identity of a child at `index` under `parent`, named or not.
@@ -183,6 +188,9 @@ public final class GlobalElementID: Hashable, Sendable {
         var a: GlobalElementID? = l
         var b: GlobalElementID? = r
         while let x = a, let y = b {
+            #if DEBUG
+            GlobalElementID.chainWalkSteps &+= 1
+            #endif
             if x === y { return true }
             if x.component != y.component { return false }
             a = x.parent
@@ -192,6 +200,12 @@ public final class GlobalElementID: Hashable, Sendable {
     }
 
     public func hash(into hasher: inout Hasher) { hasher.combine(cachedHash) }
+
+    #if DEBUG
+    /// G33 (c): how many ancestor pairs `==` has compared since the process began (debug builds only; one step per loop turn, so a
+    /// `===` short-circuit or a hash reject adds none). Unsynchronised: read it from the main actor with nothing else comparing ids.
+    nonisolated(unsafe) package static var chainWalkSteps = 0
+    #endif
 }
 
 extension ElementID {

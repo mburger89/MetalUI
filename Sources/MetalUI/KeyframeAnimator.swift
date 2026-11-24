@@ -103,8 +103,8 @@ public struct KeyframeAnimator<Value, Content: ElementGroup, K: Keyframes>: Elem
     /// at `$keyframes<depth>` under the position `.child(of: parent, at: cursor)`.
     func currentValue(under parent: GlobalElementID?, at cursor: Int, frame: Frame) -> Value {
         let store = frame.animationStore
-        let owner = GlobalElementID.child(of: parent, at: cursor, name: nil)
-        let key = GlobalElementID.child(of: owner, at: 0, name: ElementID("$keyframes\(store.keyframeDepth)"))
+        let owner = GlobalElementID.internedChild(of: parent, at: cursor, name: nil)
+        let key = GlobalElementID.internedChild(of: owner, at: 0, name: ElementID("$keyframes\(store.keyframeDepth)"))
         let record = store.value(at: key, as: KeyframeRecord<Value>.self)
         let (value, next, active) = Self.resolve(record, mode: mode, initialValue: initialValue,
                                                  keyframes: keyframes, now: frame.timestamp)
