@@ -48,8 +48,8 @@ public struct CodeUnderline: Hashable, Sendable {
     }
 }
 
-/// What a highlight run looks like: a text colour, a background, an underline, or any of them. Colour and lines
-/// only: v1 has no weight or slope, because a different face would change where glyphs go (`CV-L`).
+/// What a highlight run looks like: a text colour, a background, an underline, an italic slope, a weight, or any of
+/// them. Slope and weight are the font's real faces (`CV-BY`, amending `CV-L`).
 public struct CodeStyle: Hashable, Sendable {
     /// The glyph colour; `nil` keeps the layer below's, else the theme's.
     public var foreground: Color?
@@ -58,12 +58,23 @@ public struct CodeStyle: Hashable, Sendable {
     /// A line drawn under the run's text; `nil` draws none. Never part of what a cached line layout depends
     /// on (`CV-AM`).
     public var underline: CodeUnderline?
+    /// Whether the run's text is in the font's italic face; `nil` keeps the layer below's, `false` turns italic off
+    /// (`CV-BY`). Drawn with the family's real italic face: a family without one keeps its upright face, nothing is
+    /// slanted by the framework.
+    public var italic: Bool?
+    /// The run's weight; `nil` keeps the layer below's, `.regular` turns weight off (`CV-BY`). Drawn with the family's
+    /// real face of that weight (the nearest the family has); nothing is emboldened by the framework. A different
+    /// face reshapes the line, so a run's text takes its own advances.
+    public var weight: Font.Weight?
 
-    /// A style of `foreground` text over `background`, underlined by `underline`.
-    public init(foreground: Color? = nil, background: Color? = nil, underline: CodeUnderline? = nil) {
+    /// A style of `foreground` text over `background`, underlined by `underline`, in the `italic` slope and `weight`.
+    public init(foreground: Color? = nil, background: Color? = nil, underline: CodeUnderline? = nil,
+                italic: Bool? = nil, weight: Font.Weight? = nil) {
         self.foreground = foreground
         self.background = background
         self.underline = underline
+        self.italic = italic
+        self.weight = weight
     }
 }
 
@@ -346,6 +357,9 @@ public final class CodeDecorations {
     @ObservationIgnored private var sources: [HighlightSource] = []
     /// Whether any layer has ever been given a run whose style underlines: until then no line asks for underlines.
     @ObservationIgnored private var anyLayerHasUnderlines = false
+    /// Whether any run given to a layer or a virtual row sets an italic or a weight (`CV-BY`): until then no line
+    /// looks for faces and the view resolves no face font, so a view with none does what it did before.
+    @ObservationIgnored private var anyLayerHasFaces = false
     /// What painting and hit-testing read: the one owner's tree itself while only one owner has line decorations,
     /// else the materialised merge of every owner's (`CV-AO`).
     @ObservationIgnored private var lines: RunTree<LineDecorationPayload>
@@ -371,6 +385,8 @@ public final class CodeDecorations {
     @ObservationIgnored package var lineCache = CodeLineCache()
     /// Whether any run given to a layer underlines: until then no row asks for underlines or their metrics (`CV-AM`).
     package var hasUnderlines: Bool { anyLayerHasUnderlines }
+    /// Whether any run given sets a face (`CV-BY`): until then no row has a face code and no face font is resolved.
+    package var hasFaces: Bool { anyLayerHasFaces }
     /// The bytes of text the line cache has shaped since creation (test observability, `CV-M`).
     package var shapedBytes: Int { lineCache.shapedBytesTotal }
     /// How many highlight runs ``stylingOfLine(_:)`` visited since reset (a counter, `CV-N`).
@@ -449,6 +465,7 @@ public final class CodeDecorations {
             layerHasStyles = layerHasStyles.map { _ in false }
             anyLayerHasStyles = false
             anyLayerHasUnderlines = false
+            anyLayerHasFaces = false
             for entry in lineTrees { entry.tree.reset(total: snapshot.lineCount, payload: LineDecorationPayload()) }
             if lineTrees.count > 1 { lines.reset(total: snapshot.lineCount, payload: LineDecorationPayload()) }
             rowMap.reset(rowCount: snapshot.lineCount)
@@ -687,8 +704,10 @@ public final class CodeDecorations {
         for run in runs {
             guard let a = buffer.map(run.range.lowerBound, from: version, bias: .after),
                   let b = buffer.map(run.range.upperBound, from: version, bias: .before) else { continue }
-            let underlines = style(run.style).underline != nil
+            let runStyle = style(run.style)
+            let underlines = runStyle.underline != nil
             if underlines { anyLayerHasUnderlines = true }
+            if runStyle.italic != nil || runStyle.weight != nil { anyLayerHasFaces = true }
             let clipped = max(a, mapped.lowerBound)..<min(max(a, b), mapped.upperBound)
             if !clipped.isEmpty {
                 tree.set(clipped, to: HighlightPayload(style: run.style, state: .valid))
@@ -742,8 +761,10 @@ public final class CodeDecorations {
                 for run in runs {
                     guard let a = buffer.map(run.range.lowerBound, from: version, bias: .after),
                           let b = buffer.map(run.range.upperBound, from: version, bias: .before) else { continue }
-                    let underlines = style(run.style).underline != nil
+                    let runStyle = style(run.style)
+                    let underlines = runStyle.underline != nil
                     if underlines { anyLayerHasUnderlines = true }
+                    if runStyle.italic != nil || runStyle.weight != nil { anyLayerHasFaces = true }
                     let clipped = max(a, mapped.lowerBound)..<min(max(a, b), mapped.upperBound)
                     if !clipped.isEmpty {
                         sub.tree.set(clipped, to: HighlightPayload(style: run.style, state: .valid))
@@ -1076,11 +1097,11 @@ public final class CodeDecorations {
             if !bytes.isEmpty {
                 let runs = (index < row.styleRuns.count ? row.styleRuns[index] : []).sorted { $0.range.lowerBound < $1.range.lowerBound }
                 var position = 0
-                func add(_ count: Int, _ id: CodeStyleID?) {
-                    if let last = styling.foreground.last, last.style == id {
+                func add(_ count: Int, _ id: CodeStyleID?, _ face: UInt8 = 0) {
+                    if let last = styling.foreground.last, last.style == id, last.face == face {
                         styling.foreground[styling.foreground.count - 1].bytes += count
                     } else {
-                        styling.foreground.append((count, id))
+                        styling.foreground.append((count, id, face))
                     }
                 }
                 for run in runs {
@@ -1088,7 +1109,9 @@ public final class CodeDecorations {
                     guard lo < hi else { continue }
                     if lo > position { add(lo - position, nil) }
                     let resolved = style(run.style)
-                    add(hi - lo, resolved.foreground != nil ? run.style : nil)
+                    let face = Self.faceCode(italic: resolved.italic, weight: resolved.weight)
+                    if face != 0 { anyLayerHasFaces = true }
+                    add(hi - lo, resolved.foreground != nil ? run.style : nil, face)
                     if let background = resolved.background { styling.backgrounds.append((lo..<hi, background)) }
                     if let underline = resolved.underline {
                         anyLayerHasUnderlines = true
@@ -1246,10 +1269,10 @@ public final class CodeDecorations {
             row += 1
             let styling = stylingOfLine(line)
             var cuts: Set<Int> = [line.lowerBound, line.upperBound]
-            var foreground: [(range: Range<Int>, id: CodeStyleID?)] = []
+            var foreground: [(range: Range<Int>, id: CodeStyleID?, face: UInt8)] = []
             var at = line.lowerBound
             for part in styling.foreground {
-                foreground.append((at..<(at + part.bytes), part.style))
+                foreground.append((at..<(at + part.bytes), part.style, part.face))
                 at += part.bytes
                 cuts.insert(at)
             }
@@ -1259,8 +1282,12 @@ public final class CodeDecorations {
             for (i, lower) in ordered.enumerated() where i + 1 < ordered.count {
                 let segment = lower..<ordered[i + 1]
                 var painted = CodeStyle()
-                if let id = foreground.first(where: { $0.range.contains(segment.lowerBound) })?.id {
-                    painted.foreground = style(id).foreground
+                if let part = foreground.first(where: { $0.range.contains(segment.lowerBound) }) {
+                    if let id = part.id { painted.foreground = style(id).foreground }
+                    if part.face != 0 {
+                        if Self.faceItalic(part.face) { painted.italic = true }
+                        painted.weight = Self.faceWeight(part.face)
+                    }
                 }
                 for b in styling.backgrounds where b.range.contains(segment.lowerBound) { painted.background = b.color }
                 if let u = styling.underlines.first(where: { $0.range.contains(segment.lowerBound) }) {
@@ -1285,7 +1312,7 @@ public final class CodeDecorations {
     /// How a line's text is coloured: the winning foreground per stretch, tiling the line's bytes, and
     /// the backgrounds in layer order.
     package struct LineStyling {
-        package var foreground: [(bytes: Int, style: CodeStyleID?)] = []
+        package var foreground: [(bytes: Int, style: CodeStyleID?, face: UInt8)] = []
         package var backgrounds: [(range: Range<Int>, color: Color)] = []
         /// The underlines, sorted and disjoint, in the coordinates of ``backgrounds``; the highest layer's wins per
         /// stretch (`CV-AM`). A range that reaches past the line's end (over its line break) draws one space advance
@@ -1387,7 +1414,7 @@ public final class CodeDecorations {
         // No layer holds a styled run (the common case until a provider answers): one unstyled part, with
         // no tree walk and no scratch arrays.
         guard anyLayerHasStyles else {
-            styling.foreground = [(range.count, nil)]
+            styling.foreground = [(range.count, nil, 0)]
             styling.digest = Self.digest(ofUnstyled: range.count)
             return styling
         }
@@ -1414,6 +1441,7 @@ public final class CodeDecorations {
             point += 1
             if segment.isEmpty { continue }
             var winner: CodeStyleID?
+            var italic: Bool?, weight: Font.Weight?
             var l = 0
             while l < perLayer.count {   // ascending layer order: the last foreground wins
                 let runs = perLayer[l]
@@ -1421,16 +1449,24 @@ public final class CodeDecorations {
                 var k = 0
                 while k < runs.count {
                     if runs[k].range.contains(segment.lowerBound) {
-                        if let id = runs[k].payload.style, style(id).foreground != nil { winner = id }
+                        if let id = runs[k].payload.style {
+                            let layered = style(id)
+                            if layered.foreground != nil { winner = id }
+                            if anyLayerHasFaces {   // `CV-BY`: each face field is won by the highest layer that sets it
+                                if let i = layered.italic { italic = i }
+                                if let w = layered.weight { weight = w }
+                            }
+                        }
                         break
                     }
                     k += 1
                 }
             }
-            if let last = styling.foreground.last, last.style == winner {
+            let face = anyLayerHasFaces ? Self.faceCode(italic: italic, weight: weight) : 0
+            if let last = styling.foreground.last, last.style == winner, last.face == face {
                 styling.foreground[styling.foreground.count - 1].bytes += segment.count
             } else {
-                styling.foreground.append((segment.count, winner))
+                styling.foreground.append((segment.count, winner, face))
             }
         }
         for runs in perLayer {
@@ -1447,6 +1483,37 @@ public final class CodeDecorations {
         return styling
     }
 
+    /// The weights a face code can name, lightest first; a code's weight slot `n > 0` is `faceWeights[n - 1]`, and slot
+    /// 0 is the view's own weight (`.regular` among the settings turns a weight off: it is slot 0 too).
+    nonisolated static let faceWeights: [Font.Weight] = [.ultraLight, .thin, .light, .medium, .semibold, .bold, .heavy, .black]
+    /// The bit of a face code that asks for the italic slope.
+    nonisolated static let faceItalicBit: UInt8 = 0x10
+
+    /// The face code of `italic` and `weight` (`CV-BY`): a weight slot in the low bits and the italic bit; 0 is the
+    /// view's own face. `false` and `.regular` are 0, as is `nil`.
+    nonisolated static func faceCode(italic: Bool?, weight: Font.Weight?) -> UInt8 {
+        var code: UInt8 = italic == true ? faceItalicBit : 0
+        if let weight {   // the nearest of the nine; `.regular` (nearest of all) is slot 0
+            var best = -1
+            var distance = abs(Font.Weight.regular.value - weight.value)
+            for (index, candidate) in faceWeights.enumerated() where abs(candidate.value - weight.value) < distance {
+                best = index
+                distance = abs(candidate.value - weight.value)
+            }
+            if best >= 0 { code |= UInt8(best + 1) }
+        }
+        return code
+    }
+
+    /// Whether `code` asks for the italic slope.
+    nonisolated static func faceItalic(_ code: UInt8) -> Bool { code & faceItalicBit != 0 }
+
+    /// The weight `code` asks for, `nil` for the view's own.
+    nonisolated static func faceWeight(_ code: UInt8) -> Font.Weight? {
+        let slot = Int(code & 0x0F)
+        return slot > 0 && slot <= faceWeights.count ? faceWeights[slot - 1] : nil
+    }
+
     /// `digest(of:)` of the single unstyled part `[(bytes, nil)]`, without building the array.
     nonisolated static func digest(ofUnstyled bytes: Int) -> UInt64 {
         var digest: UInt64 = 0xCBF2_9CE4_8422_2325
@@ -1456,27 +1523,29 @@ public final class CodeDecorations {
     }
 
     /// A digest of a foreground partition: what a cached line layout depends on besides its text.
-    nonisolated static func digest(of parts: [(bytes: Int, style: CodeStyleID?)]) -> UInt64 {
+    nonisolated static func digest(of parts: [(bytes: Int, style: CodeStyleID?, face: UInt8)]) -> UInt64 {
         var digest: UInt64 = 0xCBF2_9CE4_8422_2325
         var i = 0
         while i < parts.count {
             digest = (digest ^ UInt64(parts[i].bytes)) &* 0x0000_0100_0000_01B3
             digest = (digest ^ UInt64(parts[i].style.map { Int($0.rawValue) + 1 } ?? 0)) &* 0x0000_0100_0000_01B3
+            // A face joins the digest only when set, so a partition with none digests as it always did (`CV-BY`).
+            if parts[i].face != 0 { digest = (digest ^ (0x100 | UInt64(parts[i].face))) &* 0x0000_0100_0000_01B3 }
             i += 1
         }
         return digest
     }
 
     /// `parts` restricted to the bytes `window` (offsets from the line's start).
-    nonisolated static func slice(_ parts: [(bytes: Int, style: CodeStyleID?)], _ window: Range<Int>) -> [(bytes: Int, style: CodeStyleID?)] {
-        var result: [(bytes: Int, style: CodeStyleID?)] = []
+    nonisolated static func slice(_ parts: [(bytes: Int, style: CodeStyleID?, face: UInt8)], _ window: Range<Int>) -> [(bytes: Int, style: CodeStyleID?, face: UInt8)] {
+        var result: [(bytes: Int, style: CodeStyleID?, face: UInt8)] = []
         var position = 0
         for part in parts {
             let lo = max(position, window.lowerBound), hi = min(position + part.bytes, window.upperBound)
-            if lo < hi { result.append((hi - lo, part.style)) }
+            if lo < hi { result.append((hi - lo, part.style, part.face)) }
             position += part.bytes
         }
-        return result.isEmpty ? [(0, nil)] : result
+        return result.isEmpty ? [(0, nil, 0)] : result
     }
 
     // MARK: Asking the provider
