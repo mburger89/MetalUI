@@ -36,6 +36,8 @@ header.
   not simplify `==`'s chain walk on a green suite.
 - Prefer SwiftUI's answer where SwiftUI and CSS differ (EP-5).
 
+**Build-path `GlobalElementID`s are interned** (`HP-L`, record 404): `IdentityInterner.shared` (main actor) returns one instance per (parent, component) from `GlobalElementID.interned`/`internedChild`, swept when idle and unreferenced; the public `init` and `child(of:at:name:)` never intern and `==` stays the exact chain walk, so a path built either way compares equal. A new main-actor build site mints through `internedChild`.
+
 **`Component`** is layout-transparent and identity-opaque: one cursor index,
 `@State` under its own id. `.padding` wraps each top-level node (`OM-D`);
 `.width`/`.height` frame each member; `.frame` wraps the body in one layer

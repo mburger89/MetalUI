@@ -1,7 +1,7 @@
 import Testing
 @testable import MetalUI
 
-// G33 (c), ruling II-A. Each test builds its own `IdentityInterner`, so the process-wide table other tests fill cannot move a count.
+// G33 (c), ruling HP-L. Each test builds its own `IdentityInterner`, so the process-wide table other tests fill cannot move a count.
 
 @MainActor private func path(_ interner: IdentityInterner, _ components: [PathComponent]) -> GlobalElementID {
     var id: GlobalElementID?
@@ -57,4 +57,14 @@ import Testing
     let key = held.keys.first!
     #expect(path(interner, [.positional(0), .named(ElementID("held"))]) === key)
     #expect(interner.count == 2, "the held id and its parent remain, the unheld 31-deep chain is gone: \(interner.count)")
+}
+
+/// The build-path entry points (`interned`, `internedChild`) go through the process-wide interner: two asks for one path are one object.
+/// Mutation: `interned(component:parent:)` builds a fresh `GlobalElementID`.
+@Test @MainActor func theBuildPathEntryPointsReturnOneInstancePerPath() {
+    let root = GlobalElementID.interned(component: .named(ElementID("g47-root")), parent: nil)
+    let a = GlobalElementID.internedChild(of: root, at: 3, name: ElementID("cell"))
+    let b = GlobalElementID.internedChild(of: GlobalElementID.interned(component: .named(ElementID("g47-root")), parent: nil), at: 3, name: ElementID("cell"))
+    #expect(a === b)
+    #expect(a == GlobalElementID.child(of: root, at: 3, name: ElementID("cell")), "the non-interning spelling stays equal")
 }

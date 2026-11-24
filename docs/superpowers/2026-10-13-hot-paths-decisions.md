@@ -1,6 +1,6 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-L`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-M`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
 `../record/111-hot-paths.md`. Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
@@ -149,3 +149,21 @@ vertically draws at its previous position. Record 111 s7.
 recorded. Storage is never reused, so no state crosses frames; maps that stay small (presentation anchors and spaces, context menus, scroll keys,
 named spaces, AX press-only) are left alone. A window that shrinks reserves the large count for one frame only. **Evidence.**
 `theSecondFrameReservesWhatTheFirstFrameHeld`. **Cost if wrong.** A wasted allocation, never a wrong frame.
+
+## HP-L - Build-path `GlobalElementID`s are interned (G33 (c), revived as G47's first fix, record 404)
+
+**Question.** `GlobalElementID` is a class holding a linked list and every frame mints fresh instances, so a dictionary keyed by it
+(`StateTable`, `ContentMemoStore.entries`, the retained rows and lazy units) falls through `==` to a walk of both chains whenever the key
+is an earlier frame's instance. An interner was built on `perf/intern-element-ids` (a34145db) and dropped 2026-11-13 because a deep-tree
+fixture showed no frame-time gain; a 1M-row `Table` scroll with `.equatable()` cells (Alloy, ~11 ms a frame) then measured about -0.5 to
+-0.9 ms. **Ruling.** `IdentityInterner.shared` (main actor, no lock) hands out one instance per (parent instance, component) at every
+main-actor build site (`GlobalElementID.interned`, `internedChild`); the public `init` and `child(of:at:name:)` never intern, and
+`==` is unchanged (still `===`, then the component-by-component walk), so an interned id equals its separately built twin and
+interning is an optimisation only. `Window` calls `advance()` before each build; a sweep every 64 builds, or when the table has
+doubled since the last sweep (floor 1024), drops a slot idle for more than two builds **and** referenced by nothing else (so an id a
+`StateTable` or a grafted row holds is never replaced by a second instance), newest first so a parent leaves in the pass its last child
+does. A scrolled million-row table (fresh row ids every frame) holds 1.6k to 2.7k ids in steady state after minting 160k.
+**Evidence.** `theSamePathInternsToOneInstanceAndDifferentPathsDoNot`, `anInternedIdEqualsItsSeparatelyBuiltTwin`,
+`theBuildPathEntryPointsReturnOneInstancePerPath`, `aRebuiltDeepTreeWalksNoIdChains` (20,628 chain steps a frame to 0),
+`aChurningTreeDoesNotGrowTheTableWithoutBound`, `scrollingAMillionRowTableKeepsTheInternTableBounded`. **Cost if wrong.** A sweep
+that is too eager costs a missed `===` (a chain walk, never a wrong answer); one that never runs leaks one slot per id ever minted.

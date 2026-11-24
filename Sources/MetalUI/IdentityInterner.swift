@@ -1,4 +1,4 @@
-// G33 (c), ruling II-A: one instance per distinct (parent, component) on the build path.
+// G33 (c), ruling HP-L: one instance per distinct (parent, component) on the build path.
 //
 // `GlobalElementID.==` walks both chains unless they share an ancestor (`x === y` ends the walk). A frame mints every id afresh, so every
 // lookup against an earlier frame's table (`StateTable`, the retained rows, the lazy units) used to walk the full depth. Interned ids make
@@ -38,6 +38,9 @@ package final class IdentityInterner {
 
     /// How many ids the table holds.
     package var count: Int { table.count }
+
+    /// How many ids this table has ever minted (a churn test reads it to show the sweep, not a small workload, kept `count` low).
+    package var minted: Int { nextSeq }
 
     /// The id for `component` under `parent`: the existing instance when the path was interned recently, else a new one.
     package func intern(component: PathComponent, parent: GlobalElementID?) -> GlobalElementID {
