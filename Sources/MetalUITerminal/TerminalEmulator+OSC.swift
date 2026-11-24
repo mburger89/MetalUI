@@ -41,7 +41,7 @@ extension TerminalEmulator {
     /// OSC 7: `file://host/path`. The host must be empty, `localhost` or this machine's; any other scheme or
     /// host is dropped (`TRM-AF`).
     private func setWorkingDirectory(_ bytes: [UInt8]) {
-        guard let text = String(validatingUTF8: bytes.map { CChar(bitPattern: $0) } + [0]),
+        guard let text = String(validatingCString: bytes.map { CChar(bitPattern: $0) } + [0]),
               let components = URLComponents(string: text), components.scheme?.lowercased() == "file" else { return }
         let host = (components.host ?? "").lowercased()
         guard host.isEmpty || host == "localhost" || Self.isThisHost(host) else { return }
@@ -56,7 +56,7 @@ extension TerminalEmulator {
         #else
         var buffer = [CChar](repeating: 0, count: 256)
         guard gethostname(&buffer, buffer.count - 1) == 0 else { return "" }
-        return String(cString: buffer).lowercased()
+        return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self).lowercased()
         #endif
     }()
 
