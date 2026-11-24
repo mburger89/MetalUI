@@ -72,6 +72,7 @@ children's own expression temporaries (about 35 KiB per button), not the builder
 - `theBuilderPreservesConcreteTypesRatherThanBoxing`: `contains("TupleGroup")`, `hasPrefix("Column<TupleGroup<")`.
 - `aThreeChildBlockNestsPairsRatherThanFlattening` (name kept for citations; it now asserts one flat `Row<TupleGroup<…>>`).
 - `proposalContentKeepsItsTypeAndLegacyContentIsAdopted` (a typecheck guard spelling `HStack<TupleGroup<…>>`).
+- `Examples/Jotter` `aThreadTooSmallForTheTreesFailsTheSameHarness` (a non-vacuity check, run by the `build` job's sample-app step): the Jotter trees now build on 64 KB, where the chain needed more than 64 KB (it passed at 128), so the "too small" thread is 48 KB (`SIGBUS`; 24 is not kept by Foundation).
 - Typed spellings: `ProposalControlsTests` (`Picker<Int, TupleGroup<…>>`), `LayoutAuthorityTests` (`Stack<TupleGroup<…>>`), and `.first`/`.second`
   to `.members.0`/`.members.1` in four `ComponentTests`.
 
