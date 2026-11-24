@@ -67,6 +67,7 @@ private struct OuterGate: Component, @MainActor Equatable {
     }
     let before = window.scene.rects.last?.background
     model.tone = 1
+    for _ in 0..<4 { await Task.yield() }   // off Apple platforms the dirty arrives a turn after the write (`IV-Q`)
     #expect(window.window.needsRedraw, "the write dirtied the window")
     window.tick()
     let after = window.scene.rects.last?.background

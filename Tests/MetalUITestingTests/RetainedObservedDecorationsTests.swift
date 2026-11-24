@@ -61,13 +61,13 @@ func aDecorationWriteAfterTheGroupRebuiltRedrawsUnderEquatableOccurrences(gateWr
     }
     #expect(bars(window) == 0)
     decorations.setLineDecorations([CodeLineDecoration(lines: 2..<5, gutterBar: .blue, tag: 1)], asOf: buffer.version)
-    #expect(window.window.needsRedraw, "the write dirtied the window (gate writes \(gateWrites))")
+    try await window.runUntilIdle()   // off Apple platforms the write's dirty arrives a turn later (`IV-Q`); this draws it
     window.tick()
     #expect(bars(window) == 1, "bars \(bars(window)) (gate writes \(gateWrites))")
     // A second write, after the first frame, must redraw as well (Alloy: repeating the write did not help).
     decorations.setLineDecorations([CodeLineDecoration(lines: 2..<5, gutterBar: .blue, tag: 1),
                                     CodeLineDecoration(lines: 8..<9, gutterBar: .green, tag: 2)], asOf: buffer.version)
-    #expect(window.window.needsRedraw, "the second write dirtied the window")
+    try await window.runUntilIdle()
     window.tick()
     #expect(bars(window) == 2, "bars \(bars(window))")
 }
