@@ -156,7 +156,7 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
         hint: "H", identifier: "I", customActions: ["C"], isSelectable: true,
         isOutline: false, outlineLevel: nil, isExpanded: nil, disclosedBy: nil,
         numericRange: 0...265, orientation: .vertical, columnCount: 5, columnIndex: 2, headerRowCount: 1,
-        sortDirection: .descending)
+        sortDirection: .descending, textSelection: AccessibilityTextSelection(range: 0..<1))
     let tree = AccessibilityTree(roots: [nid("full")],
                                  nodes: [nid("full"): full, nid("kid"): AccessibilityNode(role: .staticText)],
                                  geometry: [:], focused: nil)
@@ -202,6 +202,26 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
         "columnIndex": { let n = accesskit_node_column_index($0); return n.has_value && n.value == 2 },
         "sortDirection": { let d = accesskit_node_sort_direction($0)
             return d.has_value && d.value == UInt8(ACCESSKIT_SORT_DIRECTION_DESCENDING.rawValue) },
+        // A selectable `Text`'s selection (`TXS-G`, divergence 1125): AccessKit's `text_selection` needs `TextRun` children a
+        // `Text` does not have, so the field is documented ABSENT: the node with a selection translates to the very C node the
+        // same node without one does (role, value, label and the focus action), and carries no text selection.
+        "textSelection": { c in
+            let plain = AccessibilityNode(role: .row, label: "L", value: "V", isEnabled: false, isFocusable: true,
+                                          actions: [.press, .increment, .decrement], children: [nid("kid")], rowCount: 7, rowIndex: 3,
+                                          hint: "H", identifier: "I", customActions: ["C"], isSelectable: true,
+                                          numericRange: 0...265, orientation: .vertical, columnCount: 5, columnIndex: 2,
+                                          headerRowCount: 1, sortDirection: .descending)
+            let twin = AccessibilityTree(roots: [nid("full")],
+                                         nodes: [nid("full"): plain, nid("kid"): AccessibilityNode(role: .staticText)],
+                                         geometry: [:], focused: nil)
+            let bare = translate(twin, ids: AccessKitIDs())[0]
+            return withCNode(bare) { b in
+                string(accesskit_node_value(c)) == string(accesskit_node_value(b))
+                    && string(accesskit_node_label(c)) == string(accesskit_node_label(b))
+                    && accesskit_node_role(c) == accesskit_node_role(b)
+                    && accesskit_node_is_selected(c).has_value == accesskit_node_is_selected(b).has_value
+            }
+        },
     ]
     // The four outline fields (`OG-F`) are read off an outline's own nodes: a list that `isOutline` is a `TREE`, a row with an
     // `outlineLevel` a `TREE_ITEM` at that level plus one, `isExpanded` its `expanded`, and `disclosedBy` nests it under its
@@ -233,7 +253,7 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
     }()
     for (field, holds) in outlineArms.sorted(by: { $0.key < $1.key }) { #expect(holds, "\(field)'s arm") }
     let fields = Set(Mirror(reflecting: full).children.compactMap(\.label))
-    #expect(fields.count == 24, "the neutral node's field count: \(fields.sorted())")
+    #expect(fields.count == 25, "the neutral node's field count: \(fields.sorted())")
     #expect(Set(arms.keys).union(outlineArms.keys) == fields,
             "one arm per field — missing \(fields.subtracting(arms.keys).subtracting(outlineArms.keys).sorted())")
     withCNode(node) { c in

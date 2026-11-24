@@ -2347,6 +2347,26 @@ public final class Frame {
     /// frame. See `AXEmission`.
     private(set) var axEmissions: [AXEmission] = []
 
+    /// Marks the newest accessibility record, when it is `id`'s, selectable (`TXS-G`): the `Text` made its record in
+    /// `registerHandlers` just before. A record that was not made (an empty string, a hidden subtree) is left alone.
+    func attachAccessibilityTextSelection(_ selection: AccessibilityTextSelection, to id: GlobalElementID) {
+        // The newest record, tested in place: no search, no closure (a `Text`'s own record is the last when it is made).
+        let last = axEmissions.count - 1
+        guard last >= 0, axEmissions[last].id == id else { return }
+        axEmissions[last].textSelection = selection
+    }
+
+    /// Whether a pointer hitbox registers here: not under `allowsHitTesting(false)` and not hidden (`TXS-C`'s gate).
+    var registersPointerHitboxes: Bool { hitTestingDisabledDepth == 0 && keyboardHiddenDepth == 0 }
+
+    /// The selectable `Text`s this frame registered, in registration order (`TXS-C`): reserved from the last frame's
+    /// count, read by `Window` as `lastSelectableRegions`.
+    var selectableTextRegions: [SelectableTextRegion] = []
+
+    /// The window's selection session, handed in before the build (`TXS-B`): the selected `Text`'s prepaint and paint
+    /// read it; nothing else does.
+    var textSelection: TextSelectionSession?
+
     /// The `onClick` of each **enabled** element whose hitbox the
     /// `allowsHitTesting(false)` gate withheld — **empty unless
     /// `collectsAccessibility`** (plan task 12 part 2, ruling `IX-Z` item 1).
@@ -3015,6 +3035,7 @@ public final class Frame {
         self.recordsElementBounds = recordsElementBounds
         // `HP-K` (G33 (b)): reserve only. Every store below is still empty and still rebuilt from nothing.
         if capacityHints.hitboxes > 0 { hitboxes.reserveCapacity(capacityHints.hitboxes) }
+        if capacityHints.selectableRegions > 0 { selectableTextRegions.reserveCapacity(capacityHints.selectableRegions) }   // `TXS-H`
         if capacityHints.loweringItems > 0 {
             lowering.items.reserveCapacity(capacityHints.loweringItems)
             lowering.order.reserveCapacity(capacityHints.loweringItems)
@@ -3030,14 +3051,14 @@ public final class Frame {
     /// How many entries each hot per-frame store holds now: what the window hands the next frame to reserve.
     func capacityHints() -> FrameCapacityHints {
         FrameCapacityHints(tree: tree.capacityHint, focus: focusRegistry.countHint, hitboxes: hitboxes.count,
-                           loweringItems: lowering.items.count, elementBounds: elementBounds.count,
+                           selectableRegions: selectableTextRegions.count, loweringItems: lowering.items.count, elementBounds: elementBounds.count,
                            axNodes: axNodes.count)
     }
 
     /// The capacities the hot stores have now (not their counts).
     private func currentCapacities() -> FrameCapacityHints {
         FrameCapacityHints(tree: tree.capacities, focus: focusRegistry.capacityHint, hitboxes: hitboxes.capacity,
-                           loweringItems: min(lowering.items.capacity, lowering.order.capacity),
+                           selectableRegions: selectableTextRegions.capacity, loweringItems: min(lowering.items.capacity, lowering.order.capacity),
                            elementBounds: elementBounds.capacity, axNodes: axNodes.capacity)
     }
 
@@ -5117,6 +5138,7 @@ struct FrameCapacityHints: Equatable {
     var tree = LayoutTree.CapacityHint()
     var focus = FocusRegistry.Hint()
     var hitboxes = 0
+    var selectableRegions = 0
     var loweringItems = 0
     var elementBounds = 0
     var axNodes = 0

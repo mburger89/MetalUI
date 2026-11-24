@@ -176,6 +176,7 @@ extension Window {
         for id in focusChain {
             if let attachment = lastFocusRegistry.clipboardHandler(for: id) { result.formUnion(attachment.commands) }
         }
+        result.formUnion(textSelectionClipboardCommands)   // `TXS-E`: a selected `Text` enables Copy and Select All
         return result
     }
 
