@@ -210,6 +210,14 @@ extension Window {
     /// The prepaint ledgers moved to a new position since the window was made (`FS-F`), cumulative.
     package var testingLedgerMoves: Int { stateTable.contentMemos.ledgerMoves }
 
+    /// Process-wide counters of the translate path's allocations (`G47`): ledgers constructed, ledgers rebased in place, and
+    /// environment fingerprint boxes made. A translated occurrence constructs no ledger and no box.
+    package static var testingLedgersMade: Int { PrepaintLedger.madeCount }
+    package static var testingLedgerRebases: Int { PrepaintLedger.rebaseCount }
+    package static var testingFingerprintBoxesMade: Int { SharedFingerprint.Box.madeCount }
+    /// The fingerprint boxes this window keeps for sharing: at most `ContentMemoStore.fingerprintSlotLimit` (`G47`).
+    package var testingFingerprintSlots: Int { stateTable.contentMemos.fingerprintSlotCount }
+
     /// Whether an occurrence whose layout origin or scroll offset moved replays translated (`FS-D`); off, it misses as it did before
     /// C14-d. Independent of the render-effect translation of `RK-G`, which stays.
     package var testingRetainedTranslation: Bool {

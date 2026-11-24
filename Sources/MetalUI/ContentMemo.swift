@@ -378,6 +378,26 @@ package final class ContentMemoStore {
     /// The keys of the entries a component touched this build (`RK-N`): what the sweep at `endFrame` keeps.
     var keptKeys: Set<Key> { Set(entries.filter { $0.value.touched }.map(\.key)) }
 
+    /// The shared fingerprint equal to `value` among the last few made (`G47`): the keys of one frame and of the next hold one box for
+    /// one environment, so their comparison is a pointer test. **Bounded:** at most `fingerprintSlotLimit` boxes (most recent
+    /// first), each the size of one fingerprint; an environment not among them gets a new box and pushes the oldest out. A fingerprint
+    /// that equals nothing (an uncomparable reading) is never found, so it is always new.
+    private var fingerprintSlots: [SharedFingerprint] = []
+    static let fingerprintSlotLimit = 8
+    package var fingerprintSlotCount: Int { fingerprintSlots.count }
+
+    func canonicalFingerprint(_ value: EnvironmentFingerprint) -> SharedFingerprint {
+        for index in fingerprintSlots.indices where fingerprintSlots[index].value == value {
+            if index != 0 { fingerprintSlots.insert(fingerprintSlots.remove(at: index), at: 0) }
+            return fingerprintSlots[0]
+        }
+        let made = SharedFingerprint(value)
+        guard made.box.comparable else { return made }
+        fingerprintSlots.insert(made, at: 0)
+        if fingerprintSlots.count > Self.fingerprintSlotLimit { fingerprintSlots.removeLast() }
+        return made
+    }
+
     /// Calls `body` on every stored graft record and answers how many there were (`RK-N`'s exit tests).
     func mutateGraftRecords(_ body: (GraftRecord) -> Void) -> Int {
         var count = 0

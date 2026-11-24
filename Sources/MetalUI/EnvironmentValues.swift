@@ -565,6 +565,36 @@ struct EnvironmentFingerprint: Equatable {
     var custom: [ObjectIdentifier: EnvironmentReading]
 }
 
+/// An ``EnvironmentFingerprint`` shared by reference (`G47`): the retained keys of a frame's occurrences hold one box per distinct
+/// environment instead of a copy each, and the same box compares by identity. **Exact:** the box is immutable, so the same box is
+/// the same value, which is what comparing two copies of one fingerprint said before (a dictionary compares its own storage by
+/// identity first, so even an uncomparable reading, which equals nothing built twice, equalled the copy it was); distinct boxes
+/// compare by value as before.
+struct SharedFingerprint: Equatable {
+    final class Box {
+        let value: EnvironmentFingerprint
+        /// False when a custom reading is uncomparable: such a fingerprint equals nothing built twice, so the memo store keeps no
+        /// box of it for sharing (retention refuses it anyway, `EE-F`).
+        let comparable: Bool
+        /// Boxes made since the process began: the allocation pin of `G47`.
+        nonisolated(unsafe) static var madeCount = 0
+        init(_ value: EnvironmentFingerprint) {
+            Self.madeCount += 1
+            self.value = value
+            comparable = !value.custom.values.contains { $0.isUncomparable }
+        }
+    }
+
+    let box: Box
+    init(_ value: EnvironmentFingerprint) { box = Box(value) }
+    var value: EnvironmentFingerprint { box.value }
+
+    static func == (lhs: SharedFingerprint, rhs: SharedFingerprint) -> Bool {
+        if lhs.box === rhs.box { return true }
+        return lhs.box.value == rhs.box.value
+    }
+}
+
 extension EnvironmentFingerprint {
     /// Every field of this fingerprint that differs from `other`, by name (trace only, `AM-E`: the retained trace prints
     /// `key.ambient.environment.<field>`). A `Mirror` guard (`everyEnvironmentFingerprintFieldIsNamedWhenItDiffersAlone`) makes a new

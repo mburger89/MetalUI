@@ -147,7 +147,8 @@ struct PrepaintKey: Equatable {
 /// One occurrence's prepaint products (`RK-E`), replayed in the order a fresh prepaint makes them.
 @MainActor
 final class PrepaintLedger {
-    let key: PrepaintKey
+    /// `var` for `rebase(to:_:)` (`G47`), the one writer after the ledger is closed.
+    internal(set) var key: PrepaintKey
     var hitboxes: [Hitbox] = []
     /// Lock-step with `hitboxes` when any hitbox sat under an effect, else empty: the effect chain each was registered under (`RL-I`).
     var hitboxChains: [AXEffectChain?] = []
@@ -180,7 +181,10 @@ final class PrepaintLedger {
     /// The entries the prepaint read (`RW-D`), noted again by a replay so an enclosing window sees them.
     var reads: [GlobalElementID] = []
 
-    init(key: PrepaintKey) { self.key = key }
+    init(key: PrepaintKey) {
+        self.key = key
+        Self.madeCount += 1
+    }
 }
 
 extension PrepaintKey {
@@ -326,10 +330,11 @@ extension Frame {
             }
             // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
             // are replayed moved by the add, unless one cannot be moved exactly (refused by name).
-            if ledger.key != key, ledger.key.shift(to: key) == nil {
+            let layoutShift = ledger.key.shift(to: key)
+            if layoutShift == nil {
                 noteRun(phase, ledger.key.describeDifference(from: key).joined(separator: ", "))
             }
-            if memos.translatesLayout, let shift = ledger.key.shift(to: key) {
+            if memos.translatesLayout, let shift = layoutShift {
                 switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip) {
                 case .moved(let translation):
                     // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand, not where they stood.
@@ -341,9 +346,10 @@ extension Frame {
                     memos.retained.prepaintHits += 1
                     memos.retained.skippedPrepaints += ledger.prepaints
                     if !retainedVerifiesFromEnvironment {
-                        let rebased = ledger.rebased(to: key, translation)
-                        old.prepaint = rebased
-                        return .replay(rebased, moved: nil)
+                        // Made over in place (`G47`): the record's ledger is the record's alone, so the next frame at this position
+                        // finds the same object at the new key, and no ledger is allocated per translated cell per frame.
+                        ledger.rebase(to: key, translation)
+                        return .replay(ledger, moved: nil)
                     }
                     return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds,
                                    accessibility: translation.accessibility, geometry: translation.geometry)

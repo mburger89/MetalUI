@@ -109,9 +109,7 @@ extension ReplayKey {
                                               newOffset: ambient.offset, oldRects: old.rects,
                                               oldNodeCount: old.nodeCount, oldShape: old.shapeInterior,
                                               oldOffset: old.ambient.offset) else { return nil }
-        var normalized = ambient
-        normalized.offset = old.ambient.offset
-        return normalized == old.ambient ? shift : nil
+        return ambient.equalsIgnoringOffset(old.ambient) ? shift : nil
     }
 
     /// The layout move and the change of the outer render effects found together (`EL-C`). With equal effect scopes this is
@@ -159,9 +157,7 @@ extension PrepaintKey {
         guard let shift = RetainedShape.shift(newRects: new.rects, newNodeCount: new.nodeCount, newShape: new.shapeInterior,
                                               newOffset: new.ambient.offset, oldRects: rects, oldNodeCount: nodeCount,
                                               oldShape: shapeInterior, oldOffset: ambient.offset) else { return nil }
-        var normalized = new.ambient
-        normalized.offset = ambient.offset
-        guard normalized == ambient, extras.equalIgnoringScrollOffset(new.extras) else { return nil }
+        guard new.ambient.equalsIgnoringOffset(ambient), extras.equalIgnoringScrollOffset(new.extras) else { return nil }
         return shift
     }
 
@@ -344,6 +340,26 @@ extension Frame {
 // MARK: - Moving a prepaint ledger
 
 extension PrepaintLedger {
+    /// Constructions of a ledger (`PrepaintLedger.init`) since the process began, and in-place rebases: `package` counters for the
+    /// cost pin of a translated hit (`G47`: a translated cell makes no ledger).
+    package nonisolated(unsafe) static var madeCount = 0
+    package nonisolated(unsafe) static var rebaseCount = 0
+
+    /// This ledger made over at the position `key` stands at, in place (`G47`): what `rebased(to:_:)` copies, minus the allocation.
+    /// Only the parts a translation recomputes change; the rest stands as it was.
+    func rebase(to newKey: PrepaintKey, _ moved: LedgerTranslation) {
+        Self.rebaseCount += 1
+        key = newKey
+        hitboxes = moved.hitboxes
+        if let accessibility = moved.accessibility {
+            axEmissions = accessibility.emissions
+            axNodes = accessibility.nodes
+            if let locals = accessibility.nodeLocals { axNodeLocals = locals }
+        }
+        elementBounds = moved.elementBounds
+        if let notes = moved.geometry { geometry = notes }
+    }
+
     /// This ledger made over at the position `key` stands at, with the moved registrations (`FS-D`): the next frame at that
     /// position replays it as an exact hit instead of moving it again.
     func rebased(to key: PrepaintKey, _ moved: LedgerTranslation) -> PrepaintLedger {

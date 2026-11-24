@@ -156,6 +156,9 @@ private let frameChannels: [String: Channel] = [
     // ledger, `taint("textSelection")`), and the window's session is handed in before the build and read by the selected `Text`'s
     // prepaint and paint: a subtree holding it misses retained replay (`retainedSubtreeHasPointerPressOrFocus`).
     "selectableTextRegions": .prepaintOnly, "textSelection": .keyed,
+    // `G47`: the fingerprint of `environmentTop`, cleared by every write to the top and put back by the scope that restores one; a
+    // derived value of a channel already classified (`environmentTop`), never replayed.
+    "topFingerprint": .frameLocal,
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {
