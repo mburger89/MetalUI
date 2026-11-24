@@ -424,6 +424,8 @@ window.drag(from: start, to: end, steps: 8)
 
 To see why a retained occurrence did not replay, set `METALUI_TRACE_RETAINED=1`, or in a package test assign `RetainedTrace.sink` (a `@MainActor (String) -> Void`, restore it after) to capture the lines instead of reading stdout; each miss line names every failing conjunct in `reasons=[...]`.
 
+To see which strings missed the shaping cache each frame, set `METALUI_TRACE_SHAPING=1` (value exactly `1`): one line per frame, `shaping frame 12: hits 4 misses 2 [coretext] missed: "hello"(.SFNS-Regular 13 var=1 w=200), …`, to standard output; shapes that bypass the cache (`caretOffsets`) follow `uncached:`. In a package test set `ShapingTrace.active` and `ShapingTrace.sink` and restore both (`TS-E`, record 406).
+
 ## Measuring text
 
 `@Environment(\.textMeasurer)` answers the size a `Text` would lay out at, in

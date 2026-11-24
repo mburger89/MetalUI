@@ -110,6 +110,11 @@ public final class ShapingCache {
     /// 5); a lookup counts in ``hits``/``misses`` like a plain one.
     private var styledStorage: [StyledKey: Entry<StyledShapedText>] = [:]
 
+    /// Records a shape that never reaches this cache (`caretOffsets`), for the trace's `uncached:` list.
+    func traceBypass(_ entry: @autoclosure () -> String) {
+        if ShapingTrace.active { trace.bypass(entry()) }
+    }
+
     /// The font last registered under each key, for ``font(for:)``.
     ///
     /// **Never swept, and the asymmetry with `storage` is deliberate, not a
@@ -154,6 +159,10 @@ public final class ShapingCache {
     /// shaping on every single call. Pinned by `theCacheIsActuallyConsulted`.
     private(set) var hits = 0
     private(set) var misses = 0
+
+    /// This frame's lookups for `METALUI_TRACE_SHAPING` (`TS-E`): written only while ``ShapingTrace/active``, written out and
+    /// cleared by ``endFrame()``.
+    private var trace = ShapingTrace.Recorder()
 
     /// Every call to ``shaped(_:font:wrappingAt:)``, hit or miss. `hits + misses`
     /// already gives this; it is named separately because the assertion that
@@ -400,11 +409,13 @@ public final class ShapingCache {
         // the re-stamp and the read below.
         if let idx = storage.index(forKey: key) {
             hits += 1
+            if ShapingTrace.active { trace.hit() }
             storage.values[idx].generation = currentGeneration
             return storage.values[idx].value
         }
 
         misses += 1
+        if ShapingTrace.active { trace.miss(ShapingTrace.entry(string, font: font.key, width: width, options: options)) }
         let result = options == TextLayoutOptions() ? Shaper.shape(string, font: font, wrappingAt: width)
             : Shaper.shape(string, font: font, wrappingAt: width, options: options)
         storage[key] = Entry(value: result, generation: currentGeneration)
@@ -420,10 +431,12 @@ public final class ShapingCache {
         let key = StyledKey(text: text, width: width, options: options)
         if let idx = styledStorage.index(forKey: key) {
             hits += 1
+            if ShapingTrace.active { trace.hit() }
             styledStorage.values[idx].generation = currentGeneration
             return styledStorage.values[idx].value
         }
         misses += 1
+        if ShapingTrace.active { trace.miss(ShapingTrace.entry(text, width: width, options: options)) }
         let result = StyledShaper.shape(text, fonts: fonts, wrappingAt: width, options: options)
         styledStorage[key] = Entry(value: result, generation: currentGeneration)
         return result
@@ -470,6 +483,7 @@ public final class ShapingCache {
     public func endFrame() {
         precondition(isBuildingFrame, "endFrame called without a matching beginFrame")
         isBuildingFrame = false
+        if ShapingTrace.active { trace.finish(frame: currentGeneration, system: "coretext") }
         sweep(&storage)
         sweep(&styledStorage)
     }
