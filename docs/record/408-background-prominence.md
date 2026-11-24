@@ -41,7 +41,7 @@ Counts over `frameWork`, after `runUntilIdle()` then `tick()`; the master litera
 
 ## Tests
 
-17 new in `BackgroundProminenceTests` (flat, multi, no selection, explicit write, the two pins, set and clear, the three steady-frame arms, outline leaf and header, tagged rows, `Table`, cell mode, the three phases), and the two fingerprint guards gained a row (37 fields). Full run: root 7335 tests in 79 suites green (`--build-system native`, `--no-parallel`); divergences 241 live, next label 250.
+17 new in `BackgroundProminenceTests` (flat, multi, no selection, explicit write, the two pins, set and clear, the three steady-frame arms, outline leaf and header, tagged rows, `Table`, cell mode, the three phases), and the two fingerprint guards gained a row (37 fields). Full run: root 7347 tests in 79 suites green (post-merge of #420) (`--build-system native`, `--no-parallel`); divergences 241 live, next label 250.
 
 ## Not done
 
