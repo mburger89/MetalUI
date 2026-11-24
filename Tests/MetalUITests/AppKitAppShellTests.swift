@@ -613,6 +613,125 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
 }
 
+/// Records the buttons' placement at every layout and draw of the title-bar view, which is where a frame is
+/// made. A subview of the title-bar view that fills it, as the placement's own anchor does.
+@MainActor private final class TitleBarFrameSpy: NSView {
+    var settledX: CGFloat = 27
+    private(set) var events = 0
+    private(set) var atSystemPosition: [String] = []
+    private func note(_ what: String) {
+        guard let window, let close = window.standardWindowButton(.closeButton) else { return }
+        events += 1
+        let x = close.convert(close.bounds, to: nil).minX
+        if x != settledX { atSystemPosition.append("\(what) x=\(x)") }
+    }
+    override func setFrameSize(_ newSize: NSSize) { super.setFrameSize(newSize); needsLayout = true; needsDisplay = true }
+    override func layout() { super.layout(); note("layout") }
+    override func viewWillDraw() { note("viewWillDraw"); super.viewWillDraw() }
+    override func draw(_ dirtyRect: NSRect) { note("draw") }
+}
+
+/// **AS-U 1** (record 400). During a live resize AppKit resets the buttons and their container on every
+/// `setFrame`; the placement must put them back **before the frame is displayed**, not one run-loop pass later
+/// (the deferred pass alone left every frame of Alloy's live resize at the system position, about 20 pt too
+/// high and too far left, then back). 40 steps of a step-by-step resize of a real off-screen window, bracketed
+/// by the live-resize notifications, with a run-loop turn between steps as a drag has. After each
+/// `setFrame(_:display: true)` returns, **before any run-loop turn**, each button's frame in window coordinates
+/// is the settled one, as are the container's and the title-bar view's; and no layout or draw of the title-bar
+/// view saw a button elsewhere. Mutation (record 400): skip installing the layout anchor (the deferred pass
+/// only): every step reads the system position.
+@MainActor
+@Test func appKitTitleBarButtonsAreAtTheirPlacementOnEveryFrameOfALiveResize() throws {
+    let (appKit, nsWindow) = try placedWindow("AS-U 1")
+    drainRunLoop()
+    let (container, bar) = try #require(TitleBarPlacement.views(of: nsWindow))
+    let settled = try TitleBarPlacement.buttons.map { try buttonPlace($0, in: nsWindow).x }
+    #expect(settled[0] == 27)
+    let spy = TitleBarFrameSpy(frame: bar.bounds)
+    spy.autoresizingMask = [.width, .height]
+    bar.addSubview(spy)
+    nsWindow.displayIfNeeded()
+    let placement = try #require(appKit.titleBarPlacement)
+    let writesBefore = placement.writeCount
+
+    NotificationCenter.default.post(name: NSWindow.willStartLiveResizeNotification, object: nsWindow)
+    appKit.hostView.viewWillStartLiveResize()
+    var frame = nsWindow.frame
+    var wrong: [String] = []
+    for step in 0..<40 {
+        // Wider and narrower, taller and shorter, so the sizes cross the ones AppKit lays the bar out for.
+        frame.size.width += step % 3 == 0 ? -23 : 17
+        frame.size.height += step % 4 == 0 ? 11 : -6
+        nsWindow.setFrame(frame, display: true)
+        for (type, x) in zip(TitleBarPlacement.buttons, settled) {
+            let place = try buttonPlace(type, in: nsWindow)
+            if place.x != x || place.centreY != 34 { wrong.append("step \(step) \(type.rawValue): \(place)") }
+        }
+        if container.frame.height != 68 || container.frame.width != nsWindow.frame.width
+            || container.frame.maxY != nsWindow.frame.height || bar.frame != container.bounds {
+            wrong.append("step \(step) container \(container.frame) bar \(bar.frame) window \(nsWindow.frame)")
+        }
+        drainRunLoop(0.01)
+    }
+    appKit.hostView.viewDidEndLiveResize()
+    NotificationCenter.default.post(name: NSWindow.didEndLiveResizeNotification, object: nsWindow)
+    #expect(wrong.isEmpty, "frames off their placement right after setFrame: \(wrong.prefix(4)) (\(wrong.count) in all)")
+    #expect(spy.events > 40, "the spy saw the layouts and draws: \(spy.events)")
+    #expect(spy.atSystemPosition.isEmpty,
+            "layouts or draws that saw a button at the system position: \(spy.atSystemPosition.prefix(4)) (\(spy.atSystemPosition.count) of \(spy.events))")
+    #expect(placement.writeCount > writesBefore, "each reset was written back")
+    spy.removeFromSuperview()
+    nsWindow.close()
+    drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
+}
+
+/// **AS-U 2.** No work when nothing changed. (a) With the frames right, layout and display passes that AppKit
+/// did not reset, and a `setFrame` to the frame the window already has, write nothing (`writeCount` stays) —
+/// the placement from `layout()` is the equality-guarded one, so it cannot loop. (b) A window whose title bar
+/// has no metrics has no placement and no anchor: its title-bar view's subviews are the system's; with
+/// metrics the anchor is one more, and clearing them removes it (the system layout comes back).
+/// Mutations: drop the equality guards (`writeCount` climbs in (a)); never remove the anchor (the count in
+/// (b) stays one up).
+@MainActor
+@Test func appKitTitleBarPlacementWritesNothingWhenNothingChangedAndNothingWithoutMetrics() throws {
+    let (_, appKit, nsWindow) = try shellWindow("AS-U 2")
+    _ = appKitEventSignal
+    #expect(appKit.setTitleBarStyle(.hidden))
+    let (_, bar) = try #require(TitleBarPlacement.views(of: nsWindow))
+    let system = bar.subviews.count
+    nsWindow.setFrame(nsWindow.frame.insetBy(dx: -9, dy: -3), display: true)
+    #expect(appKit.titleBarPlacement == nil && bar.subviews.count == system, "(b) hidden style alone installs nothing")
+
+    #expect(appKit.setTitleBarMetrics(height: 68, controlsLeading: 27))
+    drainRunLoop()
+    #expect(bar.subviews.count == system + 1, "(b) the anchor is the one extra subview")
+    let placement = try #require(appKit.titleBarPlacement)
+    let settled = placement.writeCount
+    let placeBefore = placement.placeCount
+    for _ in 0..<10 {
+        bar.needsLayout = true
+        bar.subviews.last?.needsLayout = true   // the anchor: its layout() runs the placement
+        nsWindow.layoutIfNeeded()
+        bar.layoutSubtreeIfNeeded()
+        placement.place()
+        placement.schedule()
+        nsWindow.displayIfNeeded()
+        nsWindow.setFrame(nsWindow.frame, display: true)
+        drainRunLoop(0.01)
+    }
+    drainRunLoop(0.1)
+    #expect(placement.placeCount > placeBefore, "(a) the placement did run, past its guards")
+    #expect(placement.writeCount == settled, "(a) writes with nothing reset: \(settled) → \(placement.writeCount)")
+
+    #expect(appKit.setTitleBarMetrics(height: nil, controlsLeading: nil))
+    drainRunLoop()
+    #expect(appKit.titleBarPlacement == nil && bar.subviews.count == system, "(b) cleared: no placement, no anchor")
+    nsWindow.setFrame(nsWindow.frame.insetBy(dx: -5, dy: -5), display: true)
+    #expect(try buttonPlace(.closeButton, in: nsWindow).x < 27, "(b) the system layout stays after clearing")
+    nsWindow.close()
+    drainRunLoop()   // absorb HIToolbox's queued CFRunLoopStop in a nested loop (record §61 §9)
+}
+
 // MARK: - AS-T — the style known at open is built into the NSWindow
 
 /// An unordered `AppKitWindow` (nothing on screen), opened with `style` or opened standard and changed.
