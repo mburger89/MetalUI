@@ -753,7 +753,10 @@ private struct Pane: Component, @MainActor Equatable {
     let work = try await steadyFrame(w)
     try #require(work.work.retainedPrepaintHits >= 1, "the pane's prepaint is replayed")
     try #require(w.window.lastSelectableRegions.count == 1)
-    try await press(w)
+    // The click goes where the `Text` really is (its hitbox is the last registered), not where the region claims.
+    let real = try #require(w.window.lastHitboxes.last).bounds
+    w.click(at: pt(real.origin.x.value + 1, real.origin.y.value + 8))
+    try await w.runUntilIdle(); w.tick()
     #expect(w.window.textSelectionSession?.id == w.window.lastSelectableRegions[0].id, "the press found the replayed region")
     w.drag(from: try boundaryPoint(w, 0), to: try boundaryPoint(w, 5))
     try await w.runUntilIdle()

@@ -185,11 +185,14 @@ The probe fixed the behaviour; the build fixed these shapes, each marked where i
    hitbox, so no click fires; it is registered inside the decoration's scope after the `Text`'s own hitbox, so it ranks above
    it and above an ancestor's. The rule that a `Text` with handlers of its own would skip registration is one function,
    `Frame.skipsRegistration(forHandlers:)`, returning `false` until `HC-TXS-4` says otherwise.
-3. **A selectable `Text` leaves no prepaint ledger.** Its occurrence's prepaint is refused (`prepaintLog.taint("textSelection")`):
-   the region array is not a journal channel and replaying the hitbox alone would orphan the region. Its paint record still
-   replays while nothing is selected; `retainedSubtreeHasPointerPressOrFocus` is true for a subtree holding the selected `Text`
-   (`Frame.textSelection`), so the selected occurrence paints in full and the highlight is never replayed. No `withState` write
-   is made anywhere (the session is on `Window`).
+3. **A selectable `Text`'s region rides the prepaint ledger beside its hitbox** (the design's "carried by the prepaint log";
+   the first build refused the ledger with `taint("textSelection")` and a retained pane holding an idle selectable `Text` paid
+   42 requests and 43 prepaints a steady frame instead of the twin's 0 and 1, so it was replaced the same day). `PrepaintLog`
+   and `PrepaintLedger` carry `regions` with each hitbox index **relative to the occurrence's first**; a replay appends the
+   hitboxes, then the regions at the new base (`firstHitbox + relative`), a translation copies them, verify mode compares them.
+   `retainedSubtreeHasPointerPressOrFocus` is true for a subtree holding the selected `Text` (`Frame.textSelection`), so the
+   selected occurrence prepaints and paints in full and the highlight is never replayed. No `withState` write is made anywhere
+   (the session is on `Window`).
 4. **One string read.** A selectable `Text` reads its string once in `prepaint`; every other `Text` reads it exactly as before.
 5. **A triple click selects the visual line and a fourth click the paragraph** (provisional, `HC-TXS-2`); a drag after a
    triple click moves the head from the line's start.
