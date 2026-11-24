@@ -27,6 +27,8 @@ edit (`recording`, `restored`), so only a replacement differs, and `followExtern
 must set `seenText` or the next frame jumps the caret. `TextInputTarget` keeps `Handlers` pinned (488, then 480
 once its boxes merged into `TextTargetHooks`, `CV-W`) through class-boxed closures (`SL-M`); the demo is `METALUI_SELECTION_DEMO=1`, a root of its own (`SL-N`).
 
+**`METALUI_TRACE_SHAPING=1` (`TS-E`, record 406)** prints one line per frame that looked a shape up (hits, misses, each missed string with its font, size, width and options; `uncached:` for `caretOffsets` and the portable styled `layOut`). A new text system or cache records through `ShapingTrace.Recorder` behind `if ShapingTrace.active`, building no string while it is off.
+
 **Text.** `Text`/`ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`); a new text-drawing element goes through the
 seam too. Fonts, weight, italic and colour resolve through **one** function,

@@ -1079,6 +1079,7 @@ public final class Window {
                         startsDisplayLink: Bool = true,
                         textSystem: (any TextSystem)? = nil,
                         content: @escaping @MainActor () -> Root) {
+        _ = shapingTraceFromEnvironment
         let shapingCache = ShapingCache()
         self.shapingCache = shapingCache
         #if canImport(MetalUIText)

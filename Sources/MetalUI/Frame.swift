@@ -3000,6 +3000,7 @@ public final class Frame {
         self.rootFontSize = rootFontSize
         self.stateTable = stateTable
         self.shapingCache = shapingCache
+        _ = shapingTraceFromEnvironment
         #if canImport(MetalUIText)
         self.textSystem = textSystem ?? CoreTextTextSystem(cache: shapingCache)
         #else
