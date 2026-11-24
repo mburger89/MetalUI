@@ -66,6 +66,11 @@ struct ListRows<Row: Element>: ElementGroup {
     /// Defaulted so the memberwise initialiser `List` calls is unchanged.
     var arrangement: ListRowArrangement = .uniform
 
+    /// The positions in `rows` of the selected ones, whose content builds, prepaints and paints with
+    /// `backgroundProminence` `.increased` (`OG-Q`). Empty for a list with no selected row: the loops below then take
+    /// their plain branch and the frame does the work it did before the value existed.
+    var increased: Set<Int> = []
+
     /// Each row's own `SingleElementLayout`, threaded to
     /// `prepaintGroup`/`paintGroup` the way every other group threads its
     /// members'.
@@ -98,8 +103,10 @@ struct ListRows<Row: Element>: ElementGroup {
         // exempt; a name inside a row's content is noted as anywhere else.
         if let parent { pass.frame.stateTable.noteWindowedParent(parent) }
         for index in rows.indices {
-            let (built, rowLayout) = rows[index].requestGroupLayout(under: parent,
-                                                                    at: &cursor, pass: &pass)
+            let frame = pass.frame
+            let (built, rowLayout) = !increased.contains(index)
+                ? rows[index].requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+                : frame.withIncreasedProminence { rows[index].requestGroupLayout(under: parent, at: &cursor, pass: &pass) }
             rowNodes.append(contentsOf: built)
             layouts.append(rowLayout)
         }
@@ -192,7 +199,14 @@ struct ListRows<Row: Element>: ElementGroup {
         var prepaints: [Box<Row>.PrepaintState?] = []
         prepaints.reserveCapacity(rows.count)
         for index in rows.indices {
-            prepaints.append(rows[index].prepaintGroup(layout: &layout.rows[index], pass: &pass))
+            if !increased.contains(index) {
+                prepaints.append(rows[index].prepaintGroup(layout: &layout.rows[index], pass: &pass))
+            } else {
+                let frame = pass.frame
+                prepaints.append(frame.withIncreasedProminence {
+                    rows[index].prepaintGroup(layout: &layout.rows[index], pass: &pass)
+                })
+            }
         }
         return prepaints
     }
@@ -203,8 +217,16 @@ struct ListRows<Row: Element>: ElementGroup {
         precondition(layout.rows.count == rows.count && prepaint.count == rows.count,
                      Self.countMismatch("paint"))
         for index in rows.indices {
-            rows[index].paintGroup(layout: &layout.rows[index],
-                                   prepaint: &prepaint[index], pass: &pass)
+            if !increased.contains(index) {
+                rows[index].paintGroup(layout: &layout.rows[index],
+                                       prepaint: &prepaint[index], pass: &pass)
+            } else {
+                let frame = pass.frame
+                frame.withIncreasedProminence {
+                    rows[index].paintGroup(layout: &layout.rows[index],
+                                           prepaint: &prepaint[index], pass: &pass)
+                }
+            }
         }
     }
 

@@ -237,6 +237,16 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         GlobalElementID.child(of: list, at: 0, name: ElementID(name: "row " + String(describing: unitKey.base), key: IdentityKey(unitKey)))
     }
 
+    /// A unit's prepaint, under `backgroundProminence` `.increased` when the row is selected (`OG-Q`).
+    private static func prepaint(_ box: LazyUnitBox, increased: Bool, _ pass: inout PrepaintPass) {
+        if increased { let frame = pass.frame; frame.withIncreasedProminence { box.prepaint(&pass) } } else { box.prepaint(&pass) }
+    }
+
+    /// A unit's paint, under `backgroundProminence` `.increased` when the row is selected (`OG-Q`).
+    private static func paint(_ box: LazyUnitBox, increased: Bool, _ pass: inout PaintPass) {
+        if increased { let frame = pass.frame; frame.withIncreasedProminence { box.paint(&pass) } } else { box.paint(&pass) }
+    }
+
     /// The value a unit selects by: its tag, else its id, whichever casts (`OG-E`).
     private static func value(of unit: Int, in table: LazyUnitTable) -> SelectionValue? {
         if let tag = table.selectionTag(unit)?.base as? SelectionValue { return tag }
@@ -294,6 +304,14 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         let highlight = pass.frame.environmentTop.tint ?? Color(.accent)
         let stateTable = pass.frame.stateTable
         var engine = stack
+        // `OG-Q`: a selected unit builds, prepaints and paints with `.increased`. The unit's value is asked before it is
+        // realised, so only a list with something selected asks, and only a tagged ForEach pays its closure a second call.
+        if reader != nil, selection.hasSelectedValue {
+            engine.unitIncreased = { [reader] table, unit in
+                guard let value = Self.value(of: unit, in: table) else { return false }
+                return reader?(value) ?? false
+            }
+        }
         var controllerOf: ListSelectionController<SelectionValue>?
         var values: [GlobalElementID: SelectionValue] = [:]
         engine.unitWrapper = { [hierarchical, selection] box, context, pass in
@@ -361,18 +379,18 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
                     if let rowHandlers {
                         // The row adopts the records its content makes (`OG-F`): its text is the row's child.
                         pass.registerAndScope(rowHandlers, Decoration(), at: row, for: rowID) {
-                            pass.frame.withAccessibilityAdopter(rowID) { box.prepaint(&pass) }
+                            pass.frame.withAccessibilityAdopter(rowID) { Self.prepaint(box, increased: selected, &pass) }
                         }
                     } else {
-                        box.prepaint(&pass)
+                        Self.prepaint(box, increased: selected, &pass)
                     }
                 },
                 paint: { pass in
-                    guard selected, let row = geometry.rect else { return box.paint(&pass) }
+                    guard selected, let row = geometry.rect else { return Self.paint(box, increased: selected, &pass) }
                     let inset = Pixels(Float(ListRowChrome.highlightInset))
                     let highlight = Bounds(origin: Point(x: row.origin.x + inset, y: row.origin.y),
                                            size: Size(width: row.size.width - inset - inset, height: row.size.height))
-                    pass.paintDecoration(fill, in: highlight, for: rowID) { box.paint(&pass) }
+                    pass.paintDecoration(fill, in: highlight, for: rowID) { Self.paint(box, increased: true, &pass) }
                 })
             wrapped.depth = box.depth
             wrapped.isDisclosureHeader = box.isDisclosureHeader
@@ -389,6 +407,7 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
             }, departed: nil))
         }
         engine.unitWrapper = nil
+        engine.unitIncreased = nil
         stack = engine
         state = laidOut
         rowValues = values

@@ -41,6 +41,7 @@ F	state	A	swiftui-closeout.swift	O1	anOptionalStateWithANonNilInitialValueReadsI
 F	binding	A	swiftui-data-and-scrolling.swift	B5	theOptionalBindingInitialisersMatchSwiftUI	78	DD-D AN-Z	Binding<Value>: SwiftUI's surface (get/set, constant, dynamic member, optional initialisers, animation/transaction), @MainActor (78) (record §05)
 F	environment	A	swiftui-environment-scoping.swift	A1	theNearestWriterWinsAndAScopeEndsWithItsSubtree	-	EV-A EV-B EV-C EV-D EV-X	@Environment/EnvironmentValues/EnvironmentKey/.environment/.transformEnvironment/.disabled: nearest writer wins, a transform composes, a modifier after a scope is outside it (record §05)
 F	environment-control	A	swiftui-environment-control-state.swift	S2	aScopeCanWriteTheDisplayScaleAndThePixelLengthFollows	76 77	EV-AA EV-AB EV-AC AN-AD	displayScale/pixelLength, controlActiveState, controlSize, accessibilityReduceMotion: platform-stamped, scope-writable (reduce motion get-only); controlSize reaches only text and Button chrome (76); layout rounds to points (77) (record §05)
+F	background-prominence	A	swiftui-background-prominence.swift	BP1	theSelectedRowReadsIncreasedAndItMovesAndClears	244	OG-Q	BackgroundProminence and EnvironmentValues.backgroundProminence: .standard by default, .increased in the content of each selected List row (flat, ForEach, outline) and Table row, only; moves with the selection and clears on deselect; an explicit write sets it; hierarchical styles do not adapt, an unfocused selection and a row's direct child read .increased too (244)
 F	environment-dynamic-type	A	swiftui-environment-scoping.swift	G0	dynamicTypeSizeChangesNoTextMeasurementUnderTheProposalAuthority	-	EV-I TE-E	dynamicTypeSize is carried and changes no built-in text size, as SwiftUI on macOS (record §05)
 F	environment-layout-direction	A	swiftui-layout-direction.swift	A1	aRightToLeftLayoutDirectionMirrorsAnHStack	-	LD-A LD-B	layoutDirection: right-to-left mirrors layout (stacks, frames, ZStack, overlays, padding, Grid, lazy stacks, custom layouts, offset/position, horizontal scrollers) and multiline text alignment; a shape's path is not mirrored (1045)
 F	environment-locale	M	-	-	-	-	EV-Y	locale is carried and window-stamped; MetalUI has no formatter or tokenizer that reads it (record §05)
@@ -450,6 +451,8 @@ M	MetalUI	EnvironmentScope.swift	ElementGroup	controlSize	.*	environment-control
 M	MetalUI	EnvironmentScope.swift	ElementGroup	preferredColorScheme	.*	preferred-color-scheme
 M	MetalUI	EnvironmentScope.swift	ElementGroup	environment	Observable	environment-object
 M	MetalUI	EnvironmentScope.swift	.*	.*	.*	environment
+M	MetalUI	EnvironmentValues.swift	EnvironmentValues	backgroundProminence	.*	background-prominence
+M	MetalUI	BackgroundProminence.swift	.*	.*	.*	background-prominence
 M	MetalUI	EnvironmentValues.swift	EnvironmentValues	(displayScale|pixelLength|controlActiveState|accessibilityReduceMotion|accessibilityReduceTransparency|controlSize)	.*	environment-control
 M	MetalUI	EnvironmentValues.swift	-	ControlSize	.*	environment-control
 M	MetalUI	EnvironmentValues.swift	(-|DynamicTypeSize)	(DynamicTypeSize|isAccessibilitySize)	.*	environment-dynamic-type
