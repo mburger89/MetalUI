@@ -9,7 +9,7 @@ Branch `feat/app-shell` from `c62d6ba`. Spec:
 [`specs/2026-10-08-app-shell-design.md`](specs/2026-10-08-app-shell-design.md).
 Record: `../record/87-app-shell.md` (written in the Record phase).
 
-**Next unused id: `AS-U`.**
+**Next unused id: `AS-V`.**
 
 ## Final spellings (MetalCreator swaps its stopgaps by these names)
 
@@ -1001,4 +1001,39 @@ first frame; only how AppKit gets there changes.
    and `titleBarStyleMaskChanges` see no change after init, and mask, flags, frame, content rect and insets equal the
    post-open path).
 
-**Next unused id: `AS-U`.**
+## AS-U — The window buttons are placed from a layout pass, so no live-resize frame shows the system layout (Alloy; record 401; amends `AS-R` item 3a)
+
+**Finding.** Under `.hiddenTitleBar` with `.windowTitleBarMetrics`, the traffic lights flickered during a live resize, frame to
+frame between the placed position and the system one (about 20 pt higher and 20 pt left). Cause: AppKit resets the buttons (and
+the container) inside the title-bar view's own layout on each `setFrame`; the deferred pass of `AS-R` item 3a put them back one
+run-loop pass later, so every frame displayed in between showed the system layout. Measured on a real off-screen window over 30
+steps with a run-loop turn between them: the deferred pass alone read the system position after 30 of 30 `setFrame` calls and in
+23 of 50 draws of the title-bar view.
+
+**Ruling.**
+
+1. **A layout anchor.** `TitleBarPlacement` adds an invisible subview (`LayoutAnchor`: fills the title-bar view, takes no hit test,
+   no accessibility) whose `layout()` calls `place()`. AppKit runs it after the reset and before display. Candidates measured (record 401, 30 steps; counts at the
+   system position of title-bar layouts / draws / reads after `setFrame`): the deferred pass alone 27 / 23 / 30 (of 54 / 50 / 30),
+   the anchor 0 / 0 / 0, `place()` from the host view's `setFrameSize` 27 / 0 / 0, `place()` from `didResize` (gpui's
+   `window_did_resize`) 27 / 0 / 0. The two notification-ordered hooks leave a layout pass at the
+   system position and depend on the order of a callback AppKit does not promise; the anchor is the only one that is correct
+   at every layout and draw whatever call resized the window, and it needs no `NSWindow` subclass.
+2. **No re-entrancy.** The write is a subview's `layout()`, not a KVO callback: the crash of `AS-R` item 3a came from writing
+   from inside the observer. The write is equality-guarded (`place()` is unchanged), and `isPlacing` still guards. The anchor
+   calls `place()` only; it does not call `onReplaced` (the geometry report must not run inside a layout, and the host view's
+   resize, which reads the insets, runs after the anchor's layout, so it reads the placed buttons).
+3. **The deferred pass stays** for what no layout reports: a `title` change, a toolbar, key changes, full-screen exit.
+4. **No work when nothing changed.** The anchor exists only while a placement does (`remove()` removes it; a window without
+   metrics has none); with the frames right, layout, display and an equal `setFrame` write nothing (`writeCount`).
+5. `update(height:leading:)` stores the new pair **before** it restores the system layout for a dropped field, since the
+   anchor places from the stored pair during that resize.
+6. Pinned by `appKitTitleBarButtonsAreAtTheirPlacementOnEveryFrameOfALiveResize` (40 steps with the live-resize notifications,
+   asserted before any run-loop turn, plus a spy subview counting layouts and draws at the system position) and
+   `appKitTitleBarPlacementWritesNothingWhenNothingChangedAndNothingWithoutMetrics`. Mutations: record 401. Human check `TBH8`.
+
+**Cost if wrong.** An OS release that no longer lays the buttons out inside the title-bar view's layout leaves the deferred
+pass as before (the flicker returns, nothing else); an anchor that AppKit stops laying out is the same.
+
+**Next unused id: `AS-V`.**
+
