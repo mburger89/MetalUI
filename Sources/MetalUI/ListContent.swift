@@ -308,6 +308,8 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         // realised, so only a list with something selected asks, and only a tagged ForEach pays its closure a second call.
         if reader != nil, selection.hasSelectedValue {
             engine.unitIncreased = { [reader] table, unit in
+                LazyPrebuild.storing = true
+                defer { LazyPrebuild.storing = false }
                 guard let value = Self.value(of: unit, in: table) else { return false }
                 return reader?(value) ?? false
             }

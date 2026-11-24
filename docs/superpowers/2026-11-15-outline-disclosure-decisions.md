@@ -192,8 +192,9 @@ Alloy's file tree: a selected row's label must change colour (its git-status ora
   more builds or requests: `equatableLabelsThatNeverReadTheValueMissOnlyAtTheTwoRows`), as the key must for a style resolved
   by a scope or at paint (`aStyleResolvedAtPaintSeesTheValueThroughARetainedLabel`). A plain list's frames are master's, to the
   count. The content form asks `lazySelectionTag(unit)` before building a unit; an untagged `ForEach` answers without calling its
-  closure (`Content.self is any ListRowTagged.Type`), so no row closure runs twice; a *tagged* `ForEach`'s closure does, per
-  realised unit, while a selection is held.
+  closure (`Content.self is any ListRowTagged.Type`), and a *tagged* one hands the element it built for the tag to the realise
+  that follows (`PrebuiltUnit`, `LazyPrebuild.storing`), so no row closure runs twice
+  (`aTaggedForEachCallsItsClosureOncePerRealisedUnitWhileASelectionIsHeld`: idle 12, selection change 12, scroll 30, as with no selection).
 - **Not done.** The built-in hierarchical styles do not adapt; the unfocused selection look (SwiftUI greys the fill) is a
   divergence of its own that this ruling leaves where it was; a pinned section header (`SP-G`) realised outside the window is
   not wrapped.

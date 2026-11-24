@@ -325,6 +325,43 @@ private struct PaintLabel: Component, @MainActor Equatable {
     #expect(log.last["b"] == .standard, "the id is not the value of a tagged row: \(String(describing: log.last["b"]))")
 }
 
+/// The closure calls of a tagged content list of 60 rows over an idle frame, a selection change and a scroll frame; with
+/// `selected` a selection is held throughout, without it none is (the path master takes: no value is asked for).
+@MainActor private func taggedCalls(selected: Bool) async throws -> (idle: Int, moved: Int, scrolled: Int) {
+    let model = PSelection(), calls = ClosureCalls()
+    let w = try harnessWindow(size: sz(300, 300)) {
+        ProposalScrollView {
+            List(selection: model.textBinding()) {
+                ForEach((0..<60).map { "r\($0)" }, id: \.self) { id in
+                    let _ = { calls.count += 1 }()
+                    Column { PlainLabel(name: id).equatable() }.tag("t-" + id)
+                }
+            }
+        }
+    }
+    if selected { model.text = "t-r3" }
+    try await idle(w)
+    calls.count = 0; w.window.setNeedsRedraw(); w.tick()
+    let idleCalls = calls.count
+    calls.count = 0
+    if selected { model.text = "t-r5" } else { model.text = nil }
+    try await idle(w)
+    let moved = calls.count
+    calls.count = 0
+    w.scroll(at: pt(150, 150), byDeltaX: 0, deltaY: -200); try await idle(w)
+    return (idleCalls, moved, calls.count)
+}
+
+/// **P16** A tagged `ForEach` calls its row closure as often with a selection held as with none (master's path), on an idle
+/// frame, a selection change (one build: the idle count) and a scroll frame: the tag is read off the element the realise builds, not a second call.
+/// Mutation: build in `lazySelectionTag` without `prebuilt.put` (the held counts double).
+@Test @MainActor func aTaggedForEachCallsItsClosureOncePerRealisedUnitWhileASelectionIsHeld() async throws {
+    let held = try await taggedCalls(selected: true), none = try await taggedCalls(selected: false)
+    print("OG-Q tagged calls held \(held) none \(none)")
+    #expect(none.idle > 0 && none.scrolled > 0, "none \(none)")
+    #expect(held.idle == none.idle && held.moved == none.idle && held.scrolled == none.scrolled, "held \(held) none \(none)")
+}
+
 // MARK: - Prepaint and paint
 
 /// A leaf whose prepaint and paint read the value off the pass, not off a body: only the three phases' own environment can

@@ -45,4 +45,4 @@ Counts over `frameWork`, after `runUntilIdle()` then `tick()`; the master litera
 
 ## Not done
 
-The built-in hierarchical styles do not adapt (a colour change, left to a ruling of its own); an unfocused selection look; a pinned section header realised outside the window is not wrapped; a tagged content `ForEach` still calls its closure twice per realised unit while a selection is held. Human checks: none (no pixels changed).
+The built-in hierarchical styles do not adapt (a colour change, left to a ruling of its own); an unfocused selection look; a pinned section header realised outside the window is not wrapped. Human checks: none (no pixels changed).
