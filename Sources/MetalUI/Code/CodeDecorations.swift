@@ -243,6 +243,38 @@ public struct CodePaintedLineDecoration: Equatable, Sendable {
     }
 }
 
+/// One group of virtual lines as ``CodeView`` paints it (``CodeDecorations/paintedVirtualRows(at:)``, `CV-CA`). A group
+/// is one owner's, so one owner covers every field; the buffer rows' ``CodePaintedLineDecoration`` does not fit (its bar
+/// spans buffer rows, which a virtual row has none of).
+public struct CodePaintedVirtualRow: Equatable, Sendable {
+    /// Where the group sits, as the gap it was given at now is (`.before`, or `.after` for a group given so).
+    public var anchor: CodeVirtualRow.Anchor
+    /// The lines, each cut at its first line break, one display row each.
+    public var lines: [String]
+    /// The tint across the lines, or `nil` for none.
+    public var background: Color?
+    /// The bar in the gutter beside the lines, or `nil` for none.
+    public var gutterBar: Color?
+    /// The marker drawn in the number column of every line, or `nil` for none (an empty text paints nothing).
+    public var gutterMarker: CodeGutterMarker?
+    /// The tag a click on the bar reports.
+    public var tag: UInt64?
+    /// The name of the owner that gave the group; `nil` for the default owner.
+    public var owner: String?
+
+    /// A painted virtual row.
+    public init(anchor: CodeVirtualRow.Anchor, lines: [String], background: Color? = nil, gutterBar: Color? = nil,
+                gutterMarker: CodeGutterMarker? = nil, tag: UInt64? = nil, owner: String? = nil) {
+        self.anchor = anchor
+        self.lines = lines
+        self.background = background
+        self.gutterBar = gutterBar
+        self.gutterMarker = gutterMarker
+        self.tag = tag
+        self.owner = owner
+    }
+}
+
 /// An ordered family of highlight runs. A later layer's foreground wins; backgrounds are painted in layer
 /// order, so `annotations` (authorship tints, say) sit under the syntax text colours (`CV-K`).
 public enum CodeHighlightLayer: Int, Comparable, CaseIterable, Sendable {
@@ -1143,6 +1175,33 @@ public final class CodeDecorations {
         }
         virtualOwners.insert(id)
         revision &+= 1
+    }
+
+    /// The virtual rows ``CodeView`` paints at the gap `anchor` names, in display order (`CV-CA`): the groups every owner
+    /// gave there, a lower priority first, each with the owner, tag, tint, bar and marker it paints and its lines.
+    /// `.before(line: n)` and `.after(line: n - 1)` name the same gap and read the same groups; an anchor past the end
+    /// reads the gap after the last row, as ``setVirtualRows(_:asOf:)`` places it. The anchors follow edits like the
+    /// rows themselves, so after an edit above, read at the anchor's new row. Empty when nothing sits there.
+    ///
+    /// Read off the row map the paint reads (`row(atDisplay:)`), so it costs the lines at the gap and a logarithm, and a
+    /// view that never calls it pays nothing. Virtual rows have no id and no buffer row, so this is their addressing:
+    /// the gap, then the position in the returned array. ``paintedLineDecoration(row:)`` is the buffer rows' read-back.
+    public func paintedVirtualRows(at anchor: CodeVirtualRow.Anchor) -> [CodePaintedVirtualRow] {
+        sync()
+        let gap = min(anchor.gap, rowMap.rowCount)
+        var found: [VirtualGroup] = []
+        var display = rowMap.displayRow(ofBufferRow: gap) - 1
+        var last: ObjectIdentifier?
+        while display >= 0, case .virtual(let group, _, _) = rowMap.row(atDisplay: display) {
+            if ObjectIdentifier(group) != last { found.append(group); last = ObjectIdentifier(group) }
+            display -= 1
+        }
+        return found.reversed().map { group in
+            let marker = group.lines.first?.marker.flatMap { $0.text.isEmpty ? nil : $0 }
+            return CodePaintedVirtualRow(anchor: group.anchoredAfter ? .after(line: gap - 1) : .before(line: gap),
+                                         lines: group.lines.map(\.text), background: group.background, gutterBar: group.gutterBar,
+                                         gutterMarker: marker, tag: group.tag, owner: owner(ofID: group.owner)?.name)
+        }
     }
 
     /// The virtual lines now shown in all (test observability and the demo's readout).
