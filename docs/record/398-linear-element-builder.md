@@ -17,8 +17,8 @@ child count.
   `buildBlock<G>(_:) -> G` (one statement, no wrapper) and `buildBlock<each G: ElementGroup>(_:) -> TupleGroup<repeat each G>`;
   `buildBlock()` stays.
 - `TupleGroup<each Member>` (`ElementGroup.swift`): the members in one inline tuple. `requestGroupLayout`, `prepaintGroup` and `paintGroup`
-  visit them in source order with the **same** cursor, through a `Step` pairing each member with the state it handed on and a pack expansion
-  that rebuilds the tuples. It also conforms to `ProposalElementGroup`, `LazyFlattenable`, `LazyTreeType`, `LazyTreeFlattenable`,
+  visit them in source order with the **same** cursor, **mutating each member where the tuple stores it** (`TupleGroup.slot` finds it at the
+  offset a struct's field would have, pinned by `theTupleGroupFindsEachMemberWhereTheTupleStoresIt` against the compiler's own tuple offsets). It also conforms to `ProposalElementGroup`, `LazyFlattenable`, `LazyTreeType`, `LazyTreeFlattenable`,
   `LazyStampable` and `ToolbarPickerOptions`, as `Pair` did (pack iteration, which has no `where`).
 - `Pair` stays (the framework's own controls assemble it by hand); `Stepper` and `PullDownMenu` spell `TupleGroup` where their builder blocks'
   types are named.
@@ -26,6 +26,18 @@ child count.
 
 Not reachable from Swift 6.4.2 (swiftlang-6.4.2.1.9): `#expect(tree.content.members.0.count == 3)` on a tuple of a pack crashes SILGen
 (`signal 11`, "silgen emitFunction"); four tests in `ComponentTests.swift` bind `let members = tree.content.members` first.
+
+## The first version overflowed Windows at layout, and why the members are mutated in place
+
+The PR's first push rebuilt the members tuple from a pack expansion of copies (`let steps = (repeat visit(each members))`, then
+`members = (repeat (each steps).group)`). Debug frames then held two copies of each level's whole subtree besides its layouts, so the
+layout recursion was deeper than `Pair`'s (whose `first` and `second` are mutated through `self`): `Build and replay (Windows x64, D3D12)`
+died with `Stack overflow` in `DemoCapture.exe`, `Thread 0`, `TupleGroup.requestGroupLayout` repeated through `Column`, `Row` and `Box`
+(the 1 MB main thread). Mutating the members in place through their addresses removes the copies. `stackHighWater` of production trees
+(build, layout, prepaint and paint at 1200 by 800, bytes, debug, macOS arm64), `Pair` chain then in-place `TupleGroup`: demo 905 264 then
+778 080, controls 1 880 256 then 1 549 168, looks 1 360 400 then 1 223 488, text input 177 632 then 129 520, menus 1 045 952 then 991 920,
+drag and drop 415 712 then 368 288, services 359 808 then 364 336, native layout preview 94 032 then 96 256 (the last two are the only
+rises, 1 to 2 percent); the `ComponentStackTests` pane 562 864 then 387 680.
 
 ## Numbers (macOS arm64, debug, `StackMeter` high-water of the component's getter)
 

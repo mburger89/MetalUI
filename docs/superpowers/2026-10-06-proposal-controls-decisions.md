@@ -950,7 +950,8 @@ is 2000 bytes (`sub sp` in the object file) against 3632, both negligible.
    no wrapper) and `buildBlock<each G: ElementGroup>(_:) -> TupleGroup<repeat each G>`. **No `buildPartialBlock`**: the compiler
    prefers it whenever it exists, so adding one back silently restores the chain (`aBuilderBlocksStackGrowsLinearlyWithItsChildren`
    and `theSiftToolbarShapeBuildsOnA768KiBThread` are the guards).
-2. `TupleGroup<each Member>` is a public `ElementGroup` (and `ProposalElementGroup`, and every internal protocol `Pair` conformed to:
+2. `TupleGroup<each Member>` (mutating its members where the tuple stores them: a rebuild from copies held two copies of each
+   level's subtree in a debug frame and overflowed the 1 MB Windows main thread at layout) is a public `ElementGroup` (and `ProposalElementGroup`, and every internal protocol `Pair` conformed to:
    the lazy readers, `LazyStampable`, `ToolbarPickerOptions`) holding its members in one inline tuple, nothing boxed. Every requirement
    visits the members in source order with **one** cursor, so ids, paths, node, prepaint, paint, hit and accessibility order are what the
    chain gave (`elevenChildrenOfOneBlockKeepTheirFlatIdsAndTheirState`, `elevenChildrenKeepTheirAccessibilityIdsAndTheirTabOrder`,

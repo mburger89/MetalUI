@@ -114,3 +114,24 @@ private struct IDLeaf: Element {
     }
     #expect(perFrame[0] == perFrame[1] && perFrame[1] == perFrame[2], "ids are stable from frame to frame")
 }
+
+/// `TupleGroup` mutates its members where the tuple stores them, finding each at the offset a struct's field would
+/// have: the compiler's own offsets for a tuple of mixed sizes and alignments are the oracle.
+@Test @MainActor func theTupleGroupFindsEachMemberWhereTheTupleStoresIt() {
+    typealias Mixed = (Int8, Int64, Int8, Int32, Void, Int16, Double)
+    var tuple: Mixed = (1, 2, 3, 4, (), 5, 6)
+    let expected = [MemoryLayout<Mixed>.offset(of: \Mixed.0)!, MemoryLayout<Mixed>.offset(of: \Mixed.1)!,
+                    MemoryLayout<Mixed>.offset(of: \Mixed.2)!, MemoryLayout<Mixed>.offset(of: \Mixed.3)!,
+                    MemoryLayout<Mixed>.offset(of: \Mixed.5)!, MemoryLayout<Mixed>.offset(of: \Mixed.6)!]
+    withUnsafeMutablePointer(to: &tuple) { pointer in
+        let base = UnsafeMutableRawPointer(pointer)
+        var offset = 0
+        func found<M>(_ type: M.Type) -> Int {
+            let address = TupleGroup<EmptyGroup>.slot(type, in: base, at: &offset)
+            return UnsafeMutableRawPointer(address) - base
+        }
+        let actual = [found(Int8.self), found(Int64.self), found(Int8.self), found(Int32.self),
+                      found(Int16.self), found(Double.self)]
+        #expect(actual == expected, "slot offsets \(actual) against the tuple's \(expected)")
+    }
+}
