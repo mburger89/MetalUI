@@ -45,7 +45,7 @@ one or two sentences, not a summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **240 live, next label 244**; which labels each milestone reserved, used or
+  live SwiftUI difference — **241 live, next label 250**; which labels each milestone reserved, used or
   retired: `docs/rules/divergence-labels.md`; retired labels are never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code, the bundled Lucide icons and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (one group per milestone, each headed in the file; **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -70,6 +70,7 @@ METALUI_RUN_1M_TABLE_TEST=1 swift test --filter aTablesWorkIsTheSameFor1MBy200As
 ```
 - **Counts (2026-11-24, `feat/code-virtual-row-readback`, record 405): root 7319 tests in 79 suites, full run green (+4 over record 402's 7315: `CodeViewPaintedVirtualRowTests`; `--build-system native`, `--no-parallel`); divergences unchanged; the previous line, record 402, below.**
 - **Counts (2026-11-24, `feat/code-line-decoration-readback`, record 402): root 7315 tests in 79 suites, full run green (+6 over record 403's 7309: `CodeViewPaintedLineDecorationTests`; `--build-system native`, `--no-parallel`); divergences unchanged; the previous line, record 403, below.**
+- **Counts (2026-11-24, `feat/background-prominence`, record 408): root 7335 tests in 79 suites, full run green (+16: `BackgroundProminenceTests`; the two environment-fingerprint guards gained a row, 37 fields; `--build-system native`, `--no-parallel`); divergences 241 live (244 added), next label 250; the previous line, record 403, below.**
 - **Counts (2026-11-24, `fix/retained-prepaint-observation`, record 403): root 7309 tests in 79 suites, full run green (+2 over record 400's 7307: `aDecorationWriteAfterTheGroupRebuiltRedrawsUnderEquatableOccurrences` and `aWriteReadOnlyByAReplayedDescendantsPrepaintRedraws`, 4 and 3 cases; `--build-system native`, `--no-parallel`); divergences unchanged, 240 live, next label 244; the previous line, record 400, below.**
 - **Counts (2026-11-24, `fix/sift-gaps-g18-g19`, record 400): root 7307 tests in 79 suites, full run green (+10 over record 401's 7297: `ComponentAccessibilityTests` 4 and `DrawnTextColorsTests` 6; `--build-system native`, `--no-parallel`); divergences unchanged, next label 244; the previous lines, records 401, 398 and 399, below.**
 - **Counts (2026-11-24, `fix/titlebar-live-resize`, record 401): root 7297 tests in 79 suites, full run green (+2 over `feat/linear-element-builder`'s 7295: `appKitTitleBarButtonsAreAtTheirPlacementOnEveryFrameOfALiveResize`, `appKitTitleBarPlacementWritesNothingWhenNothingChangedAndNothingWithoutMetrics`; `--build-system native`, `--no-parallel`; divergences unchanged, 236 live, next label 244); earlier lines follow.**
