@@ -262,6 +262,69 @@ private struct PaintLabel: Component, @MainActor Equatable {
     #expect(before != after, "the ink of r2 did not change on selection: \(before) \(after)")
 }
 
+/// Closure calls of the content list's `ForEach`, by build.
+@MainActor private final class ClosureCalls { var count = 0 }
+
+/// The content-list steady-frame fixture: 6 folders of 3 leaves behind `.equatable()` labels that never read the value, with
+/// a selection set; the `ForEach` closure counts its calls.
+@MainActor private func contentSteadyWork() async throws -> (steady: Work, moved: Work, calls: (steady: Int, moved: Int)) {
+    let model = PSelection(), calls = ClosureCalls()
+    let w = try harnessWindow(size: sz(300, 400)) {
+        ProposalScrollView {
+            List(selection: model.textBinding()) {
+                ForEach((0..<6).map { "f\($0)" }, id: \.self) { folder in
+                    DisclosureGroup(isExpanded: .constant(true)) {
+                        ForEach(["x", "y", "z"].map { "\(folder)/\($0)" }, id: \.self) { leaf in
+                            let _ = { calls.count += 1 }()
+                            PlainLabel(name: leaf).equatable()
+                        }
+                    } label: { PlainLabel(name: folder).equatable() }
+                }
+            }
+        }
+    }
+    model.text = "f0/x"
+    try await idle(w)
+    w.resetFrameWork(); calls.count = 0; w.window.setNeedsRedraw(); w.tick()
+    let steady = (Work(w.frameWork.reduce(FrameWork(), +)), calls.count)
+    w.resetFrameWork(); calls.count = 0; model.text = "f1/y"; try await idle(w)
+    return (steady.0, Work(w.frameWork.reduce(FrameWork(), +)), (steady.1, calls.count))
+}
+
+/// **P14** Steady frame, content form: a content list that never reads the value does, on an idle frame and on a selection
+/// change, the build work master `361c9944` did (the literals below), and its `ForEach` closure is called as often. The
+/// selection change costs the two labels' retained misses and nothing else, as in `P7b`. Mutation: the same pushes as `P5`;
+/// or drop the `Content.self is any ListRowTagged.Type` guard in `LazyForEachSource.lazySelectionTag` (the closure count doubles to 22). Master: steady paints 21, hits 15, misses 0, and the same on a selection change.
+@Test @MainActor func aContentListThatNeverReadsTheValueKeepsItsWork() async throws {
+    let (steady, moved, calls) = try await contentSteadyWork()
+    print("OG-Q content steady: \(steady) calls \(calls.steady)")
+    print("OG-Q content moved: \(moved) calls \(calls.moved)")
+    #expect(steady.description == "builds 1 requests 32 prepaints 33 paints 21 evaluations 0 measures 20 hits 15 misses 0"
+            && calls.steady == 11, "\(steady) calls \(calls.steady)")
+    #expect(moved.description == "builds 1 requests 32 prepaints 33 paints 23 evaluations 0 measures 20 hits 13 misses 2"
+            && calls.moved == 11, "\(moved) calls \(calls.moved)")
+}
+
+/// **P15** A content list whose rows are `.tag`ged selects by the tag, not the id: the row whose tag is selected reads
+/// `.increased`, and selecting a bare id marks nothing. Mutation: `unitIncreased` asking the id alone.
+@Test @MainActor func aTaggedRowReadsIncreasedByItsTag() async throws {
+    let model = PSelection(), log = ProminenceLog()
+    let w = try harnessWindow(size: sz(300, 300)) {
+        ProposalScrollView {
+            List(selection: model.textBinding()) {
+                ForEach(["a", "b", "c"], id: \.self) { id in
+                    Column { PLabel(name: id, log: log).equatable() }.tag("t-" + id)
+                }
+            }
+        }
+    }
+    model.text = "t-b"; try await idle(w)
+    #expect(log.last["b"] == .increased && log.last["a"] == .standard && log.last["c"] == .standard,
+            "a \(String(describing: log.last["a"])) b \(String(describing: log.last["b"])) c \(String(describing: log.last["c"]))")
+    model.text = "b"; try await idle(w)
+    #expect(log.last["b"] == .standard, "the id is not the value of a tagged row: \(String(describing: log.last["b"]))")
+}
+
 // MARK: - Prepaint and paint
 
 /// A leaf whose prepaint and paint read the value off the pass, not off a body: only the three phases' own environment can

@@ -267,6 +267,9 @@ struct LazyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: Pr
     }
 
     func lazySelectionTag(_ unit: Int) -> AnyHashable? {
+        // Only a tagged element type has a tag: the closure is not called for the others (`OG-Q`: a content list asks every
+        // realised unit before it builds it, and an untagged `ForEach` must not run its closure twice).
+        guard Content.self is any ListRowTagged.Type else { return nil }
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
         return (forEach.content(forEach.data[index]) as? any ListRowTagged)?.listRowTag
     }
@@ -341,6 +344,9 @@ struct LazyLegacyForEachSource<Data: RandomAccessCollection, ID: Hashable, Conte
     }
 
     func lazySelectionTag(_ unit: Int) -> AnyHashable? {
+        // Only a tagged element type has a tag: the closure is not called for the others (`OG-Q`: a content list asks every
+        // realised unit before it builds it, and an untagged `ForEach` must not run its closure twice).
+        guard Content.self is any ListRowTagged.Type else { return nil }
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
         return (forEach.content(forEach.data[index]) as? any ListRowTagged)?.listRowTag
     }
