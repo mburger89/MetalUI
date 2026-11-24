@@ -69,8 +69,11 @@ the window's top layer — a portal for modals, popovers and tooltips
 
 - **`ElementBuilder`** — `@ViewBuilder`'s shapes: blocks, `if`, `if`/`else`,
   `switch`, `for`; each `if`/`for` is one structural slot and content an
-  evaluated conditional removes resets on return (`ID-B`, `ID-C`).
-  `AnyElement` is `AnyView`.
+  evaluated conditional removes resets on return (`ID-B`, `ID-C`). A block of
+  two or more statements is one `TupleGroup` (`buildBlock<each>`, SwiftUI's
+  `TupleView`; one statement is itself), so a builder's debug stack frame is
+  linear in its child count (`PE-AB`; it was a `buildPartialBlock` chain of
+  `Pair`s). `AnyElement` is `AnyView`.
 - **`ProposalContentBuilder`** — the builder of every SwiftUI-vocabulary
   container's content (`HStack`, `VStack`, `ZStack`, `Grid`, `GridRow`,
   `ProposalScrollView`, `ProposalLayoutContainer`, a `ProposalLayout`'s
@@ -264,6 +267,20 @@ also `inlinePresentationIntent`. Links are styled in the accent and clickable
 (`OpenURLAction`, `\.openURL`: the nearest action runs on a click, the default opens the URL through the window's platform; one `.link` accessibility child per run; inert under `.disabled`, 218); underlines and strikethroughs are the face's unsnapped bands (152);
 only 34 named entities decode (153) — A / D. The seam is `StyledText` and three
 defaultless `TextSystem` requirements (`MetalUITextSystem`) — M.
+
+**Selecting text** (`TXS-A`..`TXS-H`, record 399; A for the API, D for the behaviour; 1125-1128).
+`.textSelection(.enabled)` / `.textSelection(.disabled)` over any container, inherited by every `Text` below, the
+nearest writer winning, with `TextSelectability`, `EnabledTextSelectability` and `DisabledTextSelectability` as SwiftUI
+spells them. A primary press on a selectable `Text` starts a selection (and blurs a focused field), a drag extends it, a
+double click takes a word, a triple click a line; ⌘C/Ctrl+C copies exactly the range (the whole string even for a `Text`
+truncated by a line limit), ⌘A takes that `Text` whole, Edit > Copy and Select All enable with it; a right-click offers
+`[Copy, Select All]` and a declared `.contextMenu` wins (1128). The selection ends when focus moves to an element,
+another selectable `Text` is pressed, its `Text` leaves the tree or its string changes (1126); it survives a press on
+empty space and the window losing key. An accessibility client reads the range, the selected text and the character
+count of every selectable `Text` and cannot set them (1127); AccessKit publishes none (1125). A tree with no
+`textSelection` does the work it did, an idle selectable `Text` adds one hitbox, and the geometry is built once per
+press (`TXS-H`) — M for `AccessibilityTextSelection`, `AccessibilityNode.textSelection` and
+`ClipboardCommands.selectAll`.
 
 **Measuring text.** `@Environment(\.textMeasurer)` is a get-only `TextMeasurer`
 (no public initialiser): `resolve(_:)` takes a `Text` or a `ProposalText` in the
@@ -1170,7 +1187,9 @@ On both vocabularies: `.accessibilityLabel`, `.accessibilityValue`,
 `.accessibilityElement(children:)`, `.accessibilityAddTraits`/
 `.accessibilityRemoveTraits` (`AccessibilityTraits`),
 `.accessibilityAction(_:)`, `.accessibilityAction(named:_:)`,
-`.accessibilityAdjustableAction` (A; 29–31, 33, 34, 82, 95). `AXNode`/`AXRole`/
+`.accessibilityAdjustableAction` (A; 29–31, 33, 34, 82, 95). A `Component` takes
+`.accessibilityLabel` and `.accessibilityValue` too (`AB-AH`): a layout-transparent `AccessibilityGroup`, distributed to its
+texts. `AXNode`/`AXRole`/
 `AXTrait` are the neutral record a `StyledElement` declares (M); `AXNode.actions`
 and `AXActionKind` are deprecated (X). Bridged to NSAccessibility on macOS and
 AccessKit through `Backends/SDL`.

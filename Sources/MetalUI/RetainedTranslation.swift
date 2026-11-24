@@ -358,6 +358,7 @@ extension PrepaintLedger {
         copy.liveValues = liveValues
         copy.inertBlockers = inertBlockers
         copy.contextMenus = contextMenus
+        copy.regions = regions
         copy.elementBounds = moved.elementBounds
         copy.anchors = anchors
         copy.geometry = moved.geometry ?? geometry

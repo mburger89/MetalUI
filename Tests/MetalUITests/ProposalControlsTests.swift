@@ -167,7 +167,7 @@ private let longLabel = "A much longer label"
               [(28, 24), (49.58, 24), (49.58, 24), (49.58, 24), (49.58, 24), (49.58, 24)])
     // FL8–FL10: the menu and the radio group hug; the segmented picker is flexible between its floor and its
     // ideal (`SR-G`, probe SG1a): at zero the floor and the gap, 117.98 (it was 124.85, a rigid row).
-    func picker() -> Picker<Int, Pair<TaggedElement<Text>, TaggedElement<Text>>> {
+    func picker() -> Picker<Int, TupleGroup<TaggedElement<Text>, TaggedElement<Text>>> {
         Picker("Mode", selection: .constant(0)) { Text("Alpha").tag(0); Text("Beta").tag(1) }.pickerStyle(.segmented)
     }
     expectRow("Picker.menu", try answers(picker().pickerStyle(.menu)),

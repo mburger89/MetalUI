@@ -294,6 +294,12 @@ extension Pair: ToolbarPickerOptions {
     }
 }
 
+extension TupleGroup: ToolbarPickerOptions {
+    func collectToolbarPickerOptions(into options: inout [(tag: AnyHashable, title: String)]) {
+        for member in repeat each members { MetalUI.collectToolbarPickerOptions(member, into: &options) }
+    }
+}
+
 extension OptionalGroup: ToolbarPickerOptions {
     func collectToolbarPickerOptions(into options: inout [(tag: AnyHashable, title: String)]) {
         if let wrapped { MetalUI.collectToolbarPickerOptions(wrapped, into: &options) }

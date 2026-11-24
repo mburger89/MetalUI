@@ -152,6 +152,18 @@ public struct AccessibilityActions: OptionSet, Equatable, Sendable {
     public static let setValue = AccessibilityActions(rawValue: 1 << 6)
 }
 
+/// A selectable `Text`'s text-area state for an accessibility client (ruling `TXS-G`): the node answers the selected-range,
+/// selected-text and number-of-characters attributes — `nil` selection for a plain `Text` — and its range, in UTF-16 units of
+/// the node's value, or none.
+public struct AccessibilityTextSelection: Equatable {
+    /// The selected range in UTF-16 units of the node's value; `nil` when nothing is selected (AppKit answers
+    /// `{NSNotFound, 0}`).
+    public var range: Range<Int>?
+
+    /// A selectable text's selection state; `range` is `nil` when nothing is selected.
+    public init(range: Range<Int>?) { self.range = range }
+}
+
 /// What a node says and what it can do. No geometry: see `AccessibilityGeometry`,
 /// and `AccessibilityTree.hasSameStructure(as:)` for why the two are apart.
 public struct AccessibilityNode: Equatable {
@@ -223,6 +235,9 @@ public struct AccessibilityNode: Equatable {
     public var headerRowCount: Int?
     /// The direction a column header's column sorts, when it leads the table's sort order (`TBL-T`); `nil` otherwise.
     public var sortDirection: AccessibilitySortDirection?
+    /// A selectable `Text`'s selection (`TXS-G`): non-`nil` makes the node answer AppKit's selected-text-range, selected-text
+    /// and number-of-characters; AccessKit publishes none (divergence); `nil` for every other node.
+    public var textSelection: AccessibilityTextSelection?
 
     /// A node; every field but `role` defaults to absent, enabled and not
     /// focusable.
@@ -234,7 +249,8 @@ public struct AccessibilityNode: Equatable {
                 isOutline: Bool = false, outlineLevel: Int? = nil, isExpanded: Bool? = nil,
                 disclosedBy: AccessibilityNodeID? = nil, numericRange: ClosedRange<Double>? = nil,
                 orientation: AccessibilityOrientation? = nil, columnCount: Int? = nil, columnIndex: Int? = nil,
-                headerRowCount: Int? = nil, sortDirection: AccessibilitySortDirection? = nil) {
+                headerRowCount: Int? = nil, sortDirection: AccessibilitySortDirection? = nil,
+                textSelection: AccessibilityTextSelection? = nil) {
         self.role = role
         self.label = label
         self.value = value
@@ -259,6 +275,7 @@ public struct AccessibilityNode: Equatable {
         self.columnIndex = columnIndex
         self.headerRowCount = headerRowCount
         self.sortDirection = sortDirection
+        self.textSelection = textSelection
     }
 }
 
