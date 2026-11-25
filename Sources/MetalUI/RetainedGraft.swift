@@ -49,6 +49,30 @@ final class BuildJournal {
     var events: [Event] = []
     /// The open windows, outermost first.
     var open: [GraftRecorder] = []
+    /// The closed windows whose graft records are not made yet (`RK-AH`): each holds a range of `events`, so the journal is not
+    /// cleared while any is pending. `ContentMemoStore.pendingGrafts` keeps it equal to its own count.
+    var held = 0
+
+    /// Empties the events (the capacity stays) when no window is open and no closed window still reads them. The buffer is
+    /// uniquely referenced here: nothing keeps a slice of it, so the clear allocates nothing.
+    func clearIfIdle() {
+        if open.isEmpty && held == 0 { events.removeAll(keepingCapacity: true) }
+    }
+
+    /// The events of `range` as a graft record keeps them: a lifecycle note's order is relative to the window's first reserved
+    /// order (`RL-C`). One copy, made for a window that earned a record (`RK-AH`).
+    func rebased(_ range: Range<Int>, lifecycleBase: Int) -> [Event] {
+        var out: [Event] = []
+        out.reserveCapacity(range.count)
+        for index in range {
+            if case .lifecycleNote(let write, let scope, let owner, let order) = events[index] {
+                out.append(.lifecycleNote(write, scope, owner, order - lifecycleBase))
+            } else {
+                out.append(events[index])
+            }
+        }
+        return out
+    }
 
     var isRecording: Bool { !open.isEmpty }
 
@@ -155,15 +179,19 @@ struct PendingGraft {
     let marks: SegmentMarks
     let key: BuildKey
     let contentSerial: Int
-    let events: [BuildJournal.Event]
+    /// The window's slice of the journal, not copied (`RK-AH`): `flushPendingGrafts` copies it for an occurrence that earned a
+    /// record, and the journal is not cleared until then (`BuildJournal.held`).
+    let events: Range<Int>
+    let lifecycleBase: Int
     let requests: Int
     let lifecycleOrders: Int
     var topItems: [(index: Int, item: LoweredItem, originOffset: Int?)] = []
 
     init(entry: ContentMemoStore.Entry, marks: SegmentMarks, key: BuildKey, contentSerial: Int,
-         events: [BuildJournal.Event], requests: Int, lifecycleOrders: Int) {
+         events: Range<Int>, lifecycleBase: Int, requests: Int, lifecycleOrders: Int) {
         self.entry = entry; self.marks = marks; self.key = key; self.contentSerial = contentSerial
-        self.events = events; self.requests = requests; self.lifecycleOrders = lifecycleOrders
+        self.events = events; self.lifecycleBase = lifecycleBase
+        self.requests = requests; self.lifecycleOrders = lifecycleOrders
     }
 }
 
@@ -283,18 +311,13 @@ extension Frame {
                           key: BuildKey) -> (pending: PendingGraft?, refusal: String?) {
         let journal = stateTable.contentMemos.journal
         journal.open.removeAll { $0 === recorder }
-        defer { if journal.open.isEmpty { journal.events.removeAll(keepingCapacity: true) } }
+        defer { journal.clearIfIdle() }
         if let reason = recorder.taint { return (nil, reason) }
         if let moved = recorder.audit.movedChannel(to: buildAudit()) { return (nil, moved) }
         let (marks, refusal) = tree.captureSegmentMarks(from: recorder.lower, tops: tops)
         guard let marks else { return (nil, refusal ?? "segment") }
-        let events = journal.events[recorder.start...].map { (event: BuildJournal.Event) -> BuildJournal.Event in
-            if case .lifecycleNote(let write, let scope, let owner, let order) = event {
-                return .lifecycleNote(write, scope, owner, order - recorder.lifecycleBase)
-            }
-            return event
-        }
-        var pending = PendingGraft(entry: entry, marks: marks, key: key, contentSerial: contentSerial, events: events,
+        var pending = PendingGraft(entry: entry, marks: marks, key: key, contentSerial: contentSerial,
+                                   events: recorder.start..<journal.events.count, lifecycleBase: recorder.lifecycleBase,
                                    requests: elementRequests &+ stateTable.contentMemos.retained.skippedRequests - recorder.requests,
                                    lifecycleOrders: animationStore.lifecycle.nextRegistrationOrder - recorder.lifecycleBase)
         // Items of the nodes the window registered: a top's is carried, an interior one must be consumed (a record no
@@ -316,6 +339,7 @@ extension Frame {
                 return (nil, "interiorItemUnconsumed")   // diagnostics would report it; a graft must not hide that
             }
         }
+        journal.held += 1   // released when `pendingGrafts` empties (`RK-AH`)
         return (pending, nil)
     }
 
@@ -328,7 +352,8 @@ extension Frame {
         let memos = stateTable.contentMemos
         guard !memos.pendingGrafts.isEmpty else { return }
         let pending = memos.pendingGrafts
-        memos.pendingGrafts = []
+        // The journal's events are read below and cleared when the list empties (`RK-AH`).
+        defer { memos.pendingGrafts = [] }
         for item in pending {
             let entry = item.entry
             guard let record = entry.record, record.prepaint != nil, record.coverageComplete else {
@@ -344,7 +369,8 @@ extension Frame {
                 RetainedTrace.emit("retained graft ineligible \(entry.id.map { RetainedTrace.path($0) } ?? "?") because \(refusal ?? "?")")
                 continue
             }
-            let graft = GraftRecord(key: item.key, contentSerial: item.contentSerial, segment: segment, events: item.events,
+            let events = memos.journal.rebased(item.events, lifecycleBase: item.lifecycleBase)
+            let graft = GraftRecord(key: item.key, contentSerial: item.contentSerial, segment: segment, events: events,
                                     requests: item.requests)
             graft.lifecycleOrders = item.lifecycleOrders
             graft.topItems = item.topItems

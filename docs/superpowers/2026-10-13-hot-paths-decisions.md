@@ -1,6 +1,6 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-L`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-M`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
 `../record/111-hot-paths.md`. Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
@@ -149,3 +149,7 @@ vertically draws at its previous position. Record 111 s7.
 recorded. Storage is never reused, so no state crosses frames; maps that stay small (presentation anchors and spaces, context menus, scroll keys,
 named spaces, AX press-only) are left alone. A window that shrinks reserves the large count for one frame only. **Evidence.**
 `theSecondFrameReservesWhatTheFirstFrameHeld`. **Cost if wrong.** A wasted allocation, never a wrong frame.
+
+## HP-L - The scene's rect and glyph arrays reserve the previous frame's count (G47, record 412)
+
+**Question.** A frame's `Scene` starts empty, so its glyph array (about 200 B a glyph) doubled its way up each frame: twelve growth copies a frame in Alloy's probe, 2 MB. **Ruling.** `FrameCapacityHints` (`HP-K`) carries `sceneRects` and `sceneGlyphs`, the counts the adopted frame's scene held; `Frame.init` reserves them plus an eighth through `Scene.reserveCapacity(rects:glyphs:)` (`package`; the rect, glyph, sequence and layer arrays), reserve only. A window that shrinks reserves the large count for one frame. The test target's `countAllocatedBytes` (`MetalUITestSupport`) reads the bytes a pin on a copy's size needs. **Evidence.** Record 412. **Cost if wrong.** A wasted allocation, never a wrong frame.
