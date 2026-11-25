@@ -37,7 +37,7 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
     guard let list = accesskit_node_custom_actions(c) else { return [] }
     defer { accesskit_custom_actions_free(list) }
     return (0..<list.pointee.length).map { index in
-        let action = list.pointee.values[index]!
+        guard let action = list.pointee.values[index] else { preconditionFailure("AccessKit reported a custom action slot that is nil") }
         return (accesskit_custom_action_id(action), string(accesskit_custom_action_description(action)))
     }
 }

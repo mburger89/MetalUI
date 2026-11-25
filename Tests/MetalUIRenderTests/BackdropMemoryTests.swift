@@ -142,8 +142,11 @@ private func memoryScene(width: Int, height: Int, runs: Int = 2, block: Int = 7)
     func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer) {}
     func pixels() -> [UInt8] {
         var out = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
-        out.withUnsafeMutableBytes { texture.getBytes($0.baseAddress!, bytesPerRow: texture.width * 4,
-                                                      from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0) }
+        out.withUnsafeMutableBytes {
+            guard let base = $0.baseAddress else { preconditionFailure("the readback buffer is not empty") }
+            texture.getBytes(base, bytesPerRow: texture.width * 4,
+                             from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+        }
         return out
     }
 }
@@ -151,7 +154,7 @@ private func memoryScene(width: Int, height: Int, runs: Int = 2, block: Int = 7)
 @MainActor private func draw(_ window: MetalWindowRenderer, _ scene: Scene, _ atlas: GlyphAtlas) throws {
     #expect(window.beginFrame() != nil)
     #expect(window.finishFrame(scene: scene, atlas: atlas, surfaces: []))
-    let cb = window.renderer.commandQueue.makeCommandBuffer()!
+    let cb = try #require(window.renderer.commandQueue.makeCommandBuffer())
     cb.commit(); cb.waitUntilCompleted()   // the queue is in order: the frame's buffer is done by now
 }
 
@@ -164,7 +167,8 @@ private func memoryScene(width: Int, height: Int, runs: Int = 2, block: Int = 7)
     a.idleReleaseDelay = .milliseconds(500); b.idleReleaseDelay = .milliseconds(500)
     let scene = memoryScene(width: w, height: h)
     try draw(a, scene, atlas)
-    let first = (a.surface as! OffscreenSurface).pixels()
+    let surfaceA = try #require(a.surface as? OffscreenSurface)
+    let first = surfaceA.pixels()
     #expect(a.backdropState.isResident)
     // Another window on the same renderer does not touch this one's textures.
     try draw(b, scene, atlas)
@@ -183,5 +187,5 @@ private func memoryScene(width: Int, height: Int, runs: Int = 2, block: Int = 7)
     #expect(a.backdropState.residentTextures.isEmpty)
     try draw(a, scene, atlas)
     #expect(shared.lastBackdropTexturesMade > 0, "the next frame makes them again")
-    #expect((a.surface as! OffscreenSurface).pixels() == first, "and draws the same pixels")
+    #expect(surfaceA.pixels() == first, "and draws the same pixels")
 }

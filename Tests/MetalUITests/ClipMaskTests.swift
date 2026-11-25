@@ -425,7 +425,7 @@ private struct CMRing: Shape {
 /// shrinks).
 @Test @MainActor func anEllipseClipStillClipsHitboxesToItsBoundingRect() throws {
     let frame = effectFrame(pureRed.frame(width: px(100), height: px(60)).onTapGesture {}.clipShape(Ellipse()))
-    let boxes = frame.hitboxes.filter { $0.handlers.gestures.count > 0 }
+    let boxes = frame.hitboxes.filter { !$0.handlers.gestures.isEmpty }
     try #require(boxes.count == 1, "\(boxes.count) tappable hitboxes")
     #expect(boxes[0].bounds == Bounds(origin: Point(x: px(50), y: px(70)), size: Size(width: px(100), height: px(60))),
             "the bounding rect: \(boxes[0].bounds)")

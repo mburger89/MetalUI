@@ -100,7 +100,7 @@ func aSkippedPanelWithASegmentedPickerDrawsWhatARebuildDraws(variant: EPVariant,
 /// The retention differential: a retaining window against one with retention off, through a sibling's edits.
 @Test(.enabled(if: !rsVerifying, "verify mode paints a hit as a miss"), arguments: EPShape.allCases) @MainActor
 func aRetainingWindowWithASegmentedPickerEqualsARetentionOffWindow(shape: EPShape) throws {
-    let pair = try RPPair(size: sz(300, 120)) { side in
+    let pair = try RPPair(size: sz(300, 120)) { _ in
         let (m, o) = (EPModel(), EPModel())
         return VStack(spacing: 0) { EPRoot(model: m, other: o, shape: shape) }
     }

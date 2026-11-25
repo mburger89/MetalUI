@@ -55,7 +55,8 @@ final class FakeRenderSurface: RenderSurface {
         lastCommandBuffer?.waitUntilCompleted()
         var pixels = [UInt8](repeating: 0, count: size * size * 4)
         pixels.withUnsafeMutableBytes { raw in
-            texture.getBytes(raw.baseAddress!,
+            guard let base = raw.baseAddress else { preconditionFailure("empty pixel buffer") }
+            texture.getBytes(base,
                              bytesPerRow: size * 4,
                              from: MTLRegionMake2D(0, 0, size, size),
                              mipmapLevel: 0)

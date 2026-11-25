@@ -218,7 +218,7 @@ let codePrimary: EventModifiers = .control
     let back = totalWork(window)
     _ = back
     window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: 100_000)
-    #expect(window.scene.glyphs.count > 0, "scrolled back to the top")
+    #expect(!window.scene.glyphs.isEmpty, "scrolled back to the top")
 }
 
 /// 3.4 — lines inserted above the viewport do not move what the reader is looking at: the scroll anchor is a
@@ -586,10 +586,10 @@ import MetalUITestSupport
     }
     let bound = 2 * visible
     for position in [0, 600] {
-        let a = counts["1000@\(position)"]!, b = counts["100000@\(position)"]!
+        let a = try #require(counts["1000@\(position)"]), b = try #require(counts["100000@\(position)"])
         #expect(abs(a - b) <= bound, "1k against 100k at \(position): \(a) vs \(b), bound \(bound)")
     }
-    let deep = counts["100000@90000"]!, shallow = counts["100000@600"]!
+    let deep = try #require(counts["100000@90000"]), shallow = try #require(counts["100000@600"])
     #expect(abs(deep - shallow) <= 2 * bound, "90 000 rows down \(deep) against 600 rows down \(shallow)")
     for (cell, count) in counts.sorted(by: { $0.key < $1.key }) {
         #expect(count <= 910, "\(cell): \(count) allocations in one warm scroll frame (ceiling 910)")
@@ -741,5 +741,5 @@ import MetalUITestSupport
     #expect(decorations.stylingOfLine(now.lineRange(5)).foreground.contains { $0.style == style }, "row 4 moved to row 5")
     #expect(decorations.stylingOfLine(now.lineRange(2)).foreground.allSatisfy { $0.style == nil }, "the inserted row is unstyled")
     let needing = decorations.rowsNeedingHighlights(in: 0..<10, snapshot: now)
-    #expect(needing != nil && needing!.contains(2), "the edited row is stale again: \(String(describing: needing))")
+    #expect(needing?.contains(2) == true, "the edited row is stale again: \(String(describing: needing))")
 }

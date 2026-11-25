@@ -202,10 +202,10 @@ private let a1Buttons = [PlatformAlertButton(title: "Delete", isDestructive: tru
 @MainActor private func presentingNilTree(_ m: ALModel) -> some Element {
     Column {
         psLeaf().alert("Delete?", isPresented: m.binding, presenting: m.data) { item in
-            let _ = m.noteActions()
+            let _: Int = m.noteActions()
             Button("Delete \(item)", role: .destructive) { m.log.append("delete \(item)") }
         } message: { item in
-            let _ = m.noteMessage()
+            _ = m.noteMessage()
             return Text("Item \(item).")
         }
     }

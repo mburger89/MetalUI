@@ -100,9 +100,9 @@ private func mixed() -> AttributedString {
     for _ in 0..<4 {
         step(asked)
         _ = try asked.drawnTextColors(in: asked.element(identifier: "mixed"))
-        askedWork = askedWork + asked.lastFrameWork
+        askedWork += asked.lastFrameWork
         step(quiet)
-        quietWork = quietWork + quiet.lastFrameWork
+        quietWork += quiet.lastFrameWork
     }
     #expect(askedWork == quietWork && askedWork.builds >= 4, "asked \(askedWork) quiet \(quietWork)")
     #expect(asked.scene.glyphs.count == quiet.scene.glyphs.count && !asked.scene.glyphs.isEmpty)

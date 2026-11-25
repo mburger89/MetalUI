@@ -143,10 +143,12 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
     }
     let (single, singleRows) = try table(singleTree)
     #expect(singleRows.values.allSatisfy { singleTree.nodes[$0]?.isSelectable == true }, "every row is selectable")
-    #expect(singlePlatform.simulateAccessibilityRequest(.selectRows(single, [singleRows[1]!])))
+    let singleRow0 = try #require(singleRows[0]), singleRow1 = try #require(singleRows[1])
+    let singleRow4 = try #require(singleRows[4])
+    #expect(singlePlatform.simulateAccessibilityRequest(.selectRows(single, [singleRow1])))
     #expect(singleModel.singleWrites == [1], "LA3: one row is set: \(singleModel.singleWrites)")
     controlRedraw(singleWindow)
-    _ = singlePlatform.simulateAccessibilityRequest(.selectRows(single, [singleRows[0]!, singleRows[4]!]))
+    _ = singlePlatform.simulateAccessibilityRequest(.selectRows(single, [singleRow0, singleRow4]))
     #expect(singleModel.singleWrites == [1], "LA4: two rows are ignored: \(singleModel.singleWrites)")
 
     let multiModel = Selection(multi: [1])
@@ -154,9 +156,11 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
         List(multiModel.items, selection: multiModel.multiBinding, rowHeight: controlPx(20)) { Text("Row \($0.id)") }
     }
     let (multi, multiRows) = try table(multiTree)
-    #expect(multiPlatform.simulateAccessibilityRequest(.selectRows(multi, [multiRows[0]!, multiRows[4]!])))
+    let multiRow0 = try #require(multiRows[0]), multiRow1 = try #require(multiRows[1])
+    let multiRow4 = try #require(multiRows[4])
+    #expect(multiPlatform.simulateAccessibilityRequest(.selectRows(multi, [multiRow0, multiRow4])))
     #expect(multiModel.multiWrites == [[0, 4]], "LB2: exactly those rows: \(multiModel.multiWrites)")
-    #expect(!multiPlatform.simulateAccessibilityRequest(.selectRows(multiRows[0]!, [multiRows[1]!])),
+    #expect(!multiPlatform.simulateAccessibilityRequest(.selectRows(multiRow0, [multiRow1])),
             "a request naming a row as the table is refused")
 
     // Control: a list without `selection:` publishes rows no client may select.
@@ -166,8 +170,9 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
     }
     let (plainTable, plainRows) = try table(plainTree)
     #expect(plainRows.values.allSatisfy { plainTree.nodes[$0]?.isSelectable == false }, "not selectable")
-    #expect(!plainPlatform.simulateAccessibilityRequest(.selectRows(plainTable, [plainRows[1]!])))
-    #expect(!plainPlatform.simulateAccessibilityRequest(.select(plainRows[1]!)))
+    let plainRow1 = try #require(plainRows[1])
+    #expect(!plainPlatform.simulateAccessibilityRequest(.selectRows(plainTable, [plainRow1])))
+    #expect(!plainPlatform.simulateAccessibilityRequest(.select(plainRow1)))
     // The platform holds its window weakly: keep every window alive to here,
     // or a request reaches nothing and a refusal passes for the wrong reason.
     withExtendedLifetime((singleWindow, multiWindow, plainWindow)) {}
@@ -185,7 +190,8 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
         }.disabled(true)
     }
     let (_, disabledRows) = try table(disabledTree)
-    #expect(!disabledPlatform.simulateAccessibilityRequest(.select(disabledRows[3]!)))
+    let disabledRow3 = try #require(disabledRows[3])
+    #expect(!disabledPlatform.simulateAccessibilityRequest(.select(disabledRow3)))
     #expect(disabledModel.multiWrites.isEmpty, "nothing written: \(disabledModel.multiWrites)")
     #expect(disabledRows.values.allSatisfy { disabledTree.nodes[$0]?.isSelectable == false },
             "a disabled list's rows are not offered as selectable")
@@ -197,7 +203,8 @@ private func table(_ tree: AccessibilityTree) throws -> (AccessibilityNodeID, [I
         }.disabled(false)
     }
     let (_, enabledRows) = try table(enabledTree)
-    #expect(enabledPlatform.simulateAccessibilityRequest(.select(enabledRows[3]!)))
+    let enabledRow3 = try #require(enabledRows[3])
+    #expect(enabledPlatform.simulateAccessibilityRequest(.select(enabledRow3)))
     #expect(enabledModel.multiWrites == [[3]], "control: the enabled list selects: \(enabledModel.multiWrites)")
     withExtendedLifetime((disabledWindow, enabledWindow)) {}
 }

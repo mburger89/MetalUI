@@ -108,8 +108,7 @@ private func floats(_ b: MUIBounds) -> [Float] {
 /// 100×50).
 @Test @MainActor func aFixedChildKeepsItsSizeUnderAspectRatioNil() throws {
     let expected = Array(repeating: size(40, 20), count: 5)
-    #expect(kernelAnswers(Rectangle().frame(width: Pixels(40), height: Pixels(20))
-                              .aspectRatio(contentMode: .fit)) == expected, "A4")
+    #expect(kernelAnswers(Rectangle().frame(width: Pixels(40), height: Pixels(20)).scaledToFit()) == expected, "A4")
     #expect(kernelAnswers(Image(decorative: twoColour(40, 20), scale: 1).scaledToFit()) == expected,
             "I7")
 }
@@ -124,7 +123,7 @@ private func floats(_ b: MUIBounds) -> [Float] {
     let image = Image(decorative: twoColour(40, 20), scale: 1).resizable()
     let fit = scene(100, 60, image.scaledToFit().frame(width: Pixels(100), height: Pixels(60)))
     let fill = scene(100, 60, image.scaledToFill().frame(width: Pixels(100), height: Pixels(60)))
-    let explicitFit = scene(100, 60, image.aspectRatio(contentMode: .fit)
+    let explicitFit = scene(100, 60, image.scaledToFit()
                                 .frame(width: Pixels(100), height: Pixels(60)))
     try #require(fit.images.count == 1 && fill.images.count == 1 && explicitFit.images.count == 1)
     #expect(floats(fit.images[0].bounds) == [0, 5, 100, 50], "I3 fit \(floats(fit.images[0].bounds))")

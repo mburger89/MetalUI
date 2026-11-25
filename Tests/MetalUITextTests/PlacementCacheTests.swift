@@ -159,7 +159,7 @@ private func glyphKey(font: FontKey, glyph: UInt16 = 42, size: Double = 13, vari
 /// Test 8. A steady rich-text frame lays out and measures zero times; a changed run, origin or scale
 /// recomputes exactly once.
 @MainActor
-@Test func aSteadyRichTextFrameLaysOutAndMeasuresZeroTimes() {
+@Test func aSteadyRichTextFrameLaysOutAndMeasuresZeroTimes() throws {
     let system = CoreTextTextSystem()
     let regular = system.resolveFont(FontDescriptor(size: 13))
     let bold = system.resolveFont(FontDescriptor(size: 13, weight: 0.4))
@@ -170,12 +170,13 @@ private func glyphKey(font: FontKey, glyph: UInt16 = 42, size: Double = 13, vari
             StyledTextRun(length: 10, style: TextRunStyle(font: regular))])
     }
     let options = TextLayoutOptions()
-    func shape(_ t: StyledText) -> StyledShapedText {
-        system.cache.styled(t, fonts: t.runs.map { system.cache.font(for: $0.style.font)! }, wrappingAt: 90, options: options)
+    func shape(_ t: StyledText) throws -> StyledShapedText {
+        let fonts = try t.runs.map { try #require(system.cache.font(for: $0.style.font)) }
+        return system.cache.styled(t, fonts: fonts, wrappingAt: 90, options: options)
     }
     let t = text("bold")
     let first = system.layOut(t, wrappingAt: 90, options: options, origin: (x: 4, y: 6), scaleFactor: 2)
-    let box = shape(t).placement
+    let box = try shape(t).placement
     let misses = system.cache.misses
     #expect(box.placementsComputed == 1)
     for _ in 0..<3 {
@@ -189,14 +190,14 @@ private func glyphKey(font: FontKey, glyph: UInt16 = 42, size: Double = 13, vari
     #expect(box.placementsComputed == 2)
     _ = system.layOut(text("bolder"), wrappingAt: 90, options: options, origin: (x: 4, y: 6), scaleFactor: 2)
     #expect(system.cache.misses == misses + 1)
-    #expect(shape(text("bolder")).placement.placementsComputed == 1)
+    #expect(try shape(text("bolder")).placement.placementsComputed == 1)
 }
 
 /// Test 8b (verifier finding, record 111 s7). The rich-text placement memo key holds x, y and scale: placing
 /// one `StyledShapedText` at origins differing in only one of them recomputes, and the glyphs and segments
 /// move (a y component dropped from the key would draw a vertically scrolled rich `Text` stale).
 @MainActor
-@Test func aRichTextPlacementMemoKeyHoldsXAndYAndScale() {
+@Test func aRichTextPlacementMemoKeyHoldsXAndYAndScale() throws {
     let system = CoreTextTextSystem()
     let regular = system.resolveFont(FontDescriptor(size: 13))
     let bold = system.resolveFont(FontDescriptor(size: 13, weight: 0.4))
@@ -204,7 +205,7 @@ private func glyphKey(font: FontKey, glyph: UInt16 = 42, size: Double = 13, vari
         StyledTextRun(length: 6, style: TextRunStyle(font: regular)),
         StyledTextRun(length: 4, style: TextRunStyle(font: bold)),
         StyledTextRun(length: 10, style: TextRunStyle(font: regular))])
-    let fonts = text.runs.map { system.cache.font(for: $0.style.font)! }
+    let fonts = try text.runs.map { try #require(system.cache.font(for: $0.style.font)) }
     let shaped = system.cache.styled(text, fonts: fonts, wrappingAt: 90, options: TextLayoutOptions())
     func place(_ x: Double, _ y: Double, _ scale: Float) -> (glyphs: [(PlacedGlyph, Int)], segments: [TextRunSegment]) {
         StyledShaper.placed(shaped, text: text, fonts: fonts, origin: (x: x, y: y), scaleFactor: scale)

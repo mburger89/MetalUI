@@ -1,3 +1,5 @@
+// swiftlint:disable duplicate_imports - the guide blocks are byte-for-byte mirrors, each opening with its own imports
+
 import MetalUI
 import MetalUITesting
 import Testing
@@ -534,3 +536,5 @@ func crossLogo(path: String) -> ImageBitmap? {
         #expect(readme.source.contains("](\(name).md"), "the README has no link to \(name).md")
     }
 }
+
+// swiftlint:enable duplicate_imports

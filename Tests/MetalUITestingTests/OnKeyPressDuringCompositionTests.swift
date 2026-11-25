@@ -20,7 +20,8 @@ import Testing
         TextField("t", text: Binding(get: { m.text }, set: { m.text = $0 }))
             .accessibilityIdentifier("field")
             .onKeyPress(keys: [.downArrow, .escape]) { press in
-                m.keys.append(String(press.key.character.unicodeScalars.first!.value, radix: 16))
+                guard let scalar = press.key.character.unicodeScalars.first else { preconditionFailure("a key press carries a character") }
+                m.keys.append(String(scalar.value, radix: 16))
                 return .ignored
             }
     }

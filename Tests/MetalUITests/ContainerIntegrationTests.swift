@@ -356,7 +356,7 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
     }
     do { // G23
         let log = BoundsLog()
-        let showsMiddle = log.bounds.count > 0
+        let showsMiddle = !log.bounds.isEmpty
         render(HStack {
             fixed("a", 20, 20, log)
             if showsMiddle { fixed("m", 20, 20, log) }
@@ -407,8 +407,8 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
     render(HStack(spacing: Pixels(20)) {
         fixed("a4", 20, 20, log); Spacer(minLength: Pixels(0)); fixed("b4", 20, 20, log)
     }.fixedSize())
-    try #require(log.bounds["b3"] != nil && log.bounds["b4"] != nil)
-    try #require(log.bounds["b3"]!.origin.x != log.bounds["b4"]!.origin.x,
+    let b3 = try #require(log.bounds["b3"]), b4 = try #require(log.bounds["b4"])
+    try #require(b3.origin.x != b4.origin.x,
                  "SP3 (default) and SP4 (explicit 20) must disagree before SP4 can say anything")
     #expect(log.bounds["b4"] == rect(70, 40, 20, 20), "SP4 b")
 
@@ -930,7 +930,7 @@ private struct RootPlacementRecorder: ProposalLayout {
 @MainActor
 @Test func anEmptyOverlayOrBackgroundLeavesThePrimaryAlone() {
     let log = Lane4Log()
-    let shows = log.bounds.count > 0
+    let shows = !log.bounds.isEmpty
     do { // A11
         let frame = render(pFixed("p", 60, 40, log).overlay { if shows { pFixed("o", 20, 20, log) } }, 60, 40)
         #expect(log.bounds["o"] == nil, "A11 the conditional is empty")

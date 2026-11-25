@@ -510,7 +510,7 @@ private struct DistributionCounter: Component {
     // (bounds stay recorded at the position; hitboxes, accessibility records and `$ax` slots sit on the level).
     let specs = [DistributionCounter(role: .grower, size: 20, tall: 10), DistributionCounter(role: .plain, size: 30, tall: 20),
                  DistributionCounter(role: .floored, size: 40, tall: 30)]
-    let levels = zip(specs, boxes).map { spec, position in (spec.content as! AnyElement).contentID(under: position) }
+    let levels = try zip(specs, boxes).map { spec, position in try #require(spec.content as? AnyElement).contentID(under: position) }
 
     let reversed = LayoutDifferential.report(width: 400, height: 200) { interactiveRow(reverse: true) }
     try #require(reversed.elements == 5, "\(reversed.elements)")

@@ -446,7 +446,7 @@ struct ClipProbe: ProposalElement {
     h.frame(0, nil, chain(100))
     #expect(h.table.count == bare.table.count,
             "at rest: \(h.table.count) table entries with six layers, \(bare.table.count) without")
-    try #require(h.store.count > 0, "set up: the layers' tracks are in the store")
+    try #require(!h.store.isEmpty, "set up: the layers' tracks are in the store")
     h.frame(0, linear1, chain(300))
     h.frame(0.5, nil, chain(300))
     #expect(h.table.count == bare.table.count,

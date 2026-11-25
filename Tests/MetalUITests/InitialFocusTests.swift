@@ -31,8 +31,8 @@ private struct Seat<Body: ElementGroup>: Component {
     let model: ISModel
     let build: (ISModel, FocusState<Int?>.Binding) -> Body
     var content: some ElementGroup {
-        let _ = model.seen.append(f)
-        let _ = model.set = { [f = $f] in f.wrappedValue = $0 }
+        let _: Void = model.seen.append(f)
+        let _: Void = model.set = { [f = $f] in f.wrappedValue = $0 }
         build(model, $f)
     }
 }

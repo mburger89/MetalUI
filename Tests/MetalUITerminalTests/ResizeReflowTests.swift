@@ -272,7 +272,7 @@ extension TerminalEmulator {
         #expect(e.screenLines == ["1", "2", "3", "4", "", "", "", "", ""] && e.cursorPosition.row == 3)
     }
 
-    @Test func aRowsOnlyResizePreservesEveryAbsoluteRowAndTheGeneration() {
+    @Test func aRowsOnlyResizePreservesEveryAbsoluteRowAndTheGeneration() throws {
         let e = emulator(8, 4, scrollback: 200, feed: numbered(12))
         var before: [Int: String?] = [:]
         for row in e.firstRow..<(e.firstRow + e.scrollbackCount + e.rowCount) { before[row] = e.rowText(row) }
@@ -280,9 +280,11 @@ extension TerminalEmulator {
         for height in [2, 9, 1, 5] {
             e.resize(cols: 8, rows: height)
             for row in e.firstRow..<(e.firstRow + e.scrollbackCount + height) where before[row] != nil {
-                #expect(e.rowText(row) == before[row]!, "row \(row) at \(height) rows")
+                let expectedRow = try #require(before[row])
+                #expect(e.rowText(row) == expectedRow, "row \(row) at \(height) rows")
             }
-            #expect(e.firstRow == before.keys.min()!, "nothing is evicted below the capacity")
+            let lowestRow = try #require(before.keys.min())
+            #expect(e.firstRow == lowestRow, "nothing is evicted below the capacity")
         }
         #expect(e.reflowGeneration == generation)
     }
@@ -443,7 +445,8 @@ extension TerminalEmulator {
                 } else if Int.random(in: 0..<40, using: &rng) == 0 {
                     line += "\(CSI)0m"
                 }
-                line.append(alphabet.randomElement(using: &rng)!)
+                guard let character = alphabet.randomElement(using: &rng) else { preconditionFailure("the alphabet is not empty") }
+                line.append(character)
             }
             out += line + "\r\n"
         }
@@ -506,7 +509,8 @@ extension TerminalEmulator {
                         "\(CSI)?6h", "\(CSI)?6l", "\(CSI)?7l", "\(CSI)?7h", "日本語日本語", "\(CSI)3J", "\(CSI)2L", "\(CSI)2P"]
         for _ in 0..<16 {
             if Int.random(in: 0..<4, using: &rng) == 0 {
-                steps.append(.feed(Array(snippets.randomElement(using: &rng)!.utf8)))
+                guard let snippet = snippets.randomElement(using: &rng) else { preconditionFailure("the snippet list is not empty") }
+                steps.append(.feed(Array(snippet.utf8)))
             } else if Int.random(in: 0..<3, using: &rng) == 0 {
                 steps.append(.resize(Int.random(in: 1...30, using: &rng), Int.random(in: 1...9, using: &rng)))
             } else {

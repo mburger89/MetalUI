@@ -143,14 +143,18 @@ private func hex(_ v: UInt32) -> (Float, Float, Float) {
 /// palette-backed colour equals its own spelling. Mutation: give
 /// `Color(white:)` its own provider case (Q4, Q5 redden).
 @Test func equalityComparesComponentsLikeSwiftUI() {
-    #expect(Color.red == Color.red, "Q1")
-    #expect(Color(red: 1, green: 0, blue: 0) == Color(red: 1, green: 0, blue: 0), "Q2")
-    #expect(Color.red.opacity(0.5) == Color.red.opacity(0.5), "Q3")
+    let red = Color.red, sameRed = Color.red
+    #expect(red == sameRed, "Q1")
+    let builtRed = Color(red: 1, green: 0, blue: 0), builtRedAgain = Color(red: 1, green: 0, blue: 0)
+    #expect(builtRed == builtRedAgain, "Q2")
+    let half = Color.red.opacity(0.5), halfAgain = Color.red.opacity(0.5)
+    #expect(half == halfAgain, "Q3")
     #expect(Color(white: 1) == .white, "Q4")
     #expect(Color(white: 1).hashValue == Color.white.hashValue, "Q4 hashes equal")
     #expect(Color(red: 1, green: 1, blue: 1) == Color(white: 1), "Q5")
     #expect(Color(.surface) == .surface, "a token-backed colour equals the token static")
-    #expect(Color(ValueTestBrand.self) == Color(ValueTestBrand.self), "a palette colour equals itself")
+    let brand = Color(ValueTestBrand.self), brandAgain = Color(ValueTestBrand.self)
+    #expect(brand == brandAgain, "a palette colour equals itself")
     #expect(Color.red != Color.blue && Color(.surface) != Color(.accent), "the control: different colours differ")
 }
 

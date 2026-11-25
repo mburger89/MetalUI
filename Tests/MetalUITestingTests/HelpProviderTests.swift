@@ -9,6 +9,7 @@ import Testing
 
 /// Every call the provider has had, with the local point it was handed.
 @MainActor private final class ProviderLog {
+    var isEmpty: Bool { count < 1 }
     var points: [Point<Pixels>] = []
     var count: Int { points.count }
 }
@@ -149,7 +150,7 @@ private let inA = pt(110, 150), inA2 = pt(130, 120), inB = pt(180, 150), inNothi
 @Test @MainActor func theProviderRunsInInputNeverInAPhase() throws {
     let log = ProviderLog()
     let window = try providerWindow(log)
-    #expect(log.count == 0, "mounting and the first frames ask nothing")
+    #expect(log.isEmpty, "mounting and the first frames ask nothing")
     window.hover(at: inA)
     #expect(log.count == 1, "one move, one call")
     window.advanceFrames(10)

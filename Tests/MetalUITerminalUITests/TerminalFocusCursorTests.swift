@@ -78,7 +78,7 @@ import Testing
     let probe: PaneProbe
     let source: TerminalSnapshotSource
     var content: some ElementGroup {
-        let _ = probe.reads.append(focused)
+        let _: Void = probe.reads.append(focused)
         VStack(spacing: 0) {
             TerminalView(snapshotSource: source, theme: .xterm, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
         }.focused($focused)
@@ -237,7 +237,8 @@ private let bar = TerminalCursorStyle(shape: .bar, blinking: false)
     func view(_ style: TerminalCursorStyle) -> TerminalView {
         TerminalView(snapshotSource: source, theme: theme, cursorStyle: style, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
     }
-    #expect(view(bar) == view(bar))
+    let first = view(bar), second = view(bar)
+    #expect(first == second)
     #expect(view(bar) != view(TerminalCursorStyle(shape: .block, blinking: false)))
     #expect(view(TerminalCursorStyle(shape: .bar, blinking: true)) != view(bar))
 }

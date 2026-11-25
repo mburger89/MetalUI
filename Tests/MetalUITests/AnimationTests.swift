@@ -280,7 +280,7 @@ import MetalUIRender
 /// (0→1, v0=0) against 0.6209s (0→1e-12, v0=6) on the same spring — same
 /// order of magnitude, where the pre-fix number was ~5x *larger* than the
 /// unit case rather than comparable to it.
-@Test func aSmallTravelWithMomentumSettlesInComparableTimeToAUnitTravelOne() {
+@Test func aSmallTravelWithMomentumSettlesInComparableTimeToAUnitTravelOne() throws {
     let s = Animation.spring(duration: 0.5, bounce: 0.4)
     func settleTime(from: Double, to: Double, v0: Double) -> Double? {
         for i in 0...100000 {
@@ -289,8 +289,8 @@ import MetalUIRender
         }
         return nil
     }
-    let unitTravel = try! #require(settleTime(from: 0, to: 1, v0: 0))
-    let tinyTravelWithMomentum = try! #require(settleTime(from: 0, to: 1e-12, v0: 6))
+    let unitTravel = try #require(settleTime(from: 0, to: 1, v0: 0))
+    let tinyTravelWithMomentum = try #require(settleTime(from: 0, to: 1e-12, v0: 6))
 
     // Comfortably below the pre-fix 4.35s and within a small factor of the
     // unit-travel baseline — "comparable", not "identical": the two cases

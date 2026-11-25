@@ -127,12 +127,14 @@ private func sampleTree() -> AccessibilityTree {
 
 /// A node keeps its number while it lives; a vanished one is forgotten and
 /// its number is never handed out again (AX-B).
-@Test func accessKitIDsAreStableAndNeverReused() {
+@Test func accessKitIDsAreStableAndNeverReused() throws {
     let ids = AccessKitIDs()
     let first = AccessKitSnapshot.translate(sampleTree(), title: "", scale: 1, ids: ids)
     var smaller = sampleTree()
     smaller.nodes[AccessibilityNodeID("image")] = nil
-    smaller.nodes[AccessibilityNodeID("group")]!.children.removeAll { $0 == AccessibilityNodeID("image") }
+    var group = try #require(smaller.nodes[AccessibilityNodeID("group")])
+    group.children.removeAll { $0 == AccessibilityNodeID("image") }
+    smaller.nodes[AccessibilityNodeID("group")] = group
     let second = AccessKitSnapshot.translate(smaller, title: "", scale: 1, ids: ids)
     #expect(first.nodes.map(\.id) == [0, 1, 2, 3, 4, 5])
     #expect(second.nodes.map(\.id) == [0, 1, 2, 4, 5])

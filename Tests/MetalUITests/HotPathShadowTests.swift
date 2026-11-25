@@ -143,7 +143,7 @@ private struct Lcg {
 /// **HP.18 (spec test 18).** The scalar `boundingBox` equals the four-corner array form bit for bit over
 /// random affines (rotation, negative scale, shear, translation) and bounds. Mutation: swap min and max
 /// for y.
-@Test func boundingBoxEqualsTheFourCornerArrayForm() {
+@Test func boundingBoxEqualsTheFourCornerArrayForm() throws {
     var rng = Lcg(state: 99)
     func unit() -> Double { Double(rng.next(2001) - 1000) / 100 }
     for _ in 0..<500 {
@@ -152,8 +152,8 @@ private struct Lcg {
                           size: MUISize(width: Float(abs(unit())), height: Float(abs(unit()))))
         let x = Double(b.origin.x), y = Double(b.origin.y), w = Double(b.size.width), h = Double(b.size.height)
         let corners = [m.apply(x, y), m.apply(x + w, y), m.apply(x, y + h), m.apply(x + w, y + h)]
-        let minX = corners.map(\.x).min()!, maxX = corners.map(\.x).max()!
-        let minY = corners.map(\.y).min()!, maxY = corners.map(\.y).max()!
+        let minX = try #require(corners.map(\.x).min()), maxX = try #require(corners.map(\.x).max())
+        let minY = try #require(corners.map(\.y).min()), maxY = try #require(corners.map(\.y).max())
         let want = MUIBounds(origin: MUIPoint(x: Float(minX), y: Float(minY)),
                              size: MUISize(width: Float(maxX - minX), height: Float(maxY - minY)))
         let got = m.boundingBox(of: b)

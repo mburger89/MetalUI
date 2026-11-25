@@ -28,9 +28,9 @@ private struct Single: Component {
     @FocusState var inner: Bool
     let model: Model
     var content: some ElementGroup {
-        let _ = model.pane.append(pane)
-        let _ = model.inner.append(inner)
-        let _ = model.setPane = { [pane = $pane] in pane.wrappedValue = $0 }
+        let _: Void = model.pane.append(pane)
+        let _: Void = model.inner.append(inner)
+        let _: Void = model.setPane = { [pane = $pane] in pane.wrappedValue = $0 }
         VStack {
             TextField("t", text: model.text) { [model] in model.text = $0 }
             box().focusable()
@@ -45,8 +45,8 @@ private struct Panes: Component {
     @FocusState var pane: Pane?
     let model: Model
     var content: some ElementGroup {
-        let _ = model.named.append(pane)
-        let _ = model.setNamed = { [pane = $pane] in pane.wrappedValue = $0 }
+        let _: Void = model.named.append(pane)
+        let _: Void = model.setNamed = { [pane = $pane] in pane.wrappedValue = $0 }
         VStack { box().focusable(); box().focusable() }.focused($pane, equals: .a)
         VStack { box().focusable(); box().focusable() }.focused($pane, equals: .b)
     }
@@ -167,7 +167,7 @@ private struct Group2: Component {
     let model: Model
     let bound: Bool
     var content: some ElementGroup {
-        let _ = model.pane.append(pane)
+        let _: Void = model.pane.append(pane)
         if bound {
             VStack { TextField("t", text: model.text) { [model] in model.text = $0 }; box().focusable() }.focused($pane)
         } else {

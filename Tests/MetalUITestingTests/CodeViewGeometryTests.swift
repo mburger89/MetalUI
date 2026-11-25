@@ -35,7 +35,7 @@ private let selectionAlpha: Float = 0.29
 @MainActor private func byteRange(of needle: String, inRow row: Int, _ buffer: CodeBuffer) -> Range<Int> {
     let snap = buffer.snapshot()
     let line = snap.line(row)
-    let r = line.range(of: needle)!
+    guard let r = line.range(of: needle) else { preconditionFailure("row \(row) does not contain \(needle)") }
     let start = snap.lineRange(row).lowerBound + line.utf8.distance(from: line.startIndex, to: r.lowerBound)
     return start..<(start + needle.utf8.count)
 }

@@ -157,7 +157,7 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     m.showsToolbar = false
     window.drawFrameIfNeeded()
     #expect(window.lastDrawBuildCount == 1, "the strip leaving costs no extra build")
-    #expect(window.lastElementBounds.keys.filter(isUnderStrip).isEmpty, "no strip once the toolbar left")
+    #expect(!window.lastElementBounds.keys.contains(where: isUnderStrip), "no strip once the toolbar left")
     let full = try #require(window.lastElementBounds[rootID])
     #expect(abs(full.origin.y.value - (400 - full.size.height.value) / 2) <= 0.5,
             "the root back in the whole window in the same presented frame: \(full)")
@@ -188,7 +188,9 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     let rootStops = order.indices.filter { !isUnderStrip(order[$0]) }
     let stripStops = order.indices.filter { isUnderStrip(order[$0]) }
     try #require(!rootStops.isEmpty && stripStops.count >= 3, "tab order: \(order.count)")
-    #expect(rootStops.max()! < stripStops.min()!, "Tab reaches the strip after the root")
+    let lastRootStop = try #require(rootStops.max())
+    let firstStripStop = try #require(stripStops.min())
+    #expect(lastRootStop < firstStripStop, "Tab reaches the strip after the root")
 
     let field = try #require(window.lastHitboxes.first { isUnderStrip($0.id) && $0.handlers.textInput != nil },
                              "the strip field's hitbox")
@@ -218,7 +220,7 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     window.drawFrameIfNeeded()
     #expect(platform.toolbars.isEmpty, "no setToolbar call")
     #expect(window.lastDrawBuildCount == 1, "one build")
-    #expect(window.lastElementBounds.keys.filter(isUnderStrip).isEmpty, "no strip")
+    #expect(!window.lastElementBounds.keys.contains(where: isUnderStrip), "no strip")
     let rects = window.lastScene.rects.map {
         [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height]
     }

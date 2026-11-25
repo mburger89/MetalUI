@@ -18,9 +18,9 @@ private struct TMReader: Component, @MainActor Equatable {
     let log: TMLog
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        let _ = log.n += 1
+        let _: Void = log.n += 1
         let width = measurer.resolve(Text("12.5 mm")).measure(in: tmUnbounded).width
-        let _ = log.width = width.value
+        let _: Void = log.width = width.value
         Text("w\(Int(width.value))").frame(width: Pixels(120), height: Pixels(16))
     }
     static func == (l: TMReader, r: TMReader) -> Bool { l.log === r.log }
@@ -72,7 +72,7 @@ private struct TMReader: Component, @MainActor Equatable {
 /// argument): that field removed from what the reading resolves.
 private enum TMField: String, CaseIterable { case font, fontWeight, italic, controlSize, lineLimit, truncation, alignment, foreground }
 
-@Test(arguments: TMField.allCases) @MainActor fileprivate func aMeasurerReadingChangesWithEachTextStyleField(field: TMField) {
+@Test(arguments: TMField.allCases) @MainActor private func aMeasurerReadingChangesWithEachTextStyleField(field: TMField) {
     let box = TextSystemBox(harnessTextSystem())
     var base = EnvironmentValues()
     base.textSystemBox = box
@@ -107,9 +107,11 @@ private enum TMField: String, CaseIterable { case font, fontWeight, italic, cont
         var values = EnvironmentValues(); values.textSystemBox = box
         return .of(values.textMeasurer)
     }
-    #expect(measurer(TextSystemBox(system)) == measurer(TextSystemBox(system)), "two boxes over one system")
+    let overSystem = measurer(TextSystemBox(system)), overSystemAgain = measurer(TextSystemBox(system))
+    #expect(overSystem == overSystemAgain, "two boxes over one system")
     #expect(measurer(TextSystemBox(system)) != measurer(TextSystemBox(other)), "two systems")
-    #expect(measurer(nil) == measurer(nil), "no box equals itself")
+    let noBox = measurer(nil), noBoxAgain = measurer(nil)
+    #expect(noBox == noBoxAgain, "no box equals itself")
     #expect(measurer(nil) != measurer(TextSystemBox(system)))
 }
 

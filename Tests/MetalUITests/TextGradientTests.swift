@@ -444,10 +444,12 @@ private func differing(_ a: [UInt8], _ b: [UInt8], tolerance: Int = 1) -> Int {
     let rows = (0..<200).filter { y in (0..<200).contains { pixel(r.pixels, $0, y)[3] == 255 } }
     let line = try #require(rows.last, "the underline is the last full row")
     let xs = (0..<200).filter { pixel(r.pixels, $0, line)[3] == 255 }
-    let l = pixel(r.pixels, xs.first! + 4, line), rt = pixel(r.pixels, xs.last! - 4, line)
+    let leftEdge = try #require(xs.first, "the underline row has ink")
+    let rightEdge = try #require(xs.last, "the underline row has ink")
+    let l = pixel(r.pixels, leftEdge + 4, line), rt = pixel(r.pixels, rightEdge - 4, line)
     #expect(l[0] > rt[0] + 80 && rt[2] > l[2] + 80, "the line varies along the gradient: \(l) \(rt)")
     let own = try render(text.underline(color: pureGreen).foregroundStyle(sweep), renderer: r.renderer)
-    let g = pixel(own.pixels, xs.first! + 4, line)
+    let g = pixel(own.pixels, leftEdge + 4, line)
     #expect(g == [0, 255, 0, 255], "an own colour stays: \(g)")
 }
 

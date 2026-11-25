@@ -135,7 +135,7 @@ private struct Model {
             #expect(listed.count == model.gaps.count, "round \(round) \(label): \(listed.count) groups, model \(model.gaps.count)")
             for (got, want) in zip(listed, model.gaps) {
                 #expect(got.position == want.position && got.group.lines[0].text == "g\(want.id)"
-                        && got.group.owner == owners[want.id] && got.group.priority == Int(owners[want.id]!) * 3,
+                        && got.group.owner == owners[want.id] && got.group.priority == owners[want.id].map({ Int($0) * 3 }),
                         "round \(round) \(label): \(got.position) \(got.group.lines[0].text) vs \(want)")
             }
         }

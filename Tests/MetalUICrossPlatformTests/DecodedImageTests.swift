@@ -141,13 +141,15 @@ private let letterGrey: [Character: UInt8] = ["R": 10, "B": 20, "G": 30, "W": 40
 @Test func applyingOrientationPermutesEveryOneOfTheEightLikeSwiftUI() throws {
     for (orientation, expected) in probeTable {
         let rgba = DecodedImage(format: .rgba, width: 2, height: 2,
-                                pixels: "RBGW".flatMap { letterRGBA[$0]! }, orientation: orientation)
+                                pixels: try "RBGW".flatMap { try #require(letterRGBA[$0]) }, orientation: orientation)
         let turned = rgba.applyingOrientation()
-        #expect(turned.pixels == expected.flatMap { letterRGBA[$0]! }, "rgba \(orientation)")
+        let expectedRGBA = try expected.flatMap { try #require(letterRGBA[$0]) }
+        #expect(turned.pixels == expectedRGBA, "rgba \(orientation)")
         #expect(turned.orientation == .up && turned.width == 2 && turned.height == 2 && turned.bytesPerRow == 8)
         let grey = DecodedImage(format: .grey, width: 2, height: 2,
-                                pixels: "RBGW".map { letterGrey[$0]! }, orientation: orientation)
-        #expect(grey.applyingOrientation().pixels == expected.map { letterGrey[$0]! }, "grey \(orientation)")
+                                pixels: try "RBGW".map { try #require(letterGrey[$0]) }, orientation: orientation)
+        let expectedGrey = try expected.map { try #require(letterGrey[$0]) }
+        #expect(grey.applyingOrientation().pixels == expectedGrey, "grey \(orientation)")
     }
     // 3x2: stored a b c / d e f = 1...6.
     let wide: [(Image.Orientation, [UInt8], Int, Int)] = [

@@ -54,7 +54,8 @@ extension AccessibilityTree {
         let matches = nodes.filter { ($0.value.label ?? $0.value.value) == text }
         try #require(matches.count == 1, "exactly one node reads \(text): \(readings)",
                      sourceLocation: sourceLocation)
-        return (matches.first!.key, matches.first!.value)
+        let match = try #require(matches.first)
+        return (match.key, match.value)
     }
 }
 

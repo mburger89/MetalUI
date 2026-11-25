@@ -92,7 +92,8 @@ private func cellRects(_ element: GridUnderTest, _ probe: GridProbe) -> [String:
     var root = element
     let frame = Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1)
     frame.render(&root)
-    let grid = frame.tree.layout(probe.grid!.layoutNodeID)
+    guard let probeGrid = probe.grid else { preconditionFailure("the element under test registered no grid") }
+    let grid = frame.tree.layout(probeGrid.layoutNodeID)
     return probe.cells.mapValues { node in
         let rect = frame.tree.layout(node.layoutNodeID)
         return LayoutRect(x: rect.x - grid.x, y: rect.y - grid.y, width: rect.width, height: rect.height)

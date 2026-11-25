@@ -59,12 +59,13 @@ private enum Lane { case none, reserved, width(Int) }
     let lanePx = (advance() * 2).rounded(.up)
     #expect(markerGlyphs(long).count >= 9)
     let originX = laneLeft.min() ?? -1
-    #expect(laneRight.max()! - originX <= lanePx + 1, "the clip is the lane: \(laneRight.max()! - originX) vs \(lanePx)")
+    let clipRight = try #require(laneRight.max())
+    #expect(clipRight - originX <= lanePx + 1, "the clip is the lane: \(clipRight - originX) vs \(lanePx)")
     // A short marker in a wide lane is centred.
     let (centre, _) = try fixture(.width(6))
     let g = markerGlyphs(centre)
     let lane = (advance() * 6).rounded(.up)
-    let lo = g.map(\.bounds.origin.x).min()!, hi = g.map { $0.bounds.origin.x + $0.bounds.size.width }.max()!
+    let lo = try #require(g.map(\.bounds.origin.x).min()), hi = try #require(g.map { $0.bounds.origin.x + $0.bounds.size.width }.max())
     #expect(abs((lo + hi) / 2 - (originX + lane / 2)) <= 3, "centred: \(lo)...\(hi) in lane \(originX)+\(lane)")
 }
 

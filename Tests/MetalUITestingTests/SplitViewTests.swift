@@ -303,7 +303,7 @@ import Testing
 /// still shows. Mutation: `hidden` ignored (the line is drawn) or the hit area dropped with the line.
 @Test @MainActor func aHiddenDividerDrawsNoLineButStillDrags() throws {
     let window = try harnessWindow { twoPanes(.hidden) }
-    #expect(painted(window).filter { $0.bounds.size.width <= 16 }.isEmpty, "\(allDividerRects(window).map(xywh))")
+    #expect(!painted(window).contains { $0.bounds.size.width <= 16 }, "\(allDividerRects(window).map(xywh))")
     #expect(columns(window) == [100, 299])
     window.hover(at: pt(100.5, 150))
     #expect(window.pointerStyle == .columnResize)
@@ -363,7 +363,7 @@ import Testing
         }
     }
     #expect(rows(window) == [60, 234], "\(rows(window))")
-    #expect(painted(window).filter { $0.bounds.size.height <= 16 }.isEmpty)
+    #expect(!painted(window).contains { $0.bounds.size.height <= 16 })
     window.hover(at: pt(200, 63)); #expect(window.pointerStyle == .rowResize)
     window.drag(from: pt(200, 63), to: pt(200, 83))
     #expect(rows(window) == [80, 214], "\(rows(window))")
@@ -415,6 +415,6 @@ private struct GutterRoot: Component {
     model.hidden = true; model.thickness = 0
     window.window.setNeedsRedraw(); window.tick()
     #expect(columns(window) == [100, 300], "\(columns(window))")
-    #expect(painted(window).filter { $0.bounds.size.width <= 16 }.isEmpty)
+    #expect(!painted(window).contains { $0.bounds.size.width <= 16 })
     #expect(log.entries == ["pane taps=1"], "\(log.entries)")
 }
