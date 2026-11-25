@@ -52,7 +52,7 @@ private func ihdr(_ width: UInt32, _ height: UInt32, depth: UInt8 = 8, colour: U
 /// **1** `aPNGReportsSizeDepthAndChannelsForEveryColourType`. Mutation: palette 3 → 1 channel.
 @Test func aPNGReportsSizeDepthAndChannelsForEveryColourType() throws {
     let legal: [(colour: UInt8, depths: [UInt8], channels: Int)] = [
-        (0, [1, 2, 4, 8, 16], 1), (2, [8, 16], 3), (3, [1, 2, 4, 8], 3), (4, [8, 16], 2), (6, [8, 16], 4),
+        (0, [1, 2, 4, 8, 16], 1), (2, [8, 16], 3), (3, [1, 2, 4, 8], 3), (4, [8, 16], 2), (6, [8, 16], 4)
     ]
     var checked = 0
     for entry in legal {
@@ -122,7 +122,7 @@ private func ihdr(_ width: UInt32, _ height: UInt32, depth: UInt8 = 8, colour: U
 @Test func theOrientationMatchesTheS2WalksOnEveryFixture() throws {
     for value in 1...8 {
         let want = try #require(Image.Orientation(exifValue: value))
-        let tiff = orientationTIFF(UInt16(value), bigEndian: value % 2 == 0)
+        let tiff = orientationTIFF(UInt16(value), bigEndian: value.isMultiple(of: 2))
         let jpeg = jpegWith([exifAPP1(tiff), sof(width: 4, height: 2)])
         #expect(info(jpeg)?.orientation == want, "jpeg \(value)")
         #expect(withBytes(jpeg) { exifOrientation(inJPEG: $0) } == want)
@@ -188,7 +188,7 @@ private func ihdr(_ width: UInt32, _ height: UInt32, depth: UInt8 = 8, colour: U
         ("bad CRC", ihdr(5, 3, badCRC: true)), ("width 0", ihdr(0, 3)), ("height 0", ihdr(5, 0)),
         ("width 2^31", ihdr(1 << 31, 3)), ("height 2^32-1", ihdr(5, UInt32.max)),
         ("depth 3", ihdr(5, 3, depth: 3)), ("palette 16-bit", ihdr(5, 3, depth: 16, colour: 3)),
-        ("colour type 1", ihdr(5, 3, depth: 8, colour: 1)), ("RGB 4-bit", ihdr(5, 3, depth: 4, colour: 2)),
+        ("colour type 1", ihdr(5, 3, depth: 8, colour: 1)), ("RGB 4-bit", ihdr(5, 3, depth: 4, colour: 2))
     ]
     for (name, bytes) in pngRows { #expect(info(bytes) == nil, "\(name)") }
     #expect(info(ihdr(1 << 31 - 1, 1 << 31 - 1))?.width == (1 << 31) - 1, "the largest legal side")
@@ -200,7 +200,7 @@ private func ihdr(_ width: UInt32, _ height: UInt32, depth: UInt8 = 8, colour: U
         ("5 components", jpegWith([sof(width: 5, height: 3, components: 5)])),
         ("components past the segment", jpegWith([jpegSegment(0xC0, [8, 0, 3, 0, 5, 3, 1, 0x11, 0])])),
         ("SOF only after the SOS", [0xFF, 0xD8] + jpegSegment(0xDA, [1, 1, 0, 0, 0x3F, 0]) + sof(width: 5, height: 3)),
-        ("APP1 past EOF", [0xFF, 0xD8, 0xFF, 0xE1, 0xFF, 0xFF, 0x45, 0x78]),
+        ("APP1 past EOF", [0xFF, 0xD8, 0xFF, 0xE1, 0xFF, 0xFF, 0x45, 0x78])
     ]
     for (name, bytes) in jpegRows { #expect(info(bytes) == nil, "\(name)") }
     // Two SOF: the first wins. A fill run is skipped. A damaged APP1 past EOF after the frame still answers.
@@ -315,7 +315,7 @@ private func decodable(_ width: Int, _ height: Int) -> Data {
     let wide = decodable(20, 1), tall = decodable(10, 40), small = decodable(4, 3)
     let refused: [(String, Data, DecodedImage.Limits)] = [
         ("side", wide, .init(maxSide: 19)), ("side on height", tall, .init(maxSide: 39)),
-        ("pixels", tall, .init(maxPixels: 399)), ("input", small, .init(maxInputBytes: small.count - 1)),
+        ("pixels", tall, .init(maxPixels: 399)), ("input", small, .init(maxInputBytes: small.count - 1))
     ]
     for (name, data, limits) in refused {
         let trace = HeaderTrace()

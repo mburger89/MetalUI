@@ -201,7 +201,7 @@ func aRightOrOtherDragOutOfTheRegionLetsTheTooltipReturn(_ button: String) throw
         ("H5", { (try tree(Column { Text("a").help("in") }.help("out")),
                   try tree(Column { Text("a").accessibilityHint("in") }.accessibilityHint("out"))) }),
         ("proposal", { (try tree(HStack { ProposalText("a"); ProposalText("b") }.help("h")),
-                        try tree(HStack { ProposalText("a"); ProposalText("b") }.accessibilityHint("h"))) }),
+                        try tree(HStack { ProposalText("a"); ProposalText("b") }.accessibilityHint("h"))) })
     ]
     for (name, make) in shapes {
         let (help, hint) = try make()

@@ -330,7 +330,7 @@ private struct Panel: Component, @MainActor Equatable {
 private struct PanelHolder: Component {
     let param: IVParam
     var content: some ElementGroup {
-        Panel(show: param.k % 2 == 0).equatable()
+        Panel(show: param.k.isMultiple(of: 2)).equatable()
     }
 }
 
@@ -480,7 +480,7 @@ private struct DiffCell: Component, @MainActor Equatable {
             Text("cell \(cell.value)").frame(width: Pixels(70), height: Pixels(14))
             Box().frame(width: Pixels(Float(10 + cell.value % 5 * 6)), height: Pixels(8)).background(.accent)
                 .offset(x: Pixels(Float(cell.value % 3)))
-                .opacity(cell.value % 2 == 0 ? 1 : 0.5)
+                .opacity(cell.value.isMultiple(of: 2) ? 1 : 0.5)
         }
     }
     static func == (l: DiffCell, r: DiffCell) -> Bool { l.memo && r.memo && l.cell === r.cell }
@@ -545,7 +545,7 @@ private struct DiffRoot {
         ("cell 3 twice", { $0.cells[3].value += 1; $0.cells[3].value += 1 }),
         ("a quiet frame again", { _ in }),
         ("every cell", { r in r.cells.forEach { $0.value += 1 } }),
-        ("cell 0 back", { $0.cells[0].value -= 2 }),
+        ("cell 0 back", { $0.cells[0].value -= 2 })
     ]
     for (name, step) in script {
         try step(a); try step(b)
@@ -604,7 +604,7 @@ private struct LifeHolder: Component {
     let memo: Bool
     var content: some ElementGroup {
         VStack(spacing: 0) {
-            LifeItem(log: log, flag: param.k % 2 == 0, memo: memo).equatable()
+            LifeItem(log: log, flag: param.k.isMultiple(of: 2), memo: memo).equatable()
             LifeItem(log: log, flag: true, memo: memo).equatable()   // a same-typed sibling with its own @State
             ListPane(memo: memo).equatable().frame(width: Pixels(100), height: Pixels(100))
         }

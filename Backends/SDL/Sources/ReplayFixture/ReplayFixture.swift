@@ -237,13 +237,13 @@ public struct ReplayFixture: Equatable, Sendable {
         }
         try dimension(width, "width"); try dimension(height, "height")
         try dimension(atlasWidth, "atlas width"); try dimension(atlasHeight, "atlas height")
-        guard rects.count % Int(Self.rectStride) == 0 else { throw .invalid("rect bytes \(rects.count) not a multiple of \(Self.rectStride)") }
-        guard glyphs.count % Int(Self.glyphStride) == 0 else { throw .invalid("glyph bytes \(glyphs.count) not a multiple of \(Self.glyphStride)") }
-        guard images.count % Int(Self.imageStride) == 0 else { throw .invalid("image bytes \(images.count) not a multiple of \(Self.imageStride)") }
-        guard transforms.count % Int(Self.transformStride) == 0 else {
+        guard rects.count.isMultiple(of: Int(Self.rectStride)) else { throw .invalid("rect bytes \(rects.count) not a multiple of \(Self.rectStride)") }
+        guard glyphs.count.isMultiple(of: Int(Self.glyphStride)) else { throw .invalid("glyph bytes \(glyphs.count) not a multiple of \(Self.glyphStride)") }
+        guard images.count.isMultiple(of: Int(Self.imageStride)) else { throw .invalid("image bytes \(images.count) not a multiple of \(Self.imageStride)") }
+        guard transforms.count.isMultiple(of: Int(Self.transformStride)) else {
             throw .invalid("transform bytes \(transforms.count) not a multiple of \(Self.transformStride)")
         }
-        guard backdrops.count % Int(Self.backdropStride) == 0 else {
+        guard backdrops.count.isMultiple(of: Int(Self.backdropStride)) else {
             throw .invalid("backdrop bytes \(backdrops.count) not a multiple of \(Self.backdropStride)")
         }
         for (index, texture) in textures.enumerated() {
@@ -408,7 +408,7 @@ extension ReplayFixture {
         if version >= 3 && version < 6 {
             // Each 64-byte record keeps its four lanes and gains a zero projective lane: no perspective (`PJ-A`).
             let old = Int(Self.version5TransformStride), new = Int(Self.transformStride)
-            guard transforms.count % old == 0 else {
+            guard transforms.count.isMultiple(of: old) else {
                 throw .invalid("transform bytes \(transforms.count) not a multiple of \(old)")
             }
             var widened: [UInt8] = []
@@ -423,7 +423,7 @@ extension ReplayFixture {
         if version == 4 {
             // Each 96-byte record keeps its six lanes and gains a zero glass tail (ruling `LG-O`).
             let old = Int(Self.version4BackdropStride), new = Int(Self.backdropStride)
-            guard backdrops.count % old == 0 else {
+            guard backdrops.count.isMultiple(of: old) else {
                 throw .invalid("backdrop bytes \(backdrops.count) not a multiple of \(old)")
             }
             var widened: [UInt8] = []
@@ -499,7 +499,7 @@ extension ReplayFixture {
 /// Per-pixel BGRA comparison: pixels with a channel differing by more than
 /// `threshold` (default: any difference), and the largest channel difference.
 public func pixelDifference(_ a: [UInt8], _ b: [UInt8], above threshold: Int = 0) -> (pixels: Int, maxDelta: Int) {
-    precondition(a.count == b.count && a.count % 4 == 0, "images differ in size")
+    precondition(a.count == b.count && a.count.isMultiple(of: 4), "images differ in size")
     var pixels = 0, maxDelta = 0
     for i in stride(from: 0, to: a.count, by: 4) {
         var changed = false

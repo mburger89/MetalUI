@@ -214,7 +214,7 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
     // gap → (evenly leading offsets, around leading offsets)
     let expected: [Float: (evenly: [Float], around: [Float])] = [
         0: (evenly: [35, 90, 145], around: [23, 90, 157]),
-        10: (evenly: [30, 90, 150], around: [20, 90, 160]),
+        10: (evenly: [30, 90, 150], around: [20, 90, 160])
     ]
     var arms = 0
     for gap in [Float(0), 10] {
@@ -371,7 +371,7 @@ private func container<C: ElementGroup>(row: Bool, gap: Float = 0, justify: Just
         (.flexStart, 0, (180, 150), (190, 160)), (.flexStart, 10, (180, 140), (190, 150)),
         (.center, 0, (105, 75), (110, 80)), (.center, 10, (110, 70), (115, 75)),
         (.flexEnd, 0, (30, 0), (30, 0)), (.flexEnd, 10, (40, 0), (40, 0)),
-        (.spaceBetween, 0, (180, 0), (190, 0)), (.spaceBetween, 10, (180, 0), (190, 0)),
+        (.spaceBetween, 0, (180, 0), (190, 0)), (.spaceBetween, 10, (180, 0), (190, 0))
     ]
     var arms = 0
     for arm in expected {

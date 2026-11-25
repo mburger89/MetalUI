@@ -290,7 +290,7 @@ private func describe(_ event: InputEvent) -> String {
         (.frameResize(edge: .topLeading, inward: true, outward: true), .nwResize),
         (.frameResize(edge: .topTrailing, inward: true, outward: true), .neResize),
         (.frameResize(edge: .bottomLeading, inward: true, outward: true), .swResize),
-        (.frameResize(edge: .bottomTrailing, inward: true, outward: true), .seResize),
+        (.frameResize(edge: .bottomTrailing, inward: true, outward: true), .seResize)
     ]
     for (style, cursor) in table {
         #expect(SDLCursorTable.systemCursor(for: style) == cursor, "\(style)")
@@ -344,7 +344,7 @@ private func describe(_ event: InputEvent) -> String {
         Int(MUI_EVENT_TEXT_EDITING), Int(MUI_EVENT_FOCUS_GAINED), Int(MUI_EVENT_FOCUS_LOST),
         Int(MUI_EVENT_DROP_BEGIN), Int(MUI_EVENT_DROP_POSITION), Int(MUI_EVENT_DROP_FILE),
         Int(MUI_EVENT_DROP_TEXT), Int(MUI_EVENT_DROP_COMPLETE), Int(MUI_EVENT_RIGHT_DOWN),
-        Int(MUI_EVENT_RIGHT_UP), Int(MUI_EVENT_DIALOG), Int(MUI_EVENT_MOUSE_LEAVE),
+        Int(MUI_EVENT_RIGHT_UP), Int(MUI_EVENT_DIALOG), Int(MUI_EVENT_MOUSE_LEAVE)
     ]
     #expect(old == Array(0...26), "an existing kind moved: \(old)")
     let new = [Int(MUI_EVENT_OTHER_DOWN), Int(MUI_EVENT_OTHER_UP), Int(MUI_EVENT_RIGHT_DRAG),

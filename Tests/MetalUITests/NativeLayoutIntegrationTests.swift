@@ -62,7 +62,6 @@ private struct NativeProbeLeaf: ProposalElement {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-
 /// A leaf whose width is its proposal capped at its ideal width. This mirrors
 /// the flexible probe used by the companion SwiftUI priority measurement.
 private struct NativeFlexibleProbe: ProposalElement {
@@ -86,7 +85,6 @@ private struct NativeFlexibleProbe: ProposalElement {
     func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                prepaint: inout Void, pass: inout PaintPass) {}
 }
-
 
 /// The vertical counterpart of ``NativeFlexibleProbe``. It is kept separate
 /// so each priority test makes the flexible axis explicit.
@@ -112,7 +110,6 @@ private struct NativeVerticallyFlexibleProbe: ProposalElement {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-
 private struct NativeFillProbe: ProposalElement {
     let probe: NativeLayoutProbe
 
@@ -131,7 +128,6 @@ private struct NativeFillProbe: ProposalElement {
     func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                prepaint: inout Void, pass: inout PaintPass) {}
 }
-
 
 private struct NativeProposalProbe: ProposalElement {
     let expectedProposals: [ProposedSize]
@@ -164,7 +160,6 @@ private struct NativeProposalProbe: ProposalElement {
     func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                prepaint: inout Void, pass: inout PaintPass) {}
 }
-
 
 /// A native root (an overlay over one 40×20 leaf) is laid out by the proposal
 /// engine: measured at the 140×90 window, then — since plan task 6's lane 4 —

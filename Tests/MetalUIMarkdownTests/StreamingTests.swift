@@ -7,7 +7,7 @@ import Testing
 /// The thirteen line kinds the exhaustive corpus draws from: every block start, every continuation hazard and
 /// both halves of a table.
 private let lineKinds = [
-    "# a", "a", "", "- a", "1. a", "  - a", "> a", "```", "    a", "---", "===", "|a|b|", "|-|-|",
+    "# a", "a", "", "- a", "1. a", "  - a", "> a", "```", "    a", "---", "===", "|a|b|", "|-|-|"
 ]
 
 /// Every `length`-line source over `lineKinds`, joined with newlines (so the last line never ends in one).
@@ -67,13 +67,13 @@ private func streamed(_ text: String, scalars step: Int) -> [MarkdownBlock] {
             "# a", "## a ##", "a", "b", "", "- a", "* a", "+ b", "1. a", "2. a", "1) a", "10. a", "  - a", "   - b", "    - c",
             "> a", ">", "> > a", ">b", "```", "``` js x", "~~~", "~~~~", "````", "    a", "     a", "\ta", "\t\ta", "  \ta",
             "---", "***", "___", "- - -", "===", "= =", "|a|b|", "|-|-|", "a|b", "-|-", ":-|-:", "|:-:|:--|", "|a|", "|", "-",
-            "-  a", "   ```", "  ", "a  ", "1.", "-\ta", "#", "####### a", "#a", "|a\\|b|c|", "| a | b |", "é ü", "日本 語", "a😀b",
+            "-  a", "   ```", "  ", "a  ", "1.", "-\ta", "#", "####### a", "#a", "|a\\|b|c|", "| a | b |", "é ü", "日本 語", "a😀b"
         ]
         var rng = SplitMix64(seed: 2026)
         var failures: [String] = []
         for _ in 0..<6000 {
             let count = 2 + Int(rng.next() % 7)
-            let separator = rng.next() % 4 == 0 ? "\r\n" : "\n"
+            let separator = rng.next().isMultiple(of: 4) ? "\r\n" : "\n"
             let source = (0..<count).map { _ in rich[Int(rng.next() % UInt64(rich.count))] }.joined(separator: separator)
             let whole = MarkdownDocument.parseWhole(source)
             for step in [1, 3, 7] where streamed(source, scalars: step) != whole {

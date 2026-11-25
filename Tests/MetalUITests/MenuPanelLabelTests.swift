@@ -10,7 +10,7 @@ import MetalUIPlatform
 // "Alt", `.shift` "Shift", in that order. Red before: `.command` read "Ctrl".
 
 @MainActor private func text(_ key: String, _ modifiers: Modifiers, _ platform: TextEditing.Platform,
-                  superKeyName: String = "Super") -> String? {
+                             superKeyName: String = "Super") -> String? {
     MenuPanel.shortcutText(PlatformKeyEquivalent(key: key, modifiers: modifiers), platform: platform,
                            superKeyName: superKeyName)
 }

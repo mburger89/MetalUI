@@ -55,6 +55,7 @@ extension TerminalEmulator {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity - the control-code table, one case per code
     func csi(_ p: CSIParameters, final: UInt8) {
         if p.prefix == 0x3F {
             csiPrivate(p, final: final)
@@ -187,9 +188,9 @@ extension TerminalEmulator {
         case 1005: currentModes.mouseEncoding = on ? .utf8 : .legacy
         case 1006: currentModes.mouseEncoding = on ? .sgr : .legacy
         case 2004: currentModes.bracketedPaste = on
-        case 47: on ? enterAlternate(clear: false) : leaveAlternate(clear: false)
-        case 1047: on ? enterAlternate(clear: false) : leaveAlternate(clear: true)
-        case 1048: on ? saveCursor() : restoreCursor()
+        case 47: if on { enterAlternate(clear: false) } else { leaveAlternate(clear: false) }
+        case 1047: if on { enterAlternate(clear: false) } else { leaveAlternate(clear: true) }
+        case 1048: if on { saveCursor() } else { restoreCursor() }
         case 1049:
             if on {
                 guard !onAlternate else { return }
@@ -241,7 +242,7 @@ extension TerminalEmulator {
 
     /// SGR (`TRM-AD`): `;` and `:` forms, 16, 256 and 24-bit colours, underline styles. A malformed extended
     /// colour ends the sequence there; what came before it applies.
-    func sgr(_ p: CSIParameters) {
+    func sgr(_ p: CSIParameters) { // swiftlint:disable:this cyclomatic_complexity - the mode table, one case per mode
         let values = p.values
         if values.isEmpty {
             resetPenKeepingLink()

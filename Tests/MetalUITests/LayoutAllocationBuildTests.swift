@@ -33,7 +33,7 @@ private func id(_ names: String...) -> GlobalElementID {
     func floor(_ n: Int) throws -> Int {
         let slice = Array(ids[0..<n])
         var hits = 0
-        return try #require(countAllocations { for key in slice { if table.isLive(key) { hits += 1 } } })
+        return try #require(countAllocations { for key in slice where table.isLive(key) { hits += 1 } })
     }
     let small = try marks(100) - floor(100), large = try marks(1000) - floor(1000)
     // A debug build still logs one event for `Dictionary.Values`' `modify` coroutine (release inlines it, measured in

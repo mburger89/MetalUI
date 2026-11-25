@@ -206,7 +206,7 @@ private struct FrameAll: Action {}
     window.keymap = Keymap([
         KeyBinding("+", PanelOther(), context: "!Panel"),
         KeyBinding("+", ZoomGraph(), context: "Graph"),
-        KeyBinding("f", FrameAll(), context: "!Panel"),
+        KeyBinding("f", FrameAll(), context: "!Panel")
     ])
     window.onAction = { action in
         m.log.append(String(describing: type(of: action)))

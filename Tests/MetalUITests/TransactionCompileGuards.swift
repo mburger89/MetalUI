@@ -178,7 +178,6 @@ func aPlatformWindowWithoutTheReduceMotionPairDoesNotCompile() throws {
             "the negative must be refused FOR onAccessibilityReduceMotionChange:\n\(without.output)")
 }
 
-
 /// **7a** (`MT-D`). `accessibilityReduceTransparency` is get-only outside the module,
 /// as SwiftUI's key path is: a read compiles, a scope write does not. Mutation: the
 /// setter made `public`.

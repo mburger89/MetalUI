@@ -9,7 +9,7 @@ import Testing
 @Test func orientationRawValuesAreSwiftUIsAndExifValuesRoundTrip() throws {
     let probed: [(Image.Orientation, UInt8, Int)] = [
         (.up, 0, 1), (.left, 1, 8), (.upMirrored, 2, 2), (.leftMirrored, 3, 5),
-        (.downMirrored, 4, 4), (.rightMirrored, 5, 7), (.down, 6, 3), (.right, 7, 6),
+        (.downMirrored, 4, 4), (.rightMirrored, 5, 7), (.down, 6, 3), (.right, 7, 6)
     ]
     try #require(probed.count == Image.Orientation.allCases.count)
     for (orientation, raw, exif) in probed {

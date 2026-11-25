@@ -55,7 +55,7 @@ private func rootFrame<E: Element>(_ element: E) -> Frame {
     let arms: [(name: String, root: Box<Box<EmptyGroup>>, height: Float)] = [
         ("height(370).minHeight(0)", content().cssMinHeight(px(0)), 370),
         ("height(370).minHeight(500)", content().cssMinHeight(px(500)), 500),
-        ("height(370).maxHeight(300)", content().cssMaxHeight(px(300)), 300),
+        ("height(370).maxHeight(300)", content().cssMaxHeight(px(300)), 300)
     ]
     try #require(arms.count == 3)
     for arm in arms {

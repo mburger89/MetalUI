@@ -426,7 +426,7 @@ private struct RowDelta {
 /// version (`asOf`) is mapped forward through the edits since. Observable: assigning ``theme``, registering
 /// a style and every `set…`/`invalidate…` call redraws the views showing it.
 @MainActor @Observable
-public final class CodeDecorations {
+public final class CodeDecorations { // swiftlint:disable:this type_body_length - the decoration store and its queries share one private state
     /// The buffer these decorations belong to.
     @ObservationIgnored public let buffer: CodeBuffer
     /// The colours used where a style names none.

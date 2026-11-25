@@ -90,7 +90,7 @@ private struct EightDeprecatedSizingWrites: DeprecatedSpelling {
         ("minHeight", Box().cssMinHeight(Pixels(15)).style),
         ("maxHeight", Box().cssMaxHeight(Pixels(16)).style),
         ("width(fraction:)", Box().cssWidth(fraction: 0.17).style),
-        ("height(fraction:)", Box().cssHeight(fraction: 0.18).style),
+        ("height(fraction:)", Box().cssHeight(fraction: 0.18).style)
     ]
     try #require(old.count == 8)
     try #require(new.count == 8)

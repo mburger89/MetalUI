@@ -297,7 +297,7 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
 @Suite struct WindowsQuotingRoundTripTests {
     @Test(arguments: [
         ["plain"], ["a b"], ["say \"hi\""], ["C:\\Program Files\\x\\"], ["a\\\"b"], ["tab\tx"], ["\\\\server\\share x"],
-        ["a\\\\\"b c"], [""], ["x", "", "y"], ["trailing\\"], ["\"\""], ["multi word", "and \"quoted\"", "back\\slash\\"],
+        ["a\\\\\"b c"], [""], ["x", "", "y"], ["trailing\\"], ["\"\""], ["multi word", "and \"quoted\"", "back\\slash\\"]
     ])
     func commandLineToArgvWReadsBackWhatWasQuoted(_ arguments: [String]) throws {
         let line = WindowsCommandLine.commandLine(argv: ["program.exe"] + arguments)

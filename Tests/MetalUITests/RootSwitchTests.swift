@@ -66,7 +66,7 @@ private let productionRoots: [ProductionRoot] = [
     ProductionRoot(name: "demo-modal 920x560", content: .demo, width: 920, height: 560, modal: true),
     ProductionRoot(name: "demo-animation 920x560", content: .demo, width: 920, height: 560, animation: true),
     ProductionRoot(name: "preview 1024", content: .preview, width: 1024, height: nil),
-    ProductionRoot(name: "list 920x560", content: .list, width: 920, height: 560),
+    ProductionRoot(name: "list 920x560", content: .list, width: 920, height: 560)
 ]
 
 /// Draws `root` through a fresh window `frames` times (each frame forced with
@@ -164,7 +164,7 @@ private func draw(_ root: ProductionRoot, frames: Int) throws -> Window {
     let expected: [String: Int] = [
         "demo 1024": 29, "demo-modal 1024": 29, "demo-animation 1024": 29,
         "demo 920x560": 29, "demo-modal 920x560": 29, "demo-animation 920x560": 29,
-        "preview 1024": 10, "list 920x560": 16,
+        "preview 1024": 10, "list 920x560": 16
     ]
     for root in productionRoots {
         let window = try draw(root, frames: 2)

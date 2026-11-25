@@ -23,7 +23,7 @@ private let clipboardMembers: [(name: String, line: String)] = [
     ("writeClipboard(items:)", "func writeClipboard(items: [ClipboardItem]) -> Bool { false }"),
     ("clipboardItems", "func clipboardItems() -> [[String]] { [] }"),
     ("readClipboard(item:identifier:)", "func readClipboard(item: Int, identifier: String) -> [UInt8]? { nil }"),
-    ("setClipboardChangeHandler", "func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) {}"),
+    ("setClipboardChangeHandler", "func setClipboardChangeHandler(_ handler: (@MainActor () -> Void)?) {}")
 ]
 
 /// A `PlatformWindow` conformer with every requirement except the clipboard's four, which the
@@ -94,7 +94,6 @@ private func conformer(clipboard members: String) -> String {
     }
     """
 }
-
 
 /// **G3.1a** (`CB-E`). `PlatformWindow`'s four clipboard requirements have **no default**: a
 /// conformer missing any one fails to compile, naming it. **Positive control**: the same

@@ -42,7 +42,7 @@ func lkSample(_ entry: (image: MUIImage, texture: ImageTexture), _ x: Double, _ 
         (Double(r.topLeft), mx0 + Double(r.topLeft), my0 + Double(r.topLeft), x < mx0 + Double(r.topLeft) && y < my0 + Double(r.topLeft)),
         (Double(r.topRight), mx1 - Double(r.topRight), my0 + Double(r.topRight), x > mx1 - Double(r.topRight) && y < my0 + Double(r.topRight)),
         (Double(r.bottomRight), mx1 - Double(r.bottomRight), my1 - Double(r.bottomRight), x > mx1 - Double(r.bottomRight) && y > my1 - Double(r.bottomRight)),
-        (Double(r.bottomLeft), mx0 + Double(r.bottomLeft), my1 - Double(r.bottomLeft), x < mx0 + Double(r.bottomLeft) && y > my1 - Double(r.bottomLeft)),
+        (Double(r.bottomLeft), mx0 + Double(r.bottomLeft), my1 - Double(r.bottomLeft), x < mx0 + Double(r.bottomLeft) && y > my1 - Double(r.bottomLeft))
     ] where radius > 0 && inCorner {
         if (x - cx) * (x - cx) + (y - cy) * (y - cy) > radius * radius { return nil }
     }

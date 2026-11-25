@@ -108,7 +108,7 @@ struct RetainedAmbientMissTests {
             ("fieldStyle", { $0.fieldStyle = .plain }), ("editorStyle", { $0.editorStyle = .plain }),
             ("textSelectionEnabled", { $0.textSelectionEnabled.toggle() }),
             ("backgroundProminence", { $0.backgroundProminence = .increased }),
-            ("theme", { $0.theme = Theme.dark }), ("hasTextSystem", { $0.hasTextSystem.toggle() }),
+            ("theme", { $0.theme = Theme.dark }), ("hasTextSystem", { $0.hasTextSystem.toggle() })
         ]
         cases.append(("objects", { $0.objects[ObjectIdentifier(AMEnvBox.self)] = ObjectIdentifier(AMEnvBox.self) }))
         cases.append(("custom", { $0.custom[ObjectIdentifier(AMEnvBox.self)] = EnvironmentReading.value(7) }))

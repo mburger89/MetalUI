@@ -43,7 +43,7 @@ private let deletedByStageNine: [String] = [
     "$s7MetalUI5FrameC11requestNode5style8children0A8UILayout06LayoutE2IDVAG5StyleV_SayAIGtF",
     "$s7MetalUI5FrameC11requestLeaf5style7measure0A8UILayout12LayoutNodeIDVAG5StyleV_AG5SizeDVAG08OptionalM1DV_AG014AvailableSpaceM0VtYbctF",
     "$s7MetalUI15LayoutAuthorityOMa",
-    "$s7MetalUI5FrameC23legacyRootLayoutCounterAC06LegacyefG0CSgvgZ",
+    "$s7MetalUI5FrameC23legacyRootLayoutCounterAC06LegacyefG0CSgvgZ"
 ]
 
 /// Block B — deleted, or moved out of the kernel, by stage 10, printed at
@@ -61,7 +61,7 @@ private let deletedByStageTen: [String] = [
     "$s13MetalUILayout12AlignContentOMa",
     "$s13MetalUILayout8OverflowOMa",
     "$s7MetalUI13StyledElementPAAE8flexWrapyx0A8UILayout04FlexF0OF",
-    "$s7MetalUI13StyledElementPAAE12alignContentyx0A8UILayout05AlignF0OF",
+    "$s7MetalUI13StyledElementPAAE12alignContentyx0A8UILayout05AlignF0OF"
 ]
 
 /// Block C — the `MetalUI`-module twins a regression re-adding a deleted
@@ -80,7 +80,7 @@ private let twinsAfterTheMove: [String] = [
     "$s7MetalUI12AlignContentOMa",
     "$s7MetalUI8OverflowOMa",
     "$s7MetalUI10LayoutPassV11requestNode5style8children0A8UILayout0cF2IDVAA5StyleV_SayAIGtF",
-    "$s7MetalUI5FrameC11requestNode5style8children0A8UILayout06LayoutE2IDVAA5StyleV_SayAIGtF",
+    "$s7MetalUI5FrameC11requestNode5style8children0A8UILayout06LayoutE2IDVAA5StyleV_SayAIGtF"
 ]
 
 /// Block D — positive controls. If one fails to resolve the instrument is
@@ -91,7 +91,7 @@ private let positiveControls: [String] = [
     "$s7MetalUI13StyledElementPAAE8flexGrowyxSfF",
     "$s13MetalUILayout10LayoutTreeC013computeNativeC04root8proposal2inAA0C11MeasurementVAA0C6NodeIDV_AA12ProposedSizeVAA0C4RectVtF",
     "$s7MetalUI10LayoutPassV17requestNativeLeaf7measureAA14ProposalNodeIDV0A8UILayout0C11MeasurementVAH12ProposedSizeVYbc_tF",
-    "$s7MetalUI5FrameC17requestNativeLeaf7measure0A8UILayout12LayoutNodeIDVAF0I11MeasurementVAF12ProposedSizeVYbc_tF",
+    "$s7MetalUI5FrameC17requestNativeLeaf7measure0A8UILayout12LayoutNodeIDVAF0I11MeasurementVAF12ProposedSizeVYbc_tF"
 ]
 
 /// **N2.1.** No symbol of the CSS engine stage 9 deleted, and none of the

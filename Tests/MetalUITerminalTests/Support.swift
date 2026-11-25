@@ -94,7 +94,7 @@ let mixedCorpus: [[UInt8]] = [
     Array("\(ESC)[c\(ESC)[>c\(ESC)[5n\(ESC)[6n\(ESC)[?6n\(ESC)[?7$p\(ESC)[4$p\(ESC)[?1049$p\(ESC)[2;5r\(ESC)[?6h\(ESC)[6n\(ESC)[!p\u{07}\u{07}\(ESC)[2 q\(ESC)[?25l\(ESC)[?1000h\(ESC)[?1006h".utf8),
     // Phase 1.4: titles, working directories, links (id reuse, both terminators), colour queries, an overlong string.
     Array("\(ESC)]0;t1\(BEL)a\(ESC)]2;t2\(ST)b\(ESC)]7;file:///tmp/x%20y\(BEL)\(ESC)]8;id=q;http://h/1\(ST)c\(ESC)[1md\(ESC)[0m\(ESC)]8;;\(BEL)e\(ESC)]8;id=q;http://h/1\(BEL)f\(ESC)]8;;\(ST)\(ESC)]10;?\(BEL)\(ESC)]11;?\(ST)\(ESC)]52;c;aGk=\(BEL)g".utf8),
-    Array("\(ESC)]0;\(String(repeating: "w", count: 300))\(BEL)h\(ESC)]8;;http://\(String(repeating: "u", count: 5000))\(BEL)i\(ESC)]8;;\(BEL)\(ESC)]7;file:///a\(ESC)\u{18}j\(ESC)]9;\u{1A}k".utf8),
+    Array("\(ESC)]0;\(String(repeating: "w", count: 300))\(BEL)h\(ESC)]8;;http://\(String(repeating: "u", count: 5000))\(BEL)i\(ESC)]8;;\(BEL)\(ESC)]7;file:///a\(ESC)\u{18}j\(ESC)]9;\u{1A}k".utf8)
 ]
 
 extension TerminalRow {

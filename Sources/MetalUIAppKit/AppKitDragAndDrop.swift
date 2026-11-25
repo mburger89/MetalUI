@@ -21,7 +21,7 @@ enum AppKitDragAndDrop {
     static let registeredTypes: [NSPasteboard.PasteboardType] = [
         NSPasteboard.PasteboardType(UTType.item.identifier),
         NSPasteboard.PasteboardType(UTType.data.identifier),
-        .URL, .fileURL, .string,
+        .URL, .fileURL, .string
     ]
 
     /// `identifier` with its `UTType` supertypes as `conformsTo` — every one,
@@ -75,7 +75,7 @@ enum AppKitDragAndDrop {
             ?? representations.first?.type.identifier ?? ""
         let label = NSAttributedString(string: String(text.prefix(40)), attributes: [
             .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: NSColor.labelColor
         ])
         let size = NSSize(width: ceil(label.size().width) + 16, height: ceil(label.size().height) + 8)
         return NSImage(size: size, flipped: false) { rect in

@@ -72,7 +72,7 @@ private func rgba(_ pixels: [UInt8], _ x: Int, _ y: Int) -> [Int] {
             sink.fillRect(box(4, 5, 17, 9), color: red)
             sink.fillRect(box(26, 3, 1, 1), color: green)
             sink.fillRect(box(28, 10, 1, 12), color: blue)
-            for column in 0..<4 { sink.fillRect(box(Float(40 + column * 8), 30, 8, 8), color: column % 2 == 0 ? white : red) }
+            for column in 0..<4 { sink.fillRect(box(Float(40 + column * 8), 30, 8, 8), color: column.isMultiple(of: 2) ? white : red) }
         }
         let p = try renderer.readPixels(width: width, height: height)
         func expectRect(_ x: Int, _ y: Int, _ w: Int, _ h: Int, _ c: [Int]) {
@@ -89,7 +89,7 @@ private func rgba(_ pixels: [UInt8], _ x: Int, _ y: Int) -> [Int] {
         expectRect(26, 3, 1, 1, [0, 255, 0, 255])
         expectRect(28, 10, 1, 12, [0, 0, 255, 255])
         for x in 40..<72 {
-            let want = ((x - 40) / 8) % 2 == 0 ? [255, 255, 255, 255] : [255, 0, 0, 255]
+            let want = ((x - 40) / 8).isMultiple(of: 2) ? [255, 255, 255, 255] : [255, 0, 0, 255]
             for y in 30..<38 where rgba(p, x, y) != want { Issue.record("seam at \(x),\(y): \(rgba(p, x, y))"); return }
         }
         #expect(renderer.lastTextPasses == 1, "one pass, the same one `drawText` uses")

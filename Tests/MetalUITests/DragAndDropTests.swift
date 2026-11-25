@@ -214,7 +214,7 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
                 AnyElement(square().onLongPressGesture(minimumDuration: 0.5) { log.entries.append("long") }
                     .draggable("s"))
             },
-            press: { _ in pt(100, 100) }),
+            press: { _ in pt(100, 100) })
     ]
     for arm in arms {
         let log = DLog()
@@ -314,7 +314,7 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
             AnyElement(Column { Box().frame(width: px(200), height: px(200)).gesture(gesture(log)) }
                 .frame(width: px(200), height: px(200)).draggable("s"))
         }),
-        ("high priority", { log in AnyElement(square().draggable("s").highPriorityGesture(gesture(log))) }),
+        ("high priority", { log in AnyElement(square().draggable("s").highPriorityGesture(gesture(log))) })
     ]
     for (name, source) in winners {
         let log = DLog()
@@ -328,7 +328,7 @@ private func dragAndDrop(_ platform: FakePlatformWindow, from: Point<Pixels>, th
         ("a parent's", { log in
             AnyElement(Column { Box().frame(width: px(200), height: px(200)).draggable("s") }
                 .frame(width: px(200), height: px(200)).gesture(gesture(log)))
-        }),
+        })
     ]
     for (name, source) in losers {
         let log = DLog()
@@ -476,7 +476,7 @@ private struct RowItem: Identifiable, Hashable { let id: Int }
         ("a plain box", { _ in AnyElement(square().background(.accent)) }),
         ("an onClick box", { log in AnyElement(square().onClick { log.entries.append("click") }) }),
         ("a Button", { log in AnyElement(Box { Button("B") { log.entries.append("click") } }
-                                            .frame(width: px(200), height: px(200))) }),
+                                            .frame(width: px(200), height: px(200))) })
     ]
     for (name, cover) in covers {
         let log = DLog()

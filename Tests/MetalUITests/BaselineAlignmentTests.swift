@@ -129,7 +129,6 @@ private let b2Names = ["13", "26", "2line", "colour"]
     #expect(entry.owner == nil)
 }
 
-
 /// **2.11b.** Under a baseline row, a child's `alignSelf` other than
 /// `.baseline` is a permanent refusal by name (`box.alignSelf.<case>`, owner
 /// `nil`; TE-L item 5). Lowered, each laid out silently wrong: `.flexStart`

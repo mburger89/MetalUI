@@ -252,7 +252,7 @@ private struct WriterChip: Component {
         w.send(dragged(pt(x0 + Float(step * 12), y)))
         try await w.runUntilIdle()
         #expect(w.framesDrawn - frames == 1, "step \(step): \(w.framesDrawn - frames) frames")
-        if step % 3 == 0 { lengths.append(try await copied()) }
+        if step.isMultiple(of: 3) { lengths.append(try await copied()) }
     }
     #expect(lengths.count == 2 && lengths[0] > 0 && lengths[1] > lengths[0], "the selection grew: \(lengths)")
 }

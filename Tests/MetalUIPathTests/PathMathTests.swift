@@ -11,7 +11,7 @@ import Testing
 let sinCosAngles: [Double] = [
     0, 1e-9, 0.5, 1, 2, 3, 5, 10, 100, 1e6,
     Double.pi / 6, Double.pi / 4, Double.pi / 2, Double.pi, 3 * Double.pi / 2, 2 * Double.pi,
-    -Double.pi / 2, -Double.pi, -0.3, -1, -7.5, -100, 0.7853981633974483, 1.5707963267948966 + 1e-7,
+    -Double.pi / 2, -Double.pi, -0.3, -1, -7.5, -100, 0.7853981633974483, 1.5707963267948966 + 1e-7
 ]
 
 /// (sin, cos) bit patterns recorded on macOS arm64 from this implementation.
@@ -39,7 +39,7 @@ let sinCosBitPatterns: [(UInt64, UInt64)] = [
     (0xbfee041886fcae30, 0x3fd62f45e66f5c2f),
     (0x3fe03425b78c4db8, 0x3feb981dbf665fdf),
     (0x3fe6a09e667f3bcc, 0x3fe6a09e667f3bcd),
-    (0x3fefffffffffffd3, 0xbe7ad7f29ab9675a),
+    (0x3fefffffffffffd3, 0xbe7ad7f29ab9675a)
 ]
 
 /// 1.27 — `sinCos` returns the recorded bit patterns exactly, and is exactly
@@ -88,7 +88,7 @@ func corpusBytes() -> [UInt8] {
     for (i, end) in [0.3, 1.0, 1.7, 2.5, 3.3, 4.6, 6.0].enumerated() {
         add(fill({ p in
             p.move(to: PathPoint(60, 60))
-            p.addArc(center: PathPoint(60, 60), radius: 45.5, startAngle: 0.1 * Double(i), endAngle: end, clockwise: i % 2 == 0)
+            p.addArc(center: PathPoint(60, 60), radius: 45.5, startAngle: 0.1 * Double(i), endAngle: end, clockwise: i.isMultiple(of: 2))
             p.closeSubpath()
         }, clip: clip))
     }

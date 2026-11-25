@@ -123,6 +123,7 @@ public final class SDLReplayer {
         guard replay_show(gpu, seconds) else { throw ReplayError("SDL window: \(String(cString: replay_error()))") }
     }
 
+    // swiftlint:disable:next function_parameter_count - passes the whole decoded replay buffer set to one draw call
     private func draw(width: UInt32, height: UInt32, rects: UnsafeRawBufferPointer, glyphs: UnsafeRawBufferPointer,
                       images: UnsafeRawBufferPointer, transforms: UnsafeRawBufferPointer,
                       backdrops: UnsafeRawBufferPointer, regions: [ReplayRegion],

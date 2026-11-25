@@ -15,7 +15,7 @@ private func direction(_ rtl: Bool) -> LayoutDirection { rtl ? .rightToLeft : .l
 
 /// A 100 x 40 window over `content`, written under `rtl`'s direction outside a 100 x 40 top-leading frame.
 @MainActor private func arm<C: ProposalElementGroup>(rtl: Bool, size: Size<Pixels> = sz(100, 40),
-                                                _ content: @escaping @MainActor () -> C) throws -> TestWindow {
+                                                     _ content: @escaping @MainActor () -> C) throws -> TestWindow {
     try harnessWindow(size: size) {
         content()
             .frame(width: Pixels(100), height: Pixels(40), alignment: .topLeading)

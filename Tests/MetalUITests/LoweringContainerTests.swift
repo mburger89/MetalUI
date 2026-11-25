@@ -483,7 +483,7 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
          } }, []),
         ("hidden reverse container (lowered as if shown since stage 6b, LR-DH)",
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).hidden() },
-         []),
+         [])
     ]
     try #require(arms.count == 16)
     for arm in arms {

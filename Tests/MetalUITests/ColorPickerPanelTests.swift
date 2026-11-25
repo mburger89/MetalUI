@@ -216,7 +216,7 @@ private func near(_ color: Color?, _ expected: (Double, Double, Double, Double))
         ("#FF8000", (1, 128.0 / 255, 0, 1)),
         ("00ff80", (0, 1, 128.0 / 255, 1)),
         ("#08F", (0, 136.0 / 255, 1, 1)),
-        ("#FF800080", (1, 128.0 / 255, 0, 128.0 / 255)),
+        ("#FF800080", (1, 128.0 / 255, 0, 128.0 / 255))
     ]
     for (text, expected) in cases {
         let model = PickerModel(.red)
@@ -256,7 +256,7 @@ private func near(_ color: Color?, _ expected: (Double, Double, Double, Double))
     let cases: [(Color, Bool, String)] = [
         (Color(.sRGB, red: 1, green: 0.5, blue: 0), true, "#FF8000"),
         (Color(.sRGB, red: 1, green: 0.5, blue: 0, opacity: 0.5), true, "#FF800080"),
-        (Color(.sRGB, red: 1, green: 0.5, blue: 0, opacity: 0.5), false, "#FF8000"),
+        (Color(.sRGB, red: 1, green: 0.5, blue: 0, opacity: 0.5), false, "#FF8000")
     ]
     for (color, supports, expected) in cases {
         let model = PickerModel(color)

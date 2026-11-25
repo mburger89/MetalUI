@@ -120,7 +120,7 @@ private func customTheme() -> Theme {
 /// A test-owned switch, flipped from input (the window's `onInput`).
 @MainActor
 private final class Flag {
-    var value: ColorScheme? = nil
+    var value: ColorScheme?
 }
 
 /// Delivers an input event no element claims, so it reaches `Window.onInput`

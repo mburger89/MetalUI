@@ -200,7 +200,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
         "image": Entry(node: disabled, frame: rect(0, 30, 10, 10)),
         "table": Entry(node: node(.table, "L-table", value: "V-table", children: ["row"], rowCount: 1),
                        frame: rect(0, 40, 10, 20)),
-        "row": Entry(node: node(.row, "L-row", value: "V-row", rowIndex: 0), frame: rect(0, 40, 10, 10)),
+        "row": Entry(node: node(.row, "L-row", value: "V-row", rowIndex: 0), frame: rect(0, 40, 10, 10))
     ]))
 
     let top = elements(h.host.accessibilityChildren())
@@ -231,7 +231,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     defer { h.nsWindow.close() }
     h.bridge.publish(makeTree(roots: ["secure", "plain"], [
         "secure": Entry(node: node(.secureTextField, "Pass", value: "\u{2022}\u{2022}\u{2022}"), frame: rect(0, 0, 80, 20)),
-        "plain": Entry(node: node(.textField, "Name", value: "abc"), frame: rect(0, 30, 80, 20)),
+        "plain": Entry(node: node(.textField, "Name", value: "abc"), frame: rect(0, 30, 80, 20))
     ]))
     let top = elements(h.host.accessibilityChildren())
     try #require(top.count == 2)
@@ -280,7 +280,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     func tree(aLabel: String, bLabel: String = "b", withB: Bool) -> AccessibilityTree {
         var entries = [
             "a": Entry(node: node(.button, aLabel, actions: [.press]), frame: rect(4, 6, 40, 20)),
-            "bc": Entry(node: node(.staticText, "bc"), frame: rect(14, 52, 20, 12)),
+            "bc": Entry(node: node(.staticText, "bc"), frame: rect(14, 52, 20, 12))
         ]
         if withB {
             entries["b"] = Entry(node: node(.button, bLabel, children: ["bc"], actions: [.press]),
@@ -358,7 +358,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     h.bridge.publish(makeTree(roots: ["p", "adj", "inert"], [
         "p": Entry(node: node(.button, "p", actions: [.press]), frame: rect(0, 0, 20, 20)),
         "adj": Entry(node: node(.group, "adj", actions: [.increment, .decrement]), frame: rect(0, 20, 20, 20)),
-        "inert": Entry(node: node(.group, "inert"), frame: rect(0, 40, 20, 20)),
+        "inert": Entry(node: node(.group, "inert"), frame: rect(0, 40, 20, 20))
     ]))
     let top = elements(h.host.accessibilityChildren())
     try #require(top.count == 3)
@@ -402,7 +402,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     func tree(focused: String?) -> AccessibilityTree {
         makeTree(roots: ["a", "b"], [
             "a": Entry(node: node(.button, "a", isFocusable: true), frame: rect(0, 0, 20, 20)),
-            "b": Entry(node: node(.button, "b", isFocusable: true), frame: rect(0, 20, 20, 20)),
+            "b": Entry(node: node(.button, "b", isFocusable: true), frame: rect(0, 20, 20, 20))
         ], focused: focused)
     }
     h.bridge.publish(tree(focused: "b"))
@@ -442,7 +442,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
         "sort": Entry(node: node(.button, "sort", actions: [.press]), frame: rect(150, 2, 40, 16)),
         "r40": Entry(node: node(.row, "r40", rowIndex: 40), frame: rect(0, -8, 200, 28), visible: rect(0, 0, 200, 0)),
         "r41": Entry(node: node(.row, "r41", rowIndex: 41), frame: rect(0, 20, 200, 28)),
-        "r42": Entry(node: node(.row, "r42", rowIndex: 42), frame: rect(0, 48, 200, 28)),
+        "r42": Entry(node: node(.row, "r42", rowIndex: 42), frame: rect(0, 48, 200, 28))
     ]))
     let table = try #require(elements(h.host.accessibilityChildren()).first)
     #expect(table.accessibilityRowCount() == 500)
@@ -499,7 +499,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
         "overscan": Entry(node: node(.row, "overscan", rowIndex: 0), frame: rect(0, -8, 200, 28),
                           visible: rect(0, 20, 200, 0)),
         "row": Entry(node: node(.row, "row", children: ["rowChild"], rowIndex: 1), frame: rect(0, 20, 200, 28)),
-        "rowChild": Entry(node: node(.staticText, "rowChild"), frame: rect(0, 22, 200, 24)),
+        "rowChild": Entry(node: node(.staticText, "rowChild"), frame: rect(0, 22, 200, 24))
     ]
     h.bridge.publish(makeTree(roots: ["header", "table"], entries))
     let top = elements(h.host.accessibilityChildren())
@@ -574,7 +574,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     h.bridge.publish(makeTree(roots: ["outer"], [
         "outer": Entry(node: node(.group, "outer", children: ["inner"]), frame: rect(0, 0, 120, 100)),
         "inner": Entry(node: node(.group, "inner", children: ["leaf"]), frame: rect(10, 12, 90, 70)),
-        "leaf": Entry(node: node(.staticText, "leaf"), frame: rect(20, 24, 30, 14)),
+        "leaf": Entry(node: node(.staticText, "leaf"), frame: rect(20, 24, 30, 14))
     ]))
     try #require(!h.bridge.isActive && h.log.requests.isEmpty, "precondition: published while inactive")
 
@@ -688,7 +688,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
         makeTree(roots: ["g"], [
             "g": Entry(node: node(.group, "g", children: ["x", "y"]), frame: rect(0, 0 + dy, 100, 60)),
             "x": Entry(node: node(.button, "x", actions: [.press]), frame: rect(4, 6 + dy, 30, 20)),
-            "y": Entry(node: node(.staticText, "y"), frame: rect(40, 30 + dy, 50, 16)),
+            "y": Entry(node: node(.staticText, "y"), frame: rect(40, 30 + dy, 50, 16))
         ], focused: "x")
     }
     h.bridge.publish(tree(dy: 0))
@@ -827,7 +827,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
             "f": Entry(node: node(.button, "f", isFocusable: true), frame: rect(0, 60, 20, 20)),
             "g": Entry(node: node(.group, "g", children: ["u"]), frame: rect(0, 80, 20, 20)),
             "u": Entry(node: node(.table, s.unreadLabel, value: s.unreadValue, rowCount: s.unreadRowCount),
-                       frame: rect(2, 82, 16, 16)),
+                       frame: rect(2, 82, 16, 16))
         ], focused: s.focused)
     }
     var state = State()
@@ -900,7 +900,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
             bridge.onRequest = { _ in true }
             bridge.publish(makeTree(roots: ["n"], [
                 "n": Entry(node: node(.button, "live", children: ["c"], actions: [.press]), frame: rect(0, 0, 20, 20)),
-                "c": Entry(node: node(.staticText, "child"), frame: rect(0, 0, 10, 10)),
+                "c": Entry(node: node(.staticText, "child"), frame: rect(0, 0, 10, 10))
             ]))
             let element = bridge.element(for: nid("n"))
             // The control: on the main thread the element answers.
@@ -940,7 +940,7 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
                        frame: rect(0, 10, 10, 10)),
         "button": Entry(node: node(.menuButton, "L-mb", actions: [.press, .showMenu]), frame: rect(0, 20, 10, 10)),
         "popover": Entry(node: node(.popover, "L-pop"), frame: rect(0, 30, 10, 10)),
-        "plain": Entry(node: node(.button, "L-plain", actions: .press), frame: rect(0, 40, 10, 10)),
+        "plain": Entry(node: node(.button, "L-plain", actions: .press), frame: rect(0, 40, 10, 10))
     ]))
     let roots = elements(h.host.accessibilityChildren())
     try #require(roots.count == 4)

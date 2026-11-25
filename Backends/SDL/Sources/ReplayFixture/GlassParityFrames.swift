@@ -36,7 +36,7 @@ public enum GlassParityFrames {
                 scene.insert(MUIRect(
                     bounds: bounds(Float(gx * cell), Float(gy * cell), Float(cell), Float(cell)),
                     contentMask: full, maskCornerRadii: corners(0),
-                    background: MUIHsla(h: Float((gx * 7 + gy * 3) % 12) / 12, s: 0.8, l: (gx + gy) % 2 == 0 ? 0.35 : 0.65, a: 1),
+                    background: MUIHsla(h: Float((gx * 7 + gy * 3) % 12) / 12, s: 0.8, l: (gx + gy).isMultiple(of: 2) ? 0.35 : 0.65, a: 1),
                     borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0), cornerRadii: corners(0),
                     borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: 0, shape: 0))
             }

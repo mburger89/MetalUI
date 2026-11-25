@@ -708,7 +708,7 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
                     List((0..<20).map(Item.init), selection: picked, rowHeight: controlPx(20)) { Text("Row \($0.id)") }
                 }
             }
-        },
+        }
     ]
     #expect(levels.allSatisfy { $0 > 0 && $0 <= 40 }, "every control's deepest level is at most 40: \(levels)")
 }

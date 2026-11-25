@@ -215,7 +215,7 @@ func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
             (.invalidInput("empty"), .invalidInput("empty")),
             (.unsupportedTarget("opengl"), .unsupportedTarget("opengl")),
             (.compileFailed(stage: "HLSL to SPIR-V", diagnostics: "error: x"), .compileFailed(stage: "HLSL to SPIR-V", diagnostics: "error: x")),
-            (.malformedReflection("threadcount_x"), .malformedReflection("threadcount_x")),
+            (.malformedReflection("threadcount_x"), .malformedReflection("threadcount_x"))
         ]
         for (runtime, expected) in pairs {
             let mapped = SDLGPUShaderCompileError(runtime)

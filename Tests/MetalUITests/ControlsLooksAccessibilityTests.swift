@@ -27,7 +27,7 @@ import MetalUICore
     let cases: [(String, AccessibilityRole, String?, NSAccessibility.Role)] = [
         ("progress", .progressIndicator, "0.5", .progressIndicator),
         ("busy", .busyIndicator, nil, NSAccessibility.Role(rawValue: "AXBusyIndicator")),
-        ("well", .colorWell, "rgb 1 0 0 1", .colorWell),
+        ("well", .colorWell, "rgb 1 0 0 1", .colorWell)
     ]
     let frame = Bounds(origin: Point(x: controlPx(0), y: controlPx(0)),
                        size: Size(width: controlPx(10), height: controlPx(10)))

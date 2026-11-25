@@ -738,7 +738,6 @@ private func lineClusterCount(_ scene: Scene, font: ResolvedFont, scaleFactor: D
     return clusters
 }
 
-
 // MARK: - Paint asks the width layout measured at
 
 /// **Paint wraps at the width layout MEASURED at, not the width rounding

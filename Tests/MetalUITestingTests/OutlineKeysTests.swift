@@ -347,7 +347,7 @@ private func rowY(_ index: Int) -> Float { 10 + 32 * Float(index) + 16 }
         #expect(list.isOutline, "\(form): the list is an outline")
         let expected: [(String, Int, Bool?, String?)] = [
             ("A", 0, true, nil), ("A/B", 1, true, "A"), ("A/B/D", 2, nil, "A/B"), ("A/B/E", 2, nil, "A/B"),
-            ("A/C", 1, nil, "A"), ("Z", 0, nil, nil), ("M", 0, false, nil),
+            ("A/C", 1, nil, "A"), ("Z", 0, nil, nil), ("M", 0, false, nil)
         ]
         for (name, level, isExpanded, parent) in expected {
             let row = try rowNode(window, name)

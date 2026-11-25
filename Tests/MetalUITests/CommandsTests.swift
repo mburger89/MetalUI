@@ -171,7 +171,7 @@ private let defaultWindow = "Window: Minimize ⌘m [minimize], Zoom [zoom], ---,
         "File: New Note ⌘n, ---, Close ⌘w [close]",
         "Edit: Undo ⌘z [undo], Redo ⇧⌘z [redo], ---, Only Paste",
         defaultWindow,
-        "Help: Guide",
+        "Help: Guide"
     ])
 }
 
@@ -321,7 +321,7 @@ private let drawnFile = "File: Close [close], ---, Quit [quit]"
         String(defaultEdit),
         "Tools: Go",
         "Window: Tile",
-        "Help: Docs, ---, About Me",
+        "Help: Docs, ---, About Me"
     ], "\(drawn(app))")
     app.commands {
         CommandGroup(replacing: .pasteboard) { Button("Paste Plain") {} }

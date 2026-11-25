@@ -104,7 +104,7 @@ import MetalUIPlatform
     let decorative: [(String, @MainActor () throws -> AccessibilityBuild)] = [
         ("I2", { try accessibilityBuild(HStack { Image(decorative: bitmap, scale: 1); ProposalText("V") }).1 }),
         ("I4", { try accessibilityBuild(HStack { Image(decorative: bitmap, scale: 1).accessibilityLabel("Logo"); ProposalText("V") }).1 }),
-        ("I5", { try accessibilityBuild(HStack { Image(decorative: bitmap, scale: 1).onTapGesture {}; ProposalText("V") }).1 }),
+        ("I5", { try accessibilityBuild(HStack { Image(decorative: bitmap, scale: 1).onTapGesture {}; ProposalText("V") }).1 })
     ]
     for (arm, make) in decorative {
         let build = try make()

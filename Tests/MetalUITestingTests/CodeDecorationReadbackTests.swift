@@ -83,7 +83,7 @@ private func letters(rows: Int = 12) -> String {
         CodePaintedRun(range: 2..<4, style: CodeStyle(foreground: fg(hueA), underline: wave)),
         CodePaintedRun(range: 4..<7, style: CodeStyle(foreground: fg(hueB), underline: wave)),
         CodePaintedRun(range: 7..<8, style: CodeStyle(foreground: fg(hueA), underline: wave)),
-        CodePaintedRun(range: 8..<10, style: colorA),
+        CodePaintedRun(range: 8..<10, style: colorA)
     ], "\(painted)")
     #expect(d.paintedRuns(in: 3..<5).map(\.range) == [3..<4, 4..<5], "clipped to the range")
     _ = colorB

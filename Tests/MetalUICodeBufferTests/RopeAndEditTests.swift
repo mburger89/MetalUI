@@ -22,7 +22,7 @@ import Testing
             oracle.replace(a..<b, insert)
             let problems = buffer.snapshot().rope.problems()
             try #require(problems.isEmpty, "step \(step): \(problems)")
-            if step % 25 == 0 {
+            if step.isMultiple(of: 25) {
                 let difference = firstDifference(buffer.snapshot(), oracle, &rng)
                 try #require(difference == nil, "step \(step): \(difference ?? "")")
             }
@@ -178,7 +178,7 @@ import Testing
         let fast = buffer.makeEditCursor()
         for i in 0..<60 {
             buffer.replace(i..<i, with: String(repeating: "z", count: 20))
-            if i % 5 == 0 { _ = fast.drain() }
+            if i.isMultiple(of: 5) { _ = fast.drain() }
         }
         guard case .resync(let snap) = slow.drain() else { Issue.record("expected resync"); return }
         #expect(snap.text == buffer.snapshot().text)

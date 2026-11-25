@@ -22,8 +22,8 @@ import MetalUIScene
 /// 128) — then an opaque and a clear texel; row 1 opaque red, green, blue.
 private func mixedTexture() -> ImageTexture {
     ImageTexture(width: 3, height: 2, straightRGBA: [
-        200, 100, 50, 128,   10, 20, 30, 255,   0, 0, 0, 0,
-        255, 0, 0, 255,      0, 255, 0, 255,    0, 0, 255, 255,
+        200, 100, 50, 128, 10, 20, 30, 255, 0, 0, 0, 0,
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255
     ])
 }
 

@@ -55,7 +55,7 @@ private let cycle = "MetalUI imports a module of that name (directly or through 
     ("CFreeType", "MetalUI has a target of that name, and target names must be unique across the package graph"),
     ("CHarfBuzz", "MetalUI has a target of that name, and target names must be unique across the package graph"),
     ("CUnibreak", "MetalUI has a target of that name, and target names must be unique across the package graph"),
-    ("CSheenBidi", "MetalUI has a target of that name, and target names must be unique across the package graph"),
+    ("CSheenBidi", "MetalUI has a target of that name, and target names must be unique across the package graph")
 ])
 func aNameThatClashesWithAModuleTheAppBuildsWithIsRefused(_ name: String, _ reason: String) {
     #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }
@@ -78,7 +78,7 @@ func aNameThatClashesWithAModuleTheAppBuildsWithIsRefused(_ name: String, _ reas
     ("CStbImage", "MetalUI has a target of that name, and target names must be unique across the package graph"),
     ("CSDL", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
     ("SDLBridge", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
-    ("CAccessKit", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph"),
+    ("CAccessKit", "MetalUI's SDL backend has a target of that name, and target names must be unique across the package graph")
 ])
 func aNameOfARootTargetThatFailedTheBuildIsRefused(_ name: String, _ reason: String) {
     #expect(throws: ScaffoldError.invalidName(name, reason: reason)) { try validateName(name) }

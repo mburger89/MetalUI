@@ -64,9 +64,9 @@ public struct FixtureGroup: Equatable, Sendable {
         guard width > 0, height > 0, width <= ReplayFixture.maxDimension, height <= ReplayFixture.maxDimension else {
             throw .invalid("\(name) size \(width)×\(height) outside 1...\(ReplayFixture.maxDimension)")
         }
-        guard body.rects.count % Int(ReplayFixture.rectStride) == 0, body.glyphs.count % Int(ReplayFixture.glyphStride) == 0,
-              body.images.count % Int(ReplayFixture.imageStride) == 0,
-              body.transforms.count % Int(ReplayFixture.transformStride) == 0 else {
+        guard body.rects.count.isMultiple(of: Int(ReplayFixture.rectStride)), body.glyphs.count.isMultiple(of: Int(ReplayFixture.glyphStride)),
+              body.images.count.isMultiple(of: Int(ReplayFixture.imageStride)),
+              body.transforms.count.isMultiple(of: Int(ReplayFixture.transformStride)) else {
             throw .invalid("\(name) record bytes are not whole records")
         }
         let rectCount = body.rects.count / Int(ReplayFixture.rectStride)

@@ -113,7 +113,7 @@ let latinStrings: [CorpusString] = [
     CorpusString("mark a+diaeresis", "a\u{0308}"),
     CorpusString("mark n+tilde", "n\u{0303}"),
     CorpusString("digits", "0123456789", plainASCII: true),
-    CorpusString("punctuation", ".,;:!?-()'\"", plainASCII: true),
+    CorpusString("punctuation", ".,;:!?-()'\"", plainASCII: true)
 ]
 
 /// A plain word, a sentence with spaces, lam-alef, a word with harakat, and
@@ -123,7 +123,7 @@ let arabicStrings: [CorpusString] = [
     CorpusString("arabic sentence", "مرحبا بالعالم"),
     CorpusString("arabic lam-alef", "لا"),
     CorpusString("arabic harakat", "مَرْحَبًا"),
-    CorpusString("arabic-indic digits", "٠١٢٣٤٥٦٧٨٩"),
+    CorpusString("arabic-indic digits", "٠١٢٣٤٥٦٧٨٩")
 ]
 
 let corpus: [ShapingCase] =

@@ -196,7 +196,6 @@ package final class TerminalRowPainter {
         }
     }
 
-
     /// The cursor's shapes (`TRM-BA`).
     package enum CursorShape: Equatable, Sendable {
         /// A filled cell with the glyph redrawn in the cursor-text colour.

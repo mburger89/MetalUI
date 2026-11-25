@@ -102,16 +102,16 @@ func sample(runs: [FixtureRun]? = nil) throws -> ReplayFixture {
 }
 
 @Test func pixelDifferenceCountsPixelsNotChannels() {
-    let a: [UInt8] = [0, 0, 0, 0,  10, 10, 10, 10,  5, 5, 5, 5]
-    let b: [UInt8] = [0, 0, 0, 0,  11, 10, 10, 10,  5, 5, 5, 40]  // one step still counts
+    let a: [UInt8] = [0, 0, 0, 0, 10, 10, 10, 10, 5, 5, 5, 5]
+    let b: [UInt8] = [0, 0, 0, 0, 11, 10, 10, 10, 5, 5, 5, 40]  // one step still counts
     let delta = pixelDifference(a, b)
     #expect(delta.pixels == 2)
     #expect(delta.maxDelta == 35)
 }
 
 @Test func aThresholdCountsOnlyPixelsBeyondIt() {
-    let a: [UInt8] = [0, 0, 0, 0,  10, 10, 10, 10,  5, 5, 5, 5]
-    let b: [UInt8] = [0, 0, 0, 0,  11, 10, 10, 10,  5, 5, 5, 40]
+    let a: [UInt8] = [0, 0, 0, 0, 10, 10, 10, 10, 5, 5, 5, 5]
+    let b: [UInt8] = [0, 0, 0, 0, 11, 10, 10, 10, 5, 5, 5, 40]
     #expect(pixelDifference(a, b, above: 1).pixels == 1)
     #expect(pixelDifference(a, b, above: 35).pixels == 0)
     #expect(pixelDifference(a, b, above: 34).pixels == 1)
@@ -125,7 +125,7 @@ func floats(_ values: [Float]) -> [UInt8] {
 }
 
 /// A 20×10 target with one glyph quad at (5, 2, 4×3).
-func glyphFixture(projection: [Float] = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+func glyphFixture(projection: [Float] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
                   reference: [UInt8]? = nil) throws -> ReplayFixture {
     let record = floats([5, 2, 4, 3]) + [UInt8](repeating: 0, count: 88 - 16)
     return try ReplayFixture(width: 20, height: 10, rects: [], glyphs: record,
@@ -155,7 +155,7 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
 
 @Test func theGlyphMaskFollowsTheProjection() throws {
     // Scale 0.5 about the centre (10, 5): x 5..9 -> 7.5..9.5, y 2..5 -> 3.5..5.
-    let scaled: [Float] = [0.5,0,0,0, 0,0.5,0,0, 0,0,1,0, 0,0,0,1]
+    let scaled: [Float] = [0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
     let area = try #require(marked(try glyphFixture(projection: scaled).glyphMask(), width: 20))
     #expect(area.x == 6...11)
     #expect(area.y == 2...6)
@@ -279,7 +279,7 @@ func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<
 
     let atlas = GlyphAtlas(width: 4, height: 2)
     let fixture = try ReplayFixture(scene: scene, atlas: atlas, width: 3, height: 2,
-                                    projection: [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+                                    projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
                                     reference: [UInt8](repeating: 0, count: 3 * 2 * 4))
     #expect(fixture.rectCount == 2 && fixture.glyphCount == 1)
     #expect(fixture.runs == [FixtureRun(kind: .glyph, start: 0, count: 1),
@@ -534,7 +534,6 @@ func asVersion6(_ v7: [UInt8], _ fixture: ReplayFixture) throws -> [UInt8] {
     #expect(!fixture.parity(of: pixels(delta: 2, at: 7, 0)).passes, "outside every quad: one level")
     #expect(fixture.parity(of: fixture.reference).passes)
 }
-
 
 // MARK: - Liquid Glass (ruling LG-O, version 5)
 

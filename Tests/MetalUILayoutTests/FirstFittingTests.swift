@@ -34,7 +34,7 @@ private func lay(_ tree: LayoutTree, _ root: LayoutNodeID, _ proposal: ProposedS
 /// Mutation: `<=` to `<` in `firstFittingCandidate` reddens W = 100 and W = 60.
 @Test @MainActor func aViewThatFitsPicksTheFirstChildWhoseIdealFitsWithLessOrEqual() throws {
     let cases: [(width: Double, choice: Int, answer: Double)] = [
-        (101, 0, 100), (100, 0, 100), (99.5, 1, 60), (60.5, 1, 60), (60, 1, 60), (59.99, 2, 30), (30, 2, 30), (29, 2, 30),
+        (101, 0, 100), (100, 0, 100), (99.5, 1, 60), (60.5, 1, 60), (60, 1, 60), (59.99, 2, 30), (30, 2, 30), (29, 2, 30)
     ]
     for (width, choice, answer) in cases {
         let tree = LayoutTree(generation: 1)
@@ -126,7 +126,7 @@ private func lay(_ tree: LayoutTree, _ root: LayoutNodeID, _ proposal: ProposedS
     let i1: [(ProposedSize, SizeD)] = [
         (ProposedSize(width: nil, height: nil), SizeD(width: 100, height: 20)), (ProposedSize(width: 0, height: 0), SizeD(width: 30, height: 20)),
         (ProposedSize(width: .infinity, height: .infinity), SizeD(width: 100, height: 20)), (ProposedSize(width: 50, height: nil), SizeD(width: 30, height: 20)),
-        (ProposedSize(width: nil, height: 10), SizeD(width: 100, height: 20)), (ProposedSize(width: 80, height: 50), SizeD(width: 60, height: 20)),
+        (ProposedSize(width: nil, height: 10), SizeD(width: 100, height: 20)), (ProposedSize(width: 80, height: 50), SizeD(width: 60, height: 20))
     ]
     for (proposal, expected) in i1 {
         let (tree, root) = horizontal()
@@ -173,7 +173,7 @@ private func lay(_ tree: LayoutTree, _ root: LayoutNodeID, _ proposal: ProposedS
         ("F2b", 60, [40: false, 70: true, 200: true], { t in
             t.newNativeLinearStack(children: [candidate(t, 50, 20), greedy(t)], axis: .horizontal, spacing: 0) }),
         ("F4", 80, [40: false, 70: false, 200: true], { t in
-            t.newNativeFrame(child: candidate(t, 10, 20), minWidth: 80, maxWidth: .infinity) }),
+            t.newNativeFrame(child: candidate(t, 10, 20), minWidth: 80, maxWidth: .infinity) })
     ]
     for shape in shapes {
         let alone = LayoutTree(generation: 1)

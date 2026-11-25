@@ -29,7 +29,7 @@ private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
         Button("Direct", systemImage: "star") {},
         Button { } label: { Label("Labelled", systemImage: "circle.fill") },
         Toggle("Flag", systemImage: "flag", isOn: .constant(true)),
-        Menu("More", systemImage: "folder") { Button("Inner", systemImage: "doc") {} },
+        Menu("More", systemImage: "folder") { Button("Inner", systemImage: "doc") {} }
     ]))
     #expect(items.map(\.title) == ["Plain", "Direct", "Labelled", "Flag", "More"])
     #expect(items.map { $0.image?.symbol } == [nil, "star", "circle.fill", "flag", "folder"])
@@ -52,7 +52,7 @@ private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
         Button("D", systemImage: "circle.fill") {}.foregroundStyle(.green),
         Button("E", systemImage: "circle.fill") {}.tint(.red).tint(.green),   // the nearer write wins
         Button("F", systemImage: "circle.fill") {}.tint(.green).foregroundStyle(.red),
-        Button("G", systemImage: "circle.fill") {}.disabled(false).tint(.green),   // through an inner scope
+        Button("G", systemImage: "circle.fill") {}.disabled(false).tint(.green)   // through an inner scope
     ]))
     #expect(items.map { $0.image?.tint } == [green, nil, nil, nil, red, green, green])
 }
@@ -62,7 +62,7 @@ private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
 @Test @MainActor func aTintOnASubmenuReachesItAndItsItems() {
     let items = evaluate(MenuItems([
         Menu("More", systemImage: "folder") { Button("A", systemImage: "star") {} }.tint(.green),
-        Button("C", systemImage: "star") {},
+        Button("C", systemImage: "star") {}
     ]))
     guard case .submenu(let children) = items[0].kind else { Issue.record("not a submenu"); return }
     #expect(items[0].image?.tint == green)
@@ -76,7 +76,7 @@ private let green = Color.green.resolved(theme: .light, scheme: .light).toRgba()
 @Test @MainActor func aDisabledItemKeepsItsImageAndAnUnknownNameIsCarriedSilently() {
     let items = evaluate(MenuItems([
         Button("Off", systemImage: "star") {}.disabled(true),
-        Button("Unknown", systemImage: "no.such.symbol.xyz") {},
+        Button("Unknown", systemImage: "no.such.symbol.xyz") {}
     ]))
     #expect(items[0].image?.symbol == "star")
     #expect(items[0].isEnabled == false)

@@ -38,7 +38,7 @@ private struct RSCard: Component, @MainActor Equatable {
             Text(title).frame(width: Pixels(80), height: Pixels(14))
             Button("go \(title)") {}.frame(width: Pixels(50), height: Pixels(18))
             Box().frame(width: Pixels(Float(20 + shade * 4)), height: Pixels(8)).background(.accent)
-                .opacity(shade % 2 == 0 ? 1 : 0.6)
+                .opacity(shade.isMultiple(of: 2) ? 1 : 0.6)
         }
         .padding(Edges(all: Pixels(4)))
         .background(Color.accent.opacity(0.2), in: RoundedRectangle(cornerRadius: Pixels(6)))
@@ -51,7 +51,7 @@ private struct RSCounter: Component {
     @State var count = 0
     var content: some ElementGroup {
         Button("count \(count)") { count += 1 }.frame(width: Pixels(70), height: Pixels(20))
-            .background(count % 2 == 0 ? Color.accent : Color.red)
+            .background(count.isMultiple(of: 2) ? Color.accent : Color.red)
     }
 }
 
@@ -251,7 +251,7 @@ private struct RSInspector: Component, @MainActor Equatable {
         ("dark appearance", { pair.on.setAppearance(.dark); pair.off.setAppearance(.dark) }),
         ("a scale change", { pair.on.setScaleFactor(2); pair.off.setScaleFactor(2) }),
         ("light appearance", { pair.on.setAppearance(.light); pair.off.setAppearance(.light) }),
-        ("a quiet frame at the end", {}),
+        ("a quiet frame at the end", {})
     ]
     for (name, step) in script {
         try step()

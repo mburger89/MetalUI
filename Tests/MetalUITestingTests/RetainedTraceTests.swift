@@ -123,7 +123,7 @@ func everyReplayKeyFieldIsNamedWhenItDiffersAlone() throws {
         ("key.ambient.scopes", { $0.ambient.scopes = [[1]] }),
         ("key.ambient.snappingTransaction", { $0.ambient.snappingTransaction = true }),
         ("key.ambient.disablesAnimations", { $0.ambient.disablesAnimations = true }),
-        ("key.ambient.atlasGeneration", { $0.ambient.atlasGeneration += 1 }),   // `GL-D`
+        ("key.ambient.atlasGeneration", { $0.ambient.atlasGeneration += 1 })   // `GL-D`
     ]
     cases.append(("key.ambient.environment.isEnabled", { $0.ambient.environment.isEnabled.toggle() }))
     for (name, change) in cases {
@@ -181,7 +181,7 @@ func aFireCauseNamesTheWriterFrameOrSaysReleaseInlined() {
         "closure #2 @Sendable () -> () in main.arm(Swift.String) -> ()",
         "merged partial apply forwarder for closure #1 @Sendable (Observation.ObservationTracking) -> () in static Observation.ObservationTracking._installTracking(_: Observation.ObservationTracking._AccessList, onChange: @Sendable () -> ()) -> ()",
         "merged function signature specialization <Arg[0] = Dead> of Observation.ObservationRegistrar.Context.willSet<A, B where A: Observation.Observable>(_: A, keyPath: Swift.KeyPath<A, B>) -> ()",
-        "Observation.ObservationRegistrar.withMutation<A, B, C where A: Observation.Observable>(of: A, keyPath: Swift.KeyPath<A, B>, _: () throws -> C) throws -> C",
+        "Observation.ObservationRegistrar.withMutation<A, B, C where A: Observation.Observable>(of: A, keyPath: Swift.KeyPath<A, B>, _: () throws -> C) throws -> C"
     ]
     let debug = machinery + ["main.Model.withMutation<A, B>(keyPath: Swift.KeyPath<main.Model, A>, _: () throws -> B) throws -> B",
                              "main.Model.radius.setter : Swift.Double", "main.theWriter(main.Model) -> ()", "start"]
