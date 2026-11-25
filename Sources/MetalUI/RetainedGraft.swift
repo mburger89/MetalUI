@@ -66,7 +66,7 @@ final class BuildJournal {
     /// order (`RL-C`). One copy, made for a window that earned a record (`RK-AH`).
     func rebased(_ range: Range<Int>, lifecycleBase: Int) -> [Event] {
         var out: [Event] = []
-        out.reserveCapacity(range.count)
+        out.reserveCapacity(steadyCapacity(range.count))   // `G52`
         for index in range {
             if case .lifecycleNote(let write, let scope, let owner, let order) = events[index] {
                 out.append(.lifecycleNote(write, scope, owner, order - lifecycleBase))
