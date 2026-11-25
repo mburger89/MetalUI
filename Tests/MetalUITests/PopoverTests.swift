@@ -366,7 +366,7 @@ private func descendants(_ tree: AccessibilityTree, of id: AccessibilityNodeID) 
     let tree = try #require(platform.publishedAccessibilityTrees.last)
     let popovers = tree.nodes.filter { $0.value.role == .popover }
     try #require(popovers.count == 1, "one popover node: \(tree.nodes.values.map(\.role))")
-    let held = descendants(tree, of: popovers.keys.first!)
+    let held = descendants(tree, of: try #require(popovers.keys.first))
     #expect(held.contains { $0.label == "In" && $0.role == .button }, "it holds its content")
     #expect(tree.nodes.values.contains { $0.label == "Under" && $0.role == .button },
             "the window's other nodes are still published")

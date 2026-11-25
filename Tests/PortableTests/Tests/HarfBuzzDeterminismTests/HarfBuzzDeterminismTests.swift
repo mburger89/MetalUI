@@ -298,7 +298,7 @@ let recording = ProcessInfo.processInfo.environment["METALUI_PORTABLE_RECORD"] =
         // would make a pin agree for the wrong reason.
         for file in [notoSans, sourceSans, notoSansArabic] {
             let inFace = corpus.filter { $0.font == file }
-            let sequences = Set(inFace.map { measured[$0]!.ids })
+            let sequences = try Set(inFace.map { try #require(measured[$0]).ids })
             #expect(sequences.count == inFace.count, "\(file): \(inFace.count) cases, \(sequences.count) id sequences")
         }
     }

@@ -19,7 +19,8 @@ import MetalUILayout
 struct SplitCounter: Component {
     var x: Double
     var content: some ElementGroup {
-        _ = acNote("split", x)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = acNote("split", x)
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
     }
 }

@@ -66,7 +66,8 @@ private struct CopyButton: Component, @MainActor Equatable {
     #expect(a.platformWindow.clipboard == nil && b.platformWindow.clipboard == "from b")
     try a.click(try a.element(identifier: "copy-button"))
     #expect(a.platformWindow.clipboard == "from a" && b.platformWindow.clipboard == "from b")
-    #expect(a.window.clipboard == a.window.clipboard && a.window.clipboard != b.window.clipboard, "equal per window (replay compares it)")
+    let aFirstRead = a.window.clipboard, aSecondRead = a.window.clipboard
+    #expect(aFirstRead == aSecondRead && aFirstRead != b.window.clipboard, "equal per window (replay compares it)")
 }
 
 /// **CB-S, test 4.** The environment value does not break `.equatable()` replay: an idle frame over an equatable

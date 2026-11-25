@@ -279,7 +279,7 @@ private struct EditCounter: Component {
     }
     let sliders = window.lastHitboxes.filter { $0.handlers.valueTrack != nil }
     try #require(sliders.count == 2, "each occurrence registers its own slider, got \(sliders.count)")
-    let first = sliders.min { $0.bounds.origin.y.value < $1.bounds.origin.y.value }!
+    let first = try #require(sliders.min { $0.bounds.origin.y.value < $1.bounds.origin.y.value })
     let point = Point(x: controlPx(150), y: controlPx(first.bounds.origin.y.value + 8))
     platform.simulateInput(.mouseDown(MouseEvent(position: point)))
     platform.simulateInput(.mouseUp(MouseEvent(position: point)))

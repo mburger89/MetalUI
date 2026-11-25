@@ -35,7 +35,12 @@ import Testing
     var resizes: [TerminalSize] { log.resizes }
     let window: TestWindow
     let size: Size<Pixels>
-    var model: TerminalViewModel { TerminalViewModel.latestForTesting! }
+    var model: TerminalViewModel {
+        guard let model = TerminalViewModel.latestForTesting else {
+            preconditionFailure("the rig mounts a terminal view, so a view model exists")
+        }
+        return model
+    }
 
     init(cols: Int = 80, rows: Int = 24, size: Size<Pixels> = Size(width: Pixels(400), height: Pixels(300)),
          blink: Bool = true, stops: Bool = true, extra: Bool = false, terminal: Bool = true, commands: Bool = false,

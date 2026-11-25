@@ -56,7 +56,7 @@ private let sizes: [(Int, Int)] = [(8, 16), (16, 32), (13, 19), (26, 38), (7, 15
 
 /// **3** (`TRM-AZ` item 4). The same for a vertical line through three cells stacked, and a heavy and a double
 /// line (the heavy is twice the light, the double two light strokes a light stroke apart).
-@Test func verticalHeavyAndDoubleLinesAreSeamlessAndScaleWithTheCell() {
+@Test func verticalHeavyAndDoubleLinesAreSeamlessAndScaleWithTheCell() throws {
     for (cw, ch) in sizes {
         let t = SyntheticGlyphs.lightStroke(cellWidth: cw)
         // Vertical: cells stacked are the one cell's column coverage at y = 0 and y = ch - 1 being equal.
@@ -71,7 +71,7 @@ private let sizes: [(Int, Int)] = [(8, 16), (16, 32), (13, 19), (26, 38), (7, 15
         let double = grid(0x2551, cw: cw, ch: ch)[0]
         #expect(light == t && heavy == 2 * t, "\(cw)x\(ch): light \(light), heavy \(heavy), t \(t)")
         #expect(double.reduce(0, +) == 2 * t)
-        let first = double.firstIndex(of: 1)!
+        let first = try #require(double.firstIndex(of: 1))
         #expect(double[first + t] == 0 && (first + 2 * t < cw ? double[first + 2 * t] == 1 : true), "a gap of one light stroke")
     }
 }

@@ -200,7 +200,8 @@ struct TransactionRecorder: ProposalElement {
     try #require(transactionRectWidth(window, height: 40) == 100)
     try #require(window.animationStore.count == 1, "set up: the scope stored its value")
     window.animationStore.endFrame()
-    try #require(window.animationStore.isEmpty, "set up: the stored value is gone")
+    // swiftlint:disable:next empty_count - `AnimationStore` is not a Collection: it has `count` but no `isEmpty`
+    try #require(window.animationStore.count == 0, "set up: the stored value is gone")
 
     model.flag = 1
     model.width = 200
@@ -640,11 +641,13 @@ private struct WidthOwner: Component {
     }
     bareFake.simulateTick(timestamp: 100)
     scopedFake.simulateTick(timestamp: 100)
-    try #require(!bare.stateTable.isEmpty, "set up: the fixture mints table entries")
+    // swiftlint:disable:next empty_count - `StateTable` is not a Collection: it has `count` but no `isEmpty`
+    try #require(bare.stateTable.count > 0, "set up: the fixture mints table entries")
     #expect(scoped.stateTable.count == bare.stateTable.count,
             "the scope adds no StateTable entry: \(scoped.stateTable.count) vs \(bare.stateTable.count)")
     #expect(scoped.animationStore.count == 1, "the value lives in the store")
-    #expect(bare.animationStore.isEmpty)
+    // swiftlint:disable:next empty_count - `AnimationStore` is not a Collection: it has `count` but no `isEmpty`
+    #expect(bare.animationStore.count == 0)
 }
 
 /// **1.12b.** The store drops an entry the frame does not touch (`AN-AB`): a
@@ -665,7 +668,8 @@ private struct WidthOwner: Component {
     model.flag2 = 1
     platform.simulateTick(timestamp: 101)
     try #require(transactionRectWidth(window, height: 40) == nil, "set up: the scope is gone")
-    #expect(window.animationStore.isEmpty,
+    // swiftlint:disable:next empty_count - `AnimationStore` is not a Collection: it has `count` but no `isEmpty`
+    #expect(window.animationStore.count == 0,
             "an entry no frame touched is dropped at the end of that frame")
 
     model.flag2 = 0

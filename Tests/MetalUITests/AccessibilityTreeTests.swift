@@ -446,7 +446,8 @@ private struct HitTestingDisabled<Content: Element>: Element {
         pass.allowsHitTesting(false) {
             result = content.prepaintGroup(layout: &layout, pass: &pass)
         }
-        return result!
+        guard let result else { preconditionFailure("prepaintGroup runs synchronously inside allowsHitTesting") }
+        return result
     }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

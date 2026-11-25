@@ -239,7 +239,8 @@ private struct CountingCell: Component {
     let log: StateLog
     @State var taps = 0
     var content: some ElementGroup {
-        _ = log.seen[label] = taps
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = log.seen[label] = taps
         Text("\(label)").id("cell-\(label)").onClick { taps += 1 }
     }
 }

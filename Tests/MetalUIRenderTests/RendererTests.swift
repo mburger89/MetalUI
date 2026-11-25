@@ -382,7 +382,7 @@ private func whiteRect() -> MUIRect {
     try #require(MTLCreateSystemDefaultDevice() != nil,
                  "no Metal device; run on macOS hardware")
     await #expect(processExitsWith: .failure) {
-        let renderer = try await Renderer(device: MTLCreateSystemDefaultDevice()!)
+        let renderer = try await Renderer(device: try #require(MTLCreateSystemDefaultDevice()))
         var scene = Scene()
         scene.insert(whiteRect())
         // No `scene.finalize()`.
@@ -398,7 +398,7 @@ private func whiteRect() -> MUIRect {
     try #require(MTLCreateSystemDefaultDevice() != nil,
                  "no Metal device; run on macOS hardware")
     await #expect(processExitsWith: .success) {
-        let renderer = try await Renderer(device: MTLCreateSystemDefaultDevice()!)
+        let renderer = try await Renderer(device: try #require(MTLCreateSystemDefaultDevice()))
         var scene = Scene()
         scene.insert(whiteRect())
         scene.finalize()

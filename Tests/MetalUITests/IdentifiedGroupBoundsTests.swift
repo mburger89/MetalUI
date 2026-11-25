@@ -47,7 +47,8 @@ private func sizedStyle(width: Float, height: Float) -> Style {
     let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: fixedColumn(width: 100, height: 100)) {
             ScrollViewReader { proxy in
-                _ = Holder.proxy = proxy
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = Holder.proxy = proxy
                 ScrollView {
                     Box(style: fixedColumn(width: 100, height: nil)) {
                         Box(style: sizedStyle(width: 100, height: 200))

@@ -18,9 +18,11 @@ private struct TMReader: Component, @MainActor Equatable {
     let log: TMLog
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        _ = log.n += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = log.n += 1
         let width = measurer.resolve(Text("12.5 mm")).measure(in: tmUnbounded).width
-        _ = log.width = width.value
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = log.width = width.value
         Text("w\(Int(width.value))").frame(width: Pixels(120), height: Pixels(16))
     }
     static func == (l: TMReader, r: TMReader) -> Bool { l.log === r.log }
@@ -107,9 +109,11 @@ private enum TMField: String, CaseIterable { case font, fontWeight, italic, cont
         var values = EnvironmentValues(); values.textSystemBox = box
         return .of(values.textMeasurer)
     }
-    #expect(measurer(TextSystemBox(system)) == measurer(TextSystemBox(system)), "two boxes over one system")
+    let overSystem = measurer(TextSystemBox(system)), overSystemAgain = measurer(TextSystemBox(system))
+    #expect(overSystem == overSystemAgain, "two boxes over one system")
     #expect(measurer(TextSystemBox(system)) != measurer(TextSystemBox(other)), "two systems")
-    #expect(measurer(nil) == measurer(nil), "no box equals itself")
+    let noBox = measurer(nil), noBoxAgain = measurer(nil)
+    #expect(noBox == noBoxAgain, "no box equals itself")
     #expect(measurer(nil) != measurer(TextSystemBox(system)))
 }
 

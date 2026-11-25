@@ -122,10 +122,16 @@ private final class Arm {
         tree.measureNativeLayout(root: root, proposal: ProposedSize(width: width, height: height)).size
     }
 
-    subscript(_ name: String) -> LayoutRect { tree.layout(nodes[name]!) }
+    subscript(_ name: String) -> LayoutRect {
+        guard let id = nodes[name] else { preconditionFailure("no node named \(name) in the fixture") }
+        return tree.layout(id)
+    }
     func x(_ name: String) -> Double { self[name].x }
     func width(_ name: String) -> Double { self[name].width }
-    func proposals(_ name: String) -> [ProposedSize] { logs[name]!.proposals }
+    func proposals(_ name: String) -> [ProposedSize] {
+        guard let log = logs[name] else { preconditionFailure("no log named \(name) in the fixture") }
+        return log.proposals
+    }
 }
 
 private func rect(_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> LayoutRect {

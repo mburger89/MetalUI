@@ -49,7 +49,8 @@ private struct StateCell: Component {
     let serials: Serials
     @State private var serial = 0
     var content: some ProposalElementGroup {
-        _ = serials.seen[index] = serial
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = serials.seen[index] = serial
         ProposalText("cell \(index)").frame(height: Pixels(20))
             .onAppear { if serial == 0 { serial = serials.mint() } }
     }
@@ -170,7 +171,8 @@ private final class ProxyBox {
     let window = try harnessWindow(size: sz(200, 200)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                _ = box.keep(proxy)
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = box.keep(proxy)
                 ProposalScrollView {
                     LazyVGrid(columns: twoColumns, spacing: Pixels(0)) {
                         ForEach(0..<2000) { index in

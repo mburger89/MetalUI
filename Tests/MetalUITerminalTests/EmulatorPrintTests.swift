@@ -216,6 +216,7 @@ import Testing
     @Test func positionsOrderByRowThenColumn() {
         #expect(TerminalPosition(row: 1, col: 9) < TerminalPosition(row: 2, col: 0))
         #expect(TerminalPosition(row: 2, col: 1) < TerminalPosition(row: 2, col: 3))
-        #expect(!(TerminalPosition(row: 2, col: 3) < TerminalPosition(row: 2, col: 3)))
+        let position = TerminalPosition(row: 2, col: 3), samePosition = TerminalPosition(row: 2, col: 3)
+        #expect(!(position < samePosition))
     }
 }

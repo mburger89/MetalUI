@@ -88,7 +88,8 @@ private func requireViewport(_ window: Window, height: Float? = nil, width: Floa
 private func namedRows(_ proxies: Proxies, count: Int = 20, plainKeys: Bool = false) -> some Element {
     Box(style: sized(width: 100, height: 100, column: true)) {
         ScrollViewReader { proxy in
-            _ = proxies.keep(proxy)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = proxies.keep(proxy)
             ScrollView {
                 Box(style: sized(width: 100, column: true)) {
                     for i in 0..<count {
@@ -238,7 +239,8 @@ private func listWindow(_ proxies: Proxies, count: Int, log: Built) throws
     let (window, platform) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: sized(width: 100, height: 100, column: true)) {
             ScrollViewReader { proxy in
-                _ = proxies.keep(proxy)
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = proxies.keep(proxy)
                 ScrollView {
                     Box(style: sized(width: 100, column: true)) {
                         List((0..<count).map(Datum.init), rowHeight: px(30)) {
@@ -290,7 +292,8 @@ func scrollToTargetsTheFirstMemberOfAForEachElement() throws {
         let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
             Box(style: sized(width: 100, height: 100, column: true)) {
                 ScrollViewReader { proxy in
-                    _ = proxies.keep(proxy)
+                    // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                    let _ = proxies.keep(proxy)
                     ScrollView {
                         Box(style: sized(width: 100, column: true)) {
                             ForEach(0..<20) { _ in
@@ -320,7 +323,8 @@ func scrollToMovesOnlyTheNearestScroller() throws {
     let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: sized(width: 100, height: 100, column: true)) {
             ScrollViewReader { proxy in
-                _ = proxies.keep(proxy)
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = proxies.keep(proxy)
                 ScrollView(.vertical, elementID: ElementID("outer")) {
                     Box(style: sized(width: 100, column: true)) {
                         Box(style: sized(width: 100, height: 100, column: true)) {
@@ -360,7 +364,8 @@ func scrollToWorksHorizontallyAndInAProposalScrollView() throws {
         let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
             Box(style: sized(width: 100, height: 30, row: true)) {
                 ScrollViewReader { proxy in
-                    _ = proxies.keep(proxy)
+                    // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                    let _ = proxies.keep(proxy)
                     ScrollView(.horizontal) {
                         Box(style: sized(height: 30, row: true)) {
                             for i in 0..<20 {
@@ -383,7 +388,8 @@ func scrollToWorksHorizontallyAndInAProposalScrollView() throws {
         let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
             Box(style: sized(width: 100, height: 100, column: true)) {
                 ScrollViewReader { proxy in
-                    _ = proxies.keep(proxy)
+                    // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                    let _ = proxies.keep(proxy)
                     ProposalScrollView {
                         VStack(spacing: 0) {
                             ForEach(0..<20) { _ in Rectangle().frame(width: 100, height: 30) }
@@ -408,7 +414,8 @@ func scrollToWorksHorizontallyAndInAProposalScrollView() throws {
 private func twoReaders(_ proxies: Proxies, withX: Set<String>) -> some Element {
     func reader(_ name: String) -> some ElementGroup {
         ScrollViewReader { proxy in
-            _ = proxies.keep(proxy, as: name)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = proxies.keep(proxy, as: name)
             ScrollView(.vertical, elementID: ElementID(name)) {
                 Box(style: sized(width: 100, column: true)) {
                     for i in 0..<20 {
@@ -474,7 +481,8 @@ func scrollToIsScopedToItsReader() throws {
 private func twoListReaders(_ proxies: Proxies) -> some Element {
     func reader(_ name: String, _ ids: Range<Int>) -> some ElementGroup {
         ScrollViewReader { proxy in
-            _ = proxies.keep(proxy, as: name)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = proxies.keep(proxy, as: name)
             ScrollView(.vertical, elementID: ElementID(name)) {
                 Box(style: sized(width: 100, column: true)) {
                     List(ids.map(Datum.init), rowHeight: px(30)) { _ in
@@ -533,7 +541,8 @@ private struct Tally: Component {
     @State var n = 0
     let seen: Seen
     var content: some ElementGroup {
-        _ = seen.counts.append(n)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = seen.counts.append(n)
         Box(style: sized(width: 50, height: 50)).onClick { n += 1 }
     }
 }
@@ -637,7 +646,8 @@ func scrollToComparesKeysByValue() throws {
         let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
             Box(style: sized(width: 100, height: 100, column: true)) {
                 ScrollViewReader { proxy in
-                    _ = proxies.keep(proxy)
+                    // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                    let _ = proxies.keep(proxy)
                     ScrollView {
                         Box(style: sized(width: 100, column: true)) {
                             ForEach(0..<20) { _ in Box(style: sized(width: 100, height: 30)) }

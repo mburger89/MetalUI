@@ -37,7 +37,8 @@ private final class Captured {
 private func taskColumn(_ tasks: Tasks, _ captured: Captured) -> some Element {
     Column {
         ForEach(tasks.binding) { $task in
-            _ = captured.bindings[task.id] = $task
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = captured.bindings[task.id] = $task
             Box().cssWidth(controlPx(40)).cssHeight(controlPx(20))
                 .onClick { $task.wrappedValue.done.toggle() }
         }

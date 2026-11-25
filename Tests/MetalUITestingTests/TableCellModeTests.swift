@@ -128,7 +128,8 @@ import Testing
     w.click(at: rowPoint(3, column: 2)); try await w.runUntilIdle()
     let focused = ringRects(w, width: 2)
     #expect(focused.count == 4, "four fills: \(focused.count)")
-    #expect(ringOrigin(focused)! == (200, 28 + 3 * 24), "inside the cell box: \(String(describing: ringOrigin(focused)))")
+    let focusedOrigin = try #require(ringOrigin(focused))
+    #expect(focusedOrigin == (200, 28 + 3 * 24), "inside the cell box: \(String(describing: ringOrigin(focused)))")
     let color = focused.map { [$0.background.h, $0.background.s, $0.background.l, $0.background.a] }
     #expect(color.allSatisfy { $0 == accent }, "accent \(accent), ring \(color)")
     w.window.focus(nil); try await w.runUntilIdle()
@@ -259,7 +260,8 @@ import Testing
     try await scrollTable(w, x: 0, y: 24 * 5000)
     #expect(ringRects(w, width: 2).isEmpty, "the cell is not realised, so no ring is drawn")
     try await scrollTable(w, x: 0, y: -24 * 5000)
-    #expect(ringOrigin(ringRects(w, width: 2))! == (200, 28 + 3 * 24), "the ring is back on the cell")
+    let backOrigin = try #require(ringOrigin(ringRects(w, width: 2)))
+    #expect(backOrigin == (200, 28 + 3 * 24), "the ring is back on the cell")
 }
 
 // MARK: - Scroll to a cell (`TCM-J`)
@@ -272,7 +274,8 @@ import Testing
     try harnessWindow(size: sz(800, 600)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                _ = holder.proxy = proxy
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = holder.proxy = proxy
                 cellTableValue(data: data, columns: columns, model: model, selection: selection, lookup: lookup)
             }
         }

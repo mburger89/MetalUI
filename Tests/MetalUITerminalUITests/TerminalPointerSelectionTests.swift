@@ -248,7 +248,8 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     func view(_ palette: TerminalPalette = .xterm, option: Bool = false, source: TerminalSnapshotSource = source) -> TerminalView {
         TerminalView(snapshotSource: source, theme: palette, optionAsMeta: option, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
     }
-    #expect(view() == view(), "closures are not compared")
+    let first = view(), second = view()
+    #expect(first == second, "closures are not compared")
     #expect(view(option: true) != view())
     var other = TerminalPalette.xterm; other.foreground = .red
     #expect(view(other) != view())

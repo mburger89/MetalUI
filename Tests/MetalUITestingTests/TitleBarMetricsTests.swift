@@ -26,7 +26,8 @@ private struct MetricsReader: Component {
     @Environment(\.titleBarInsets) var insets
     let log: MetricsLog
     var content: some ElementGroup {
-        _ = log.note(insets)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = log.note(insets)
         Color.clear.frame(width: Pixels(400), height: Pixels(300))
     }
 }

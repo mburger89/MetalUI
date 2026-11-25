@@ -933,7 +933,8 @@ private struct RSLogCard: Component, @MainActor Equatable {
     #expect(on.lastFrameWork.retainedHits == 2)
     #expect(try RSSnapshot(on).differences(from: RSSnapshot(off)).isEmpty)
     // The overlap: from B's left edge to A's right edge (the root is centred, so ask for the frames).
-    let a = try on.element(label: "A").frame, b = try on.elements(role: .button).map(\.frame).max { $0.origin.x.value < $1.origin.x.value }!
+    let a = try on.element(label: "A").frame
+    let b = try #require(try on.elements(role: .button).map(\.frame).max { $0.origin.x.value < $1.origin.x.value })
     let inOverlap = pt(b.origin.x.value + 10, a.origin.y.value + 10)
     let onlyA = pt(a.origin.x.value + 5, a.origin.y.value + 10)
     on.click(at: inOverlap); off.click(at: inOverlap)

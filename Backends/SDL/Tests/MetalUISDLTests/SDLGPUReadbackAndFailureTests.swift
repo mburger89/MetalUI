@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 @testable import MetalUISDL
 
 // The readback and failure-reason gaps MetalCreator's xp-3 asked for (rulings

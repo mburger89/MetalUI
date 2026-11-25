@@ -188,7 +188,9 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     let rootStops = order.indices.filter { !isUnderStrip(order[$0]) }
     let stripStops = order.indices.filter { isUnderStrip(order[$0]) }
     try #require(!rootStops.isEmpty && stripStops.count >= 3, "tab order: \(order.count)")
-    #expect(rootStops.max()! < stripStops.min()!, "Tab reaches the strip after the root")
+    let lastRootStop = try #require(rootStops.max())
+    let firstStripStop = try #require(stripStops.min())
+    #expect(lastRootStop < firstStripStop, "Tab reaches the strip after the root")
 
     let field = try #require(window.lastHitboxes.first { isUnderStrip($0.id) && $0.handlers.textInput != nil },
                              "the strip field's hitbox")

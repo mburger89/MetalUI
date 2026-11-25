@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 @testable import MetalUISDL
 
 // The synchronous render batch MetalCreator's XP-G22 asked for (rulings SY-A

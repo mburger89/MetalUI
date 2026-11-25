@@ -52,7 +52,10 @@ private func rgba(_ pixels: [UInt8], _ x: Int, _ y: Int) -> [Int] {
                              _ body: @escaping @MainActor (SurfaceTextSink) -> Void) throws {
     let request = SurfaceDrawRequest(target: target, scaleFactor: scale, time: 0, policy: .onDemand, value: value) { ctx in
         if ctx.isNewTarget { ctx.clear(red: 0, green: 0, blue: 0, alpha: 1) }
-        body((ctx as! SDLGPUDrawContext).textSink!)
+        guard let sink = (ctx as? SDLGPUDrawContext)?.textSink else {
+            preconditionFailure("an SDL surface request draws into an SDLGPUDrawContext with a text sink")
+        }
+        body(sink)
     }
     try #require(renderer.beginFrame() != nil)
     try #require(renderer.finishFrame(scene: scene(), atlas: atlas, surfaces: [request]))

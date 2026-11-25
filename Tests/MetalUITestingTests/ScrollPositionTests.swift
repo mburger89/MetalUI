@@ -218,7 +218,8 @@ private func rowTop(_ element: TestElement) -> Float {
         let window = try harnessWindow(size: sz(200, 200)) {
             VStack(spacing: Pixels(0)) {
                 ScrollViewReader { proxy in
-                    _ = holder.keep(proxy)
+                    // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+                    let _ = holder.keep(proxy)
                     ProposalScrollView {
                         LazyVStack(spacing: Pixels(0)) {
                             ForEach(0..<200) { index in ProposalText("row \(index)").frame(height: Pixels(20)) }
@@ -258,7 +259,8 @@ private func rowTop(_ element: TestElement) -> Float {
     let window = try harnessWindow(size: sz(200, 200)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                _ = holder.keep(proxy)
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = holder.keep(proxy)
                 ProposalScrollView {
                     VStack(spacing: Pixels(0)) {
                         ForEach(0..<200) { index in ProposalText("row \(index)").frame(height: Pixels(20)) }

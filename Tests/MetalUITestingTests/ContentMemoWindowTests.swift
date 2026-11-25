@@ -97,7 +97,8 @@ private struct EqLeaf: Component, @MainActor Equatable {
     let cell: IVCell
     var memo = true
     var content: some ElementGroup {
-        _ = MemoStats.leaves += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.leaves += 1
         Text("v\(cell.value)").frame(width: Pixels(60), height: Pixels(14))
     }
     static func == (l: EqLeaf, r: EqLeaf) -> Bool { l.memo && r.memo && l.cell === r.cell }
@@ -107,7 +108,8 @@ private struct EqBranch<Child: Component & Equatable>: Component, @MainActor Equ
     let children: [Child]
     var memo = true
     var content: some ElementGroup {
-        _ = MemoStats.branches += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.branches += 1
         VStack(spacing: 0) {
             ForEach(Array(children.indices), id: \.self) { children[$0].equatable() }
         }
@@ -183,7 +185,8 @@ private struct EqBranch<Child: Component & Equatable>: Component, @MainActor Equ
 private struct AlwaysEqualReader: Component, @MainActor Equatable {
     let cell: IVCell
     var content: some ElementGroup {
-        _ = MemoStats.leaves += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.leaves += 1
         Text("r\(cell.value)").frame(width: Pixels(60), height: Pixels(14))
     }
     static func == (l: AlwaysEqualReader, r: AlwaysEqualReader) -> Bool { true }
@@ -218,7 +221,8 @@ private struct AlwaysEqualReader: Component, @MainActor Equatable {
 private struct AlwaysEqualCounter: Component, @MainActor Equatable {
     @State var n = 0
     var content: some ElementGroup {
-        _ = MemoStats.leaves += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.leaves += 1
         VStack(spacing: 0) {
             Text("n=\(n)").frame(width: Pixels(60), height: Pixels(14))
             Button("inc") { n += 1 }.frame(width: Pixels(60), height: Pixels(20))
@@ -258,7 +262,8 @@ private struct EqMid: Component, @MainActor Equatable {
     let cells: [IVCell]
     static func == (l: EqMid, r: EqMid) -> Bool { l.k == r.k && l.cells.elementsEqual(r.cells, by: ===) }
     var content: some ElementGroup {
-        _ = MemoStats.branches += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.branches += 1
         VStack(spacing: 0) {
             Text("k\(k)").frame(width: Pixels(60), height: Pixels(14))
             ForEach(Array(cells.indices), id: \.self) { EqLeaf(cell: cells[$0]).equatable() }
@@ -319,7 +324,8 @@ private struct Panel: Component, @MainActor Equatable {
     let show: Bool
     var elementID: ElementID? { ElementID("panel") }
     var content: some ElementGroup {
-        _ = MemoStats.branches += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.branches += 1
         VStack(spacing: 0) {
             if show { StatefulCounter() }
             Text("panel").frame(width: Pixels(60), height: Pixels(14))
@@ -364,7 +370,8 @@ private struct PanelHolder: Component {
 private struct Ticker: Component, @MainActor Equatable {
     let n: Int
     var content: some ElementGroup {
-        _ = MemoStats.leaves += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.leaves += 1
         Text("t\(n)").frame(width: Pixels(60), height: Pixels(14))
     }
 }
@@ -415,7 +422,8 @@ private struct SwitchHolder: Component {
 
 private struct NeverEqual: Component, @MainActor Equatable {
     var content: some ElementGroup {
-        _ = MemoStats.leaves += 1
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = MemoStats.leaves += 1
         Text("never").frame(width: Pixels(60), height: Pixels(14))
     }
     static func == (l: NeverEqual, r: NeverEqual) -> Bool { false }

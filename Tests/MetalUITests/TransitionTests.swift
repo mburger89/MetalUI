@@ -1000,7 +1000,7 @@ private func sameBounds(_ a: MUIBounds, _ b: MUIBounds) -> Bool {
     try #require(settled.tile != nil && settled.border != nil && settled.glyphs.count == 1 && settled.images.count == 1,
                  "set up: the settled tile paints its fill, its border, one glyph and one image: \(describe(settled.tile)), \(describe(settled.border)), \(settled.glyphs.count), \(settled.images.count)")
     let settledGlyphA = settled.glyphs[0].color.a, settledImageA = settled.images[0].opacity
-    let settledBorderA = settled.border!.borderColor.a
+    let settledBorderA = try #require(settled.border).borderColor.a
     try #require(settledGlyphA > 0 && settledImageA > 0 && settledBorderA > 0,
                  "set up: every settled alpha is non-zero, or halving proves nothing: \(settledGlyphA), \(settledImageA), \(settledBorderA)")
     #expect(mid.glyphs.count == 1 && mid.glyphs.first?.color.a == settledGlyphA / 2,

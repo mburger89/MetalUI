@@ -189,7 +189,10 @@ private func worst(_ pixels: [UInt8], blurred: [Float], boxOrigin: (Int, Int), w
     descriptor.storageMode = .shared
     let target = try #require(device.makeTexture(descriptor: descriptor))
     let bytes = [UInt8]((0..<400).flatMap { _ in [UInt8(0), 0, 255, 255] })
-    bytes.withUnsafeBytes { target.replace(region: MTLRegionMake2D(0, 0, 20, 20), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: 80) }
+    bytes.withUnsafeBytes {
+        guard let base = $0.baseAddress else { preconditionFailure("the fill buffer is not empty") }
+        target.replace(region: MTLRegionMake2D(0, 0, 20, 20), mipmapLevel: 0, withBytes: base, bytesPerRow: 80)
+    }
     var inner = Scene()
     let id = SurfaceID(rawValue: 1)
     inner.insert(MUIImage(bounds: box(40, 40, 20, 20), contentMask: box(-1000, -1000, 4000, 4000), opacity: 1, filter: .nearest, order: 0),

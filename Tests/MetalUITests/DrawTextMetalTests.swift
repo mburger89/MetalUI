@@ -25,7 +25,8 @@ private struct Reading: Component {
     let text: Text
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        _ = holder.value = measurer.resolve(text)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = holder.value = measurer.resolve(text)
         Box().frame(width: 1, height: 1)
     }
 }

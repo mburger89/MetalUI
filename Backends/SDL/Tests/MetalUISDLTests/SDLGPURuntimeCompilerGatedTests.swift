@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import SDLBridge
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 enum RuntimeCompilerSupport {
     /// Loads the process-wide compiler on first read.
     static let available: Bool = SDLGPUShaderCompiler.isAvailable

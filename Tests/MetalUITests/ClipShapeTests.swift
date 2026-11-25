@@ -202,9 +202,11 @@ private func overflowing() -> some ProposalElement {
         d.clipShape = ClipShapeBox(shape)
         return d
     }
-    #expect(decoration(Circle()) == decoration(Circle()))
-    #expect(decoration(RoundedRectangle(cornerRadius: Pixels(4)))
-                == decoration(RoundedRectangle(cornerRadius: Pixels(4))))
+    let circle = decoration(Circle()), circleAgain = decoration(Circle())
+    #expect(circle == circleAgain)
+    let rounded = decoration(RoundedRectangle(cornerRadius: Pixels(4)))
+    let roundedAgain = decoration(RoundedRectangle(cornerRadius: Pixels(4)))
+    #expect(rounded == roundedAgain)
     #expect(decoration(Circle()) != decoration(Capsule()), "a different type")
     #expect(decoration(RoundedRectangle(cornerRadius: Pixels(4)))
                 != decoration(RoundedRectangle(cornerRadius: Pixels(8))), "the same type, another value")

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 import MetalUIShaderRuntime
 func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
     var attempts = SDLGPUShaderCompiler.libraryAttempts(

@@ -52,7 +52,7 @@ private let blue = Color(red: 0, green: 0, blue: 1)
     let tall = try window { Button(action: {}) { Color.clear.frame(width: Pixels(60), height: Pixels(40)) }.buttonBorderShape(.capsule) }
     #expect(radii(tall) == [20], "half of a 40-point button: \(radii(tall))")
     let circle = try window { Button(action: {}) { Color.clear.frame(width: Pixels(30), height: Pixels(30)) }.buttonBorderShape(.circle) }
-    #expect(radii(circle).count == 1 && radii(circle).first! >= 15, "a square button under .circle: \(radii(circle))")
+    #expect(radii(circle).count == 1 && (radii(circle).first ?? 0) >= 15, "a square button under .circle: \(radii(circle))")
 }
 
 /// BY-L: `.roundedRectangle` is the chrome's 5, `.roundedRectangle(radius:)` the radius, clamped to half the shorter side.

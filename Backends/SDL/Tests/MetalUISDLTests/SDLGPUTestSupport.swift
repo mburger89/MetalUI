@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 enum GPUTestSupport {
     /// `Backends/SDL/Tests/AppShaders/compiled`: the append kernel's blobs, built by
     /// `MetalUICompileShaders` (`swift package compile-shaders`), verified by hash and never regenerated

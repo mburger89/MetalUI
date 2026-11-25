@@ -43,7 +43,8 @@ private struct OuterGate: Component, @MainActor Equatable {
     let gate: GateModel
     let model: ToneModel
     var content: some ElementGroup {
-        _ = gate.count
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = gate.count
         VStack(spacing: 0) { InnerTone(model: model).equatable() }
     }
     static func == (l: OuterGate, r: OuterGate) -> Bool { l.gate === r.gate && l.model === r.model }
@@ -71,5 +72,7 @@ private struct OuterGate: Component, @MainActor Equatable {
     #expect(window.window.needsRedraw, "the write dirtied the window")
     window.tick()
     let after = window.scene.rects.last?.background
-    #expect(after != nil && before != nil && after!.h != before!.h, "the new tone was drawn: \(String(describing: before)) \(String(describing: after))")
+    let beforeTone = try #require(before, "the tone drawn before the write: \(String(describing: before)) \(String(describing: after))")
+    let afterTone = try #require(after, "the tone drawn after the write: \(String(describing: before)) \(String(describing: after))")
+    #expect(afterTone.h != beforeTone.h, "the new tone was drawn: \(String(describing: before)) \(String(describing: after))")
 }

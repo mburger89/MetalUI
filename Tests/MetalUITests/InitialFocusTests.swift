@@ -31,8 +31,10 @@ private struct Seat<Body: ElementGroup>: Component {
     let model: ISModel
     let build: (ISModel, FocusState<Int?>.Binding) -> Body
     var content: some ElementGroup {
-        _ = model.seen.append(f)
-        _ = model.set = { [f = $f] in f.wrappedValue = $0 }
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.seen.append(f)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.set = { [f = $f] in f.wrappedValue = $0 }
         build(model, $f)
     }
 }

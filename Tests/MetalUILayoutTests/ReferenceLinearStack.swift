@@ -127,7 +127,10 @@ struct ReferenceLinearStack: ProposalLayout {
                             - mainLength(measure(index, offer(0, cross: cross)).size)
                     }
                     order.sort { lhs, rhs in
-                        flexibility[lhs]! != flexibility[rhs]! ? flexibility[lhs]! < flexibility[rhs]! : lhs < rhs
+                        guard let l = flexibility[lhs], let r = flexibility[rhs] else {
+                            preconditionFailure("every member's flexibility was measured")
+                        }
+                        return l != r ? l < r : lhs < rhs
                     }
                 }
                 var groupRemaining = remaining - reserved

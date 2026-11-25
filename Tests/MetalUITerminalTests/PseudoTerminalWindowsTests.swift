@@ -305,7 +305,10 @@ private func processIsAlive(_ pid: UInt32) -> Bool {
         let wide = Array(line.utf16) + [0]
         let argv = try #require(wide.withUnsafeBufferPointer { CommandLineToArgvW($0.baseAddress, &count) })
         defer { LocalFree(argv) }
-        let parsed = (1..<Int(count)).map { String(decodingCString: argv[$0]!, as: UTF16.self) }
+        let parsed = try (1..<Int(count)).map { index -> String in
+            let argument = try #require(argv[index])
+            return String(decodingCString: argument, as: UTF16.self)
+        }
         #expect(parsed == arguments, "\(line)")
     }
 }

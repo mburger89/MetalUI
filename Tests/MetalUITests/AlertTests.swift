@@ -202,7 +202,8 @@ private let a1Buttons = [PlatformAlertButton(title: "Delete", isDestructive: tru
 @MainActor private func presentingNilTree(_ m: ALModel) -> some Element {
     Column {
         psLeaf().alert("Delete?", isPresented: m.binding, presenting: m.data) { item in
-            _ = m.noteActions()
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = m.noteActions()
             Button("Delete \(item)", role: .destructive) { m.log.append("delete \(item)") }
         } message: { item in
             _ = m.noteMessage()

@@ -28,9 +28,12 @@ private struct Single: Component {
     @FocusState var inner: Bool
     let model: Model
     var content: some ElementGroup {
-        _ = model.pane.append(pane)
-        _ = model.inner.append(inner)
-        _ = model.setPane = { [pane = $pane] in pane.wrappedValue = $0 }
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.pane.append(pane)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.inner.append(inner)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.setPane = { [pane = $pane] in pane.wrappedValue = $0 }
         VStack {
             TextField("t", text: model.text) { [model] in model.text = $0 }
             box().focusable()
@@ -45,8 +48,10 @@ private struct Panes: Component {
     @FocusState var pane: Pane?
     let model: Model
     var content: some ElementGroup {
-        _ = model.named.append(pane)
-        _ = model.setNamed = { [pane = $pane] in pane.wrappedValue = $0 }
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.named.append(pane)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.setNamed = { [pane = $pane] in pane.wrappedValue = $0 }
         VStack { box().focusable(); box().focusable() }.focused($pane, equals: .a)
         VStack { box().focusable(); box().focusable() }.focused($pane, equals: .b)
     }
@@ -167,7 +172,8 @@ private struct Group2: Component {
     let model: Model
     let bound: Bool
     var content: some ElementGroup {
-        _ = model.pane.append(pane)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = model.pane.append(pane)
         if bound {
             VStack { TextField("t", text: model.text) { [model] in model.text = $0 }; box().focusable() }.focused($pane)
         } else {

@@ -66,7 +66,9 @@ enum FuzzSupport {
                             0x24, 0x70, 0x71, 0x21, 0x37, 0x38, 0x63, 0x6E, 0x3E, 0x0E, 0x0F, 0x67, 0x49, 0x5A,
                             0x34, 0x36, 0x37, 0x31, 0x30, 0x32, 0x33, 0x35]
         return (0..<count).map { _ in
-            Int.random(in: 0..<4, using: &rng) == 0 ? UInt8.random(in: 0...255, using: &rng) : hot.randomElement(using: &rng)!
+            if Int.random(in: 0..<4, using: &rng) == 0 { return UInt8.random(in: 0...255, using: &rng) }
+            guard let byte = hot.randomElement(using: &rng) else { preconditionFailure("the hot list is not empty") }
+            return byte
         }
     }
 }

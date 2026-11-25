@@ -26,8 +26,12 @@ import MetalUIScene
         let found = all.values.filter { $0.size.width.value == width && $0.size.height.value == height }
         return found.first
     }
-    var above: Bounds<Pixels> { bounds(width: 37)! }
-    var below: Bounds<Pixels> { bounds(width: 36)! }
+    var above: Bounds<Pixels> { required(width: 37) }
+    var below: Bounds<Pixels> { required(width: 36) }
+    private func required(width: Float) -> Bounds<Pixels> {
+        guard let found = bounds(width: width) else { preconditionFailure("no stage element is \(width) wide") }
+        return found
+    }
     /// The group's height: from the bottom of "above" to the top of "below" (spacing 0).
     var groupHeight: Float { below.origin.y.value - (above.origin.y.value + above.size.height.value) }
     var groupTop: Float { above.origin.y.value + above.size.height.value }
@@ -169,7 +173,8 @@ import MetalUIScene
     func tree(_ open: Bool) -> some Element {
         stageTree {
             DisclosureGroup(isExpanded: .constant(open)) {
-                _ = counter.calls += 1
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = counter.calls += 1
                 bar(75)
             } label: { Text("Section") }
         }

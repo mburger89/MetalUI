@@ -21,7 +21,8 @@ private struct Capturing: Component {
     let text: Text
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        _ = box.value = measurer.resolve(text)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = box.value = measurer.resolve(text)
         Box().frame(width: 1, height: 1)
     }
 }
@@ -209,6 +210,7 @@ private func colour(_ g: MUIGlyph) -> [Float] { [g.color.h, g.color.s, g.color.l
         GPUSurface(redraw: .continuous) { _ in ran.count += 1 }.frame(width: Pixels(40), height: Pixels(20))
     }
     window.tick()
-    #expect(ran.isEmpty, "a headless frame never runs the app's draw")
+    // swiftlint:disable:next empty_count - `Ran` is not a Collection: it has `count` but no `isEmpty`
+    #expect(ran.count == 0, "a headless frame never runs the app's draw")
     #expect(window.platformWindow.headlessRenderer.lastSurfaceRequests.count == 1, "but it records the request")
 }

@@ -273,7 +273,8 @@ private func hsla(_ color: Color) -> Hsla { color.resolved(theme: .light, scheme
     let styles: [any PrimitiveButtonStyle] = [.automatic, .bordered, .borderless, .plain, .borderedProminent, .link,
                                               .glass, .glassProminent]
     #expect(styles.count == 8)
-    #expect(PlainButtonStyle() == PlainButtonStyle() && AnyHashable(PlainButtonStyle()) != AnyHashable(BorderedButtonStyle()))
+    let plainStyle = PlainButtonStyle(), plainStyleAgain = PlainButtonStyle()
+    #expect(plainStyle == plainStyleAgain && AnyHashable(PlainButtonStyle()) != AnyHashable(BorderedButtonStyle()))
     let bytes = styles.map { style in ixSceneBytes { controlRoot { Button("Go") {}.buttonStyle(style) } } }
     #expect(bytes[0] == bytes[1], ".automatic is .bordered, byte for byte")
     #expect(bytes[2] == bytes[3], ".borderless and .plain draw alike (BT1)")

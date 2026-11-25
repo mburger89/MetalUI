@@ -96,7 +96,7 @@ func placementDifferences() throws -> (cases: Int, glyphs: Int, differences: [Pl
                         if apple.count != portable.count || ProcessInfo.processInfo.environment["METALUI_LINES_EMIT_FOCUS"] != nil {
                             detail = "\(apple.count) apple glyphs vs \(portable.count)\n  apple    \(apple)\n  portable \(portable)"
                         } else {
-                            let i = apple.indices.first { apple[$0] != portable[$0] }!
+                            let i = try #require(apple.indices.first { apple[$0] != portable[$0] })
                             detail = "glyph \(i): apple \(apple[i]) portable \(portable[i])"
                         }
                         differences.append(PlacementDifference(file: file, size: size, scale: scale,

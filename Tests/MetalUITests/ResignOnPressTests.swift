@@ -157,7 +157,8 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
     @FocusState var focused: RPField?
     let m: RPLog
     var content: some ElementGroup {
-        _ = m.fields.append(focused)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = m.fields.append(focused)
         Column {
             TextField("a", text: m.texts[0]) { m.texts[0] = $0 }.focused($focused, equals: .a)
                 .frame(width: px(100), height: px(24))
@@ -424,7 +425,8 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
     let m: RPLog
     let region: Bool
     var content: some ElementGroup {
-        _ = m.flags.append(focused)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = m.flags.append(focused)
         let field = Column {
             square(20).focusable().focused($focused)
         }
@@ -579,7 +581,8 @@ extension StyledElement {
     @State var taps = 0
     let m: RPLog
     var content: some ElementGroup {
-        _ = m.log.append("taps \(taps)")
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = m.log.append("taps \(taps)")
         Box().frame(width: px(100), height: px(100)).onClick { taps += 1 }
     }
 }

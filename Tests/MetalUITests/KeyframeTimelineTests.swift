@@ -8,11 +8,17 @@ import Testing
 // within 0.001 — the print's rounding is 0.0005 — or 0.005 where the ruling says
 // so (`K4d`). No window, no clock: `value(time:)` is arithmetic.
 
+/// A number from a probe line; a probe literal that does not parse is a fixture bug.
+private func probeNumber(_ text: Substring) -> Double {
+    guard let value = Double(text) else { preconditionFailure("probe sample \(text) is not a number") }
+    return value
+}
+
 /// `"t:v t:v …"` from a probe line, as pairs.
 private func samples(_ line: String) -> [(time: Double, value: Double)] {
     line.split(separator: " ").map { pair in
         let parts = pair.split(separator: ":")
-        return (Double(parts[0])!, Double(parts[1])!)
+        return (probeNumber(parts[0]), probeNumber(parts[1]))
     }
 }
 
@@ -207,8 +213,8 @@ private struct Shake: Equatable {
     let probe = "-0.100:(0.000,1.000) 0.000:(0.000,1.000) 0.050:(2.500,1.083) 0.100:(5.000,1.167) 0.150:(7.500,1.250) 0.200:(10.000,1.333) 0.250:(7.500,1.417) 0.300:(5.000,1.500) 0.350:(2.500,1.583) 0.400:(0.000,1.667) 0.500:(0.000,1.833) 0.600:(0.000,2.000) 0.800:(0.000,2.000) 1.000:(0.000,2.000) 1.500:(0.000,2.000)"
     for pair in probe.split(separator: " ") {
         let parts = pair.split(separator: ":")
-        let time = Double(parts[0])!
-        let numbers = parts[1].dropFirst().dropLast().split(separator: ",").map { Double($0)! }
+        let time = probeNumber(parts[0])
+        let numbers = parts[1].dropFirst().dropLast().split(separator: ",").map { probeNumber($0) }
         let value = timeline.value(time: time)
         #expect(abs(value.x - numbers[0]) <= 0.001 && abs(value.s - numbers[1]) <= 0.001,
                 "K6 t=\(time): (\(value.x), \(value.s)), SwiftUI (\(numbers[0]), \(numbers[1]))")

@@ -1,5 +1,5 @@
 import Foundation
-import MetalUI
+@testable import MetalUI
 import MetalUIPlatform
 import MetalUITesting
 import Testing

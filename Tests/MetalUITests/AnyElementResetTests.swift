@@ -442,7 +442,8 @@ private struct ERFocusB: Element {
     let (window, _) = try lcWindow(size: 100) {
         Box(style: erStyle(width: 100, height: 100, column: true)) {
             ScrollViewReader { proxy in
-                _ = ERProxy.proxy = proxy
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = ERProxy.proxy = proxy
                 ScrollView {
                     Box(style: erStyle(width: 100, height: nil, column: true)) {
                         Box(style: erStyle(width: 100, height: 200))

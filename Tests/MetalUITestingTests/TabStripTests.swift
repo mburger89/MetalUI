@@ -310,7 +310,8 @@ import Testing
     func strip(_ icon: Image?) -> TabStrip<String> {
         TabStrip(selection: m.binding, tabs: [TabStripItem(id: "a", title: "x", icon: icon)])
     }
-    #expect(strip(Image(systemName: "doc")) == strip(Image(systemName: "doc")))
+    let docStrip = strip(Image(systemName: "doc")), docStripAgain = strip(Image(systemName: "doc"))
+    #expect(docStrip == docStripAgain)
     #expect(strip(Image(systemName: "doc")) != strip(Image(systemName: "star")))
     #expect(strip(nil) != strip(Image(systemName: "doc")))
 }

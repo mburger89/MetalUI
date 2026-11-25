@@ -1,5 +1,5 @@
 import Foundation
-import MetalUI
+@testable import MetalUI
 import MetalUIPlatform
 import MetalUIScene
 import MetalUITesting
@@ -120,7 +120,8 @@ private let alpha = "alpha beta gamma delta"
     }
     #expect(geometry.boundary(at: pt(5, -20)) == 0, "above the text is its start")
     #expect(geometry.boundary(at: pt(5, 5_000)) == geometry.graphemeCount, "below it is its end")
-    #expect(geometry.lines.first!.range.lowerBound == 0 && geometry.lines.last!.range.upperBound <= geometry.graphemeCount)
+    let firstLine = try #require(geometry.lines.first), lastLine = try #require(geometry.lines.last)
+    #expect(firstLine.range.lowerBound == 0 && lastLine.range.upperBound <= geometry.graphemeCount)
 }
 
 /// **3.2** A trailing-aligned text's shorter line starts where the text system put it (`originX`): a press at that line's
@@ -138,7 +139,8 @@ private let alpha = "alpha beta gamma delta"
     let shortLine = try #require(geometry.lines.first { $0.originX > 1 }, "a line is aligned right of the box's left: \(geometry.lines.map(\.originX))")
     let mid = Float(shortLine.top + shortLine.height / 2)
     #expect(geometry.boundary(at: pt(Float(shortLine.originX) - 0.5, mid)) == shortLine.range.lowerBound)
-    #expect(geometry.boundary(at: pt(Float(shortLine.originX + shortLine.offsets.last!) + 20, mid)) == shortLine.range.upperBound)
+    let lastOffset = try #require(shortLine.offsets.last)
+    #expect(geometry.boundary(at: pt(Float(shortLine.originX + lastOffset) + 20, mid)) == shortLine.range.upperBound)
     let rects = geometry.rects(for: shortLine.range)
     #expect(rects.count == 1 && abs(Double(rects[0].origin.x.value) - shortLine.originX) < 0.01, "\(rects)")
 }
@@ -223,7 +225,8 @@ private func logOf(kib: Int) -> String {
         #expect(result.geometry.graphemeCount == log.count)
         #expect(result.calls == result.geometry.lines.count, "one call per line: \(result.calls) of \(result.geometry.lines.count)")
         #expect(result.units == log.count - breaks, "every grapheme once, no hard break: \(result.units) of \(log.count - breaks)")
-        #expect(result.geometry.lines.last!.range.upperBound >= log.count - 1, "the lines reach the end")
+        let lastLine = try #require(result.geometry.lines.last)
+        #expect(lastLine.range.upperBound >= log.count - 1, "the lines reach the end")
     }
     #expect(b.geometry.lines.count > a.geometry.lines.count * 3 && b.units > a.units * 3)
 }
@@ -342,8 +345,9 @@ import MetalUITestSupport
         let on = try await allocations(rows: rows, selectable: true)
         delta[rows] = on - off
     }
-    #expect(abs(delta[100]! - delta[10]!) <= 2, "the enabled-minus-disabled allocations at 10 and at 100 rows: \(delta)")
-    #expect(delta[100]! <= 8, "a constant, not a function of the rows: \(delta)")
+    let delta10 = try #require(delta[10]), delta100 = try #require(delta[100])
+    #expect(abs(delta100 - delta10) <= 2, "the enabled-minus-disabled allocations at 10 and at 100 rows: \(delta)")
+    #expect(delta100 <= 8, "a constant, not a function of the rows: \(delta)")
 }
 #endif
 
@@ -460,7 +464,8 @@ import MetalUITestSupport
 @MainActor private func firstLineHighlights(_ w: TestWindow) throws -> [MUIRect] {
     let geometry = try #require(w.window.textSelectionSession?.geometry)
     let line = geometry.lines[0]
-    let width = Float(line.offsets.last!)
+    let lastOffset = try #require(line.offsets.last)
+    let width = Float(lastOffset)
     return w.allRects.filter { abs($0.bounds.size.height - Float(line.height)) < 0.5 && abs($0.bounds.size.width - width) < 1 }
 }
 

@@ -168,8 +168,9 @@ private func leaves(_ prefix: String, _ count: Int) -> [VNode] { (0..<count).map
     let victim = try #require(shown.dropFirst(3).first { $0.hasPrefix("k") })
     let neighbour = try #require(shown.first { $0.hasPrefix("k") && $0 != victim })
     let before = try window.element(label: neighbour).frame
-    let at = Int(victim.dropFirst())!
-    tree.roots[0].stored![at].id = "renamed"
+    let at = try #require(Int(victim.dropFirst()))
+    _ = try #require(tree.roots[0].stored)
+    tree.roots[0].stored?[at].id = "renamed"
     window.resetFrameWork()
     window.window.setNeedsRedraw()
     settle(window)
@@ -190,13 +191,14 @@ private func leaves(_ prefix: String, _ count: Int) -> [VNode] { (0..<count).map
     settle(window)
     let probe = try #require(labels(window).dropFirst(3).first { $0.hasPrefix("k") })
     let before = try window.element(label: probe).frame
-    tree.roots[0].stored!.insert(N("inserted"), at: 5)
+    _ = try #require(tree.roots[0].stored)
+    tree.roots[0].stored?.insert(N("inserted"), at: 5)
     window.resetFrameWork()
     window.window.setNeedsRedraw()
     settle(window)
     #expect(sum(window.frameWork, \.outlineIndexRebuilds) == 1, "insert: \(sum(window.frameWork, \.outlineIndexRebuilds)) rebuilds")
     #expect(isAt(window, probe, before), "the row moved when a row was inserted above the window: \(probe) \(before) -> \((try? window.element(label: probe).frame) as Any)")
-    tree.roots[0].stored!.removeLast()
+    tree.roots[0].stored?.removeLast()
     window.resetFrameWork()
     window.window.setNeedsRedraw()
     settle(window)
@@ -233,11 +235,11 @@ private func leaves(_ prefix: String, _ count: Int) -> [VNode] { (0..<count).map
         settle(window)
         try toggle(window, "R")
         try toggle(window, "B")
-        let b = tree.roots[0].stored![1]
-        tree.roots[0].stored!.remove(at: 1)
+        let b = try #require(tree.roots[0].stored)[1]
+        tree.roots[0].stored?.remove(at: 1)
         window.window.setNeedsRedraw(); settle(window)
         #expect(labels(window) == ["R", "a", "c", "Z", "M"], "lazy \(lazy), removed: \(labels(window))")
-        tree.roots[0].stored!.insert(b, at: 1)
+        tree.roots[0].stored?.insert(b, at: 1)
         window.window.setNeedsRedraw(); settle(window)
         #expect(labels(window) == ["R", "a", "B", "c", "Z", "M"], "lazy \(lazy), back: B must be collapsed: \(labels(window))")
     }
@@ -292,7 +294,7 @@ private struct PathNode {
     #expect(window.lastFrameWork.lazyUnitsRealized == 12 && window.lastFrameWork.lazyUnbounded == 0, "\(window.lastFrameWork.lazyUnitsRealized) realised")
     let reads = sum(window.frameWork, \.outlineChildrenReads)
     #expect(reads == kidReads.values.reduce(0, +), "counted \(reads), read \(kidReads.values.reduce(0, +))")
-    #expect(kidReads.count == 10_001 && kidReads["R"]! >= 1, "every visible row is read for group-or-leaf: \(kidReads.count) ids")
+    #expect(kidReads.count == 10_001 && (kidReads["R"] ?? 0) >= 1, "every visible row is read for group-or-leaf: \(kidReads.count) ids")
     window.resetFrameWork()
     window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -300)
     settle(window)
@@ -394,7 +396,8 @@ private struct StatefulLeaf: Component {
     }
 
     var content: some ElementGroup {
-        _ = serials.seen[name] = serial
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = serials.seen[name] = serial
         ProposalText(name).frame(height: Pixels(20))
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 private let side = 32
 private let blue: [UInt8] = [0, 0, 255, 255]
 private let red: [UInt8] = [255, 0, 0, 255]

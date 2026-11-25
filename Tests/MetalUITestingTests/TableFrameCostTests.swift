@@ -16,7 +16,8 @@ private struct WriterChip: Component {
     let log: DxLog
     @State var dx: Float = 0
     var content: some ElementGroup {
-        _ = { log.lastBuiltDx = dx; log.builds += 1 }()
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = { log.lastBuiltDx = dx; log.builds += 1 }()
         VStack(spacing: 0) {
             Rectangle().frame(width: Pixels(200), height: Pixels(200))
                 .gesture(DragGesture(minimumDistance: Pixels(0)).onChanged { v in dx = Float(v.translation.width.value) })

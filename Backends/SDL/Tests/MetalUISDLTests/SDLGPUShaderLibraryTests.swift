@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 private func scratchDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("metalui-app-shaders-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

@@ -4,7 +4,7 @@ import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
 import MetalUIShaderTypes
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 @testable import MetalUISDL
 import ReplayFixture
 
@@ -216,7 +216,8 @@ private func verifyTriangleSet(_ pixels: [UInt8], bgra: Bool, instances: Int) th
                     state.targets = try TriangleTargets(device: view.device, resolved: view.target,
                                                         format: .b8g8r8a8Unorm, samples: samples)
                 }
-                state.targets?.record(into: view.commandBuffer, pipeline: state.pipeline!, instances: instanceCount)
+                guard let pipeline = state.pipeline else { state.failure = "no pipeline"; return }
+                state.targets?.record(into: view.commandBuffer, pipeline: pipeline, instances: instanceCount)
             } catch { state.failure = "\(error)" }
         }
         let scene = surfaceScene(side: size, target: surfaceTarget)

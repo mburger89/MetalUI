@@ -282,7 +282,8 @@ private struct PinchChip: Component {
         GestureStateResets.count = 0
         let window = try chipWindow { CancelChip(log: GSLog(), button: .primary) }
         window.send(down()); window.send(dragged(at(210, 150)))
-        #expect(GestureStateResets.isEmpty)
+        // swiftlint:disable:next empty_count - `GestureStateResets` is not a Collection: it has `count` but no `isEmpty`
+        #expect(GestureStateResets.count == 0)
         window.send(down())   // a press that finds the arena still pressing: a lost release (GC-C)
         #expect(GestureStateResets.count == 1, "abandon: \(GestureStateResets.count)")
         window.send(up()); window.tick()
@@ -340,7 +341,8 @@ private struct PinchChip: Component {
         let window = try chipWindow { CancelChip(log: GSLog(), button: .primary) }
         window.send(down()); window.send(dragged(at(210, 150)))
         window.setControlActiveState(.inactive)
-        #expect(GestureStateResets.isEmpty, "key loss is not a cancel of a drag (C4)")
+        // swiftlint:disable:next empty_count - `GestureStateResets` is not a Collection: it has `count` but no `isEmpty`
+        #expect(GestureStateResets.count == 0, "key loss is not a cancel of a drag (C4)")
         window.send(up(at(210, 150)))
         #expect(GestureStateResets.count == 1)
     }
@@ -371,7 +373,8 @@ private struct DisableChip: Component {
     window.send(dragged(at(210, 150))); window.tick()
     model.disabled = true
     window.window.setNeedsRedraw(); window.tick()
-    #expect(GestureStateResets.isEmpty, "not at the disable: \(GestureStateResets.count)")
+    // swiftlint:disable:next empty_count - `GestureStateResets` is not a Collection: it has `count` but no `isEmpty`
+    #expect(GestureStateResets.count == 0, "not at the disable: \(GestureStateResets.count)")
     window.send(up(at(210, 150))); window.tick()
     #expect(GestureStateResets.count == 1, "at the release: \(GestureStateResets.count)")
     #expect(log.distinct.last == "body s=0", "\(log.distinct)")

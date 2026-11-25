@@ -149,7 +149,8 @@ private let inA = pt(110, 150), inA2 = pt(130, 120), inB = pt(180, 150), inNothi
 @Test @MainActor func theProviderRunsInInputNeverInAPhase() throws {
     let log = ProviderLog()
     let window = try providerWindow(log)
-    #expect(log.isEmpty, "mounting and the first frames ask nothing")
+    // swiftlint:disable:next empty_count - `ProviderLog` is not a Collection: it has `count` but no `isEmpty`
+    #expect(log.count == 0, "mounting and the first frames ask nothing")
     window.hover(at: inA)
     #expect(log.count == 1, "one move, one call")
     window.advanceFrames(10)

@@ -434,13 +434,15 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
     let log = WLog()
     let (legacy, legacyPlatform) = try inputWindow {
         square().contextMenu { p in
-            _ = log.locations.append(p)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = log.locations.append(p)
             Button("A") {}
         }
     }
     let (proposal, proposalPlatform) = try inputWindow {
         proposalSquare().contextMenu { p in
-            _ = log.locations.append(p)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = log.locations.append(p)
             Button("A") {}
         }
     }
@@ -466,7 +468,8 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
     let (window, platform) = try inputWindow {
         square()
             .contextMenu { p in
-                _ = log.locations.append(p)
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = log.locations.append(p)
                 Button("A") {}
             }
             .gesture(DragGesture(button: .secondary).onChanged { _ in })
@@ -490,7 +493,8 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
     let log = WLog()
     let (keyboard, keyboardPlatform) = try inputWindow {
         square().focusable().contextMenu { p in
-            _ = log.locations.append(p)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = log.locations.append(p)
             Button("A") {}
         }
     }
@@ -504,7 +508,8 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
 
     let (accessible, accessiblePlatform) = try inputWindow {
         Text("Menu").frame(width: px(200), height: px(200)).contextMenu { p in
-            _ = log.locations.append(p)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = log.locations.append(p)
             Button("A") {}
         }
     }
@@ -529,7 +534,8 @@ private struct MagnifyingRectangle: Component, ProposalElementGroup {
     let (window, platform) = try inputWindow(size: 200) {
         Box().frame(width: px(160), height: px(20))
             .contextMenu { p in
-                _ = log.locations.append(p)
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = log.locations.append(p)
                 Button("A") {}
             }
             .rotationEffect(.degrees(90))

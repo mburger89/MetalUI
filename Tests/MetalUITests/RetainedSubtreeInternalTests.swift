@@ -319,7 +319,9 @@ private struct PaintHolder: Component, @MainActor Equatable {
     for _ in 0..<4 { await Task.yield() }
     window.window.setNeedsRedraw(); window.tick()
     let after = window.scene.rects.last?.background
-    #expect(after != nil && before != nil && (after!.h != before!.h), "the new tone was drawn")
+    let beforeTone = try #require(before, "the tone drawn before the write")
+    let afterTone = try #require(after, "the tone drawn after the write")
+    #expect(afterTone.h != beforeTone.h, "the new tone was drawn")
     #expect(window.lastFrameWork.retainedMisses == 1)
     // The miss frame observed only its paint, so its record is not replayed; the next frame records
     // with all three windows observed and the one after replays (`SB-V`).
@@ -406,7 +408,9 @@ private struct TonedHolder: Component, @MainActor Equatable {
     for _ in 0..<4 { await Task.yield() }
     window.window.setNeedsRedraw(); window.tick()
     let after = window.scene.rects.last?.background
-    #expect(after != nil && before != nil && after!.h != before!.h, "the new tone was drawn")
+    let beforeTone = try #require(before, "the tone drawn before the write")
+    let afterTone = try #require(after, "the tone drawn after the write")
+    #expect(afterTone.h != beforeTone.h, "the new tone was drawn")
     #expect(window.lastFrameWork.retainedHits == 0)
 }
 

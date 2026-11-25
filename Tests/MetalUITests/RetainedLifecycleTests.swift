@@ -432,7 +432,8 @@ private struct RLBypassCard: Component, @MainActor Equatable {
 /// Built inside the card's graft window (the card's own getter runs before it opens).
 private struct RLBypassInner: Component {
     var content: some ElementGroup {
-        _ = RLBypass.store?.testingBypassJournal()
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = RLBypass.store?.testingBypassJournal()
         Box().frame(width: Pixels(40), height: Pixels(20)).background(.accent)
     }
 }

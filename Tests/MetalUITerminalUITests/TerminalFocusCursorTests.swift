@@ -78,7 +78,8 @@ import Testing
     let probe: PaneProbe
     let source: TerminalSnapshotSource
     var content: some ElementGroup {
-        _ = probe.reads.append(focused)
+        // swiftlint:disable:next redundant_discardable_let - a result builder needs the declaration; `_ =` would be a stray statement
+        let _ = probe.reads.append(focused)
         VStack(spacing: 0) {
             TerminalView(snapshotSource: source, theme: .xterm, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
         }.focused($focused)
@@ -237,7 +238,8 @@ private let bar = TerminalCursorStyle(shape: .bar, blinking: false)
     func view(_ style: TerminalCursorStyle) -> TerminalView {
         TerminalView(snapshotSource: source, theme: theme, cursorStyle: style, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
     }
-    #expect(view(bar) == view(bar))
+    let first = view(bar), second = view(bar)
+    #expect(first == second)
     #expect(view(bar) != view(TerminalCursorStyle(shape: .block, blinking: false)))
     #expect(view(TerminalCursorStyle(shape: .bar, blinking: true)) != view(bar))
 }

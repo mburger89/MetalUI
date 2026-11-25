@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 private let threadCount = 1024
 private let bufferBytes = 4 * (threadCount + 1)
 private let expectedAppended = (0..<threadCount).filter { ($0 * 7) % 13 < 5 }

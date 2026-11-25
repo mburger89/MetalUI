@@ -164,7 +164,8 @@ private func rootID(_ name: String) -> GlobalElementID {
     }
 
     platformWindow.simulateInput(keyDown("x"))
-    #expect(log.isEmpty, "no focused element, so no element handler ran")
+    // swiftlint:disable:next empty_count - `KeyLog` is not a Collection: it has `count` but no `isEmpty`
+    #expect(log.count == 0, "no focused element, so no element handler ran")
     #expect(raw == ["window"], "the event reached the window instead")
 
     // The positive control: the same fixture does dispatch once focused, so the
@@ -402,7 +403,7 @@ private final class Toggle {
     keyboardOnly.drawFrameIfNeeded()
     // `FC-A`: a `.focusable()` box registers a press region, but a NON-opaque one that
     // carries no click and no scroll, so it still swallows nothing (`KF-F` item 3).
-    #expect(!keyboardOnly.lastHitboxes.contains(where: \.opaque),
+    #expect(!keyboardOnly.lastHitboxes.contains { $0.opaque },
             "a focusable key handler is not a hit target, so it swallows no wheel")
     #expect(keyboardOnly.lastHitboxes.allSatisfy { !$0.opaque && $0.scroll == nil && $0.handlers.onClick == nil },
             "its press region is non-opaque, scrolls nothing and clicks nothing")
@@ -626,7 +627,8 @@ private func rootID2() -> GlobalElementID {
         return false
     }
     platformWindow.simulateInput(keyUp("x"))
-    #expect(log.isEmpty, "keyUp is not dispatched")
+    // swiftlint:disable:next empty_count - `KeyLog` is not a Collection: it has `count` but no `isEmpty`
+    #expect(log.count == 0, "keyUp is not dispatched")
     #expect(raw == ["up"], "it falls through to the window unchanged")
 
     // The positive control: the same fixture does dispatch a keyDown.

@@ -21,7 +21,10 @@ private func shortcut(_ key: KeyEquivalent, _ modifiers: EventModifiers = []) ->
     KeyboardShortcut(key, modifiers: modifiers)
 }
 
-private func fkey(_ n: Int) -> KeyEquivalent { KeyEquivalent(Character(Unicode.Scalar(UInt32(0xF704 + n - 1))!)) }
+private func fkey(_ n: Int) -> KeyEquivalent {
+    guard let scalar = Unicode.Scalar(UInt32(0xF704 + n - 1)) else { preconditionFailure("F\(n) has no private-use scalar") }
+    return KeyEquivalent(Character(scalar))
+}
 
 /// A claim as text: its display text on `platform` and its title, for readable failures.
 private func text(_ claims: [ClaimedShortcut], _ platform: KeyboardShortcut.Platform = .macOS) -> [String] {
@@ -38,7 +41,8 @@ private func text(_ claims: [ClaimedShortcut], _ platform: KeyboardShortcut.Plat
                                       shortcut("p", [.command, .shift])]
     #expect(set.count == 3)
     #expect(shortcut("P") != shortcut("p"))
-    #expect(shortcut("p", .command).hashValue == shortcut("p", .command).hashValue)
+    let first = shortcut("p", .command), second = shortcut("p", .command)
+    #expect(first.hashValue == second.hashValue)
 }
 
 /// `conflicts(with:)`: the modifiers equal exactly and the key the same once lower-cased. Mutations: compare
@@ -160,7 +164,7 @@ private func text(_ claims: [ClaimedShortcut], _ platform: KeyboardShortcut.Plat
     let claims = app.standardMenuShortcuts()
     #expect(claims.map(\.title) == ["Hide \(appName)", "Hide Others", "Quit \(appName)", "Close", "Undo", "Redo",
                                     "Cut", "Copy", "Paste", "Select All", "Minimize"])
-    #expect(text(claims).map { String($0.split(separator: " ").last!) } == ["⌘H", "⌥⌘H", "⌘Q", "⌘W", "⌘Z", "⇧⌘Z", "⌘X",
+    #expect(text(claims).map { String($0.split(separator: " ").last ?? "") } == ["⌘H", "⌥⌘H", "⌘Q", "⌘W", "⌘Z", "⇧⌘Z", "⌘X",
                                                                             "⌘C", "⌘V", "⌘A", "⌘M"])
     #expect(claims.allSatisfy { $0.source == .standardMenu && $0.identifier == nil && !$0.isConditional })
     #expect(!claims.contains { $0.shortcut.key == KeyEquivalent(Character(ContextMenuKeys.f10)) }, "no drawn bar, no F10")
@@ -244,7 +248,8 @@ private func text(_ claims: [ClaimedShortcut], _ platform: KeyboardShortcut.Plat
     let (app, platform) = try claimsApp(native: true)
     var runs = 0
     app.commands {
-        _ = { runs += 1 }()
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = { runs += 1 }()
         CommandMenu("Tools") { Button("Run") {}.keyboardShortcut("r") }
     }
     runs = 0

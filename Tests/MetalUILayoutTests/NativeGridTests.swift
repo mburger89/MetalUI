@@ -180,10 +180,16 @@ private final class Arm {
         tree.measureNativeLayout(root: root, proposal: ProposedSize(width: width, height: height)).size
     }
 
-    subscript(_ name: String) -> LayoutRect { tree.layout(nodes[name]!) }
-    func node(_ name: String) -> LayoutNodeID { nodes[name]! }
-    func proposals(_ name: String) -> [ProposedSize] { logs[name]!.proposals }
-    func plan() -> NativeGridPlan? { tree.nativeGridPlan(nodes["grid"]!) }
+    subscript(_ name: String) -> LayoutRect { tree.layout(node(name)) }
+    func node(_ name: String) -> LayoutNodeID {
+        guard let id = nodes[name] else { preconditionFailure("no node named \(name) in the fixture") }
+        return id
+    }
+    func proposals(_ name: String) -> [ProposedSize] {
+        guard let log = logs[name] else { preconditionFailure("no log named \(name) in the fixture") }
+        return log.proposals
+    }
+    func plan() -> NativeGridPlan? { tree.nativeGridPlan(node("grid")) }
 }
 
 /// The probe's rect, rounded as the kernel stores rects.

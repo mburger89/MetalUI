@@ -21,7 +21,8 @@ import Testing
         .tableRowHeight(Pixels(24))
         .tableFrozenColumns(frozen)
         return table.contextMenu(forSelectionType: Int.self, menu: { (ids: Set<Int>) in
-            _ = menu?(ids)
+            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+            let _ = menu?(ids)
             Button("Act") {}
         }, primaryAction: primary)
     }
@@ -211,7 +212,8 @@ import Testing
     try harnessWindow(size: sz(800, 600)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                _ = holder.proxy = proxy
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+                let _ = holder.proxy = proxy
                 if lookup {
                     Table(data, selection: model.multiBinding()) { selectableColumns() }.tableRowHeight(Pixels(24)).tableRowIndex { $0 }
                 } else {

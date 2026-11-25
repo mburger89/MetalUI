@@ -4,7 +4,7 @@ import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
 import MetalUIShaderTypes
-import MetalUISDLGPU
+@testable import MetalUISDLGPU
 @testable import MetalUISDL
 import ReplayFixture
 

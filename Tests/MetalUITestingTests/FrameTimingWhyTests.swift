@@ -39,7 +39,7 @@ import Testing
         window.typeKey(.tab)
         window.tick()
         settle()
-        timing.traceSink = { [unowned self] in lines.append($0) }
+        timing.traceSink = { [weak self] in self?.lines.append($0) }
         lines.removeAll()
     }
 
@@ -98,7 +98,8 @@ import Testing
 private struct SendsInputWhileBuilding: Component {
     let fire: @MainActor () -> Void
     var content: some ElementGroup {
-        _ = fire()
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = fire()
         Box().frame(width: Pixels(2), height: Pixels(2))
     }
 }
@@ -180,7 +181,8 @@ private struct WhyStateBox: Component {
     let holder: WhyBinding
     @State var width: Float = 20
     var content: some ElementGroup {
-        _ = holder.width = $width
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = holder.width = $width
         Box().frame(width: Pixels(width), height: Pixels(10))
     }
 }
@@ -203,7 +205,8 @@ private struct WhyGeoBox: Component {
     @State var side: Float = 20
     @State var seen: Float = 0
     var content: some ElementGroup {
-        _ = driver.size = $side
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
+        let _ = driver.size = $side
         Box().frame(width: Pixels(side), height: Pixels(10))
             .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { measured in
                 if measured != seen { seen = measured }

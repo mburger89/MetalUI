@@ -217,7 +217,7 @@ import Testing
             second.field("Two").id("two")
         }
     }
-    first.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    first.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     second.redraw = first.redraw
     try focusField(window, "One")
     #expect(window.setMarkedText("ni"))
@@ -250,7 +250,7 @@ import Testing
     let window = try harnessWindow {
         TextField("Title", text: Binding(get: { draft.text }, set: { draft.text = $0 })).id("field")
     }
-    draft.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    draft.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     let field = try window.frame(ofID: "field")
     window.click(at: pt(field.maxX.value - 10, midY(field)))
     window.setMarkedText("n")
@@ -270,7 +270,7 @@ import Testing
     let note = "ab\ncd"
     let model = SelModel(note, selection: caret(2, in: note))
     let window = try harnessWindow { model.editor().id("note") }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     try focusField(window, "Note")
     let rest = try #require(window.platformWindow.textInputAreas.last ?? nil)
     #expect(window.setMarkedText("ni"))

@@ -65,8 +65,8 @@ import CoreText
 /// skewed font likewise differs from its upright original in nothing but the
 /// matrix. Each half asserts the components that are equal as well as the key
 /// that differs, so it cannot pass through the wrong component.
-@Test func everyComponentOfTheFontKeyDiscriminates() {
-    let base = CTFontCreateUIFontForLanguage(.system, 13, nil)!
+@Test func everyComponentOfTheFontKeyDiscriminates() throws {
+    let base = try #require(CTFontCreateUIFontForLanguage(.system, 13, nil))
 
     func varying(_ axis: Int, _ value: Double) -> CTFont {
         var coordinates = (CTFontCopyVariation(base) as? [NSNumber: NSNumber]) ?? [:]
@@ -172,8 +172,8 @@ import CoreText
 /// every `wght` instance of the system font, or every oblique of a face, in one
 /// bucket. This pins the hash itself, on the same two differentials
 /// `everyComponentOfTheFontKeyDiscriminates` uses, plus size and name.
-@Test func theFontKeyHashItselfDistinguishesEveryComponent() {
-    let base = CTFontCreateUIFontForLanguage(.system, 13, nil)!
+@Test func theFontKeyHashItselfDistinguishesEveryComponent() throws {
+    let base = try #require(CTFontCreateUIFontForLanguage(.system, 13, nil))
     func varying(_ axis: Int, _ value: Double) -> CTFont {
         var coordinates = (CTFontCopyVariation(base) as? [NSNumber: NSNumber]) ?? [:]
         coordinates[NSNumber(value: axis)] = NSNumber(value: value)
@@ -202,8 +202,9 @@ import CoreText
 
     // And equal keys resolved separately hash equally — `Hashable`'s contract,
     // which a hash seeded from anything per-instance would break.
-    #expect(FontResolver.resolve(family: nil, size: 13).key.hashValue
-            == FontResolver.resolve(family: nil, size: 13).key.hashValue)
+    let firstKey = FontResolver.resolve(family: nil, size: 13).key
+    let secondKey = FontResolver.resolve(family: nil, size: 13).key
+    #expect(firstKey.hashValue == secondKey.hashValue)
 }
 
 /// **`==` settles a hash collision on the components, never on the hash** —
@@ -228,7 +229,7 @@ import CoreText
 /// component comparison can tell them apart. The `#require`s make each pair
 /// differ, and prove the collision real, before anything is asserted about it.
 @Test func aForgedHashCollisionIsSettledByTheComponents() throws {
-    let base = CTFontCreateUIFontForLanguage(.system, 13, nil)!
+    let base = try #require(CTFontCreateUIFontForLanguage(.system, 13, nil))
     func varying(_ axis: Int, _ value: Double) -> CTFont {
         var coordinates = (CTFontCopyVariation(base) as? [NSNumber: NSNumber]) ?? [:]
         coordinates[NSNumber(value: axis)] = NSNumber(value: value)
