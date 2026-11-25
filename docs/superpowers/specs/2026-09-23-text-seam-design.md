@@ -2,7 +2,7 @@
 
 **Status: implemented** on `feat/text-seam` (record §35); roadmap item 6 of
 `plans/2026-09-23-cross-platform-roadmap.md`. **Ruling prefix:** `TS-`
-(`TS-A`…`TS-E`, next `TS-F`; rulings here).
+(`TS-A`…`TS-G`, next `TS-H`; rulings here).
 
 ## Goal
 
@@ -133,3 +133,28 @@ key, both through the one path no cache answered, and an empty field that was no
   3 times the largest (65 KB weighed). Worst case after a frame, measured by filling past the budget: 1.8 MiB of heap for
   20-byte labels, 4.1 MiB for 120-byte lines, 4.9 MiB for 1000-byte paragraphs (`phys_footprint` +3.2 to +5.2 MiB);
   inside a frame a quarter more.
+
+### TS-G — the budget bounds stale entries, never the working set (G48-B, record 421)
+
+`TS-F`'s budget (1024 entries, 192 KiB, after a frame) was sized from the live set of each view measured alone and applied to
+everything the cache held, including what the current frame was using. A window with a 1M-row table, a transcript with a
+streaming reply, a code view and a composer in one text system has a live set none of them has by itself (1294 entries at
+twice the single-view window, 1654 at three times), and a bound under the live set evicts entries the next frame asks for:
+273 and 633 misses a frame there against 1.9 and 1.0 before `TS-F`, and the caret table starved to nothing, so a composer's
+every key re-typeset. Alloy measured 3.4 to 18 misses a frame typing.
+
+- **The rule.** An entry the current frame or the previous one touched is the working set and is never evicted, whatever its
+  number. The budget (`TextCacheBudget.entries`, `.cost`: 1024 and 192 KiB, a quarter more inside a frame) bounds the **stale**
+  entries, those neither frame touched, oldest generation first, shared across the tables as in `TS-F`. Memory is what is on
+  screen plus at most the stale budget (about 9 MiB, 11 inside a frame). The app owns its live set; a window that shows ten
+  thousand distinct strings holds ten thousand, as it did before `TS-F`.
+- **Exact.** Shaping is a pure function of the key, so what an eviction takes never changes an answer, only whether it is
+  recomputed.
+- **Cost.** An in-frame trim scans for stale entries; one that found nothing to take arms the next scan a quarter-budget of
+  inserts later, so a large first draw costs a scan per quarter-budget of misses and not one per miss.
+- **The portable system** drops what neither of the last two frames asked for at `endFrame` (the two-frame lifetime), which
+  is the same working set with no stale entries; it keeps no budget (`PortableTextSystem` has no `entryLimit`).
+- Pinned by `SharedTextBudgetTests` (a window over the budget stops missing once warm), `ShapingCacheBoundTests` (a working
+  set over the budget is never evicted, the frame before is kept, stale entries are bounded by count and by weight).
+
+Next unused id: `TS-H`.

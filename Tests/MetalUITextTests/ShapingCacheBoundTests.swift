@@ -35,17 +35,32 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     #expect(cache.storageCount == 60 && cache.caretStorageCount == 60)
 }
 
-/// **2** A live set over the budget re-shapes the overage and no more, every frame, and holds the budget: 100 strings under 64 miss 36 a frame after the first, not 100 (the loop a strict LRU turns into all misses). **Mutations:** `bound`
-/// evicting the newest generation first (the hot string below is lost); `bound` stopping at `entries * 2` (the count
-/// check); the within-generation drop keyed by insertion order (every frame misses 100).
-@MainActor @Test func aWorkingSetOverTheBudgetReShapesTheOverageAndNoMore() {
+/// **2** A live set over the budget is never evicted (`TS-G`, record 421): 100 strings under a budget of 64 miss once each and
+/// then never, where the first version (`TS-F`) re-shaped the 36 over the budget every frame, and a window with several large
+/// views re-shaped hundreds. The entries stay held. **Mutations:** `bound` offering every entry for eviction (`protectedFrom`
+/// raised to the current generation + 1: 36 misses a frame); `protectedFrom` at the current generation only (every other
+/// frame misses, the loop alternating halves is test 2b).
+@MainActor @Test func aWorkingSetOverTheBudgetIsNeverEvicted() {
     let cache = ShapingCache(entryLimit: 64, costLimit: 1 << 20)
     let perFrame = misses(cache, frames: 12) { _ in
         for i in 0..<100 { _ = cache.shaped("row \(i)", font: font, wrappingAt: 100) }
     }
-    #expect(perFrame.first == 100, "\(perFrame)")
-    #expect(perFrame.dropFirst().allSatisfy { $0 == 36 }, "the overage, 100 - 64, every frame: \(perFrame)")
-    #expect(cache.storageCount == 64, "held at the budget after a frame")
+    #expect(perFrame.first == 100 && perFrame.dropFirst().allSatisfy { $0 == 0 }, "\(perFrame)")
+    #expect(cache.storageCount == 100 && cache.evictionCount == 0, "the working set is held whole")
+}
+
+/// **2b** Two frames' entries are the working set, not one: a view that alternates between two halves of a list (a blinking
+/// caret, a scroll that moves half a window back and forth) never re-shapes either half, and goes stale, and is evicted down to
+/// the budget, once it is left alone. **Mutation:** `protectedFrom` at `currentGeneration` (every frame misses the half the
+/// frame before did not touch).
+@MainActor @Test func theFrameBeforeIsTheWorkingSetToo() {
+    let cache = ShapingCache(entryLimit: 16, costLimit: 1 << 20)
+    let perFrame = misses(cache, frames: 20) { frame in
+        for i in 0..<30 { _ = cache.shaped("half \(frame % 2) row \(i)", font: font, wrappingAt: 100) }
+    }
+    #expect(perFrame.prefix(2).allSatisfy { $0 == 30 } && perFrame.dropFirst(2).allSatisfy { $0 == 0 }, "\(perFrame)")
+    for _ in 0..<3 { cache.beginFrame(); cache.endFrame() }
+    #expect(cache.storageCount == 16, "left alone, the 60 entries are stale and go down to the budget: \(cache.storageCount)")
 }
 
 /// **3** Least recently touched goes first: a string touched every frame survives a stream of fresh ones, and one touched
@@ -63,17 +78,18 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
         cache.endFrame()
     }
     #expect(hotMisses == 1, "the hot string missed once, on frame 0")
-    #expect(cache.storageCount <= 16)
+    #expect(cache.storageCount <= 16 + 12, "the budget for the stale and two frames' six")
     let before = cache.misses
     _ = cache.shaped("touched once", font: font, wrappingAt: 100)
     #expect(cache.misses == before + 1, "the string nobody touched again was evicted")
 }
 
 /// **4** A long streaming paragraph (a string that grows a word per frame, shaped at three widths, with its caret line, the
-/// way a measure, a draw and a field do) plus a scrolling window of rows stays under the budget after every frame and under a
-/// quarter over it inside one, the three tables together. **Mutations:** `trimInFrame` removed (the in-frame peak reaches the
-/// frame's miss count); `endFrame` not calling `bound`; `inFrameLimit` returning twice the limit.
-@MainActor @Test func aStreamingParagraphAndAScrollingListStayUnderTheBudget() {
+/// way a measure, a draw and a field do) plus a scrolling window of rows: after every frame the cache holds at most the budget
+/// of stale entries plus the two frames it must keep (24 each here), and a first draw that misses far more than the budget in
+/// one frame is the working set, held whole and then bounded once it is stale (`TS-G`). **Mutations:** `trimInFrame` removed
+/// (the in-frame peak of the stale reaches the whole run); `endFrame` not calling `bound`; the stale count ignoring the budget.
+@MainActor @Test func aStreamingParagraphAndAScrollingListHoldTheBudgetOfStaleEntries() {
     let limit = 64
     let cache = ShapingCache(entryLimit: limit, costLimit: 1 << 20)
     var paragraph = ""
@@ -86,24 +102,22 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
         for row in frame..<(frame + 20) { _ = cache.shaped("row \(row)", font: font, wrappingAt: 120) }
         peak = max(peak, cache.heldEntryCount)
         cache.endFrame()
-        #expect(cache.heldEntryCount <= limit, "frame \(frame): \(cache.heldEntryCount)")
+        #expect(cache.heldEntryCount <= limit + 2 * 24, "frame \(frame): \(cache.heldEntryCount)")
     }
-    #expect(peak <= limit * 5 / 4 + 1, "a quarter over inside a frame: \(peak)")
-    // A first draw that misses far more than the budget in one frame is held a quarter over before its frame ends.
+    #expect(peak <= limit * 5 / 4 + 2 * 24 + 1, "a quarter over inside a frame, plus the two frames kept: \(peak)")
+    // A first draw that misses ten times the budget in one frame is the working set: held whole, then bounded when stale.
     cache.beginFrame()
-    var firstDrawPeak = 0
-    for i in 0..<(10 * limit) {
-        _ = cache.shaped("first draw \(i)", font: font, wrappingAt: nil)
-        firstDrawPeak = max(firstDrawPeak, cache.heldEntryCount)
-    }
-    #expect(firstDrawPeak <= limit * 5 / 4 + 1, "\(firstDrawPeak)")
+    for i in 0..<(10 * limit) { _ = cache.shaped("first draw \(i)", font: font, wrappingAt: nil) }
+    #expect(cache.heldEntryCount >= 10 * limit, "\(cache.heldEntryCount)")
     cache.endFrame()
-    #expect(cache.heldEntryCount <= limit)
+    for _ in 0..<3 { cache.beginFrame(); cache.endFrame() }
+    #expect(cache.heldEntryCount <= limit, "stale after the frames it was drawn in: \(cache.heldEntryCount)")
 }
 
-/// **4b** The budget is one pool: 40 shaped lines and 40 caret lines together under a budget of 64 leave 64, where a budget per
-/// table would leave all 80, and each table gives up its share (32 and 32), not the first all it has. **Mutations:** `bound`
-/// cutting each table to the limit on its own; `shares` giving the whole allowance to the first table.
+/// **4b** The budget of stale entries is one pool: 40 shaped lines and 40 caret lines gone stale together under a budget of 64
+/// leave 64, where a budget per table would leave all 80, and each table gives up its share (32 and 32), not the first all it
+/// has. **Mutations:** `bound` cutting each table to the limit on its own; `shares` giving the whole allowance to the first
+/// table.
 @MainActor @Test func theThreeTablesShareOneBudget() {
     let cache = ShapingCache(entryLimit: 64, costLimit: 1 << 20)
     cache.beginFrame()
@@ -112,18 +126,22 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
         _ = cache.caretOffsets("caret \(i)", font: font)
     }
     cache.endFrame()
+    for _ in 0..<2 { cache.beginFrame(); cache.endFrame() }
     #expect(cache.heldEntryCount == 64 && cache.storageCount + cache.caretStorageCount == 64,
             "\(cache.storageCount) + \(cache.caretStorageCount)")
     #expect(cache.storageCount == 32 && cache.caretStorageCount == 32, "the overage is taken from each table in proportion")
 }
 
-/// **5** The byte bound holds when the count bound would not: three 600-byte strings under a weight budget of 1000 leave at most
-/// one, however few entries there are. **Mutation:** `bound` ignoring `cost`.
-@MainActor @Test func aFewHugeStringsAreBoundedByTheirWeight() {
+/// **5** The byte bound holds when the count bound would not: three 600-byte strings gone stale under a weight budget of 1000
+/// leave at most one, however few entries there are; while they are in use they are all kept. **Mutation:** `bound` ignoring
+/// `cost`.
+@MainActor @Test func aFewHugeStringsAreBoundedByTheirWeightOnceStale() {
     let cache = ShapingCache(entryLimit: 1000, costLimit: 1000)
     cache.beginFrame()
     for letter in ["a", "b", "c"] { _ = cache.shaped(String(repeating: letter, count: 600), font: font, wrappingAt: 200) }
     cache.endFrame()
+    #expect(cache.storageCount == 3, "in use: \(cache.storageCount)")
+    for _ in 0..<2 { cache.beginFrame(); cache.endFrame() }
     #expect(cache.storageCount == 1, "\(cache.storageCount)")
 }
 
