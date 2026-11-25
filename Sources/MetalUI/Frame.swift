@@ -4926,6 +4926,14 @@ extension Frame {
     private func flatAffine(_ a: Homography2D) -> [Double] { [a.a, a.b, a.c, a.d, a.tx, a.ty] }
 
     /// The prepaint-visible context at this point of prepaint.
+    ///
+    /// **A scroller's content extent is keyed only where something replayable reads it** (`G49-A`). It has three readers: `scrollTo`
+    /// resolution and `scrollPosition` target notes, both refused before a ledger is recorded (`prepaintRefusal`, the
+    /// `scrollRequest` and `scrollTarget` audit channels), and `ScrollerFrame.logicalStart(of:)`, which reads it only for a mirrored
+    /// horizontal scroller (`LD-E`), where `LazyCore.prepaint` stores the result in `LazyOrigin` through a compared `withState`
+    /// (a ledger replays that as a read, so a changed origin would be missed). Index 8 holds the extent when the scroller is
+    /// mirrored and 0 otherwise, index 11 when the cross slot is mirrored. Unkeyed everywhere, a stream at the end of a
+    /// bottom-anchored transcript grew the extent every frame and missed the ledger of every row above it.
     func prepaintExtras() -> PrepaintExtras {
         var effects: [[Double]] = []
         effects.reserveCapacity(prepaintEffects.count)
@@ -4950,8 +4958,8 @@ extension Frame {
             values = [s.axis == .vertical ? 1 : 0, Double(s.contentOrigin.x.value), Double(s.contentOrigin.y.value),
                       Double(s.viewport.origin.x.value), Double(s.viewport.origin.y.value),
                       Double(s.viewport.size.width.value), Double(s.viewport.size.height.value), s.offset,
-                      s.contentExtent, s.mirrored ? 1 : 0,   // `LD-E`: appended, so the indices above stand
-                      s.cross?.offset ?? 0, s.cross?.contentExtent ?? 0]   // `XS-L`: indices 10 and 11, a two-axis scroller's horizontal slot
+                      s.mirrored ? s.contentExtent : 0, s.mirrored ? 1 : 0,   // index 8, the content extent: keyed only when mirrored (`G49-A`); `LD-E`: appended, so the indices above stand
+                      s.cross?.offset ?? 0, s.cross?.mirrored == true ? s.cross?.contentExtent ?? 0 : 0]   // `XS-L`: indices 10 and 11, a two-axis scroller's horizontal slot; 11, its extent, keyed only when that slot is mirrored
         }
         return PrepaintExtras(effects: effects, hitTestingDisabled: hitTestingDisabledDepth,
                               keyboardHidden: keyboardHiddenDepth,
