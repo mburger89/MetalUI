@@ -10,9 +10,18 @@ private typealias MallocLogger = @convention(c) (UInt32, UInt, UInt, UInt, UInt,
 
 /// `MALLOC_LOG_TYPE_ALLOCATE` from libmalloc.
 private let mallocLogTypeAllocate: UInt32 = 2
+/// `MALLOC_LOG_TYPE_DEALLOCATE`: set with `ALLOCATE` on a realloc.
+private let mallocLogTypeDeallocate: UInt32 = 4
+
+/// The size from which the profile counts an allocation as large: libmalloc's cut between its small and large zones is
+/// 128 KiB on Apple silicon, and a large block freed is one the allocator keeps (`Malloc Large (empty)`, record 420).
+public let largeAllocationBytes = 131_072
 
 nonisolated(unsafe) private var allocationsSeen = 0
 nonisolated(unsafe) private var bytesSeen = 0
+nonisolated(unsafe) private var largeSeen = 0
+nonisolated(unsafe) private var largeBytesSeen = 0
+nonisolated(unsafe) private var profiledBytesSeen = 0
 nonisolated(unsafe) private var countedThread: pthread_t?
 nonisolated(unsafe) private var chainedLogger: MallocLogger?
 
@@ -22,6 +31,10 @@ nonisolated(unsafe) private let countingLogger: MallocLogger = { type, a1, a2, a
        let thread = countedThread, pthread_equal(thread, pthread_self()) != 0 {
         allocationsSeen += 1
         bytesSeen += Int(a2)
+        // A realloc (allocate and deallocate set) carries the new size in `a3`; `a2` is the old pointer (`G51`).
+        let size = Int(type & mallocLogTypeDeallocate != 0 ? a3 : a2)
+        profiledBytesSeen += size
+        if size >= largeAllocationBytes { largeSeen += 1; largeBytesSeen += size }
     }
     chainedLogger?(type, a1, a2, a3, result, skip)
 }
@@ -49,6 +62,27 @@ public func countAllocations(_ body: () -> Void) -> Int? {
 public func countAllocatedBytes(_ body: () -> Void) -> (allocations: Int, bytes: Int)? {
     guard let allocations = countAllocations({ bytesSeen = 0; body() }) else { return nil }
     return (allocations, bytesSeen)
+}
+
+/// What `body` allocated on the calling thread, sized by what each request asked for, a realloc by its new size (`G51`).
+public struct AllocationProfile: Sendable {
+    public var allocations: Int
+    public var bytes: Int
+    /// Requests of at least ``largeAllocationBytes``, and their bytes.
+    public var large: Int
+    public var largeBytes: Int
+
+    public init(allocations: Int, bytes: Int, large: Int, largeBytes: Int) {
+        self.allocations = allocations; self.bytes = bytes; self.large = large; self.largeBytes = largeBytes
+    }
+}
+
+/// ``countAllocatedBytes(_:)`` with the large requests apart, and a realloc counted at its new size. `nil` as `countAllocations`.
+public func profileAllocations(_ body: () -> Void) -> AllocationProfile? {
+    var profile: AllocationProfile?
+    guard countAllocations({ largeSeen = 0; largeBytesSeen = 0; profiledBytesSeen = 0; body() }) != nil else { return nil }
+    profile = AllocationProfile(allocations: allocationsSeen, bytes: profiledBytesSeen, large: largeSeen, largeBytes: largeBytesSeen)
+    return profile
 }
 
 /// Runs `body` on a second thread and answers the allocations the **calling** thread made meanwhile (the

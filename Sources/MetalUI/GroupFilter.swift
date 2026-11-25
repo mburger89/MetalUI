@@ -126,7 +126,7 @@ extension Frame {
             if let m = effect.apply(to: q, flattens: flat, outer: flat ? nil : entry) { mapped.append(m) }
         }
         guard !mapped.isEmpty else { return }
-        var inner = collectingIntoFreshScene { insertLeaves(mapped) }
+        var inner = collectingIntoFreshScene(reserving: mapped) { insertLeaves(mapped) }
         guard let painted = inner.paintedBounds() else { return }
 
         // The box (`GF-B` item 4): the painted box grown by the reach of three sigma and a pixel, cut by the reach,
