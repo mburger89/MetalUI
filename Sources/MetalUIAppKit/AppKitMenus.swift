@@ -227,7 +227,7 @@ extension MetalHostView {
     /// The selectors `deliverEditKey` answers for.
     static let editActions: Set<Selector> = [
         #selector(cut(_:)), #selector(copy(_:)), #selector(paste(_:)), #selector(undo(_:)),
-        #selector(redo(_:)), #selector(selectAll(_:)), #selector(delete(_:)),
+        #selector(redo(_:)), #selector(selectAll(_:)), #selector(delete(_:))
     ]
 }
 

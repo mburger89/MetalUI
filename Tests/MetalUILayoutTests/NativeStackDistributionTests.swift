@@ -535,7 +535,7 @@ private struct ProxyReader: ProposalLayout {
         }
         let root = tree.newNativeLayout(ProxyReader(log: log), children: [
             tree.newNativeSpacer(minLength: 12),
-            tree.newNativeLayoutPriority(child: echo, priority: -.infinity),
+            tree.newNativeLayoutPriority(child: echo, priority: -.infinity)
         ])
         tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 100),
                                  in: LayoutRect(x: 0, y: 0, width: 10, height: 10))
@@ -598,7 +598,7 @@ private struct ProxyReader: ProposalLayout {
             tree.newNativeLinearStack(children: [p2()], axis: .vertical),
             tree.newNativeOverlay(children: [p2()]),
             tree.newNativeLinearStack(children: [p2(), p0], axis: .horizontal),
-            tree.newNativeLayout(ProxyReader(log: ProxyLog()), children: [p2()]),
+            tree.newNativeLayout(ProxyReader(log: ProxyLog()), children: [p2()])
         ])
         tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 100),
                                  in: LayoutRect(x: 0, y: 0, width: 10, height: 10))
@@ -1290,7 +1290,7 @@ extension Arm {
         ("K3e", { $0.fixedSize("w", $1) }),
         ("K3g", { $0.zstack("w", [$1]) }),
         ("K3l", { arm, spacer in arm.zstack("w", [spacer, arm.spacer("sp2", minLength: 0)]) }),
-        ("K3o", { $0.padding("w", $1, top: 4) }),
+        ("K3o", { $0.padding("w", $1, top: 4) })
     ]
     for (label, wrap) in zero {
         let (arm, answer) = wrapped(wrap)
@@ -1315,7 +1315,7 @@ extension Arm {
     let eight: [(String, Wrap)] = [
         ("K3h", { $0.defaultVStack("w", [$1]) }),
         ("K3j", { arm, spacer in arm.zstack("w", [spacer, arm.fixed("c", 0, 0)]) }),
-        ("K3k", { arm, spacer in arm.zstack("w", [arm.fixed("c", 0, 0), spacer]) }),
+        ("K3k", { arm, spacer in arm.zstack("w", [arm.fixed("c", 0, 0), spacer]) })
     ]
     for (label, wrap) in eight {
         let (arm, answer) = wrapped(wrap)
@@ -1446,7 +1446,7 @@ private struct Pass: ProposalLayout {
         ("V1d", { arm in arm.defaultVStack("w", [sp(arm), c(arm)]) }),
         ("V1h", { arm in arm.defaultVStack("w", [sp(arm), sp(arm)]) }),
         ("V3h", { arm in pass(arm, [arm.defaultVStack("v", [sp(arm)])]) }),
-        ("V7h", { arm in arm.zstack("w", [arm.defaultVStack("v", [sp(arm)])]) }),
+        ("V7h", { arm in arm.zstack("w", [arm.defaultVStack("v", [sp(arm)])]) })
     ]
     for (label, middle) in controls {
         let (arm, answer) = between(middle)
@@ -1470,7 +1470,7 @@ private struct Pass: ProposalLayout {
                                                  arm.defaultHStack("h2", [sp(arm)])]) }),
         ("V7g", { arm in arm.zstack("w", [arm.defaultHStack("h", [sp(arm)])]) }),
         ("V7i", { arm in pass(arm, [arm.defaultVStack("v", [sp(arm)]), arm.zstack("z", [sp(arm)])]) }),
-        ("V7j", { arm in arm.zstack("w", [sp(arm), arm.defaultHStack("h", [sp(arm)])]) }),
+        ("V7j", { arm in arm.zstack("w", [sp(arm), arm.defaultHStack("h", [sp(arm)])]) })
     ]
     for (label, middle) in zero {
         let (arm, answer) = between(middle)

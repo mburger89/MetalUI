@@ -147,7 +147,7 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
         (11, 12, false, [11, 12, 13, 14, 15]),   // V1: A above H2 {B, V3 {C, H4 {D, E}}}
         (12, 13, true, [12, 13, 14, 15]),        // H2: B beside V3
         (13, 14, false, [13, 14, 15]),           // V3: C above H4
-        (14, 15, true, [14, 15]),                // H4: D beside E
+        (14, 15, true, [14, 15])                // H4: D beside E
     ]
     for (a, b, vertical, moving) in cases {
         let w = try editorWindow()

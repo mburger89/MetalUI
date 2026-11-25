@@ -255,7 +255,7 @@ func appKitAlertIsASheetWithSwiftUIsKeysAndOrder() throws {
         ("A1", [button("Delete", destructive: true), button("Cancel", cancel: true)],
          ["", "\u{1b}"], [true, false]),
         ("A5", [button("Save"), button("Discard", destructive: true), button("Cancel", cancel: true)],
-         ["", "", "\u{1b}"], [false, true, false]),
+         ["", "", "\u{1b}"], [false, true, false])
     ]
     for (index, shape) in shapes.enumerated() {
         let (_, appKit, nsWindow, _) = try hostWindow()

@@ -58,7 +58,7 @@ public final class NotesModel {
             Note(title: "Welcome to Jotter", body: "A small notes app written with MetalUI. #welcome\nSelect a note, edit it, search, drag rows to reorder.", day: day),
             Note(title: "Shopping", body: "Oat milk, coffee, lemons. #errands", day: day - 1),
             Note(title: "Ideas", body: "A chart of words per note. A dark mode. Export to JSON. #ideas #app", day: day - 1),
-            Note(title: "Reading list", body: "The Swift book. A paper on exact-area coverage. #reading", day: day - 3),
+            Note(title: "Reading list", body: "The Swift book. A paper on exact-area coverage. #reading", day: day - 3)
         ], today: today).selectingFirst()
     }
 

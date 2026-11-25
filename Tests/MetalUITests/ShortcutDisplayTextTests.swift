@@ -23,7 +23,7 @@ private func shortcut(_ key: KeyEquivalent, _ modifiers: EventModifiers = []) ->
         (.deleteForward, "⌦"), (.upArrow, "↑"), (.downArrow, "↓"), (.leftArrow, "←"),
         (.rightArrow, "→"), (.home, "↖"), (.end, "↘"), (.pageUp, "⇞"), (.pageDown, "⇟"), (.clear, "⌧"),
         ("\u{f704}", "F1"), ("\u{f70f}", "F12"), ("\u{f717}", "F20"), ("\u{f726}", "F35"),
-        ("p", "P"), ("ß", "ß"), ("1", "1"),
+        ("p", "P"), ("ß", "ß"), ("1", "1")
     ]
     for (key, text) in table {
         #expect(shortcut(key).displayText(for: .macOS) == text, "\(text)")
@@ -39,7 +39,7 @@ private func shortcut(_ key: KeyEquivalent, _ modifiers: EventModifiers = []) ->
         (.rightArrow, "Right"), (.home, "Home"), (.end, "End"), (.pageUp, "Page Up"),
         (.pageDown, "Page Down"), (.clear, "Clear"),
         ("\u{f704}", "F1"), ("\u{f70f}", "F12"), ("\u{f717}", "F20"), ("\u{f726}", "F35"),
-        ("p", "P"), ("ß", "ß"),
+        ("p", "P"), ("ß", "ß")
     ]
     for platform in [KeyboardShortcut.Platform.linux, .windows] {
         for (key, text) in table {

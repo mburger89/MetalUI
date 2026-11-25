@@ -14,7 +14,7 @@ import Testing
         (40, 28, 300, 112, 300, 2, 0..<6),
         (40, 28, 240, 300, 0, 2, 6..<22),
         (1_000_000, 24, 12000, 572, 0, 2, 498..<526),
-        (10, 24, 1e9, 572, 0, 2, 0..<10),
+        (10, 24, 1e9, 572, 0, 2, 0..<10)
     ]
     for c in cases {
         let got = UniformWindow.lines(count: c.count, extent: c.extent, offset: c.offset, viewport: c.viewport,

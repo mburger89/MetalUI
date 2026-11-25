@@ -1,0 +1,10 @@
+# Test code only.
+disabled_rules:
+  - empty_string            # `#expect(x == "")` / `== []` state the expected value; `.isEmpty` breaks on optionals
+  - empty_collection_literal
+# Pinned corpora (path strings, expected glyph runs, grid cases) are single lines by design.
+line_length:
+  warning: 600
+  error: 1000
+  ignores_comments: true
+  ignores_urls: true

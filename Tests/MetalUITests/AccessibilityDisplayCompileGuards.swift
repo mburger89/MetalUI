@@ -22,7 +22,7 @@ func theAccessibilityDisplayKeysAreReadOnlyOutsideMetalUI() throws {
     let keys: [(name: String, value: String)] = [
         ("colorSchemeContrast", ".increased"), ("accessibilityDifferentiateWithoutColor", "true"),
         ("accessibilityInvertColors", "true"), ("accessibilityShowBorders", "true"),
-        ("accessibilityDimFlashingLights", "true"), ("accessibilityPlayAnimatedImages", "true"),
+        ("accessibilityDimFlashingLights", "true"), ("accessibilityPlayAnimatedImages", "true")
     ]
     let read = try typecheckFile("""
         @MainActor func probe(_ values: EnvironmentValues) {

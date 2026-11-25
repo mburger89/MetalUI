@@ -40,7 +40,6 @@ private struct ModifierProbeLeaf: ProposalElement {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-
 /// `Rectangle().layoutPriority(.infinity)` and `.aspectRatio(-2)` construct and
 /// render through a real `Frame`, and the kernel gives SwiftUI's answers.
 ///

@@ -46,7 +46,7 @@ private let styledCorpus: [[Piece]] = [
     [n("Ready\n"), src("Set", 17), n("\nGo", o: 2)],
     // RT-P items 3 and 4: pair kerning across a tracking boundary, spacing
     // once per grapheme over combining marks.
-    [n("A"), n("V", t: 1), n(" e\u{301}\u{302}x ", k: 2), n("of"), n("fice", t: 1)],
+    [n("A"), n("V", t: 1), n(" e\u{301}\u{302}x ", k: 2), n("of"), n("fice", t: 1)]
 ]
 private let styledWidths: [Double?] = [nil, 60, 120]
 /// Cases also laid out at a width narrower than one cluster, so a line starts
@@ -65,7 +65,7 @@ private let styledOptions = [
     TextLayoutOptions(maxLines: 2, truncation: .tail),
     TextLayoutOptions(maxLines: 1, truncation: .head),
     TextLayoutOptions(maxLines: 1, truncation: .middle),
-    TextLayoutOptions(alignment: .center),
+    TextLayoutOptions(alignment: .center)
 ]
 
 @MainActor

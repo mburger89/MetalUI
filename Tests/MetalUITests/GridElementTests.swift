@@ -351,7 +351,7 @@ private func bareplan<W: ProposalElementGroup>(@ElementBuilder _ cell: () -> W) 
 /// Mutation: `GridCellModifier` drops its `.columnAlignment` case (every column
 /// alignment arm reads nil; nothing else moves).
 @MainActor
-@Test func everyProposalModifierCarriesAGridCellAttributeAsTheProbeReads() throws {
+@Test func everyProposalModifierCarriesAGridCellAttributeAsTheProbeReads() throws { // swiftlint:disable:this function_body_length - one matrix over every proposal modifier, read against its probe
     let p = CellProbe()
 
     func span(_ label: String, _ expected: Int,

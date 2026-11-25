@@ -104,7 +104,7 @@ private struct NodeRow: Component {
 @MainActor private func smallTree() -> [Node] {
     [Node("A", expanded: true, kids: [
         Node("A1"),
-        Node("A2", expanded: true, kids: [Node("A2a"), Node("A2b")]),
+        Node("A2", expanded: true, kids: [Node("A2a"), Node("A2b")])
     ]),
      Node("B", kids: [Node("B1")]),
      Node("C")]

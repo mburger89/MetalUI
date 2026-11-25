@@ -204,7 +204,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         ("flexGrow.unconsumed", { $0.flexGrow = 1 }, true),
         ("flexShrink.unconsumed", { $0.flexShrink = 0 }, true),
         ("flexBasis.unconsumed", { $0.flexBasis = .length(.pixels(px(10))) }, true),
-        ("alignSelf.unconsumed", { $0.alignSelf = .center }, true),
+        ("alignSelf.unconsumed", { $0.alignSelf = .center }, true)
     ]
     typealias Arm = (name: String, entries: [UnlowerableField], expected: [UnlowerableField])
     var arms: [Arm] = []
@@ -244,7 +244,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         ("margin and flexGrow", {
             $0.flexGrow = 1
             $0.margin.top = .length(.pixels(px(3)))
-        }, ["flexGrow.unconsumed", "margin.unconsumed"]),
+        }, ["flexGrow.unconsumed", "margin.unconsumed"])
     ]
     for row in combined {
         let s = style(row.edit)
@@ -271,7 +271,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         ("flexGrow", { $0.flexGrow = -1 }),
         ("flexShrink", { $0.flexShrink = -1 }),
         ("flexBasis", { $0.flexBasis = .length(.pixels(px(10))) }),
-        ("alignSelf.baseline", { $0.alignSelf = .baseline }),
+        ("alignSelf.baseline", { $0.alignSelf = .baseline })
     ]
     for row in consumed {
         let s = style(row.edit)
@@ -374,7 +374,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         ("alignItems.stretch", { $0.alignItems = .stretch }),
         ("justifyContent.spaceBetween", { $0.justifyContent = .spaceBetween }),
         ("justifyItems.stretch", { $0.justifyItems = .stretch }),
-        ("display.stack", { $0.display = .stack }),
+        ("display.stack", { $0.display = .stack })
     ]
     let textCache = ShapingCache()
     let textWidth = textCache.shaped("ab", font: textCache.resolveFont(family: nil, size: 13),
@@ -585,7 +585,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
         ("Y1", word, 33, 1), ("Y2", word, 25, 2), ("Y3", word, 20, 2),
         ("Y4", word, 12, 4), ("Y5", word, 5, 5),
         ("Y6", short, 21, 2), ("Y7", short, 18, 2),
-        ("Y8", longString, 30, 12), ("Y9", longString, 45, 7),
+        ("Y8", longString, 30, 12), ("Y9", longString, 45, 7)
     ]
     try #require(arms.count == 9)
     var clamped = 0
@@ -638,7 +638,7 @@ private func expectNothingReported(_ r: LayoutDifferential.Report, _ arm: String
                 ("width(100)", Text(longString).cssWidth(px(100)), 100, nil),
                 ("width(30)", Text(longString).cssWidth(px(30)), 30, nil),
                 ("width(5)", Text(longString).cssWidth(px(5)), 5, nil),
-                ("height(40)", Text(longString).cssHeight(px(40)), nil, 40),
+                ("height(40)", Text(longString).cssHeight(px(40)), nil, 40)
             ]
             let cache = ShapingCache()
             let font = cache.resolveFont(family: nil, size: 13)

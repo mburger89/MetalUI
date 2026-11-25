@@ -41,7 +41,7 @@ func illegalUnitExpressionsDoNotCompile() throws {
         ("assigning ScaledPixels to Pixels",
          "let v: Pixels = ScaledPixels(1); _ = v", ["Pixels", "ScaledPixels"]),
         ("comparing Pixels with ScaledPixels",
-         "let v = Pixels(1) < ScaledPixels(2); _ = v", ["Pixels", "ScaledPixels"]),
+         "let v = Pixels(1) < ScaledPixels(2); _ = v", ["Pixels", "ScaledPixels"])
     ]
 
     for (description, code, mentions) in illegal {
@@ -67,7 +67,7 @@ func legalUnitExpressionsStillCompile() throws {
     let legal: [(description: String, code: String)] = [
         ("adding Pixels to Pixels", "let v = Pixels(1) + Pixels(2); _ = v"),
         ("integer literal as Pixels", "let v: Pixels = 5; _ = v"),
-        ("scaling Pixels by a Float", "let v = Pixels(1) * 2.0; _ = v"),
+        ("scaling Pixels by a Float", "let v = Pixels(1) * 2.0; _ = v")
     ]
 
     for (description, code) in legal {

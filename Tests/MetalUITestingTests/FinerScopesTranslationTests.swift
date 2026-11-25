@@ -163,7 +163,7 @@ func aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale(arm: RPScaleArm) async
         ("first card", { sides, _ in for s in sides { s.inputs.showExtra = true } }),
         ("wheel +30", { _, windows in for w in windows { w.scroll(at: pt(150, 120), byDeltaX: 0, deltaY: 30) } }),
         ("header -8", { sides, _ in for s in sides { s.inputs.offset -= 8 } }),
-        ("first card gone", { sides, _ in for s in sides { s.inputs.showExtra = false } }),
+        ("first card gone", { sides, _ in for s in sides { s.inputs.showExtra = false } })
     ]
     for (index, (name, step)) in steps.enumerated() {
         pair.on.resetFrameWork()
@@ -359,14 +359,20 @@ enum FSRefusal: CaseIterable, CustomStringConvertible {
     case gradient, path, backdrop, innerScope, maskStraddle
     var description: String {
         switch self {
-        case .gradient: "gradient"; case .path: "path"; case .backdrop: "backdrop"
-        case .innerScope: "innerScope"; case .maskStraddle: "maskStraddle"
+        case .gradient: "gradient"
+        case .path: "path"
+        case .backdrop: "backdrop"
+        case .innerScope: "innerScope"
+        case .maskStraddle: "maskStraddle"
         }
     }
     var reason: String {
         switch self {
-        case .gradient: "unlistedKind:gradient"; case .path: "unlistedKind:path"; case .backdrop: "unlistedKind:backdrop"
-        case .innerScope: "innerScope"; case .maskStraddle: "maskStraddlesEntryClip"
+        case .gradient: "unlistedKind:gradient"
+        case .path: "unlistedKind:path"
+        case .backdrop: "unlistedKind:backdrop"
+        case .innerScope: "innerScope"
+        case .maskStraddle: "maskStraddlesEntryClip"
         }
     }
 }

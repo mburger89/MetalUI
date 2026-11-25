@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AH`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AI`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -524,3 +524,15 @@ Per grafted outermost occurrence: **60.5 µs of build stood for, 10.7 µs of gra
 **Evidence.** `GraftCaptureBackoffTests`: a scroll of six steps through five occurrences copies 0 rows (master 30) with the frame work unchanged (3384 requests, no hit); six keys into a focused field copy 0 (30) with 24 requests unchanged; after the scroll the pointer leaves and the indicator's fade ends, that frame copies five records and builds as before (564 requests), and the next three are one graft each standing for 564 requests; the same sequence after focus leaves. Mutations: the flush capturing always (master's behaviour: the three cost pins red, the frame work equal), and the flush never capturing (the two recovery pins red).
 
 **Cost if wrong.** A graft record missing where the old rule had one makes that occurrence rebuild one frame more; the exactness argument above says no frame can show it, and the recovery pins would name it.
+
+## RK-AH — A window's slice of the build journal is copied at the flush, for the occurrences that earned a record (G47, record 412)
+
+**Question.** `closeGraftWindow` copied its slice of `BuildJournal.events` (rewriting each lifecycle note's order) into the `PendingGraft` at every window close, then `flushPendingGrafts` threw it away for any occurrence with no paint record, prepaint ledger and complete coverage (`RK-AG`). Under nested `.equatable()` occurrences each window's slice starts near the front of the journal: four 736 KB copies a frame in Alloy's probe (about 14k events each), 236-267 ms of the profile's closure `#2`, the `map`.
+
+**Ruling.** The pending graft keeps the slice's **range** (`PendingGraft.events: Range<Int>`) and the window's `lifecycleBase`, and the journal is not cleared while any window is pending: `BuildJournal.held` is `ContentMemoStore.pendingGrafts.count` (its `didSet`), `clearIfIdle()` clears when no window is open and none is held, and the flush copies (`BuildJournal.rebased`) only for an entry it makes a record for. The journal empties when the list does (end of the flush, a redo's `resetBuildCounters`). `OutlineContentCache` clears through the same `clearIfIdle()`. **No slice of the buffer is kept**: a held `ArraySlice` would make the clearing `removeAll(keepingCapacity:)` copy the whole buffer on the next frame (the 50 MB to 309 MB blow-up of an earlier attempt); the range is two integers, the buffer stays uniquely referenced and clears in place, and its capacity is the peak of one frame as before.
+
+**Exact.** The rebased events are the same events of the same range in the same order. The journal appends only while a window is open, so events between top-level windows do not exist; a later window opens at the current count and its range cannot overlap an earlier one's end.
+
+**Evidence.** Record 412: 4 copies of 736 KB a frame gone (bytes per step -2.9 MB), `phys_footprint` and live blocks not above base. `ScrollAllocationChurnTests` reads the bytes.
+
+**Cost if wrong.** A journal that stayed held after the flush would grow by a frame's events per frame; `pendingGrafts`'s `didSet` is the one place that releases it, and the flush's `defer` empties the list on every path.

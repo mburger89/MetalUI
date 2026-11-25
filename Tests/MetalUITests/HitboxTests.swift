@@ -370,13 +370,13 @@ private struct HitboxProbe: Element {
     /// id back out to query `PaintPass.isHovered(_:)` with. A reference type
     /// because `HitboxProbe` itself is copied into `render`'s local `var root`;
     /// a stored `HitboxID?` field would not be readable from the caller's copy.
-    var idBox: HitboxIDBox? = nil
+    var idBox: HitboxIDBox?
 
     /// Where `paint` writes back whether `pass.isHovered(_:)` said yes, so a
     /// caller driving a real `Window` — which owns the only `PaintPass` in
     /// play and exposes no hover query of its own — can still read the
     /// answer back out. Same reference-type reasoning as `idBox` above.
-    var hoverBox: HoverBox? = nil
+    var hoverBox: HoverBox?
 
     struct Empty {}
 

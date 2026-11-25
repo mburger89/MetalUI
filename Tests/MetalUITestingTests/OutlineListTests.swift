@@ -419,7 +419,7 @@ private func bigTree() -> [Node] {
 /// index) over 100 000 top-level paths with three expanded: the frame realises the viewport's rows plus overscan, however many
 /// rows there are. Mutation: the list realising every unit (100 000).
 @Test @MainActor func aHundredThousandRowOutlineRealisesOnlyItsWindow() throws {
-    let roots = (0..<100_000).map { i in i % 25_000 == 0 ? N("p\(i)", [N("p\(i)/a"), N("p\(i)/b")]) : N("p\(i)") }
+    let roots = (0..<100_000).map { i in i.isMultiple(of: 25_000) ? N("p\(i)", [N("p\(i)/a"), N("p\(i)/b")]) : N("p\(i)") }
     let window = try harnessWindow(size: sz(300, 400)) {
         ProposalScrollView {
             List(roots, children: \.kids) { label($0) }

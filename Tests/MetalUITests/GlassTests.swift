@@ -127,7 +127,7 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
 @Test @MainActor func regularAndClearAndTintMapToTheFittedTable() throws {
     let table: [(Glass, ColorScheme, Float, Float)] = [
         (.regular, .light, 0.908, 0.60), (.clear, .light, 0.870, 0.32),
-        (.clear, .dark, 0.338, 0.29), (.regular, .dark, 0.321, 0.412),
+        (.clear, .dark, 0.338, 0.29), (.regular, .dark, 0.321, 0.412)
     ]
     for (glass, scheme, grey, alpha) in table {
         let scene = glassScene(VStack(spacing: 0) {

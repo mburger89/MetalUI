@@ -117,7 +117,7 @@ private let looksChecker: ImageBitmap = {
     var rgba: [UInt8] = []
     for y in 0..<4 {
         for x in 0..<4 {
-            rgba += (x + y) % 2 == 0 ? [40, 110, 230, 255] : [255, 255, 255, 255]
+            rgba += (x + y).isMultiple(of: 2) ? [40, 110, 230, 255] : [255, 255, 255, 255]
         }
     }
     return ImageBitmap(width: 4, height: 4, rgba: rgba)
@@ -226,7 +226,7 @@ private let looksTransitionKinds: [(String, AnyTransition)] = [
     ("push(from: .leading)", .push(from: .leading)),
     ("asymmetric(scale, opacity)", .asymmetric(insertion: .scale, removal: .opacity)),
     ("opacity.combined(with: .move(edge: .bottom))", .opacity.combined(with: .move(edge: .bottom))),
-    ("identity", .identity),
+    ("identity", .identity)
 ]
 
 struct LooksTransitions: Component {
@@ -290,7 +290,7 @@ private func looksStar(side: Double) -> Path {
 private let looksZigZag = Path { path in
     path.move(to: Point(x: Pixels(6), y: Pixels(34)))
     for i in 1...6 {
-        path.addLine(to: Point(x: Pixels(Float(6 + 18 * i)), y: Pixels(i % 2 == 0 ? 34 : 8)))
+        path.addLine(to: Point(x: Pixels(Float(6 + 18 * i)), y: Pixels(i.isMultiple(of: 2) ? 34 : 8)))
     }
 }
 
@@ -741,7 +741,7 @@ private let looksColourSwatches: [(String, Color)] = [
     ("literal", Color(red: 0.2, green: 0.4, blue: 0.6)),
     ("light/dark", Color(light: Color(red: 0.95, green: 0.75, blue: 0.20),
                          dark: Color(red: 0.20, green: 0.30, blue: 0.75))),
-    ("LooksBrand", Color(LooksBrand.self)),
+    ("LooksBrand", Color(LooksBrand.self))
 ]
 
 /// **S1–S3.** Every swatch is a 28 × 28 `Color` view over a `.separator`
@@ -761,7 +761,7 @@ private func looksColourSection() -> some Element {
 /// The colour section's state: the scheme the toggle prefers (`nil` =
 /// System, the window's own appearance).
 struct LooksColourSection: Component {
-    @State var choice: ColorScheme? = nil
+    @State var choice: ColorScheme?
 
     private var choiceName: String {
         switch choice {
@@ -843,7 +843,7 @@ private let looksLifecycleBarColours: [Color] = [
     Color(red: 0.20, green: 0.65, blue: 0.35),  // appeared
     Color(red: 0.85, green: 0.30, blue: 0.25),  // disappeared
     Color(red: 0.90, green: 0.60, blue: 0.15),  // faded
-    Color(red: 0.25, green: 0.45, blue: 0.85),  // changes
+    Color(red: 0.25, green: 0.45, blue: 0.85)  // changes
 ]
 
 /// The section's state. The counters are written by the lifecycle actions,
@@ -1035,7 +1035,7 @@ struct LooksGradientsBlurMaterials: Component {
 /// An 8 × 8 two-tone checker, the blurred image's source.
 @MainActor private let looksCheckerBitmap: ImageBitmap = {
     var rgba: [UInt8] = []
-    for y in 0..<8 { for x in 0..<8 { rgba += (x + y) % 2 == 0 ? [230, 80, 40, 255] : [40, 90, 220, 255] } }
+    for y in 0..<8 { for x in 0..<8 { rgba += (x + y).isMultiple(of: 2) ? [230, 80, 40, 255] : [40, 90, 220, 255] } }
     return ImageBitmap(width: 8, height: 8, rgba: rgba)
 }()
 
@@ -1083,7 +1083,7 @@ func backdropBlurSection() -> some Element {
 private func backdropStripes() -> some Element {
     HStack(spacing: Pixels(0)) {
         ForEach(0..<26, id: \.self) { k in
-            (k % 2 == 0 ? Color.red : Color.blue).frame(width: Pixels(20), height: Pixels(110))
+            (k.isMultiple(of: 2) ? Color.red : Color.blue).frame(width: Pixels(20), height: Pixels(110))
         }
     }
 }
@@ -1175,7 +1175,7 @@ private func looksMaterialsRow(scheme: ColorScheme) -> some ElementGroup {
             ZStack {
                 HStack(spacing: Pixels(0)) {
                     ForEach(0..<6, id: \.self) { k in
-                        (k % 2 == 0 ? Color.red : Color.blue).frame(width: Pixels(10), height: Pixels(30))
+                        (k.isMultiple(of: 2) ? Color.red : Color.blue).frame(width: Pixels(10), height: Pixels(30))
                     }
                 }
                 Text(looksMaterials[i].0).font(size: 10)
@@ -1190,7 +1190,7 @@ private func looksMaterialsRow(scheme: ColorScheme) -> some ElementGroup {
 /// The six materials, named.
 @MainActor private let looksMaterials: [(String, Material)] = [
     ("ultraThin", .ultraThinMaterial), ("thin", .thinMaterial), ("regular", .regularMaterial),
-    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar),
+    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar)
 ]
 
 // MARK: - Liquid Glass (item LG; rulings `LG-A`...`LG-V`; human checks LG1-LG6)

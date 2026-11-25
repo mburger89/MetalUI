@@ -42,7 +42,7 @@ private struct Work {
 }
 
 @MainActor private func render<E: Element>(_ h: TransitionHarness, _ element: E, side: Float = 300,
-                                            scale: Float = 1) -> Work {
+                                           scale: Float = 1) -> Work {
     let frame = h.frame(0, nil, element, side: side, scaleFactor: scale)
     let r = h.store.rasters
     return Work(rasterized: r.lastRasterizedPixels, made: r.lastTexturesMade, tinted: r.lastTintedPixels,

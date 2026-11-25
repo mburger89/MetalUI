@@ -7,7 +7,7 @@ import Testing
 
 private let tri = [UInt8]("tri".utf8)
 private let sources: [(name: String, bytes: [UInt8])] = [
-    (name: "a.comp.hlsl", bytes: [UInt8]("a".utf8)), (name: "b.frag.hlsl", bytes: [UInt8]("b".utf8)),
+    (name: "a.comp.hlsl", bytes: [UInt8]("a".utf8)), (name: "b.frag.hlsl", bytes: [UInt8]("b".utf8))
 ]
 private let goodMarker = SourceMarker.contents(of: sources)
 private let fullDirectory = ["SOURCE.sha256", "a.comp.spv", "a.comp.msl", "a.comp.dxil", "a.comp.json",

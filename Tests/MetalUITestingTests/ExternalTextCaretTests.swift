@@ -76,7 +76,7 @@ private struct Replacement: CustomTestStringConvertible, Sendable {
         .init(name: "shrink with the caret inside the kept text", initial: "hello world", caret: 2, new: "hello", swiftUI: "helloX"),
         .init(name: "identical text keeps the caret", initial: "hello", caret: 2, new: "hello", swiftUI: "heXllo"),
         .init(name: "cleared", initial: "hello", caret: 3, new: "", swiftUI: "X"),
-        .init(name: "unrelated and longer", initial: "abc", caret: 1, new: "completely different", swiftUI: "completely differentX"),
+        .init(name: "unrelated and longer", initial: "abc", caret: 1, new: "completely different", swiftUI: "completely differentX")
     ]
 }
 

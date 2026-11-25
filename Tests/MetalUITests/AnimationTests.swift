@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - one suite over every animation behaviour
 import Testing
 import Observation
 import MetalUICore
@@ -1303,7 +1304,7 @@ import MetalUIRender
         ("margin.right", { $0.margin.right }),
         ("margin.bottom", { $0.margin.bottom }),
         ("margin.left", { $0.margin.left }),
-        ("flexBasis", { $0.flexBasis }),
+        ("flexBasis", { $0.flexBasis })
     ]
     let lengthFields: [(key: String, read: (Style) -> Length)] = [
         ("padding.top", { $0.padding.top }),
@@ -1311,11 +1312,11 @@ import MetalUIRender
         ("padding.bottom", { $0.padding.bottom }),
         ("padding.left", { $0.padding.left }),
         ("gap.horizontal", { $0.gap.horizontal }),
-        ("gap.vertical", { $0.gap.vertical }),
+        ("gap.vertical", { $0.gap.vertical })
     ]
     let numberFields: [(key: String, read: (Style) -> Float)] = [
         ("flexGrow", { $0.flexGrow }),
-        ("flexShrink", { $0.flexShrink }),
+        ("flexShrink", { $0.flexShrink })
     ]
     // `animatableFieldOrder` is this file's single source for both the fixture
     // values and the expected midpoints, so the four tables here must name
@@ -1418,7 +1419,7 @@ private let animatableFieldOrder: [String] = [
     "padding.top", "padding.right", "padding.bottom", "padding.left",
     "gap.horizontal", "gap.vertical",
     "flexGrow", "flexShrink",
-    "cornerRadius",
+    "cornerRadius"
 ]
 
 /// One animatable field's fixture offset: its index in `animatableFieldOrder`.

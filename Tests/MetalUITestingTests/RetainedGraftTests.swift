@@ -50,7 +50,7 @@ private let afterGraftFrames: [AfterGraftFrame] = [
     AfterGraftFrame(arm: .value, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
     AfterGraftFrame(arm: .environment, requests: 208, skippedRequests: 590, grafts: 29, graftIneligible: 0, graftedNodes: 590, prepaints: 219, prepaintHits: 29),
     // `RW-S`: the graph panel is eligible now (read-only `withState`), no longer a graft refusal: 167 -> 144 requests, 176 -> 153 prepaints.
-    AfterGraftFrame(arm: .panels, requests: 144, skippedRequests: 654, grafts: 31, graftIneligible: 0, graftedNodes: 678, prepaints: 153, prepaintHits: 31),
+    AfterGraftFrame(arm: .panels, requests: 144, skippedRequests: 654, grafts: 31, graftIneligible: 0, graftedNodes: 678, prepaints: 153, prepaintHits: 31)
 ]
 
 @Test(.enabled(if: !rsVerifying, verifyingNote), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
@@ -126,7 +126,7 @@ struct RGRoot: Component {
         let model = side.model, log = side.log
         VStack(spacing: 4) {
             if model.n % 3 == 1 { Text("flag").frame(width: Pixels(40), height: Pixels(10)) }
-            ForEach(model.n % 2 == 0 ? [0, 1, 2] : [2, 0, 1], id: \.self) { i in
+            ForEach(model.n.isMultiple(of: 2) ? [0, 1, 2] : [2, 0, 1], id: \.self) { i in
                 Text("item \(i)").frame(width: Pixels(50), height: Pixels(10))
             }
             RGCard(title: "A\(model.tint)", shade: 1, log: log).equatable()
@@ -179,7 +179,7 @@ func aGraftedFrameKeepsTheStateTableSweepsExact() async throws {
         for settled in 0..<11 {
             pair.redraw()
             grafts += pair.frames.last?.retainedGrafts ?? 0
-            if settled % 3 == 0 || settled == 10 {
+            if settled.isMultiple(of: 3) || settled == 10 {
                 try pair.compare("step \(step) settled \(settled)")
                 stateAgrees(pair, "step \(step) settled \(settled)")
             }
@@ -620,7 +620,7 @@ let rkGraftVerifyChannels: [(channel: String, word: String)] = [
     ("produced", "a replayed prepaint differs from a fresh one: build calls on the tables: produced slots"),
     ("named", "a replayed prepaint differs from a fresh one: build calls on the tables: produced names"),
     ("loops", "a replayed prepaint differs from a fresh one: build calls on the tables: loop extents"),
-    ("memoTouches", "a replayed prepaint differs from a fresh one: build calls on the tables: memo entries kept"),
+    ("memoTouches", "a replayed prepaint differs from a fresh one: build calls on the tables: memo entries kept")
 ]
 
 /// 23 — a verified graft that differs from a build traps, naming the channel (`RK-N`): the child process sets the variable, warms a

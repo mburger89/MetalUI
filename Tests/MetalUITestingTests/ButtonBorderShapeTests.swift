@@ -82,7 +82,7 @@ private let blue = Color(red: 0, green: 0, blue: 1)
                                  { Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.buttonBorderShape(.automatic) })),
             ("segmented", both({ Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented) },
                                { Picker("P", selection: .constant(1)) { Text("A").tag(0); Text("B").tag(1) }.pickerStyle(.segmented)
-                                   .buttonBorderShape(.capsule).segmentedPickerShape(.automatic) })),
+                                   .buttonBorderShape(.capsule).segmentedPickerShape(.automatic) }))
         ]
     }
     for (name, make) in pairs() {

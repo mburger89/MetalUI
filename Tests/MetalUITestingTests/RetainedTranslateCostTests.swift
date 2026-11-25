@@ -92,7 +92,7 @@ private func fingerprint(_ edit: (inout EnvironmentValues) -> Void = { _ in }) -
         ("clip", { $0.clip[0] = 5 }), ("layerOpacityScale", { $0.layerOpacityScale = [2] }), ("depths", { $0.depths = [1] }),
         ("scopes", { $0.scopes = [[1, 3]] }), ("environment", { $0.environment = fingerprint { $0.isEnabled = false } }),
         ("snappingTransaction", { $0.snappingTransaction.toggle() }), ("disablesAnimations", { $0.disablesAnimations.toggle() }),
-        ("atlasGeneration", { $0.atlasGeneration = 1 }),
+        ("atlasGeneration", { $0.atlasGeneration = 1 })
     ]
     for (name, edit) in edits {
         var other = base; edit(&other)

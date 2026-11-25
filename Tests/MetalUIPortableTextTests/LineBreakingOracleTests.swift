@@ -35,7 +35,7 @@ let wrapStrings = [
     "trailing   \n  leading",
     "   ",
     "x",
-    "https://example.com/path/to/resource?query=1&x=2",
+    "https://example.com/path/to/resource?query=1&x=2"
 ]
 let wrapWidths: [Double?] = [nil] + stride(from: 4.0, through: 320.0, by: 3.25).map { $0 }
 let wrapSizes: [Double] = [11, 13, 17, 26]

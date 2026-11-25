@@ -212,9 +212,12 @@ extension Frame {
         case .refused(let reason): return .refused(reason)
         case .moved(let ops):
             var final: [RetainLog.SceneOp]?
-            if let stream = old.finalScene, key.ambient.scopes.isEmpty,
-               case .moved(let movedStream) = Self.movedOps(stream, dx: dx, dy: dy, entryDepth: entryDepth, entry: entry) {
-                final = movedStream
+            if let stream = old.finalScene, key.ambient.scopes.isEmpty {
+                if old.finalIsScene {
+                    final = ops   // the same ops as the scene: moved once (`SB-AG`)
+                } else if case .moved(let movedStream) = Self.movedOps(stream, dx: dx, dy: dy, entryDepth: entryDepth, entry: entry) {
+                    final = movedStream
+                }
             }
             return .moved(PaintTranslation(dx: dx, dy: dy, scene: ops, finalScene: final))
         }

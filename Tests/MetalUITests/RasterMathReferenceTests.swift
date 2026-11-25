@@ -24,7 +24,7 @@ private func seeded(_ rect: RasterRect, seed: UInt32) -> AlphaMask {
     var lcg = LCG(state: seed)
     return AlphaMask(rect: rect, alpha: (0..<rect.area).map { i in
         let b = lcg.next()
-        return i % 4 == 0 ? (b < 128 ? 0 : 255) : b
+        return i.isMultiple(of: 4) ? (b < 128 ? 0 : 255) : b
     })
 }
 
@@ -144,7 +144,7 @@ private let rects = [RasterRect(x: 0, y: 0, width: 1, height: 1), RasterRect(x: 
         }
     }
     cases.append(AlphaMask(rect: RasterRect(x: 3, y: 4, width: 13, height: 5),
-                           alpha: (0..<65).map { $0 % 11 == 0 ? UInt8($0) : 0 }))
+                           alpha: (0..<65).map { $0.isMultiple(of: 11) ? UInt8($0) : 0 }))
     var differing = 0
     for mask in cases {
         for colour in colours where RasterCache.tint(mask, color: colour).pixels != Reference.tint(mask, color: colour) {

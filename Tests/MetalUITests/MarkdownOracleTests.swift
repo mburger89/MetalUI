@@ -37,7 +37,7 @@ let markdownOracleExtraSources = [
     "&#0;", "&#x110000;", "&#12345678;", "![a *b*](s)", "[![i](s)](u)", "[a](u) [b]", "***a** b*",
     "*a **b***", "~a~~", "~~a~", "_a_", "a~~b~~c", "a~b~c", "*_**~", "*_**!", "**~~** ", "a~~*_**", "[a]()",
     "[www.x.org](u)", "[ www.x.org", "aw@b.org", "<a href=\"*x*\">", "` \n`",
-    "[a](http://x.org:ab/c)", "http://x.org:ab", "[a](http://u@x.org:ab)",
+    "[a](http://x.org:ab/c)", "http://x.org:ab", "[a](http://u@x.org:ab)"
 ]
 
 /// **3.2** (ruling RT-B items 2–3). On the probe's corpus, the sources above,
@@ -93,7 +93,7 @@ let probedMarkdownSources = [
     "[**b**](https://x.org)", "&#65;&copy;", "a\\\nb", "`**x**`", "http://x.org/a_b_c", "__b__",
     "[a](relative/path)", "<b>x</b>", "[a][r]", "a  \nb", "[a](<u v>)", "[a](u \"t\")", "``a`b``",
     "*a **b** c*", "**a*", "_a_b", "(www.x.org)", "https://x.org.", "&bogus;", "&nbsp;x", "\\`", "~~~a~~~",
-    "[a]", "a\tb", "`` a ``", "*a*b*", "x_y_ z", "&alpha;&hearts;&ThickSpace;",
+    "[a]", "a\tb", "`` a ``", "*a*b*", "x_y_ z", "&alpha;&hearts;&ThickSpace;"
 ]
 
 /// **3.11** (`C12c`; ruling RT-D item 5). On Apple platforms
@@ -111,7 +111,7 @@ let probedMarkdownSources = [
         TextRunRequest(string: "b", weight: .bold), TextRunRequest(string: " "),
         TextRunRequest(string: "i", italic: true), TextRunRequest(string: " "),
         TextRunRequest(string: "s", strikethrough: .single), TextRunRequest(string: " "),
-        TextRunRequest(string: "c", monospaced: true),
+        TextRunRequest(string: "c", monospaced: true)
     ]), "\(literal.content)")
 }
 #endif

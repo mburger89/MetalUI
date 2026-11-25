@@ -43,7 +43,7 @@ import Testing
             let expected = oracle(text)
             #expect(expected.count == snap.lineCount)
             #expect(snap.lineRanges(rows: 0..<snap.lineCount) == expected, "all rows of \(text.debugDescription.prefix(40))")
-            for row in 0..<snap.lineCount where row < 40 || row % 97 == 0 {
+            for row in 0..<snap.lineCount where row < 40 || row.isMultiple(of: 97) {
                 #expect(snap.lineRange(row) == expected[row], "row \(row)")
                 let hi = min(snap.lineCount, row + Int.random(in: 1..<9, using: &rng))
                 #expect(snap.lineRanges(rows: row..<hi) == Array(expected[row..<hi]), "rows \(row)..<\(hi)")

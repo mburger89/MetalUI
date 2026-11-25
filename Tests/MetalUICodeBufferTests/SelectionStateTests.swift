@@ -90,7 +90,7 @@ struct SelectionStateTests {
         Row(name: "three carets inside a deletion merge", before: [c(3), c(4), c(5)], edit: 2..<6, new: "", after: [c(2)]),
         Row(name: "multi-range: only the touched range collapses", before: [r(1, 2), r(4, 6), r(8, 9)], edit: 5..<5, new: "Q", after: [r(1, 2), c(6), r(9, 10)]),
         Row(name: "multi-range: a deletion shifts those after it", before: [c(1), r(4, 6), c(9)], edit: 2..<3, new: "", after: [c(1), r(3, 5), c(8)]),
-        Row(name: "multi-range: carets before, inside and after a replacement", before: [c(1), c(4), c(9)], edit: 3..<6, new: "ab", after: [c(1), c(5), c(8)]),
+        Row(name: "multi-range: carets before, inside and after a replacement", before: [c(1), c(4), c(9)], edit: 3..<6, new: "ab", after: [c(1), c(5), c(8)])
     ]
 
     @Test(arguments: rows) fileprivate func anEditMovesAnotherStateByTheAppKitRule(_ row: Row) {

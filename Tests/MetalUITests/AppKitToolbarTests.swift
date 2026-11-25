@@ -63,7 +63,7 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
                             control: .picker(title: "Sort", options: ["Name", "Date"], selected: 1, style: .menu)),
         PlatformToolbarItem(id: "filter", placement: .automatic, control: .textField(placeholder: "Filter", text: "")),
         PlatformToolbarItem(id: "status", placement: .status, control: .label(text: "Ready")),
-        PlatformToolbarItem(id: "search", placement: .search, control: .search(prompt: "Search", text: text)),
+        PlatformToolbarItem(id: "search", placement: .search, control: .search(prompt: "Search", text: text))
     ])
 }
 
@@ -94,7 +94,7 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
     #expect(toolbar.allowsUserCustomization == false)
     #expect(toolbar.items.map(\.itemIdentifier.rawValue) == [
         "mode", "status", NSToolbarItem.Identifier.flexibleSpace.rawValue, "nav", "share", "adv", "sort", "filter",
-        NSToolbarItem.Identifier.flexibleSpace.rawValue, "search",
+        NSToolbarItem.Identifier.flexibleSpace.rawValue, "search"
     ], "TB1/SR order: \(toolbar.items.map(\.itemIdentifier.rawValue))")
     #expect(toolbar.centeredItemIdentifiers == Set(["mode", "status"].map { NSToolbarItem.Identifier($0) }))
     #expect(try item(toolbar, "nav").isNavigational)
@@ -145,7 +145,7 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
     let (platform, appKit, nsWindow, _) = try toolbarWindow()
     defer { nsWindow.close(); withExtendedLifetime(platform) {} }
     _ = appKit.setToolbar(PlatformToolbar(items: [
-        PlatformToolbarItem(id: "img", placement: .primaryAction, control: .button(title: "Pic", image: imageTexture)),
+        PlatformToolbarItem(id: "img", placement: .primaryAction, control: .button(title: "Pic", image: imageTexture))
     ]))
     let toolbar = try #require(nsWindow.toolbar)
     let button = try #require(try item(toolbar, "img").view as? NSButton)
@@ -201,7 +201,7 @@ private func sample(isOn: Bool = false, selected: Int = 0, text: String = "") ->
         ToolbarActionEvent(item: "sort", action: .select(0)),
         ToolbarActionEvent(item: "adv", action: .toggle(true)),
         ToolbarActionEvent(item: "filter", action: .text("f")),
-        ToolbarActionEvent(item: "search", action: .text("s")),
+        ToolbarActionEvent(item: "search", action: .text("s"))
     ], "\(log.actions)")
 
     var disabled = sample()

@@ -137,7 +137,7 @@ private let dylib = "libSDL3_shadercross.dylib"
     let cases: [(windows: Bool, macOS: Bool, names: [String])] = [
         (false, true, ["libSDL3_shadercross.dylib"]),
         (false, false, ["libSDL3_shadercross.so.0", "libSDL3_shadercross.so"]),
-        (true, false, ["SDL3_shadercross.dll"]),
+        (true, false, ["SDL3_shadercross.dll"])
     ]
     for c in cases {
         for name in c.names {
@@ -200,7 +200,7 @@ private let dylib = "libSDL3_shadercross.dylib"
           "libspirv-cross-c-shared.so.0"], false, false, ["libSDL3.so", "libSDL3.so.0"],
          ["libdxcompiler.so", "libspirv-cross-c-shared.so.0"]),
         (["SDL3.dll", "SDL3_shadercross.dll", "SDL3_image.dll", "dxcompiler.dll", "spirv-cross-c-shared.dll"], true, false,
-         ["SDL3.dll"], ["dxcompiler.dll", "spirv-cross-c-shared.dll"]),
+         ["SDL3.dll"], ["dxcompiler.dll", "spirv-cross-c-shared.dll"])
     ]
     for c in cases {
         let with = try Locator.preloadSet(directory: "/d", listing: c.listing, windows: c.windows, macOS: c.macOS, includingSDL: true)

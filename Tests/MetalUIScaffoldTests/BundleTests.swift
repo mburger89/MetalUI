@@ -132,7 +132,7 @@ func theMinimumSystemVersionComesFromTheManifest(_ manifest: String, _ expected:
     #expect(plan.copies == [
         BundleCopy(source: "/bin/Flow", destination: "Contents/MacOS/Flow"),
         BundleCopy(source: "/bin/MetalUI_MetalUIRender.bundle", destination: "Contents/Resources/MetalUI_MetalUIRender.bundle"),
-        BundleCopy(source: "/bin/Z_Z.bundle", destination: "Contents/Resources/Z_Z.bundle"),
+        BundleCopy(source: "/bin/Z_Z.bundle", destination: "Contents/Resources/Z_Z.bundle")
     ])
     #expect(plan.iconConversion.isEmpty && plan.iconScratch == nil)
     #expect(plan.signing == ProcessInvocation("codesign", ["--force", "--sign", "-", "--deep", "/out/Flow.app"]))

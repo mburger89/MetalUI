@@ -307,7 +307,7 @@ let patchedFaces = [
     MetricPatch(name: "OS/2 typoLineGap 200", table: "OS/2", offset: 72, value: 200),
     MetricPatch(name: "hhea ascender 1200", table: "hhea", offset: 4, value: 1200),
     MetricPatch(name: "OS/2 typoAscender 1200", table: "OS/2", offset: 68, value: 1200),
-    MetricPatch(name: "hhea descender -400", table: "hhea", offset: 6, value: -400),
+    MetricPatch(name: "hhea descender -400", table: "hhea", offset: 6, value: -400)
 ]
 
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_LINES_EMIT_MEASURE"] == "1"))

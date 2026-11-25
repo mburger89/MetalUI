@@ -41,7 +41,7 @@ struct SelectionHelpersTests {
         Case(name: "select all keeps the primary on its own match", text: "foo foo foo", start: [4..<7], steps: ["all"], expected: [0..<3, 4..<7, 8..<11], primary: 1),
         Case(name: "select all from a caret uses whole words", text: "foo foobar foo", start: [1..<1], steps: ["all"], expected: [0..<3, 11..<14], primary: 0),
         Case(name: "select all with no match changes nothing", text: "ab  cd", start: [3..<3], steps: ["all"], expected: [3..<3], primary: 0),
-        Case(name: "select all replaces other selections", text: "foo x foo y", start: [0..<3, 6..<7], steps: ["all"], expected: [0..<3, 6..<9], primary: 0),
+        Case(name: "select all replaces other selections", text: "foo x foo y", start: [0..<3, 6..<7], steps: ["all"], expected: [0..<3, 6..<9], primary: 0)
     ]
 
     private func run(_ c: Case) -> (CodeSelectionState, CodeBuffer) {

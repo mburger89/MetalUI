@@ -11,7 +11,7 @@ package enum BoxBlur {
         let n = 3.0
         let ideal = (12 * sigma * sigma / n + 1).squareRoot()
         var lower = Int(ideal.rounded(.down))
-        if lower % 2 == 0 { lower -= 1 }
+        if lower.isMultiple(of: 2) { lower -= 1 }
         if lower < 1 { lower = 1 }
         let upper = lower + 2
         let wl = Double(lower)

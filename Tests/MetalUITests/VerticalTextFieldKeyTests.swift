@@ -147,4 +147,3 @@ private func press(_ name: String, _ modifiers: Modifiers, platform: TextEditing
     platform.simulateInput(.textInput("a\nb"))
     #expect(draft.text.hasSuffix("a\nb"), "an input method's commit keeps them too: \(draft.text.debugDescription)")
 }
-

@@ -29,7 +29,7 @@ private let probeProposals: [(String, ProposedSize)] = [
     ("infWidth", ProposedSize(width: .infinity, height: nil)),
     ("w200", ProposedSize(width: 200, height: nil)),
     ("h200", ProposedSize(width: nil, height: 200)),
-    ("w50", ProposedSize(width: 50, height: nil)),
+    ("w50", ProposedSize(width: 50, height: nil))
 ]
 
 /// A recording layout: measures its one subview at every probe proposal, then

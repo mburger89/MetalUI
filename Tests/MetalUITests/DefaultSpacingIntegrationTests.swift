@@ -132,7 +132,7 @@ private struct ControlArm {
         // The text edges (DS7 `.plain` Button): the label alone.
         arm("Button plain", standard: false) { Button("Go") {}.buttonStyle(.plain) },
         arm("Button borderless", standard: false) { Button("Go") {}.buttonStyle(.borderless) },
-        arm("Button link", standard: false) { Button("Go") {}.buttonStyle(.link) },
+        arm("Button link", standard: false) { Button("Go") {}.buttonStyle(.link) }
     ]
 }
 

@@ -282,7 +282,7 @@ func aHardLineBreakEndsALineWhenNoWidthIsOffered(separator: String) throws {
         ("Ready\n", [(0, 6)], ["Ready"]),
         ("\n", [(0, 1)], [""]),
         ("a\n\nb", [(0, 2), (2, 1), (3, 1)], ["a", "", "b"]),
-        ("\nGo", [(0, 1), (1, 2)], ["", "Go"]),
+        ("\nGo", [(0, 1), (1, 2)], ["", "Go"])
     ]
     for c in cases {
         let shaped = Shaper.shape(c.string, font: font, wrappingAt: nil)
@@ -372,7 +372,7 @@ private struct LineDump: Equatable {
         "   leading and trailing   ",
         "\u{200B}zw\u{00A0}nb\u{00AD}sh",
         "fi ffl AV To",
-        String(repeating: "antidisestablishmentarianism word ", count: 4000),
+        String(repeating: "antidisestablishmentarianism word ", count: 4000)
     ]
     for s in corpus {
         let attr = NSAttributedString(string: s, attributes: [ctFontKey: font.ctFont])

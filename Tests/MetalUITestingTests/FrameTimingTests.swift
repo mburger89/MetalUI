@@ -99,7 +99,7 @@ private func ordered(_ s: FrameTimingSample) -> Bool {
         (.textInput("x"), .text),
         (.scrollWheel(ScrollEvent(position: pt(5, 5), delta: pt(0, 3))), .wheel),
         (.mouseDown(MouseEvent(position: pt(5, 5))), .pointer),
-        (.keyUp(KeyEvent(charactersIgnoringModifiers: "q", characters: "q", timestamp: 0)), .key),
+        (.keyUp(KeyEvent(charactersIgnoringModifiers: "q", characters: "q", timestamp: 0)), .key)
     ]
     for (event, kind) in events {
         window.send(event)

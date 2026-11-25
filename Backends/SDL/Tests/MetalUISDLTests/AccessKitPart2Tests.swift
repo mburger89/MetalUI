@@ -54,7 +54,7 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
                                             identifier: "page.title"),
             nid("more"): AccessibilityNode(role: .link, label: "More"),
             nid("mail"): AccessibilityNode(role: .button, label: "Mail", actions: [.press],
-                                           customActions: ["Archive", "Delete"]),
+                                           customActions: ["Archive", "Delete"])
         ],
         geometry: [:], focused: nil)
     let nodes = translate(tree)
@@ -98,7 +98,7 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
             nid("off"): AccessibilityNode(role: .row, label: "Off", rowIndex: 0, isSelectable: true),
             nid("on"): AccessibilityNode(role: .row, label: "On", isSelected: true, rowIndex: 1,
                                          isSelectable: true),
-            nid("plain"): AccessibilityNode(role: .row, label: "Plain", rowIndex: 2),
+            nid("plain"): AccessibilityNode(role: .row, label: "Plain", rowIndex: 2)
         ],
         geometry: [:], focused: nil)
     let nodes = translate(tree)
@@ -221,7 +221,7 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
                     && accesskit_node_role(c) == accesskit_node_role(b)
                     && accesskit_node_is_selected(c).has_value == accesskit_node_is_selected(b).has_value
             }
-        },
+        }
     ]
     // The four outline fields (`OG-F`) are read off an outline's own nodes: a list that `isOutline` is a `TREE`, a row with an
     // `outlineLevel` a `TREE_ITEM` at that level plus one, `isExpanded` its `expanded`, and `disclosedBy` nests it under its
@@ -248,7 +248,7 @@ private func customActions(_ c: OpaquePointer) -> [(Int32, String?)] {
                 let shifted = translate(AccessibilityTree(roots: [nid("t")], nodes: [nid("t"): table, nid("r"): row],
                                                           geometry: [:], focused: nil), ids: AccessKitIDs())
                 return shifted.first { $0.role == .table }?.rowCount == 11 && shifted.first { $0.role == .row }?.rowIndex == 5
-            }(),
+            }()
         ]
     }()
     for (field, holds) in outlineArms.sorted(by: { $0.key < $1.key }) { #expect(holds, "\(field)'s arm") }

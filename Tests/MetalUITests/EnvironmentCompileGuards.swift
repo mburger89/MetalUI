@@ -311,7 +311,6 @@ func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
             "every public environment writer must compile outside the module:\n\(result.output)")
 }
 
-
 /// **G1 (C14-c, `EE-C`) — an environment probe cannot be read outside the module.** `Environment`'s probe and
 /// `EnvironmentReading` are internal: no new public declaration. Mutation: `probe` made `public` reddens the
 /// first half (the member resolves); `EnvironmentReading` made `public` reddens the second.

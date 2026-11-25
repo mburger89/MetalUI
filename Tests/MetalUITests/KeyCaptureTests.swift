@@ -132,7 +132,7 @@ private let f10 = "\u{f70d}"
         Stage(name: "F10", focus: 0, event: key(f10),
               observe: { w, _ in w.window.menuSession != nil }),
         Stage(name: "Tab", focus: 0, event: key("\t"),
-              observe: { w, _ in w.window.focusedElement == w.focusables[1] }),
+              observe: { w, _ in w.window.focusedElement == w.focusables[1] })
     ]
 }
 

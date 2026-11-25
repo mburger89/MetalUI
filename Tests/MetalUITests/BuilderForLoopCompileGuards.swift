@@ -80,7 +80,7 @@ func aForLoopOverAnOpaqueHelperIsAToolchainLimitation() throws {
             @MainActor func labels(_ texts: [String]) -> some Element {
                 ZStack { for text in texts { ProposalText(text).offset(x: Pixels(2)) } }
             }
-            """),
+            """)
     ]
     for (name, source) in remedies {
         let result = try typecheckFile(source, importing: "MetalUI")

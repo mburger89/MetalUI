@@ -6,7 +6,6 @@ import MetalUIScene
 import MetalUITerminal
 import MetalUITextSystem
 
-
 /// The terminal's content, internal so the public ``TerminalView`` can wrap it in `.equatable()` itself (`TRM-BD`):
 /// `Equatable` over the source object, theme, exceptions and flags, closures not compared. It holds the `@State`,
 /// the environment reads and the whole modifier chain.
@@ -75,6 +74,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
              r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle, r.accessibilityLabel)
     }
 
+    // swiftlint:disable:next function_parameter_count - field-by-field equality of the view inputs, one parameter per input
     static func same(_ ls: TerminalSnapshotSource, _ lt: TerminalPalette, _ le: [KeyboardShortcut], _ lo: Bool, _ lc: Bool, _ lb: Bool, _ lbb: Bool, _ lcs: TerminalCursorStyle, _ lal: String,
                      _ rs: TerminalSnapshotSource, _ rt: TerminalPalette, _ re: [KeyboardShortcut], _ ro: Bool, _ rc: Bool, _ rb: Bool, _ rbb: Bool, _ rcs: TerminalCursorStyle, _ ral: String) -> Bool {
         ls === rs && lt == rt && le == re && lo == ro && lc == rc && lb == rb && lbb == rbb && lcs == rcs && lal == ral
@@ -264,7 +264,7 @@ public struct TerminalView: Component, @MainActor Equatable {
     }
 
     /// Whether two views draw and behave alike: the same source object, theme, exceptions and flags; closures are not compared.
-    public static func == (l: TerminalView, r: TerminalView) -> Bool { 
+    public static func == (l: TerminalView, r: TerminalView) -> Bool {
         TerminalViewField.same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle, l.accessibilityLabel,
                                r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle, r.accessibilityLabel)
     }

@@ -55,14 +55,14 @@ private func ids(_ textures: [ImageTexture]) -> [ObjectIdentifier] { textures.ma
         255, 0, 0, 255,
         0, 0, 0, 0,
         10, 20, 30, 0,
-        200, 0, 0, 100,
+        200, 0, 0, 100
     ])
     #expect(SDLIcon.straightRGBA(texture) == [
         199, 100, 50, 128,
         255, 0, 0, 255,
         0, 0, 0, 0,
         0, 0, 0, 0,
-        255, 0, 0, 100,
+        255, 0, 0, 100
     ])
 }
 
@@ -74,8 +74,8 @@ private func ids(_ textures: [ImageTexture]) -> [ObjectIdentifier] { textures.ma
 @Test func anIconSurfaceIsRGBA32HoldingTheStraightBytesRowByRow() throws {
     armed()
     let texture = ImageTexture(width: 3, height: 2, premultipliedRGBA: [
-        100, 50, 25, 128,   255, 0, 0, 255,   0, 0, 0, 0,
-        10, 20, 30, 40,     0, 0, 255, 255,   1, 2, 3, 4,
+        100, 50, 25, 128, 255, 0, 0, 255, 0, 0, 0, 0,
+        10, 20, 30, 40, 0, 0, 255, 255, 1, 2, 3, 4
     ])
     let surface = try #require(SDLIcon.makeSurface([texture]))
     defer { mui_surface_destroy(surface) }
@@ -86,8 +86,8 @@ private func ids(_ textures: [ImageTexture]) -> [ObjectIdentifier] { textures.ma
     var bytes = [UInt8](repeating: 0xAB, count: 3 * 2 * 4)
     #expect(mui_surface_read_rgba(surface, &bytes, Int32(bytes.count)))
     let expected: [UInt8] = [
-        199, 100, 50, 128,  255, 0, 0, 255,   0, 0, 0, 0,
-        64, 128, 191, 40,   0, 0, 255, 255,   64, 128, 191, 4,
+        199, 100, 50, 128, 255, 0, 0, 255, 0, 0, 0, 0,
+        64, 128, 191, 40, 0, 0, 255, 255, 64, 128, 191, 4
     ]
     #expect(bytes == expected)
     #expect(bytes == SDLIcon.straightRGBA(texture))

@@ -201,7 +201,7 @@ private func decl(_ title: String, _ role: ButtonRole? = nil) -> AlertButtons.De
         ("C12", [decl("Delete", .destructive)],
          [plat("Delete", destructive: true), plat("Cancel", cancel: true)], [0, nil]),
         ("C1", [decl("Delete", .destructive), decl("Cancel", .cancel)],
-         [plat("Delete", destructive: true), plat("Cancel", cancel: true)], [0, 1]),
+         [plat("Delete", destructive: true), plat("Cancel", cancel: true)], [0, 1])
     ]
     for (name, input, buttons, runs) in rows {
         let resolved = AlertButtons.resolve(input, confirmation: true)

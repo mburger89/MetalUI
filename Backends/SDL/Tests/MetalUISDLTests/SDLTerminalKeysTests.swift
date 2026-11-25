@@ -41,7 +41,7 @@ private func keyEvent(keycode: UInt32, scancode: UInt32, _ modifiers: Modifiers 
         (88, 0x4000_0058, "\r"), (89, 0x4000_0059, "1"), (90, 0x4000_005A, "2"), (91, 0x4000_005B, "3"),
         (92, 0x4000_005C, "4"), (93, 0x4000_005D, "5"), (94, 0x4000_005E, "6"), (95, 0x4000_005F, "7"),
         (96, 0x4000_0060, "8"), (97, 0x4000_0061, "9"), (98, 0x4000_0062, "0"), (99, 0x4000_0063, "."),
-        (103, 0x4000_0067, "="), (133, 0x4000_0085, ","),
+        (103, 0x4000_0067, "="), (133, 0x4000_0085, ",")
     ]
     for (scancode, keycode, character) in rows {
         let plain = try #require(character.unicodeScalars.first).value
@@ -61,7 +61,7 @@ private func keyEvent(keycode: UInt32, scancode: UInt32, _ modifiers: Modifiers 
 @Test func aKeypadScancodeThatIsANavigationKeyIsNotKeypad() {
     let rows: [(UInt32, UInt32, String)] = [
         (89, 0x4000_004D, "\u{f72b}"), (98, 0x4000_0049, "\u{f727}"), (95, 0x4000_004A, "\u{f729}"),
-        (92, 0x4000_0050, "\u{f702}"), (94, 0x4000_004F, "\u{f703}"), (99, 0x7F, "\u{f728}"),
+        (92, 0x4000_0050, "\u{f702}"), (94, 0x4000_004F, "\u{f703}"), (99, 0x7F, "\u{f728}")
     ]
     for (scancode, keycode, character) in rows {
         let event = keyEvent(keycode: keycode, scancode: scancode)

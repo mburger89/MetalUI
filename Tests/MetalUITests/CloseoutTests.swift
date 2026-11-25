@@ -449,7 +449,7 @@ private struct OptionalWithStateProbe: Element {
     var elementID: ElementID? { nil }
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        pass.withState(id, initial: Optional<Int>.some(5)) { (value: inout Int?) in
+        pass.withState(id, initial: Int?.some(5)) { (value: inout Int?) in
             MainActor.assumeIsolated { reads.layout.append(value) }
         }
         return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }.layoutNodeID, ())

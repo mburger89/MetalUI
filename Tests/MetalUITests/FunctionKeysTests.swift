@@ -8,7 +8,7 @@ import MetalUIPlatform
 // `KF-AH`: `KeyEquivalent.f1`...`.f20`, AppKit's `NSF1FunctionKey`...`NSF20FunctionKey`.
 
 private let all: [KeyEquivalent] = [
-    .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12, .f13, .f14, .f15, .f16, .f17, .f18, .f19, .f20,
+    .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12, .f13, .f14, .f15, .f16, .f17, .f18, .f19, .f20
 ]
 
 private func event(_ key: String, _ modifiers: Modifiers = [], base: String = "") -> KeyEvent {
