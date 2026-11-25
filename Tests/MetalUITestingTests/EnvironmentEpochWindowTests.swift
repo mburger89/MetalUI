@@ -52,6 +52,7 @@ struct EESchemeReader: Component, @MainActor Equatable {
     var memo = true
     @Environment(\.colorScheme) var scheme
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.n += 1
         eeCard(scheme == .dark ? "dark" : "light", dark: scheme == .dark)
     }
@@ -63,6 +64,7 @@ struct EEIntReader: Component, @MainActor Equatable {
     var memo = true
     @Environment(\.eeInt) var value
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.n += 1
         eeCard("int\(value)", dark: value % 2 == 0)
     }
@@ -73,6 +75,7 @@ struct EEFnReader: Component, @MainActor Equatable {
     let log: EELog
     @Environment(\.eeFn) var fn
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.n += 1
         eeCard("fn\(fn.run())", dark: true)
     }
@@ -83,6 +86,7 @@ struct EERefReader: Component, @MainActor Equatable {
     let log: EELog
     @Environment(\.eeRef) var ref
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.n += 1
         eeCard("ref\(ref.n)", dark: true)
     }
@@ -94,6 +98,7 @@ struct EEObjReader: Component, @MainActor Equatable {
     var memo = true
     @Environment(EEStore.self) var store
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.n += 1
         eeCard("a\(store.a)", dark: true)
     }
@@ -104,6 +109,7 @@ struct EEFocusReader: Component, @MainActor Equatable {
     let log: EELog
     @FocusState var focused: Bool
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.n += 1
         eeCard(focused ? "focused" : "plain", dark: true)
     }

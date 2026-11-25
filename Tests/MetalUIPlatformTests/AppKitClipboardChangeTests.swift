@@ -46,6 +46,7 @@ private func keyDown() -> InputEvent {
     func becomeKey() { window.notificationCenter.post(name: NSWindow.didBecomeKeyNotification, object: nsWindow) }
 
     becomeKey()
+    // swiftlint:disable:next empty_count - `Counter` is a counter class, not a Collection; it has no `isEmpty`
     #expect(counter.count == 0, "nothing changed since the handler was installed")
     foreignWrite(pasteboard, "one")
     becomeKey()

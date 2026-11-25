@@ -336,6 +336,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
         window.drawFrameIfNeeded()
         platform.simulateInput(keyDown("x"))
         if blocked {
+            // swiftlint:disable:next empty_count - `ClickCounter` is not a Collection: it has `count` but no `isEmpty`
             #expect(regions == 0 && counter.count == 0,
                     why("KeyboardModifier: under .allowsHitTesting(false) no press region and no focus — "
                         + "regions \(regions), keys heard \(counter.count)"))
@@ -491,6 +492,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
     click(shaped.platform, at: pt(55, 100))
     #expect(plainCounter.count == 1,
             "the edge point hits the control (SwiftUI H2, edge 1)")
+    // swiftlint:disable:next empty_count - `ClickCounter` is not a Collection: it has `count` but no `isEmpty`
     #expect(shapedCounter.count == 0,
             "and misses the inset one (SwiftUI H3, edge 0)")
 
@@ -517,8 +519,10 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             why("and, like the uniform one, emits nothing and moves nothing: "
                 + "\(edged.rects) vs \(plain.rects)"))
     click(edged.platform, at: pt(65, 100))
+    // swiftlint:disable:next empty_count - `ClickCounter` is not a Collection: it has `count` but no `isEmpty`
     #expect(edgedCounter.count == 0, "left inset 20: x = 65 (15 into the box) misses")
     click(edged.platform, at: pt(142, 100))
+    // swiftlint:disable:next empty_count - `ClickCounter` is not a Collection: it has `count` but no `isEmpty`
     #expect(edgedCounter.count == 0, "right inset 10: x = 142 (92 into the box) misses")
     click(edged.platform, at: pt(75, 57))
     #expect(edgedCounter.count == 1, "top inset 5: (75, 57) — (25, 7) into the box — hits")
@@ -580,6 +584,7 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
                 + "\(grown.regions)"))
 
     click(plain.platform, at: pt(120, 120))
+    // swiftlint:disable:next empty_count - `ClickCounter` is not a Collection: it has `count` but no `isEmpty`
     #expect(plainCounter.count == 0,
             "a point outside the 40x40 child misses it (SwiftUI H4, edge 0)")
     click(grown.platform, at: pt(120, 120))

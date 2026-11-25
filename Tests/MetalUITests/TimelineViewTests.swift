@@ -318,6 +318,7 @@ private struct TLCustomSchedule: TimelineSchedule {
     platform.simulateTick(timestamp: 1.0 / 60)
     #expect(wakes.cancels == 1, "the wake was cancelled")
     #expect(window.animationStore.timeline.scheduledWake == nil)
+    // swiftlint:disable:next empty_count - `TimelineStore` is not a Collection: it has `count` but no `isEmpty`
     #expect(window.animationStore.timeline.count == 0)
     let pauses = window.pausesEntered
     platform.simulateTick(timestamp: 2.0 / 60)

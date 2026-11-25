@@ -26,6 +26,7 @@ private struct PLabel: Component, @MainActor Equatable {
     @Environment(\.backgroundProminence) var prominence
     static func == (a: PLabel, b: PLabel) -> Bool { a.name == b.name }
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.note(name, prominence)
         Text(name)
     }
@@ -275,6 +276,7 @@ private struct PaintLabel: Component, @MainActor Equatable {
                 ForEach((0..<6).map { "f\($0)" }, id: \.self) { folder in
                     DisclosureGroup(isExpanded: .constant(true)) {
                         ForEach(["x", "y", "z"].map { "\(folder)/\($0)" }, id: \.self) { leaf in
+                            // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                             let _ = { calls.count += 1 }()
                             PlainLabel(name: leaf).equatable()
                         }
@@ -333,6 +335,7 @@ private struct PaintLabel: Component, @MainActor Equatable {
         ProposalScrollView {
             List(selection: model.textBinding()) {
                 ForEach((0..<60).map { "r\($0)" }, id: \.self) { id in
+                    // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                     let _ = { calls.count += 1 }()
                     Column { PlainLabel(name: id).equatable() }.tag("t-" + id)
                 }

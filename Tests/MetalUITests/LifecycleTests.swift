@@ -1137,6 +1137,7 @@ private struct LCRow: Identifiable { let id: String }
     let (window, _) = try lcWindow(size: 900) { demoContent() }
     for _ in 0..<3 { window.setNeedsRedraw(); window.drawFrameIfNeeded() }
     try #require(!window.lastScene.rects.isEmpty, "set up: the demo painted")
+    // swiftlint:disable:next empty_count - `LifecycleStore` is not a Collection: it has `count` but no `isEmpty`
     #expect(window.animationStore.lifecycle.count == 0)
     #expect(window.animationStore.lifecycle.lastFrameWork == 0)
     #expect(window.stateTable.lastDepartedValueCount == 0)

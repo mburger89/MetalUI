@@ -330,6 +330,7 @@ private let verifyNote: Comment =
     let window = try harnessWindow(size: sz(200, 200)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = box.keep(proxy)
                 ProposalScrollView {
                     LazyVStack(spacing: Pixels(0)) {

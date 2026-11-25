@@ -27,6 +27,7 @@ import Testing
 private struct IVLeaf: Component {
     let cell: IVCell
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = IVStats.leaves += 1
         Text("v\(cell.value)").frame(width: Pixels(60), height: Pixels(14))
     }
@@ -35,6 +36,7 @@ private struct IVLeaf: Component {
 private struct IVBranch<Child: Component>: Component {
     let children: [Child]
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = IVStats.branches += 1
         VStack(spacing: 0) {
             ForEach(Array(children.indices), id: \.self) { children[$0] }

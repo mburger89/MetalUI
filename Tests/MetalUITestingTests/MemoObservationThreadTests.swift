@@ -57,6 +57,7 @@ private struct MOReader: Component {
     let budget: MOBudget
     var content: some ElementGroup {
         let v = model.value
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = {
             if budget.writes > 0 { budget.writes -= 1; model.value += 1 }
         }()

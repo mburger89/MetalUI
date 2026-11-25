@@ -39,6 +39,7 @@ private struct LeafRow: Component {
     }
 
     var content: some ProposalElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = serials.seen[name] = serial
         Color.gray.frame(height: Pixels(20))
     }

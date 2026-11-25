@@ -18,8 +18,10 @@ private struct TMReader: Component, @MainActor Equatable {
     let log: TMLog
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.n += 1
         let width = measurer.resolve(Text("12.5 mm")).measure(in: tmUnbounded).width
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.width = width.value
         Text("w\(Int(width.value))").frame(width: Pixels(120), height: Pixels(16))
     }

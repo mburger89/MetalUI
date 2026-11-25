@@ -267,16 +267,19 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
     }
     let id = controlID([0, 0])
     controlClick(platform, at: controlCentre(try controlBounds(window.lastFrameBounds(), id)))
+    // swiftlint:disable:next empty_count - `ControlModel` is not a Collection: it has `count` but no `isEmpty`
     #expect(model.keys == ["caller"] && model.count == 0, "a click runs the caller's handler, not the action")
     controlRedraw(window)
     window.focus(id)
     window.drawFrameIfNeeded()
     try #require(window.focusedElement == id)
     platform.simulateInput(controlKey(" "))
+    // swiftlint:disable:next empty_count - `ControlModel` is not a Collection: it has `count` but no `isEmpty`
     #expect(model.keys == ["caller", "caller"] && model.count == 0, "Space runs what the click runs")
     let tree = try controlTree(window, platform)
     let button = try #require(tree.nodes.first { $0.value.role == .button }, "no button published")
     #expect(platform.simulateAccessibilityRequest(.press(button.key)))
+    // swiftlint:disable:next empty_count - `ControlModel` is not a Collection: it has `count` but no `isEmpty`
     #expect(model.keys == ["caller", "caller", "caller"] && model.count == 0,
             "a press runs the caller's handler: \(model.keys), action ran \(model.count)")
 }
@@ -314,6 +317,7 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
     let tree = try controlTree(window, platform)
     let button = try #require(tree.nodes.first { $0.value.role == .button })
     platform.simulateAccessibilityRequest(.press(button.key))
+    // swiftlint:disable:next empty_count - `ControlModel` is not a Collection: it has `count` but no `isEmpty`
     #expect(model.count == 0, "nothing ran while disabled")
     #expect(window.focusedElement == nil, "a disabled button takes no focus")
     #expect(button.value.isEnabled == false, "published disabled")

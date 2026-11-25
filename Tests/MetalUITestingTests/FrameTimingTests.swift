@@ -152,8 +152,11 @@ private struct WidthBox: Component {
     @State var width: Float = 20
     @State var show = false
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = holder.binding = $width
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = holder.show = $show
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = builds?.times.append(FrameTiming.now())
         Box().frame(width: Pixels(width), height: Pixels(10)).background(.accent)
         if show {

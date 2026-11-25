@@ -191,5 +191,6 @@ private final class Counter {
     try #require(table.parkedCount == 1, "premise: one parked")
     table.removeAll()
     #expect(counter.destroyed.sorted() == counter.created.sorted(), "\(counter.destroyed) vs \(counter.created)")
+    // swiftlint:disable:next empty_count - `SDLImageCursorTable<Int, Int>` is not a Collection: it has `count` but no `isEmpty`
     #expect(table.count == 0 && table.parkedCount == 0)
 }

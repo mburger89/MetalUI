@@ -49,9 +49,13 @@ private struct Form: Component {
     let model: FormModel
 
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.flag.append(flag)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.field.append(field)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.setField = { [field = $field] in field.wrappedValue = $0 }
         square().focusable().focused($flag)
         square().focusable().focused($field, equals: .a)
@@ -198,7 +202,9 @@ private struct Unfocusable: Component {
     @FocusState var flag: Bool
     let model: FormModel
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.flag.append(flag)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         square().focused($flag).id("n")
     }
@@ -359,7 +365,9 @@ private struct Unfocusable2: Component {
     @FocusState var flag: Bool
     let model: FormModel
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.flag.append(flag)
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         square().focusable().focused($flag)
     }

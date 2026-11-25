@@ -164,6 +164,7 @@ private func rootID(_ name: String) -> GlobalElementID {
     }
 
     platformWindow.simulateInput(keyDown("x"))
+    // swiftlint:disable:next empty_count - `KeyLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0, "no focused element, so no element handler ran")
     #expect(raw == ["window"], "the event reached the window instead")
 
@@ -626,6 +627,7 @@ private func rootID2() -> GlobalElementID {
         return false
     }
     platformWindow.simulateInput(keyUp("x"))
+    // swiftlint:disable:next empty_count - `KeyLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0, "keyUp is not dispatched")
     #expect(raw == ["up"], "it falls through to the window unchanged")
 

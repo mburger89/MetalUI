@@ -258,6 +258,7 @@ private struct HKFieldInRegion: Component {
     @FocusState var focused: Bool
     let m: HKLog
     var content: some ElementGroup {
+        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = m.flags.append(focused)
         Box {
             TextField("t", text: m.text) { m.text = $0 }.focused($focused).frame(width: px(100), height: px(24))

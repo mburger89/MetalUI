@@ -91,6 +91,7 @@ private func probeWindow(_ script: ProbeScript) throws -> Window {
     let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: sized(width: 100, height: 100, column: true)) {
             ScrollViewReader { proxy in
+                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = script.keep(proxy)
                 ScrollView {
                     Box(style: sized(width: 100, column: true)) {
