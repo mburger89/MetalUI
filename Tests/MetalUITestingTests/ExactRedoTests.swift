@@ -256,18 +256,23 @@ func aStreamingFrameLogsOneEntryPerWrittenState() async throws {
     let table = StateTable()
     let a = GlobalElementID.child(of: nil, at: 0, name: ElementID("a"))
     let b = GlobalElementID.child(of: a, at: 0, name: ElementID("b")), c = GlobalElementID.child(of: a, at: 1, name: ElementID("c"))
+    let d = GlobalElementID.child(of: a, at: 2, name: ElementID("d")), e = GlobalElementID.child(of: a, at: 3, name: ElementID("e"))
+    let f = GlobalElementID.child(of: a, at: 4, name: ElementID("f")), g = GlobalElementID.child(of: a, at: 5, name: ElementID("g"))
     table.withState(a, initial: 1) { $0 = 2 }
-    table.write(b, "old")
-    table.sweep()   // both entries tombstoned: unmarked, not live
+    for id in [b, d, e, f, g] { table.write(id, "old") }
+    table.sweep()   // every entry tombstoned: unmarked, not live
     let before = table.attemptDigest
     let counter = table.entryVersion(a)
     table.beginAttempt()
     table.withState(a, initial: 0) { $0 = 99 }   // rewritten
     table.write(b, 3.5)   // rewritten with another type
     table.withState(c, initial: 7) { $0 += 1 }   // created
-    table.mark(b)   // a liveness flip
+    table.mark(g)   // the four ways a tombstone is made live again, each a flip the rollback undoes
+    table.touchLive(d)
+    table.markLive(e)
+    table.mark(f, seeding: 0)
     table.markJournal.append(c); table.readJournal.append(a)
-    #expect(table.attemptLogCount == 3 && table.attemptDigest != before)
+    #expect(table.attemptLogCount == 7 && table.attemptDigest != before)
     let created = table.rollbackAttempt()
     #expect(created == [c] && table.attemptDigest == before, "rolled back")
     #expect(table.entryVersion(a) == counter && !table.attemptArmed && table.attemptLogCount == 0)
