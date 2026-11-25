@@ -150,7 +150,7 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 
 private let strings = [
     "hello world", "", "a", "مرحبا بالعالم", "שלום world", "e\u{301}a\u{301}\u{302}x", "👨‍👩‍👧‍👦 family 🇺🇸 flag 👍🏽",
-    "tab\there", "ffi fl AV To", "한글 日本語 中文",
+    "tab\there", "ffi fl AV To", "한글 日本語 中文"
 ]
 
 /// **7** The cached offsets are the old computation's, exactly (bit for bit), on a miss and on a hit, over strings with RTL,
