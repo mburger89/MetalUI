@@ -74,6 +74,7 @@ struct TerminalViewField: Component, @MainActor Equatable {
              r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle, r.accessibilityLabel)
     }
 
+    // swiftlint:disable:next function_parameter_count - field-by-field equality of the view inputs, one parameter per input
     static func same(_ ls: TerminalSnapshotSource, _ lt: TerminalPalette, _ le: [KeyboardShortcut], _ lo: Bool, _ lc: Bool, _ lb: Bool, _ lbb: Bool, _ lcs: TerminalCursorStyle, _ lal: String,
                      _ rs: TerminalSnapshotSource, _ rt: TerminalPalette, _ re: [KeyboardShortcut], _ ro: Bool, _ rc: Bool, _ rb: Bool, _ rbb: Bool, _ rcs: TerminalCursorStyle, _ ral: String) -> Bool {
         ls === rs && lt == rt && le == re && lo == ro && lc == rc && lb == rb && lbb == rbb && lcs == rcs && lal == ral

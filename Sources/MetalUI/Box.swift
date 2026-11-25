@@ -1364,7 +1364,7 @@ extension StyledElement {
     /// lowering reports by name — a production trap — except `fraction: 0` on
     /// an unsized grower, which lowers as a zero basis (measured, record §66
     /// §4). No SwiftUI counterpart.
-    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is reported by name under the proposal layout, a trap in production (LR-FO; only fraction: 0 on an unsized grower lowers); declare a length with flexBasis(_:) or a .frame (CX-C)")
+    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is reported by name under the proposal layout, a trap in production (LR-FO; only fraction: 0 on an unsized grower lowers); declare a length with flexBasis(_:) or a .frame (CX-C)") // swiftlint:disable:this line_length - the deprecation message is one sentence
     public func flexBasis(fraction: Float) -> Self {
         modifying { $0.flexBasis = .length(.percent(fraction)) }
     }
@@ -1373,7 +1373,7 @@ extension StyledElement {
     /// (`FR-T`'s third site): `flexBasis(percent: 50)` is 5000%. Since plan
     /// task 15 it carries `flexBasis(fraction:)`'s message rather than a
     /// rename to a spelling that is itself deprecated (`CX-P` item 7).
-    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is reported by name under the proposal layout, a trap in production (LR-FO; only fraction: 0 on an unsized grower lowers); declare a length with flexBasis(_:) or a .frame (CX-C)")
+    @available(*, deprecated, message: "a fraction of the containing block has no SwiftUI counterpart and is reported by name under the proposal layout, a trap in production (LR-FO; only fraction: 0 on an unsized grower lowers); declare a length with flexBasis(_:) or a .frame (CX-C)") // swiftlint:disable:this line_length - the deprecation message is one sentence
     public func flexBasis(percent: Float) -> Self {
         modifying { $0.flexBasis = .length(.percent(percent)) }
     }

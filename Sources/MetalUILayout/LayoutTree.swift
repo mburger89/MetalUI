@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - the layout tree and its passes are one unit
 import MetalUICore
 
 /// A handle to one node in one `LayoutTree`.
@@ -44,7 +45,7 @@ public struct LayoutNodeID: Hashable, Sendable {
 /// `@MainActor` monotonic counter, so no two live trees share a generation —
 /// verify with `grep -rn "LayoutTree(" Sources/`. Tests that never exchange ids
 /// between trees pass `0` and lose nothing by it.
-public final class LayoutTree {
+public final class LayoutTree { // swiftlint:disable:this type_body_length - structure-of-arrays storage plus every layout pass over it
     private var childLists: [[LayoutNodeID]] = []
     private var layouts: [LayoutRect] = []
     private var measuredWidths: [Double] = []
@@ -2475,7 +2476,7 @@ extension LayoutTree {
     /// contextual marks and its children's signatures in order. `nil` (unmatchable)
     /// for an unkeyed leaf, a non-`Hashable` custom layout, or any node with such
     /// a child. A node id never enters.
-    private func nodeSignature(_ index: Int, _ signatures: [LayoutSignature?]) -> LayoutSignature? {
+    private func nodeSignature(_ index: Int, _ signatures: [LayoutSignature?]) -> LayoutSignature? { // swiftlint:disable:this cyclomatic_complexity - one switch over every layout kind
         var h = SignatureBuilder()
         let children = childLists[index]
         guard let node = nativeNodes[index] else { return nil }

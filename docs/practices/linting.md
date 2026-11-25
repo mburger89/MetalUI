@@ -19,16 +19,18 @@ Four things are tuned rather than disabled:
   expected value and `.isEmpty` does not compile for an optional. Both rules stay on for sources.
 - **`switch_case_alignment`** ignores a whole `switch` written on one line.
 
+Metric outliers are not in the baseline: a metric message carries its count (`currently contains 5221`), so any
+edit would unmatch the entry. Each carries an inline disable with a reason instead (below).
 Existing violations are frozen in `.swiftlint-baseline.json`, so the check prints only
 **new** ones:
 
 ```bash
-swiftlint lint --baseline .swiftlint-baseline.json     # must print nothing on master
+swiftlint lint --strict --baseline .swiftlint-baseline.json     # must print nothing and exit 0 on master
 ```
 
 The `Lint` workflow runs the same command (SwiftLint 0.65.1, the `ghcr.io/realm/swiftlint`
 container) on every pull request and master push, shows new violations as annotations and
-fails the check on any.
+fails the check on any. `--strict` is what makes warnings fail; without it only errors do.
 
 After fixing baselined violations, refresh the baseline so it shrinks:
 
@@ -47,9 +49,9 @@ explicit init whose doc comment recorded why it is internal. Review every hunk o
 ## What each formerly disabled rule measured, and what was decided (2026-11-24)
 
 "Hits" is the count over `Sources`, `Tests`, `Backends/SDL` and `Examples` with the rule on
-and its default options. "Left" is what remains: **0** when the tree is clean, otherwise the
-number of baselined entries (in the hot directories `Sources/MetalUI` and
-`Sources/MetalUITextSystem`, or deliberate outliers).
+and its default options. "Left" is what remains: **0** when the tree is clean, otherwise the number of baselined
+entries (formatting rules, in the hot directories `Sources/MetalUI` and `Sources/MetalUITextSystem`)
+or, for metric rules, of inline-suppressed outliers (listed below).
 
 | Rule | Hits | Decision | Left | Reason / settings |
 |---|---:|---|---:|---|
@@ -89,6 +91,20 @@ number of baselined entries (in the hot directories `Sources/MetalUI` and
 | `discouraged_optional_boolean` | 57 | **off** (opt-in) | n/a | `Bool?` is a deliberate tri-state (unset, yes, no), as in SwiftUI. |
 | `optional_data_string_conversion` | 193 | **off** | n/a | Most sites decode `[UInt8]` or `ArraySlice<UInt8>` (terminal, Markdown, code buffer, subprocess output), which `String(data:encoding:)` cannot take. The rest decode pipe, process and clipboard `Data`, where the replacement-character result is the intent. |
 
+## Split candidates (inline-suppressed metric outliers)
+
+Each has `// swiftlint:disable[:next|:this] <rule> - <reason>` at its declaration, and is not split now
+because that is refactoring that collides with in-flight perf branches. Split when next touched, and
+delete the suppression.
+
+- `file_length`: `Frame.swift`, `Window.swift`, `LayoutTree.swift`, `NativeGridTests.swift`, `AnimationTests.swift`.
+- `type_body_length`: `Frame`, `Window`, `LayoutTree`, `CodeDecorations`.
+- `function_body_length` and `cyclomatic_complexity`: `CodeViewPlan` `makePlan` and `paintContent`, `Window.init`;
+  `TableBody`, `main.swift` `runDemo`, `GridElementTests`, `ModifierTests`, `OuterModifierMatrixTests` (length);
+  `LegacyLowering`, `TextEditing`, `LayoutTree` (2478), `TerminalEmulator+Controls` (two), `TerminalViewModel` (complexity).
+- `function_parameter_count`: `TerminalView.same`, `SDLReplayer.draw`. `large_tuple`: `RichTextPaint.pending`.
+  `line_length`: two `@available` messages in `Box.swift`.
+
 ## Deferred: the hot-directory reformat
 
 `Sources/MetalUI` and `Sources/MetalUITextSystem` carry open perf branches, so a tree-wide
@@ -107,7 +123,6 @@ build, and regenerate the baseline.
 | `comma` | 3 | the aligned columns in `Stack.swift`: realign with single spaces |
 | `control_statement`, `opening_brace`, `empty_parentheses_with_trailing_closure` | 1 each | `swiftlint --fix` |
 | `for_where` | 3 | false positives (`inout`, early return); inline disable with a reason |
-| metric rules | 31 | not reformat work: split the function, type or file when it is next touched |
 
 Use a throwaway config with `only_rules:` for the correctable rules above and `included:` set to
 the two directories, and run `swiftlint --fix --config <file>`.

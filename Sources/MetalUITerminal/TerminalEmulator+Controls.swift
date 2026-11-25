@@ -55,6 +55,7 @@ extension TerminalEmulator {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity - the control-code table, one case per code
     func csi(_ p: CSIParameters, final: UInt8) {
         if p.prefix == 0x3F {
             csiPrivate(p, final: final)
@@ -241,7 +242,7 @@ extension TerminalEmulator {
 
     /// SGR (`TRM-AD`): `;` and `:` forms, 16, 256 and 24-bit colours, underline styles. A malformed extended
     /// colour ends the sequence there; what came before it applies.
-    func sgr(_ p: CSIParameters) {
+    func sgr(_ p: CSIParameters) { // swiftlint:disable:this cyclomatic_complexity - the mode table, one case per mode
         let values = p.values
         if values.isEmpty {
             resetPenKeepingLink()

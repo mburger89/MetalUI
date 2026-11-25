@@ -288,7 +288,7 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
 /// grep does not see it, which is worth knowing before anyone re-derives the
 /// number and lands on 48.
 @MainActor
-@Test func everyPublicModifierWritesItsOwnFieldAndOnlyThatField() {
+@Test func everyPublicModifierWritesItsOwnFieldAndOnlyThatField() { // swiftlint:disable:this function_body_length - one matrix over every public modifier
     let cases: [ModifierCase] = [
         // MARK: Identity and paint
         ModifierCase(name: "id(_:)",

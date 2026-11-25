@@ -1,5 +1,5 @@
 # SwiftLint, blocking. Existing violations are frozen in .swiftlint-baseline.json;
-# the step prints only violations that are not in it, as PR annotations, and fails on any.
+# the step prints only violations that are not in it, as PR annotations; --strict makes warnings fail too (without it only errors do).
 # See docs/practices/linting.md.
 name: Lint
 
@@ -26,4 +26,4 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: SwiftLint (new violations only)
-      run: swiftlint lint --baseline .swiftlint-baseline.json --reporter github-actions-logging
+      run: swiftlint lint --strict --baseline .swiftlint-baseline.json --reporter github-actions-logging

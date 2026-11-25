@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - one suite over every animation behaviour
 import Testing
 import Observation
 import MetalUICore

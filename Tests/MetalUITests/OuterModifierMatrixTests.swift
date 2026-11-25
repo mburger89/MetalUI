@@ -382,7 +382,7 @@ private struct ProposalMatrixRow {
 /// Red-before (record §49 §6.3): **M3.5** `.padding(_:)` made self-storing
 /// (writes `Style.padding` on the receiver, its wrapper layer empty) reddens the
 /// `padding(_:)` row; one mutation per other kind is recorded beside it.
-@Test @MainActor func everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority() throws {
+@Test @MainActor func everyOuterModifierIsTheKindTheMatrixSaysUnderTheProposalAuthority() throws { // swiftlint:disable:this function_body_length - one matrix over every outer modifier
     let rows: [ProposalMatrixRow] = [
         // MARK: wraps
         ProposalMatrixRow(name: "padding(_:)", path: "legacy Element", kinds: [.wraps],

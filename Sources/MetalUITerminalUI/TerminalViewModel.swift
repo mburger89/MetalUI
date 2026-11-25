@@ -301,7 +301,7 @@ final class TerminalViewModel {
 
     /// What the surface's `draw` runs. `sink` is nil on a context with no grid sink (a headless test window): the
     /// whole policy runs and is counted, nothing is recorded.
-    func draw(into sink: SurfaceTextSink?, time: Double, isNewTarget: Bool,
+    func draw(into sink: SurfaceTextSink?, time: Double, isNewTarget: Bool, // swiftlint:disable:this cyclomatic_complexity - one switch over every key and mouse input
               clear: (Float, Float, Float, Float) -> Void) {
         statistics.draws += 1
         guard let cache, let colors else { return }

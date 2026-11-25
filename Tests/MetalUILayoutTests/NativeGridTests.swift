@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - one corpus of native-grid cases
 import Testing
 import MetalUICore
 @testable import MetalUILayout

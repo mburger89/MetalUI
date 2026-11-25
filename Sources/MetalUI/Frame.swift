@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - the frame builder and its paint primitives are one unit
 import Foundation
 import MetalUICore
 import MetalUILayout
@@ -29,7 +30,7 @@ import MetalUIPlatform
 /// that half is a convention, and `codeOutsideTheFrameworkCannotFabricateAPaintPass`
 /// pins the half that is enforced.
 @MainActor
-public final class Frame {
+public final class Frame { // swiftlint:disable:this type_body_length - the frame builder: every paint primitive shares one buffer set
     /// The space offered to the root element, in logical points.
     public let contentSize: Size<Pixels>
 
