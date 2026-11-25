@@ -172,6 +172,10 @@ public final class LayoutTree { // swiftlint:disable:this type_body_length - str
     /// `nativeLayoutWorkIsPerCall`. Its getter is **`package`** since the
     /// test harness (`HT-C` item 2): `TestingHooks.swift` reads it.
     package private(set) var lastNativeLayoutWork = NativeLayoutWork()
+    /// How many measurements the last `computeNativeLayout` and the last `measureNativeLayout` cached (`G51`): the next run of
+    /// the same entry point reserves that many, so its cache is not regrown from empty. A count, not a buffer.
+    private var computeCacheHint = 0
+    private var measureCacheHint = 0
 
     /// The deepest native recursion level the last native layout call reached —
     /// `NativeLayoutRun`'s own `depth` at its maximum, the quantity its `maxDepth`
@@ -736,13 +740,14 @@ public final class LayoutTree { // swiftlint:disable:this type_body_length - str
                                  placement: (LayoutMeasurement) -> LayoutRect) -> LayoutMeasurement {
         beginLayout()
         defer { endLayout() }
-        let run = NativeLayoutRun(tree: self)
+        let run = NativeLayoutRun(tree: self, cacheHint: computeCacheHint)
         activeNativeRun = run
         defer {
             run.isActive = false
             activeNativeRun = nil
             lastNativeLayoutWork = run.work
             lastNativeLayoutDeepestLevel = run.deepestLevel
+            computeCacheHint = run.cache.count
         }
         prepareMemo(run: run, root: root)
         // `VF-B`: a run owns the choices of its own subtree (a frame runs several roots over one tree).
@@ -776,13 +781,14 @@ public final class LayoutTree { // swiftlint:disable:this type_body_length - str
     package func measureNativeLayout(root: LayoutNodeID, proposal: ProposedSize) -> LayoutMeasurement {
         beginLayout()
         defer { endLayout() }
-        let run = NativeLayoutRun(tree: self)
+        let run = NativeLayoutRun(tree: self, cacheHint: measureCacheHint)
         activeNativeRun = run
         defer {
             run.isActive = false
             activeNativeRun = nil
             lastNativeLayoutWork = run.work
             lastNativeLayoutDeepestLevel = run.deepestLevel
+            measureCacheHint = run.cache.count
         }
         prepareMemo(run: run, root: root)
         return measureNative(root, proposal: proposal, run: run)

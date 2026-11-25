@@ -139,7 +139,12 @@ final class NativeLayoutRun {
     /// The nodes reachable from the run's root, in pre-order, when `memo` is set.
     var order: [Int] = []
 
-    init(tree: LayoutTree) { self.tree = tree }
+    /// `cacheHint` is how many measurements the same kind of call cached last time: the cache is made at that size, so a
+    /// frame's run grows no dictionary on the way (`G51`). Nothing is carried but the count.
+    init(tree: LayoutTree, cacheHint: Int = 0) {
+        self.tree = tree
+        if cacheHint > 0 { cache.reserveCapacity(cacheHint) }
+    }
 
     /// Closes one recording: the keys logged since `mark`, each once, and the log emptied when no recording is open.
     func takeFootprint(since mark: (measures: Int, placements: Int)) -> LayoutMemo.Footprint {

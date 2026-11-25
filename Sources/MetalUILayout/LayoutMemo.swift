@@ -203,12 +203,15 @@ package final class LayoutMemo {
     /// Closes a frame: what was not used or stored this frame and was not used
     /// last frame is dropped.
     package func endFrame() {
+        // Each generation is made again at what the one before it held (`G51`): a frame stores about what the last one did, and
+        // growing an empty dictionary to that size is a run of rehashes of up to 70 KiB each. The size follows the count both
+        // ways, so a smaller frame shrinks it.
         previousMeasurements = measurements
-        measurements = [:]
+        measurements = Dictionary(minimumCapacity: previousMeasurements.count)
         previousPlacements = placements
-        placements = [:]
+        placements = Dictionary(minimumCapacity: previousPlacements.count)
         previousTranslatedPlacements = translatedPlacements
-        translatedPlacements = [:]
+        translatedPlacements = Dictionary(minimumCapacity: previousTranslatedPlacements.count)
     }
 
     /// Drops everything.
