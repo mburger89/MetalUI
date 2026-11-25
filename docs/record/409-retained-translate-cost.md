@@ -49,4 +49,4 @@ The exit-time footprint of plain `scrollcells` is allocator timing (dirty malloc
 
 ## Counts
 
-Root 7334 tests in 79 suites (+4 over record 407's 7330, master f9d18e4d), full run green (`--build-system native`, `--no-parallel`).
+Root 7351 tests in 79 suites (+4 over record 408's 7347, master c4856407), full run green (`--build-system native`, `--no-parallel`).

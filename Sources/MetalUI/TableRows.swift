@@ -243,6 +243,9 @@ struct TableRowElement: Element, ProposalElement {
     /// The row's own fill: alternating, or (PR C) selected. `nil` paints none.
     var background: Color?
     var handlers = Handlers()
+    /// Whether the row is selected over the accent fill: its cells build, prepaint and paint with `backgroundProminence`
+    /// `.increased` (`OG-Q`).
+    var increased = false
 
     var elementID: ElementID? { name }
 
@@ -253,14 +256,24 @@ struct TableRowElement: Element, ProposalElement {
         var cursor = 0
         var nodes: [ProposalNodeID] = []
         nodes.reserveCapacity(cells.count)
-        for cell in cells { nodes.append(cell.requestLayout(under: id, at: &cursor, pass: &pass)) }
+        if increased {
+            let frame = pass.frame
+            frame.withIncreasedProminence { for cell in cells { nodes.append(cell.requestLayout(under: id, at: &cursor, pass: &pass)) } }
+        } else {
+            for cell in cells { nodes.append(cell.requestLayout(under: id, at: &cursor, pass: &pass)) }
+        }
         let node = pass.requestNativeLayout(TableRowLayout(xs: xs, widths: widths, height: height), children: nodes)
         return (node, Layout(node: node.layoutNodeID))
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout, pass: inout PrepaintPass) {
         pass.registerHandlers(handlers, at: bounds, id: id)
-        for cell in cells { cell.prepaint(pass: &pass) }
+        if increased {
+            let frame = pass.frame
+            frame.withIncreasedProminence { for cell in cells { cell.prepaint(pass: &pass) } }
+        } else {
+            for cell in cells { cell.prepaint(pass: &pass) }
+        }
     }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout, prepaint: inout Void,
@@ -268,7 +281,12 @@ struct TableRowElement: Element, ProposalElement {
         if let background {
             pass.fill(bounds, color: pass.resolve(background), cornerRadii: Corners(all: Pixels(0)))
         }
-        for cell in cells { cell.paint(pass: &pass) }
+        if increased {
+            let frame = pass.frame
+            frame.withIncreasedProminence { for cell in cells { cell.paint(pass: &pass) } }
+        } else {
+            for cell in cells { cell.paint(pass: &pass) }
+        }
     }
 }
 

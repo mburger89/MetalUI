@@ -86,7 +86,7 @@ struct RetainedAmbientMissTests {
     /// makes a new field owe a row in `EnvironmentFingerprint.differences`. **Mutation:** drop one row (reddens that field's arm).
     @Test func everyEnvironmentFingerprintFieldIsNamedWhenItDiffersAlone() throws {
         let base = EnvironmentValues().retainedFingerprint
-        try #require(Mirror(reflecting: base).children.count == 36, "a new EnvironmentFingerprint field owes a row in differences(from:) and here")
+        try #require(Mirror(reflecting: base).children.count == 37, "a new EnvironmentFingerprint field owes a row in differences(from:) and here")
         var cases: [(String, (inout EnvironmentFingerprint) -> Void)] = [
             ("isEnabled", { $0.isEnabled.toggle() }), ("layoutDirection", { $0.layoutDirection = $0.layoutDirection == .leftToRight ? .rightToLeft : .leftToRight }),
             ("locale", { $0.locale = Locale(identifier: "xx_YY") }), ("dynamicTypeSize", { $0.dynamicTypeSize = .xxxLarge }),
@@ -107,11 +107,12 @@ struct RetainedAmbientMissTests {
             ("contentMargins", { $0.contentMargins.scrollContent.top = 5 }),
             ("fieldStyle", { $0.fieldStyle = .plain }), ("editorStyle", { $0.editorStyle = .plain }),
             ("textSelectionEnabled", { $0.textSelectionEnabled.toggle() }),
+            ("backgroundProminence", { $0.backgroundProminence = .increased }),
             ("theme", { $0.theme = Theme.dark }), ("hasTextSystem", { $0.hasTextSystem.toggle() }),
         ]
         cases.append(("objects", { $0.objects[ObjectIdentifier(AMEnvBox.self)] = ObjectIdentifier(AMEnvBox.self) }))
         cases.append(("custom", { $0.custom[ObjectIdentifier(AMEnvBox.self)] = EnvironmentReading.value(7) }))
-        try #require(cases.count == 36)
+        try #require(cases.count == 37)
         for (name, change) in cases {
             var other = base; change(&other)
             #expect(base != other, "\(name): the change changes the fingerprint")

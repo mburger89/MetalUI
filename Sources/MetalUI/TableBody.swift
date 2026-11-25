@@ -265,7 +265,7 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
                     realisedIDs.append(value.id)
                     if reader != nil {
                         // The selected row's background and hint, as a `List` row's (`DD-AC` item 1): the hint writes no `$ax`.
-                        if selected { row.handlers.axNode.selectionHint = true }
+                        if selected { row.handlers.axNode.selectionHint = true; row.increased = !cellOn }
                         row.handlers.onClick = rowClick
                         row.handlers.axNode.isSelectableRow = true
                     }

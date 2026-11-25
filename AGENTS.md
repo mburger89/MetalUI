@@ -45,7 +45,7 @@ one or two sentences, not a summary.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests.
 - **Public documents:** `docs/api-overview.md`, `docs/divergences.md` (every
-  live SwiftUI difference — **240 live, next label 244**; which labels each milestone reserved, used or
+  live SwiftUI difference — **241 live, next label 250**; which labels each milestone reserved, used or
   retired: `docs/rules/divergence-labels.md`; retired labels are never reused), `docs/migration.md`, `THIRD-PARTY-NOTICES.md` (licences of the vendored C code, the bundled Lucide icons and SDL3/AccessKit, per product), `docs/verification/human-checks.md`
   (one group per milestone, each headed in the file; **not run — an agent cannot**), `docs/verification/voiceover-script.md`.
 - **Public-API inventory:** `docs/probes/closeout-public-api.sh` censuses every
@@ -68,7 +68,8 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 METALUI_RUN_100K_OUTLINE_TEST=1 swift test --filter anOutlinesWorkIsTheSameFor100kPathsAsFor500
 METALUI_RUN_1M_TABLE_TEST=1 swift test --filter aTablesWorkIsTheSameFor1MBy200AsFor1kBy20
 ```
-- **Counts (2026-11-24, `perf/g47-retained-translate-cost`, record 409): root 7334 tests in 79 suites, full run green (+4 over record 407's 7330: `RetainedTranslateCostTests`; `everyFrameChannelIsClassified` gained a row and the steady-frame pin `aNonAnimatableComponentAllocatesWhatItDid` improved 397 to 394; `--build-system native`, `--no-parallel`); divergences unchanged, 240 live, next label 244; the previous line, record 407, below.**
+- **Counts (2026-11-24, `perf/g47-retained-translate-cost`, record 409): root 7351 tests in 79 suites, full run green (+4 over record 408's 7347: `RetainedTranslateCostTests`; `everyFrameChannelIsClassified` gained a row and the steady-frame pin `aNonAnimatableComponentAllocatesWhatItDid` improved 397 to 394; `--build-system native`, `--no-parallel`); divergences unchanged, 240 live, next label 244; the previous line, record 408, below.**
+- **Counts (2026-11-24, `feat/background-prominence`, record 408): root 7347 tests in 79 suites, full run green (+17 over record 407's 7330: `BackgroundProminenceTests`; the two environment-fingerprint guards gained a row, 37 fields; `--build-system native`, `--no-parallel`); divergences 241 live (244 added), next label 250; the previous line, record 407, below.**
 - **Counts (2026-11-24, `perf/g47-graft-capture-backoff`, record 407): root 7330 tests in 79 suites, full run green (+4 `GraftCaptureBackoffTests`; no pin moved; `--build-system native`, `--no-parallel`); divergences unchanged, 240 live, next label 244; the previous line, record 406 (7326), below.**
 - **Counts (2026-11-24, `feat/shaping-trace`, record 406): root 7326 tests in 79 suites, full run green (+7 over record 405's 7319: `ShapingTraceTests` 4 and `ShapingTraceCoreTextTests` 3; `--build-system native`, `--no-parallel`); divergences unchanged; the previous line, record 405, below.**
 - **Counts (2026-11-24, `feat/code-virtual-row-readback`, record 405): root 7319 tests in 79 suites, full run green (+4 over record 402's 7315: `CodeViewPaintedVirtualRowTests`; `--build-system native`, `--no-parallel`); divergences unchanged; the previous line, record 402, below.**

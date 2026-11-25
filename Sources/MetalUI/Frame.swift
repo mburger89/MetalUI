@@ -982,6 +982,17 @@ public final class Frame {
         return body()
     }
 
+    /// Runs `body` with `backgroundProminence` `.increased` in the top environment, **in place**: no copy of the whole
+    /// values (the cost of `withEnvironment`), and the one field restored on the way out. The three phases of a selected
+    /// row each run inside it, so a component's `@Environment` read at build, and the retained fingerprint at prepaint
+    /// and paint, see the same value (`OG-Q`). Rows not selected never come through here.
+    func withIncreasedProminence<R>(_ body: () -> R) -> R {
+        let saved = environmentTop.backgroundProminence
+        environmentTop.backgroundProminence = .increased
+        defer { environmentTop.backgroundProminence = saved }
+        return body()
+    }
+
     /// A copy of the top, for a public reader: `pass.environment`, or a bind of
     /// a type that declares an `@Environment`. The framework's own reads
     /// (`theme`) read the top in place and do not come through here.

@@ -570,6 +570,7 @@ where Data.Element: Identifiable {
             .flatMap { $0.applies(to: Data.Element.ID.self) ? $0 : nil }
         selectionMenu = menuSpec
         let currentSelection = selection
+        var increased: Set<Int> = []   // `OG-Q`: the selected rows' positions in `rows`
         let rows: [Box<Row>] = data[windowStart..<windowEnd].enumerated().map { offset, datum in
             // `LH-A`: the row is named by its id's Hashable value, as a `ForEach`
             // element is (`FI-A`): ids that print alike and differ in value are two rows.
@@ -588,6 +589,7 @@ where Data.Element: Identifiable {
                     // records `isSelected` and writes no `$ax` (`DD-U` item 4).
                     rowBox.decoration.background = pass.frame.environmentTop.tint ?? Color(.accent)
                     rowBox.handlers.axNode.selectionHint = true
+                    increased.insert(offset)
                 }
                 rowBox.handlers.onClick = Self.rowClick(list: id, row: datum.id, data: data,
                                                         selection: selection, table: table)
@@ -612,7 +614,8 @@ where Data.Element: Identifiable {
                                           logicalCount: count,
                                           firstIndex: window.lowerBound,
                                           listStyle: style,
-                                          arrangement: arrangement))
+                                          arrangement: arrangement,
+                                          increased: increased))
         // Carried onto the freshly-built box so `Box.prepaint` registers the
         // click target — this type has no `prepaint` of its own to do it in.
         // `.axNode` rides the same trip: design spec §9's virtualization
@@ -1138,6 +1141,17 @@ extension ListSelection {
     var isNone: Bool {
         if case .none = self { return true }
         return false
+    }
+
+    /// Whether the binding holds a selection now — `false` for `.none` and for an empty one (`OG-Q`: a list with nothing
+    /// selected pays nothing for `backgroundProminence`).
+    @MainActor
+    var hasSelectedValue: Bool {
+        switch self {
+        case .none: return false
+        case .single(let binding): return binding.wrappedValue != nil
+        case .multi(let binding): return !binding.wrappedValue.isEmpty
+        }
     }
 
     /// Whether an id is selected, reading the binding once — nil for `.none`.

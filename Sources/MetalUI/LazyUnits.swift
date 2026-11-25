@@ -258,6 +258,7 @@ struct LazyStaticSource<G: ProposalElementGroup>: LazyUnitSource {
 @MainActor
 struct LazyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: ProposalElementGroup>: LazyUnitSource {
     let forEach: ForEach<Data, ID, Content>
+    let prebuilt = PrebuiltUnit<Content>()
 
     var lazyUnitCount: Int { forEach.data.count }
 
@@ -267,12 +268,20 @@ struct LazyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: Pr
     }
 
     func lazySelectionTag(_ unit: Int) -> AnyHashable? {
+        // Only a tagged element type has a tag: the closure is not called for the others (`OG-Q`: a content list asks every
+        // realised unit before it builds it, and an untagged `ForEach` must not run its closure twice).
+        guard Content.self is any ListRowTagged.Type else { return nil }
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
-        return (forEach.content(forEach.data[index]) as? any ListRowTagged)?.listRowTag
+        let built = forEach.content(forEach.data[index])
+        // A pre-realise ask (`LazyPrebuild.storing`, set by the engine for the unit it is about to realise) hands the built
+        // element to `realizeLazyUnit`, so the closure runs once per realised unit as it did before `OG-Q`.
+        if LazyPrebuild.storing { prebuilt.put(unit, built) }
+        return (built as? any ListRowTagged)?.listRowTag
     }
 
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {
         pass.frame.stateTable.noteWindowedParent(slot)   // `LZ-H`; never `noteLoop`
+        prebuilt.clear()
     }
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
@@ -289,7 +298,7 @@ struct LazyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: Pr
         if pass.frame.notesScrollKeys { pass.frame.noteScrollKey(scope, AnyHashable(key)) }   // `DD-K`
         pass.frame.forEachIdentityWork.elements += 1       // `FI-B`, counted per element
         if needsKey { pass.frame.forEachIdentityWork.keyed += 1 }
-        var built = forEach.content(element)
+        var built = prebuilt.take(unit) ?? forEach.content(element)
         var inner = 0
         let (nodes, layout) = built.requestProposalGroupLayout(under: scope, at: &inner, pass: &pass)
         return LazyUnitBox.make(unit: globalIndex, key: AnyHashable(LazyUnitKey(segment: segment, id: AnyHashable(key))),
@@ -332,6 +341,7 @@ struct LazyLegacyStaticSource<G: ElementGroup>: LazyUnitSource {
 @MainActor
 struct LazyLegacyForEachSource<Data: RandomAccessCollection, ID: Hashable, Content: ElementGroup>: LazyUnitSource {
     let forEach: ForEach<Data, ID, Content>
+    let prebuilt = PrebuiltUnit<Content>()
 
     var lazyUnitCount: Int { forEach.data.count }
 
@@ -341,12 +351,20 @@ struct LazyLegacyForEachSource<Data: RandomAccessCollection, ID: Hashable, Conte
     }
 
     func lazySelectionTag(_ unit: Int) -> AnyHashable? {
+        // Only a tagged element type has a tag: the closure is not called for the others (`OG-Q`: a content list asks every
+        // realised unit before it builds it, and an untagged `ForEach` must not run its closure twice).
+        guard Content.self is any ListRowTagged.Type else { return nil }
         let index = forEach.data.index(forEach.data.startIndex, offsetBy: unit)
-        return (forEach.content(forEach.data[index]) as? any ListRowTagged)?.listRowTag
+        let built = forEach.content(forEach.data[index])
+        // A pre-realise ask (`LazyPrebuild.storing`, set by the engine for the unit it is about to realise) hands the built
+        // element to `realizeLazyUnit`, so the closure runs once per realised unit as it did before `OG-Q`.
+        if LazyPrebuild.storing { prebuilt.put(unit, built) }
+        return (built as? any ListRowTagged)?.listRowTag
     }
 
     func beginLazyFrame(slot: GlobalElementID, pass: inout LayoutPass) {
         pass.frame.stateTable.noteWindowedParent(slot)   // `LZ-H`; never `noteLoop`
+        prebuilt.clear()
     }
 
     func realizeLazyUnit(_ unit: Int, globalIndex: Int, segment: Int, parent: GlobalElementID,
@@ -363,7 +381,7 @@ struct LazyLegacyForEachSource<Data: RandomAccessCollection, ID: Hashable, Conte
         if pass.frame.notesScrollKeys { pass.frame.noteScrollKey(scope, AnyHashable(key)) }
         pass.frame.forEachIdentityWork.elements += 1
         if needsKey { pass.frame.forEachIdentityWork.keyed += 1 }
-        var built = forEach.content(element)
+        var built = prebuilt.take(unit) ?? forEach.content(element)
         var inner = 0
         let (nodes, layout) = built.requestGroupLayout(under: scope, at: &inner, pass: &pass)
         return LazyUnitBox.make(unit: globalIndex,
@@ -453,4 +471,25 @@ struct LazyUnitTable {
             source.beginLazyFrame(slot: GlobalElementID(component: .positional(segment), parent: parent), pass: &pass)
         }
     }
+}
+
+/// Whether a tag ask is the engine's pre-realise one for the unit it realises next (`OG-Q`); set and cleared around that call.
+@MainActor
+enum LazyPrebuild {
+    static var storing = false
+}
+
+/// The element a `ForEach` source built to read a unit's tag, kept for the realise that follows at once (`OG-Q`), so a tagged
+/// row's closure is not called twice. A reference, so the source's value copies share it; a stale entry is refused by the
+/// unit check and dropped by the next frame's `beginLazyFrame`.
+@MainActor
+final class PrebuiltUnit<Content> {
+    private var unit = -1
+    private var content: Content?
+    func put(_ unit: Int, _ content: Content) { self.unit = unit; self.content = content }
+    func take(_ unit: Int) -> Content? {
+        defer { content = nil; self.unit = -1 }
+        return self.unit == unit ? content : nil
+    }
+    func clear() { content = nil; unit = -1 }
 }

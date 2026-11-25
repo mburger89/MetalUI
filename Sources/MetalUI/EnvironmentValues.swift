@@ -90,6 +90,15 @@ public struct EnvironmentValues {
     /// itself.
     public var isEnabled: Bool = true
 
+    /// The prominence of the background under the views of this environment — SwiftUI's
+    /// `EnvironmentValues.backgroundProminence`. `.standard` by default; a selected row of a ``List`` (flat,
+    /// `ForEach` and outline rows) or a ``Table`` reads `.increased` in its content, and only the selected rows do
+    /// (`OG-Q`). A write with `.environment(\.backgroundProminence, _)` sets it for the views below, as in SwiftUI.
+    ///
+    /// Hierarchical styles (`.primary`, `.secondary`) do **not** adapt to it here (divergence 244): read it to
+    /// choose a colour. A custom `ShapeStyle` that reads it in `resolve(in:)` does adapt.
+    public var backgroundProminence: BackgroundProminence = .standard
+
     /// The direction horizontal layout reads in. `.rightToLeft` mirrors layout as
     /// SwiftUI's does (ruling `LD-A`, divergence 25 retired); a shape's own path,
     /// gradient unit points, `trim` and `UnevenRoundedRectangle`'s corners are
@@ -524,6 +533,7 @@ public enum ControlSize: Sendable, Hashable, CaseIterable {
 /// `everyEnvironmentFieldIsInTheFingerprintOrDeclaredIrrelevant`** (a `Mirror` guard).
 struct EnvironmentFingerprint: Equatable {
     var isEnabled: Bool
+    var backgroundProminence: BackgroundProminence
     var layoutDirection: LayoutDirection
     var locale: Locale
     var dynamicTypeSize: DynamicTypeSize
@@ -602,6 +612,7 @@ extension EnvironmentFingerprint {
     func differences(from other: EnvironmentFingerprint) -> [String] {
         var out: [String] = []
         if isEnabled != other.isEnabled { out.append("isEnabled") }
+        if backgroundProminence != other.backgroundProminence { out.append("backgroundProminence") }
         if layoutDirection != other.layoutDirection { out.append("layoutDirection") }
         if locale != other.locale { out.append("locale") }
         if dynamicTypeSize != other.dynamicTypeSize { out.append("dynamicTypeSize") }
@@ -649,7 +660,8 @@ extension EnvironmentValues {
     /// The fingerprint of the built-in fields.
     var retainedFingerprint: EnvironmentFingerprint {
         EnvironmentFingerprint(
-            isEnabled: isEnabled, layoutDirection: layoutDirection, locale: locale,
+            isEnabled: isEnabled, backgroundProminence: backgroundProminence,
+            layoutDirection: layoutDirection, locale: locale,
             dynamicTypeSize: dynamicTypeSize, displayScale: displayScale,
             controlActiveState: controlActiveState,
             accessibilityReduceMotion: accessibilityReduceMotion,
