@@ -117,4 +117,4 @@ hold no layout; layouts and caret lines weigh the text). Pinned by `thePortableT
 `CaretOffsetsCacheTests` 3. 19 mutations, each killed by a named test: the earlier 13 (adapted) and the in-frame order ignored
 (`aWorkingSetOverTheBudgetReShapesTheOverageAndNoMore`), the shares giving the first table all (`theThreeTablesShareOneBudget`), the
 in-frame limit doubled, the portable `endFrame` and `trimInFrame` not bounding, and the shaped weight ignoring its text.
-Full run after the revision: root 7371 tests in 80 suites green (+15 net over master). Probe: `scratchpad/caret/G48Probe/main.swift`, set up by `setup-probe.sh <worktree>`; modes `key keyv stream table code fill`.
+Full run after the revision, master 5af26f94 merged: root 7374 tests in 80 suites green (+15 over master). Probe: `scratchpad/caret/G48Probe/main.swift`, set up by `setup-probe.sh <worktree>`; modes `key keyv stream table code fill`.
