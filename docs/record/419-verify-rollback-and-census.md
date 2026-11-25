@@ -42,6 +42,10 @@ With the backoff off, `aMirroredScrollersGrowing...` was red: the lazy window st
 
 **Piece 2 is safe to start**: with the window-wide backoff off, no scene or channel differs from a fresh window anywhere in the suite (the one real difference found, `RK-AL`, was the pre-existing graft bug above, fixed here). What Piece 2 owes: the literals above, moving to the scoped redo's values with the reason, and the eight tests' backoff expectations rewritten to the scoped quarantine; and the `multi` fixture and the digest test already run the every-step redo it makes common. The literals are **not** edited here: the product default keeps the backoff, so they are right as they stand.
 
+## Fixed after merge: a pair's two atlases started different (a harness flake, not a rollback difference)
+
+`theFixturesHoldWithTheRedoBackoffOff(arm: .transcript)` failed on CI (macOS) on every step, `testingAtlasSlots` unequal and `differences → ["glyphs"]`, and on about 1 run in 12 here. The cause is in `RPPair`, not the rollback or #435's slot rule: `TestWindow` draws its first frame before the pair pins the timeline clock (`RK-AD`), on the simulated clock anchored on `Date()` per window, a few ms apart. The `TimelineView` text of `extras: true` packed the digits of two different instants, each atlas kept them, and the later frames packed the rest after them in an order the other window did not share. With no timeline in the tree (`extras: false`) 0 of 60 pairs differed; with one, 5 of 60 did, backoff on or off. The slot layout is meant to be identical (that is what `slotDigest` is for), so the assertion is unchanged; `RPPair.init` now empties both atlases (`Window.testingReclaimAtlas`) right after the pin, before the warm frames. 150 pairs then agreed. New test `aPairOfWindowsWithATimelineStartsWithTheSameAtlas` (60 pairs, with the line removed it failed 3 runs of 3: 2, 1 and 3 pairs of 60).
+
 ## Suite, lint
 
 Root 7378 tests in 80 suites, green (`--build-system native`, `--no-parallel`); `swiftlint lint --strict --baseline` 0; the closeout checks print nothing.

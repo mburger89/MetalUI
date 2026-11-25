@@ -244,8 +244,6 @@ extension Window {
     package var testingStateReferenceClasses: [String: String] { stateTable.referenceClasses() }
     /// The glyph atlas's slot map and packer (`GL-K`).
     package var testingAtlasSlots: [String] { glyphAtlas.slotDigest }
-    /// Empties the glyph atlas between frames (`GL-A`), so a test that pinned its clock after the first frame can start the atlas again from the pinned frames (`RK-AD`).
-    package func testingReclaimAtlas() { glyphAtlas.reclaim() }
     /// Keys the last atlas attempt held when it closed, and the doublings inside attempts that were rolled back.
     package var testingAtlasAttempt: (loggedKeys: Int, growthsInAbandoned: Int) {
         (glyphAtlas.lastAttemptLoggedKeys, glyphAtlas.growthsInAbandonedAttempts)
