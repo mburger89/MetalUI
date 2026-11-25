@@ -1468,6 +1468,9 @@ extension StateTable {
         "KeyPath": .immutable, "WritableKeyPath": .immutable, "ReferenceWritableKeyPath": .immutable, "PartialKeyPath": .immutable,
         // A memo whose answer is a pure function of its argument (asking twice answers the same, so a retained double build is safe).
         "MarkdownSourceMemo": .cache,
+        // An outline's flattened rows: the group's per-frame cache, validated against its data by a read each frame and rebuilt from it, so a build twice answers once
+        // (`OG-K`).
+        "OutlineIndex": .cache,
         // A hint of row positions that every reader verifies with one read (`TBL-N`).
         "TableRowPositionCache": .cache,
         // The divider drag in progress: written by the drag gesture (input), never by a build (`TBL-S`).

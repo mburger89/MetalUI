@@ -592,8 +592,14 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
         ("clipboard", { try await xrCensus { clipboardDemoContent() } }), ("tabs", { try await xrCensus { tabStripDemoContent() } }),
         ("accessibility", { try await xrCensus { accessibilityDisplayDemoContent() } })
     ]
+    // Not in a demo: an `OutlineGroup` in a lazy stack (found by verify mode's trap on `OutlineIndex`, record 422).
+    struct Node: Identifiable { let id: String; let kids: [Node]? }
+    let tree = [Node(id: "a", kids: [Node(id: "a1", kids: nil), Node(id: "a2", kids: nil)]), Node(id: "b", kids: nil)]
+    let outlined: [(String, () async throws -> [String: String])] = [("outlineGroup", {
+        try await xrCensus { ProposalScrollView { LazyVStack(alignment: .leading, spacing: Pixels(0)) { OutlineGroup(tree, children: \.kids) { ProposalText($0.id).frame(height: Pixels(20)) } } } }
+    })]
     var found: [String: String] = [:]
-    for (name, run) in demos {
+    for (name, run) in demos + outlined {
         for (type, held) in try await run() where found[type] == nil {
             let parts = held.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
             found[type] = "\(parts[0])|\(name): \(String(parts.last ?? "").suffix(60))"
