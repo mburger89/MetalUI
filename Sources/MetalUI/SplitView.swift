@@ -5,7 +5,9 @@ import MetalUILayout
 // `HSplitView` / `VSplitView` (rulings `HS-A`...; `docs/superpowers/2026-10-30-split-view-decisions.md`).
 // Panes in a row or column with a draggable divider between each pair. The pane
 // limits are the panes' own `.frame(minWidth:idealWidth:maxWidth:)` answers, read
-// by the layout at three proposals (0, nil, infinity); the sizes the user chose
+// by the layout at three proposals (0, nil, infinity) along the axis, a probe a frame
+// answers by itself skipping the pane's content and the ideal skipped when the user's
+// sizes leave it unread (`HS-M`); the sizes the user chose
 // are one `@State` array written only by the divider's drag handler (`HS-D`).
 
 // MARK: - The autosave seam
@@ -170,16 +172,21 @@ struct SplitLayout: ProposalLayout {
         horizontal ? ProposedSize(width: main, height: cross) : ProposedSize(width: cross, height: main)
     }
 
-    private func mainOf(_ size: SizeD) -> Double { horizontal ? size.width : size.height }
     private func crossOf(_ size: SizeD) -> Double { horizontal ? size.height : size.width }
 
-    private func limits(_ measure: (Int, ProposedSize) -> SizeD, cross: Double?) -> [SplitPaneLimits] {
+    /// The panes' limits along the axis. `extent` answers one pane's main extent at a proposal; the ideal is read only when
+    /// `needsIdeal` (`HS-M`): `SplitSolver.solve` starts from the user's sizes when it has one per pane and reads the ideal
+    /// of no pane then. An unread ideal is the minimum (the initialiser clamps it there), a value nothing reads.
+    private func limits(_ extent: (Int, ProposedSize) -> Double, cross: Double?, needsIdeal: Bool) -> [SplitPaneLimits] {
         (0..<paneCount).map { index in
-            SplitPaneLimits(minimum: mainOf(measure(index, proposal(main: 0, cross: cross))),
-                            ideal: mainOf(measure(index, proposal(main: nil, cross: cross))),
-                            maximum: mainOf(measure(index, proposal(main: .infinity, cross: cross))))
+            SplitPaneLimits(minimum: extent(index, proposal(main: 0, cross: cross)),
+                            ideal: needsIdeal ? extent(index, proposal(main: nil, cross: cross)) : 0,
+                            maximum: extent(index, proposal(main: .infinity, cross: cross)))
         }
     }
+
+    /// Whether `SplitSolver.solve` reads the panes' ideals: when `preferred` does not give every pane a size.
+    private var solveReadsIdeals: Bool { preferred?.count != paneCount }
 
     private var dividersExtent: Double { Double(Swift.max(0, paneCount - 1)) * thickness }
 
@@ -188,7 +195,9 @@ struct SplitLayout: ProposalLayout {
         let offeredCross = horizontal ? offer.height : offer.width
         let cross = offeredCross.flatMap { $0.isFinite ? $0 : nil }
         let measure: (Int, ProposedSize) -> SizeD = { subviews[$0].sizeThatFits($1).size }
-        let paneLimits = limits(measure, cross: cross)
+        // `HS-M`: the ideals also give the main size of a nil or infinite proposal.
+        let ideals = solveReadsIdeals || !(offeredMain?.isFinite ?? false)
+        let paneLimits = limits({ subviews[$0].extent(horizontal: horizontal, $1) }, cross: cross, needsIdeal: ideals)
         // `HS-J`: SwiftUI's split view answers the proposal it is offered, infinity included (probe
         // `swiftui-nested-split-sizing.swift`), so a nested split view takes its share of its parent's axis. A nil
         // proposal keeps the sum of the panes' ideals (SwiftUI answers 0).
@@ -221,8 +230,7 @@ struct SplitLayout: ProposalLayout {
         let origin = horizontal ? bounds.x : bounds.y
         let main = horizontal ? bounds.width : bounds.height
         let cross = horizontal ? bounds.height : bounds.width
-        let measure: (Int, ProposedSize) -> SizeD = { subviews[$0].sizeThatFits($1).size }
-        let paneLimits = limits(measure, cross: cross)
+        let paneLimits = limits({ subviews[$0].extent(horizontal: horizontal, $1) }, cross: cross, needsIdeal: solveReadsIdeals)
         let sizes = SplitSolver.solve(paneLimits, preferred: preferred, available: main - dividersExtent)
         report.sizes = sizes
         report.minimums = paneLimits.map(\.minimum)

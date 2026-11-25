@@ -1651,6 +1651,13 @@ public final class LayoutTree { // swiftlint:disable:this type_body_length - str
         func mainLength(_ measurement: LayoutMeasurement) -> Double {
             axis == .horizontal ? measurement.size.width : measurement.size.height
         }
+        // `HS-M`: the probes below read only the main axis, so a frame whose main answer no child can change (a greedy
+        // `frame(maxWidth: .infinity)` at ∞, a `frame(minWidth:maxWidth:)` at any proposal) answers without measuring
+        // its subtree. The same number `measureNative` would give: `determinedExtent` and `framedSize` share one expression.
+        func mainExtent(_ node: LayoutNodeID, _ proposal: ProposedSize) -> Double {
+            determinedExtent(node, proposal: proposal, horizontal: axis == .horizontal)
+                ?? mainLength(measureNative(node, proposal: proposal, run: run))
+        }
         // PA-F: a given spacing sums `n - 1` copies from 0 in order, as the array's `reduce` did (bit-equal floats),
         // without the array.
         let gaps: Double
@@ -1686,14 +1693,13 @@ public final class LayoutTree { // swiftlint:disable:this type_body_length - str
                 }
                 var reservedTotal = 0.0
                 for index in lower {
-                    reservedTotal += mainLength(measureNative(nodes[index], proposal: offer(0), run: run))
+                    reservedTotal += mainExtent(nodes[index], offer(0))
                 }
                 let reserved = reservedTotal
                 if members.count > 1 {
                     var flexibility = Array(repeating: 0.0, count: nodes.count)
                     for index in members {
-                        flexibility[index] = mainLength(measureNative(nodes[index], proposal: offer(.infinity), run: run))
-                            - mainLength(measureNative(nodes[index], proposal: offer(0), run: run))
+                        flexibility[index] = mainExtent(nodes[index], offer(.infinity)) - mainExtent(nodes[index], offer(0))
                     }
                     members.sort { lhs, rhs in
                         let (l, r) = (flexibility[lhs], flexibility[rhs])
@@ -1902,21 +1908,61 @@ public final class LayoutTree { // swiftlint:disable:this type_body_length - str
     /// - **The ideal branch stays second.** It is unreachable from the first —
     ///   the greedy branch requires a non-nil proposal — so the order is
     ///   documentation rather than logic, but swapping the two is one of test
-    ///   1.4's mutations.
+    ///   1.4's mutations. (Since `HS-M` both live in ``framedDetermined(proposal:fixed:ideal:min:max:)``, in
+    ///   that order, with the answers no child can change.)
     private func framedSize(_ child: Double, proposal: Double?, fixed: Double?, ideal: Double?,
                             min: Double?, max: Double?) -> Double {
-        if let fixed { return fixed }
+        if let known = framedDetermined(proposal: proposal, fixed: fixed, ideal: ideal, min: min, max: max) { return known }
         let lo = Swift.max(0, min ?? 0)
         let hi = max.map { Swift.max(0, $0) } ?? .infinity
         let base: Double
         if max != nil, let proposal {
-            base = min == nil ? Swift.max(proposal, child) : proposal
-        } else if proposal == nil, let ideal {
-            base = ideal                         // probes C1, C3, C4
+            base = Swift.max(proposal, child)    // `min == nil` here: a minimum answers `framedDetermined`
         } else {
             base = child                         // probes C control, D6-D9, D14, D15
         }
         return Swift.max(lo, Swift.min(base, hi))
+    }
+
+    /// One axis of a frame's answer when **no child can change it** (ruling `HS-M`), else `nil`: the cases of
+    /// ``framedSize(_:proposal:fixed:ideal:min:max:)`` that never read `child`. Probe
+    /// `swiftui-flex-frame-determined.swift` records each as SwiftUI answers it over children of 10, 500 and 1500 points:
+    ///
+    /// - a **fixed** size answers itself;
+    /// - a **maximum and a minimum** with a proposal answer `clamp(proposal, min, max)` (`H14`);
+    /// - a **maximum alone** with a proposal at or above it answers it (`max(proposal, child) >= proposal >= max`,
+    ///   `D4`, `D12`);
+    /// - **no proposal and an ideal** answer `clamp(ideal, min, max)` (`C1`, `C3`, `C4`).
+    ///
+    /// `framedSize` takes these first, so the answer it gives and the one ``determinedExtent(_:proposal:horizontal:)``
+    /// gives are one expression.
+    private func framedDetermined(proposal: Double?, fixed: Double?, ideal: Double?,
+                                  min: Double?, max: Double?) -> Double? {
+        if let fixed { return fixed }
+        let lo = Swift.max(0, min ?? 0)
+        let hi = max.map { Swift.max(0, $0) } ?? .infinity
+        if max != nil, let proposal {
+            if min != nil { return Swift.max(lo, Swift.min(proposal, hi)) }
+            if proposal >= hi { return Swift.max(lo, Swift.min(proposal, hi)) }
+        } else if proposal == nil, let ideal {
+            return Swift.max(lo, Swift.min(ideal, hi))
+        }
+        return nil
+    }
+
+    /// The extent along one axis that node `id` answers to `proposal` **without measuring anything**, or `nil` when the
+    /// answer reads a child (ruling `HS-M`). Only a `frame` node can know: see ``framedDetermined(proposal:fixed:ideal:min:max:)``.
+    /// For a caller that reads one axis of an answer (a stack's flexibility probe, a split view's pane limits); it is
+    /// exactly that axis of ``measureNative(_:proposal:run:)``'s answer, and it costs no measurement, no cache entry and no
+    /// work count.
+    package func determinedExtent(_ id: LayoutNodeID, proposal: ProposedSize, horizontal: Bool) -> Double? {
+        precondition(!(proposal.width?.isNaN ?? false) && !(proposal.height?.isNaN ?? false),
+                     "native layout received a NaN proposal \(proposal) at node \(id) (SA-J)")
+        guard case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth,
+                          let minHeight, let idealHeight, let maxHeight, _) = nativeNode(id) else { return nil }
+        return horizontal
+            ? framedDetermined(proposal: proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth)
+            : framedDetermined(proposal: proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight)
     }
 
     /// One axis of `newNativeFrame`'s validation (ruling SA-J); `axis` and

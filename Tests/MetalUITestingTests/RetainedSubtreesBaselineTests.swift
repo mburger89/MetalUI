@@ -67,10 +67,12 @@ func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
     // R4-3a (`SR-G`): the top bar's segmented `Picker` is now one native node (`PickerTitleLayout`) with a signature
     // and a memo hit, and it asks its title and control up to four times: 52 -> 57 measures, 366 -> 365 and 217 -> 223
     // cache hits and misses, 1258 -> 1259 memo hits, 844 -> 845 signature nodes (re-counted retention off; record 210).
+    // `HS-M` (record 413): a stack's flexibility probe of a frame no child can change is its own answer, no measurement: 365 -> 323
+    // cache hits, 223 -> 207 misses, 1259 -> 1097 memo hits (57 leaf measures, 55 memo misses and 845 signature nodes unmoved).
     #expect(f.layoutMeasureCalls == 57)
-    #expect(f.layoutCacheHits == 365)
-    #expect(f.layoutCacheMisses == 223)
-    #expect(f.layoutMemoHits == 1259)
+    #expect(f.layoutCacheHits == 323)
+    #expect(f.layoutCacheMisses == 207)
+    #expect(f.layoutMemoHits == 1097)
     #expect(f.layoutMemoMisses == 55)
     #expect(f.layoutMemoRootHits == 0)
     #expect(f.layoutSignatureNodes == 845)
