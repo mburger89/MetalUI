@@ -29,7 +29,7 @@ once its boxes merged into `TextTargetHooks`, `CV-W`) through class-boxed closur
 
 **`METALUI_TRACE_SHAPING=1` (`TS-E`, record 406)** prints one line per frame that looked a shape up (hits, misses, each missed string with its font, size, width and options; `uncached:` for the portable styled `layOut`; a `caretOffsets` lookup is a hit or a miss like any shape, `TS-F`). A new text system or cache records through `ShapingTrace.Recorder` behind `if ShapingTrace.active`, building no string while it is off.
 
-**`caretOffsets` is cached and `ShapingCache` is bounded (`TS-F`, record 411).** Both text systems answer `caretOffsets` from a `(string, font)` cache, so a field may read it in every phase; a new caller never needs its own memo. Each `ShapingCache` dictionary holds at most 4096 entries and 512 KiB of source text after a frame (oldest generation first): a new cache or memo on the frame path states its bound and evicts to it, and `fonts`/`resolvedFonts` stay the only unbounded ones (by distinct fonts).
+**`caretOffsets` is cached and the text caches share one budget (`TS-F`, record 411).** Both text systems answer `caretOffsets` from a `(string, font)` cache, so a field may read it in every phase; a new caller never needs its own memo. A system's cache tables together hold at most 1024 entries and 192 KiB of weight after a frame (`TextCacheBudget`, oldest generation first), a quarter more inside one: a new cache or memo on the frame path joins that budget or states its own, and `fonts`/`resolvedFonts` stay the only unbounded ones (by distinct fonts).
 
 **Text.** `Text`/`ProposalText` measure and draw **only through
 `Frame.textSystem`** (`TS-A`); a new text-drawing element goes through the

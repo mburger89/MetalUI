@@ -20,11 +20,11 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     return perFrame
 }
 
-/// **1** A working set at or below the cap misses once per string, ever: 60 strings looped for 40 frames under a cap of 64
-/// shape 60 times, in the plain, the styled-free and the caret dictionaries alike. **Mutations:** `bound` evicting at
-/// `entries - 1`; `endFrame` calling `bound` with `entries: 0`.
-@MainActor @Test func aWorkingSetAtOrBelowTheCapNeverMissesTwice() {
-    let cache = ShapingCache(entryCap: 64, costCap: 1 << 19)
+/// **1** A working set at or below the budget misses once per string, ever: 60 shapes and 60 caret lines looped for 40 frames
+/// under a budget of 128 entries miss 120 times. **Mutations:** `TextCacheBudget.cut`
+/// cutting at `entries - 1`; `endFrame` calling `bound` with `entries: 0`.
+@MainActor @Test func aWorkingSetAtOrBelowTheBudgetNeverMissesTwice() {
+    let cache = ShapingCache(entryLimit: 128, costLimit: 1 << 20)
     let perFrame = misses(cache, frames: 40) { _ in
         for i in 0..<60 {
             _ = cache.shaped("row \(i)", font: font, wrappingAt: 100)
@@ -35,24 +35,23 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     #expect(cache.storageCount == 60 && cache.caretStorageCount == 60)
 }
 
-/// **2** A live set over the cap re-shapes the overage and no more, every frame, and holds the cap: 100 strings under a cap
-/// of 64 miss 36 a frame after the first, not 100 (the loop a strict LRU turns into all misses). **Mutations:** `bound`
+/// **2** A live set over the budget re-shapes the overage and no more, every frame, and holds the budget: 100 strings under 64 miss 36 a frame after the first, not 100 (the loop a strict LRU turns into all misses). **Mutations:** `bound`
 /// evicting the newest generation first (the hot string below is lost); `bound` stopping at `entries * 2` (the count
 /// check); the within-generation drop keyed by insertion order (every frame misses 100).
-@MainActor @Test func aWorkingSetOverTheCapReShapesTheOverageAndNoMore() {
-    let cache = ShapingCache(entryCap: 64, costCap: 1 << 19)
+@MainActor @Test func aWorkingSetOverTheBudgetReShapesTheOverageAndNoMore() {
+    let cache = ShapingCache(entryLimit: 64, costLimit: 1 << 20)
     let perFrame = misses(cache, frames: 12) { _ in
         for i in 0..<100 { _ = cache.shaped("row \(i)", font: font, wrappingAt: 100) }
     }
     #expect(perFrame.first == 100, "\(perFrame)")
     #expect(perFrame.dropFirst().allSatisfy { $0 == 36 }, "the overage, 100 - 64, every frame: \(perFrame)")
-    #expect(cache.storageCount == 64, "held at the cap after a frame")
+    #expect(cache.storageCount == 64, "held at the budget after a frame")
 }
 
 /// **3** Least recently touched goes first: a string touched every frame survives a stream of fresh ones, and one touched
 /// once and then left alone does not. **Mutations:** `bound` ordering generations descending; `shaped` not re-stamping a hit.
 @MainActor @Test func theLeastRecentlyTouchedEntryIsTheOneEvicted() {
-    let cache = ShapingCache(entryCap: 16, costCap: 1 << 19)
+    let cache = ShapingCache(entryLimit: 16, costLimit: 1 << 20)
     _ = cache.shaped("touched once", font: font, wrappingAt: 100)   // generation 0, a frame of its own
     var hotMisses = 0
     for frame in 0..<30 {
@@ -70,13 +69,13 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     #expect(cache.misses == before + 1, "the string nobody touched again was evicted")
 }
 
-/// **4** A long streaming paragraph (a string that grows a word per frame, shaped at two widths, the way a measure and a draw
-/// do) plus a scrolling window of rows stays under the cap after every frame and under twice the cap inside one, in all
-/// three dictionaries. **Mutations:** `trimInFrame` removed (the in-frame peak reaches the frame's miss count); `endFrame`
-/// not bounding `caretStorage`.
-@MainActor @Test func aStreamingParagraphAndAScrollingListStayUnderTheCap() {
-    let cap = 32
-    let cache = ShapingCache(entryCap: cap, costCap: 1 << 19)
+/// **4** A long streaming paragraph (a string that grows a word per frame, shaped at three widths, with its caret line, the
+/// way a measure, a draw and a field do) plus a scrolling window of rows stays under the budget after every frame and under a
+/// quarter over it inside one, the three tables together. **Mutations:** `trimInFrame` removed (the in-frame peak reaches the
+/// frame's miss count); `endFrame` not calling `bound`; `inFrameLimit` returning twice the limit.
+@MainActor @Test func aStreamingParagraphAndAScrollingListStayUnderTheBudget() {
+    let limit = 64
+    let cache = ShapingCache(entryLimit: limit, costLimit: 1 << 20)
     var paragraph = ""
     var peak = 0
     for frame in 0..<400 {
@@ -85,23 +84,43 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
         for width in [Double?.none, 300, 212] { _ = cache.shaped(paragraph, font: font, wrappingAt: width) }
         _ = cache.caretOffsets(paragraph, font: font)
         for row in frame..<(frame + 20) { _ = cache.shaped("row \(row)", font: font, wrappingAt: 120) }
-        peak = max(peak, cache.storageCount, cache.caretStorageCount)
+        peak = max(peak, cache.heldEntryCount)
         cache.endFrame()
-        #expect(cache.storageCount <= cap && cache.caretStorageCount <= cap, "frame \(frame)")
+        #expect(cache.heldEntryCount <= limit, "frame \(frame): \(cache.heldEntryCount)")
     }
-    #expect(peak <= 2 * cap, "inside a frame the bound is twice the cap: \(peak)")
-    // A first draw that misses far more than the cap in one frame is held to twice the cap before its frame ends.
+    #expect(peak <= limit * 5 / 4 + 1, "a quarter over inside a frame: \(peak)")
+    // A first draw that misses far more than the budget in one frame is held a quarter over before its frame ends.
     cache.beginFrame()
-    for i in 0..<(10 * cap) { _ = cache.shaped("first draw \(i)", font: font, wrappingAt: nil) }
-    #expect(cache.storageCount <= 2 * cap + 1, "\(cache.storageCount)")
+    var firstDrawPeak = 0
+    for i in 0..<(10 * limit) {
+        _ = cache.shaped("first draw \(i)", font: font, wrappingAt: nil)
+        firstDrawPeak = max(firstDrawPeak, cache.heldEntryCount)
+    }
+    #expect(firstDrawPeak <= limit * 5 / 4 + 1, "\(firstDrawPeak)")
     cache.endFrame()
-    #expect(cache.storageCount <= cap)
+    #expect(cache.heldEntryCount <= limit)
 }
 
-/// **5** The byte bound holds when the count bound would not: three 600-byte strings under a cost cap of 1000 leave at most
+/// **4b** The budget is one pool: 40 shaped lines and 40 caret lines together under a budget of 64 leave 64, where a budget per
+/// table would leave all 80, and each table gives up its share (32 and 32), not the first all it has. **Mutations:** `bound`
+/// cutting each table to the limit on its own; `shares` giving the whole allowance to the first table.
+@MainActor @Test func theThreeTablesShareOneBudget() {
+    let cache = ShapingCache(entryLimit: 64, costLimit: 1 << 20)
+    cache.beginFrame()
+    for i in 0..<40 {
+        _ = cache.shaped("row \(i)", font: font, wrappingAt: 100)
+        _ = cache.caretOffsets("caret \(i)", font: font)
+    }
+    cache.endFrame()
+    #expect(cache.heldEntryCount == 64 && cache.storageCount + cache.caretStorageCount == 64,
+            "\(cache.storageCount) + \(cache.caretStorageCount)")
+    #expect(cache.storageCount == 32 && cache.caretStorageCount == 32, "the overage is taken from each table in proportion")
+}
+
+/// **5** The byte bound holds when the count bound would not: three 600-byte strings under a weight budget of 1000 leave at most
 /// one, however few entries there are. **Mutation:** `bound` ignoring `cost`.
 @MainActor @Test func aFewHugeStringsAreBoundedByTheirWeight() {
-    let cache = ShapingCache(entryCap: 1000, costCap: 1000)
+    let cache = ShapingCache(entryLimit: 1000, costLimit: 1000)
     cache.beginFrame()
     for letter in ["a", "b", "c"] { _ = cache.shaped(String(repeating: letter, count: 600), font: font, wrappingAt: 200) }
     cache.endFrame()

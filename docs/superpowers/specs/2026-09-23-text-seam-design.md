@@ -114,17 +114,22 @@ key, both through the one path no cache answered, and an empty field that was no
 - **No lazy path for unfocused fields.** An unfocused, non-empty field still reads its offsets in prepaint (scroll, the
   input target) and paint (selection); with the cache that is a hash and no typesetting after the text arrives, and the
   scroll it keeps (`SL-P`) stays what it was.
-- **The bound.** `ShapingCache` holds at most `entryCap` = 4096 entries and `costCap` = 512 KiB of source text in each of
-  `storage`, `styledStorage` and `caretStorage` after a frame, twice that inside one. `endFrame` first runs the existing
-  stale sweep, then `Table.bound`: oldest generation first, within a generation arbitrary. Arbitrary, because a live set over
-  the cap is one generation, and dropping its overage re-shapes at most `live - cap` strings a frame where a strict LRU loop
-  re-shapes all of them (`aWorkingSetOverTheCapReShapesTheOverageAndNoMore`). A miss that takes a table to twice a cap evicts
-  at once (`trimInFrame`), amortised to once per `entryCap` inserts. Recency is the existing generation stamp: no per-lookup
-  allocation, no list. `fonts` and `resolvedFonts` stay unswept and bounded by the app's distinct font requests (one entry
-  each in a 1500-frame streaming run; `theFontMemosGrowWithDistinctFontsAndNotWithText`).
-- **Why 4096 and 512 KiB.** Measured (record 411): a 200-message transcript and a composer look up about 400 entries a
-  frame, a 1M-row, ten-column table's visible cells about 850 (470 distinct), so the cap is eight times the larger live set.
-  A shaped paragraph and its caret line weigh about 50 bytes of heap per source byte (26 KiB per 512 bytes), a 20-byte label
-  about 3 KiB: the worst case after a frame is 4096 labels (about 13 MiB) or 512 KiB of paragraphs (about 25 MiB) per
-  dictionary, twice inside a frame. The portable system's dictionaries keep their two-frame lifetime and have no cap: their size
-  is the last two frames' lookups.
+- **The bound is one shared budget** (`TextCacheBudget`, `BoundedTable.swift` in `MetalUITextSystem`): after a frame a text
+  system's cache tables together hold at most 1024 entries and 192 KiB of weight, a string's weight being its UTF-8 bytes
+  plus 32 per entry (a shaped entry costs about 1.6 KiB of heap whatever its length). `ShapingCache` shares it across
+  `storage`, `styledStorage` and `caretStorage`; `PortableTextSystem` across its four tables (measurements, line layouts,
+  styled measurements, caret offsets), on top of the two-frame lifetime, which alone lets a frame that looked up a great
+  deal of text keep all of it for the next. `endFrame` runs the stale sweep, then evicts oldest generation first until the
+  budget holds; the overage of the last generation dropped is taken from each table in proportion, never all from the
+  first. Inside a frame an eviction runs once the tables are a quarter over, and it takes stale entries first, then those
+  this frame has already used, and the previous frame's not yet reached last: those are the hits still to come, and taking
+  them re-shapes more than the overage (61 a frame of 100 under a budget of 64 when it took the oldest first; 36 with this
+  order, `aWorkingSetOverTheBudgetReShapesTheOverageAndNoMore`). Recency is the existing generation stamp: no per-lookup
+  allocation, no list. `fonts` and `resolvedFonts` stay unswept and bounded by the app's distinct font requests (one
+  entry each in a 1500-frame streaming run; `theFontMemosGrowWithDistinctFontsAndNotWithText`).
+- **Why 1024 and 192 KiB.** Measured as live sets per frame (record 411): a 1M-row, ten-column table 430 entries and 2.5 KB of
+  source; a 200-message transcript, its composer and a streaming paragraph 205 entries and 59 KB at the largest (p50 37
+  KB); a 5k-line code view scrolled 8 entries and 216 bytes. The entry budget is 2.4 times the largest, the weight budget
+  3 times the largest (65 KB weighed). Worst case after a frame, measured by filling past the budget: 1.8 MiB of heap for
+  20-byte labels, 4.1 MiB for 120-byte lines, 4.9 MiB for 1000-byte paragraphs (`phys_footprint` +3.2 to +5.2 MiB);
+  inside a frame a quarter more.

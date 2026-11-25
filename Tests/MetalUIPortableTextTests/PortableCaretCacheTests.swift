@@ -47,3 +47,38 @@ private let strings = caretContractStrings + ["مرحبا بالعالم", "של
     system.beginFrame(); _ = system.caretOffsets("typed text", font: key); system.endFrame()
     #expect(system.caretMisses == 2, "dropped after two")
 }
+
+/// **3** The portable tables share one budget on top of their two-frame lifetime (`TS-F`): a frame that lays out 40 strings
+/// under a budget of 12 holds a quarter over it at most while it runs and 12 after it. A weight budget of 1000 leaves one of three
+/// 600-byte strings. **Mutations:** `endFrame` not calling `bound`; `trimInFrame`
+/// removed (the in-frame peak is 40); `removeOlder` cutoff left at three frames (not this test); the weight ignored.
+@MainActor @Test func thePortableTablesStayUnderTheBudgetEvenWhenOneFrameLooksUpMoreThanIt() throws {
+    let resolver = try PortableFontResolver(defaultFont: fontBytes(notoSans))
+    let system = PortableTextSystem(resolver: resolver, entryLimit: 12, costLimit: 1 << 20)
+    let key = system.resolveFont(family: nil, size: 13)
+    var peak = 0
+    for frame in 0..<10 {
+        system.beginFrame()
+        for i in 0..<40 {
+            _ = system.caretOffsets("frame \(frame) string \(i)", font: key)
+            peak = max(peak, system.heldEntryCount)
+        }
+        system.endFrame()
+        #expect(system.heldEntryCount <= 12, "frame \(frame): \(system.heldEntryCount)")
+    }
+    #expect(peak <= 12 * 5 / 4 + 1, "a quarter over inside a frame: \(peak)")
+    // A frame a little over the budget but under the in-frame limit is cut at its end, not left a quarter over.
+    let overshoot = PortableTextSystem(resolver: resolver, entryLimit: 12, costLimit: 1 << 20)
+    let overshootKey = overshoot.resolveFont(family: nil, size: 13)
+    overshoot.beginFrame()
+    for i in 0..<14 { _ = overshoot.caretOffsets("small overshoot \(i)", font: overshootKey) }
+    #expect(overshoot.heldEntryCount == 14)
+    overshoot.endFrame()
+    #expect(overshoot.heldEntryCount <= 12, "\(overshoot.heldEntryCount)")
+    let heavy = PortableTextSystem(resolver: resolver, entryLimit: 100, costLimit: 1000)
+    let heavyKey = heavy.resolveFont(family: nil, size: 13)
+    heavy.beginFrame()
+    for letter in ["a", "b", "c"] { _ = heavy.caretOffsets(String(repeating: letter, count: 600), font: heavyKey) }
+    heavy.endFrame()
+    #expect(heavy.heldEntryCount == 1, "\(heavy.heldEntryCount)")
+}
