@@ -25,17 +25,17 @@ extension Optional {
     ///
     /// Stands in for `optional!` where the invariant is "this phase's state was produced by the
     /// phase before it"; unset is a framework bug and traps with a message. The in-place edit
-    /// moves the payload out and back, which neither copies nor allocates.
+    /// projects the payload, so it neither copies nor allocates.
     var required: Wrapped {
         get {
             guard let value = self else { preconditionFailure("an optional the caller had already set is nil") }
             return value
         }
         _modify {
-            guard var value = self else { preconditionFailure("an optional the caller had already set is nil") }
-            self = nil
-            defer { self = value }
-            yield &value
+            guard self != nil else { preconditionFailure("an optional the caller had already set is nil") }
+            // The one audited force unwrap: an in-place edit with no move and no allocation.
+            // swiftlint:disable:next force_unwrapping
+            yield &self!
         }
     }
 }
