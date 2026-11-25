@@ -408,7 +408,13 @@ package final class ContentMemoStore {
     /// Why occurrences could leave no graft record in the build in progress and in the last one, one name each (`RK-F`).
     var graftRefusals: [String] = []
     /// The occurrences whose graft windows closed this frame and whose records `Frame.flushPendingGrafts` makes (`RK-AG`).
-    var pendingGrafts: [PendingGraft] = []
+    var pendingGrafts: [PendingGraft] = [] {
+        didSet {
+            // The journal's `held` is the pending count: a window that closed holds its slice until its record is made or dropped.
+            journal.held = pendingGrafts.count
+            if pendingGrafts.isEmpty { journal.clearIfIdle() }
+        }
+    }
     package private(set) var lastGraftRefusals: [String] = []
 
     /// Calls `body` on every stored prepaint ledger and answers how many there were (`RK-N`'s exit tests).

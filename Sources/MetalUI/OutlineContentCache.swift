@@ -300,7 +300,7 @@ func lazyFlattenRootCached<G: ProposalElementGroup>(_ group: G, parent: GlobalEl
         entry.buildSession.run(entry: entry, store: store) { lazyFlattenRoot(group, parent: parent, pass: &pass) }
     }
     journal.open.removeAll { $0 === recorder }
-    defer { if journal.open.isEmpty { journal.events.removeAll(keepingCapacity: true) } }
+    defer { journal.clearIfIdle() }
     guard let sources else { return nil }
     let slice = journal.events[recorder.start...]
     guard stamp.comparable, walk.unobserved == nil, recorder.taint == nil,
