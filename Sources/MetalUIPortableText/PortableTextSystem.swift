@@ -25,15 +25,11 @@ public final class PortableTextSystem: TextSystem {
         let width: Double?
         let options: TextLayoutOptions
     }
-    private struct Entry<Value> {
-        var value: Value
-        var generation: Int
-    }
-    private var measurements: [MeasureKey: Entry<TextMeasurement>] = [:]
+    private var measurements = BoundedTable<MeasureKey, TextMeasurement>()
     /// The origin-free lines of a plain text (ruling GT-E), same key and same
     /// two-frame lifetime: a label that only moves places cached lines. Styled
     /// text is not cached here (ruling GT-H).
-    private var layouts: [MeasureKey: Entry<[LaidOutLine]>] = [:]
+    private var layouts = BoundedTable<MeasureKey, [LaidOutLine]>()
     /// A styled text's measurement key (ruling RT-F item 5): the whole value,
     /// so two run splits of one string are two entries.
     private struct StyledKey: Hashable {
@@ -41,11 +37,21 @@ public final class PortableTextSystem: TextSystem {
         let width: Double?
         let options: TextLayoutOptions
     }
-    private var styledMeasurements: [StyledKey: Entry<StyledTextMeasurement>] = [:]
+    private var styledMeasurements = BoundedTable<StyledKey, StyledTextMeasurement>()
     /// Styled measurements answered from an entry, and computed (ruling
     /// RT-F item 5) — what a warm styled frame is counted by.
     private(set) var styledHits = 0
     private(set) var styledMisses = 0
+    /// The caret offsets of a string (`TS-F`), by `(string, font)`, on the same two-frame lifetime: a text field reads them in
+    /// prepaint and in paint, and a key stroke changes the string once.
+    private struct CaretKey: Hashable {
+        let string: String
+        let font: FontKey
+    }
+    private var caretOffsetsByString = BoundedTable<CaretKey, [Double]>()
+    /// `PortableText.caretOffsets` calls this system made, and the lookups an entry answered.
+    private(set) var caretMisses = 0
+    private(set) var caretHits = 0
     private var generation = 0
     /// This frame's lookups for `METALUI_TRACE_SHAPING` (`TS-E`): a shape is a hit when a measurement or a laid-out line list
     /// answers, a miss when `PortableText.layOut` runs (the shaping), and a styled measure counts as the cache above does.
@@ -56,9 +62,21 @@ public final class PortableTextSystem: TextSystem {
 
     /// The portable text system over `resolver`'s registered fonts — HarfBuzz,
     /// FreeType and libunibreak, no CoreText (`TS-C`).
-    public init(resolver: PortableFontResolver) {
-        self.resolver = resolver
+    public convenience init(resolver: PortableFontResolver) {
+        self.init(resolver: resolver, entryLimit: TextCacheBudget.entries, costLimit: TextCacheBudget.cost)
     }
+
+    /// A system with its own cache budget, for a test that has to cross it without laying out thousands of strings.
+    init(resolver: PortableFontResolver, entryLimit: Int, costLimit: Int) {
+        precondition(entryLimit > 0 && costLimit > 0, "a cache bound is positive")
+        self.resolver = resolver
+        self.entryLimit = entryLimit
+        self.costLimit = costLimit
+    }
+
+    /// The budget the four cache tables share (`TS-F`).
+    private let entryLimit: Int
+    private let costLimit: Int
 
     /// Resolves `descriptor` against the registered fonts and returns its key.
     public func resolveFont(_ descriptor: FontDescriptor) -> FontKey {
@@ -82,25 +100,40 @@ public final class PortableTextSystem: TextSystem {
     public func measure(_ string: String, font: FontKey, wrappingAt width: Double?,
                         options: TextLayoutOptions) -> TextMeasurement {
         let key = MeasureKey(string: string, font: font, width: width, options: options)
-        if let hit = measurements[key] {
+        if let index = measurements.dict.index(forKey: key) {
             if ShapingTrace.active { trace.hit() }
-            measurements[key]?.generation = generation
-            return hit.value
+            measurements.dict.values[index].generation = generation
+            return measurements.dict.values[index].value
         }
         let portable = registered(font)
         let lines = laidOut(key, portable).map(\.line)
         let value = TextMeasurement(widestLine: lines.reduce(0) { max($0, $1.advance) },
                                     totalHeight: Double(lines.count) * portable.metrics.lineHeight)
-        measurements[key] = Entry(value: value, generation: generation)
+        measurements.insert(key, value, generation: generation, cost: TextCacheBudget.overhead)
+        trimInFrame()
         return value
     }
 
     /// The caret's x offset before each character and after the last (`TI-E`).
+    ///
+    /// Cached by `(string, font)` for the two frames a measurement is (`TS-F`); the empty string is `[0]` without a lookup.
     public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
-        if ShapingTrace.active {
-            trace.bypass(ShapingTrace.quoted(string) + "(caretOffsets " + ShapingTrace.describe(font) + ")")
+        guard !string.isEmpty else { return [0] }
+        let key = CaretKey(string: string, font: font)
+        if let index = caretOffsetsByString.dict.index(forKey: key) {
+            caretHits += 1
+            if ShapingTrace.active { trace.hit() }
+            caretOffsetsByString.dict.values[index].generation = generation
+            return caretOffsetsByString.dict.values[index].value
         }
-        return trapping { try PortableText.caretOffsets(string, font: registered(font)) }
+        caretMisses += 1
+        if ShapingTrace.active {
+            trace.miss(ShapingTrace.quoted(string) + "(caretOffsets " + ShapingTrace.describe(font) + ")")
+        }
+        let offsets = trapping { try PortableText.caretOffsets(string, font: registered(font)) }
+        caretOffsetsByString.insert(key, offsets, generation: generation, cost: TextCacheBudget.weight(of: string))
+        trimInFrame()
+        return offsets
     }
 
     /// Each display line's character range when `string` is wrapped at `width`.
@@ -134,11 +167,11 @@ public final class PortableTextSystem: TextSystem {
     public func measure(_ text: StyledText, wrappingAt width: Double?,
                         options: TextLayoutOptions) -> StyledTextMeasurement {
         let key = StyledKey(text: text, width: width, options: options)
-        if let hit = styledMeasurements[key] {
+        if let index = styledMeasurements.dict.index(forKey: key) {
             styledHits += 1
             if ShapingTrace.active { trace.hit() }
-            styledMeasurements[key]?.generation = generation
-            return hit.value
+            styledMeasurements.dict.values[index].generation = generation
+            return styledMeasurements.dict.values[index].value
         }
         styledMisses += 1
         if ShapingTrace.active { trace.miss(ShapingTrace.entry(text, width: width, options: options)) }
@@ -146,7 +179,8 @@ public final class PortableTextSystem: TextSystem {
         let value = trapping {
             try PortableText.styledLines(text, fonts: fonts, wrappingAt: width, options: options).measurement
         }
-        styledMeasurements[key] = Entry(value: value, generation: generation)
+        styledMeasurements.insert(key, value, generation: generation, cost: TextCacheBudget.overhead)
+        trimInFrame()
         return value
     }
 
@@ -191,17 +225,59 @@ public final class PortableTextSystem: TextSystem {
     /// same two-frame lifetime `ShapingCache` gives its entries.
     public func endFrame() {
         if ShapingTrace.active { trace.finish(frame: generation, system: "portable") }
-        measurements = measurements.filter { generation - $0.value.generation <= 1 }
-        layouts = layouts.filter { generation - $0.value.generation <= 1 }
-        styledMeasurements = styledMeasurements.filter { generation - $0.value.generation <= 1 }
+        let cutoff = generation - 1
+        measurements.removeOlder(than: cutoff)
+        layouts.removeOlder(than: cutoff)
+        styledMeasurements.removeOlder(than: cutoff)
+        caretOffsetsByString.removeOlder(than: cutoff)
+        bound(inFrame: false)
+    }
+
+    /// The entries and weight the four tables hold together, against `TextCacheBudget` (`TS-F`): the two-frame lifetime
+    /// alone lets a frame that looked up a great deal of text keep all of it for the next.
+    private var heldEntries: Int { measurements.count + layouts.count + styledMeasurements.count + caretOffsetsByString.count }
+    private var heldCost: Int { measurements.cost + layouts.cost + styledMeasurements.cost + caretOffsetsByString.cost }
+
+    /// Inside a frame an eviction runs once the tables are a quarter over the budget.
+    private func trimInFrame() {
+        if heldEntries > TextCacheBudget.inFrameLimit(entryLimit) || heldCost > TextCacheBudget.inFrameLimit(costLimit) { bound(inFrame: true) }
+    }
+
+    /// Evicts the least recently touched entries, oldest generation first, until the tables fit the budget.
+    private func bound(inFrame: Bool) {
+        let current = inFrame ? generation : nil
+        var stamps: [(generation: Int, cost: Int)] = []
+        stamps.reserveCapacity(heldEntries)
+        measurements.appendStamps(to: &stamps, inFrame: current)
+        layouts.appendStamps(to: &stamps, inFrame: current)
+        styledMeasurements.appendStamps(to: &stamps, inFrame: current)
+        caretOffsetsByString.appendStamps(to: &stamps, inFrame: current)
+        guard let cut = TextCacheBudget.cut(&stamps, entries: entryLimit, cost: costLimit) else { return }
+        let share = TextCacheBudget.shares(of: cut.allowance, among: [
+            measurements.count(atRank: cut.generation, inFrame: current), layouts.count(atRank: cut.generation, inFrame: current),
+            styledMeasurements.count(atRank: cut.generation, inFrame: current), caretOffsetsByString.count(atRank: cut.generation, inFrame: current)])
+        measurements.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[0])
+        layouts.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[1])
+        styledMeasurements.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[2])
+        caretOffsetsByString.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[3])
+    }
+
+    /// Entry count of all four tables, for tests.
+    var heldEntryCount: Int { heldEntries }
+
+    /// The entries and weight the last finished frame touched, for tests and probes.
+    package func liveSet() -> (entries: Int, cost: Int) {
+        let tables = [measurements.live(in: generation), layouts.live(in: generation),
+                      styledMeasurements.live(in: generation), caretOffsetsByString.live(in: generation)]
+        return (tables.reduce(0) { $0 + $1.entries }, tables.reduce(0) { $0 + $1.cost })
     }
 
     /// The origin-free lines of `key`'s string.
     private func laidOut(_ key: MeasureKey, _ portable: PortableFont) -> [LaidOutLine] {
-        if let hit = layouts[key] {
+        if let index = layouts.dict.index(forKey: key) {
             if ShapingTrace.active { trace.hit() }
-            layouts[key]?.generation = generation
-            return hit.value
+            layouts.dict.values[index].generation = generation
+            return layouts.dict.values[index].value
         }
         layOutCount += 1
         if ShapingTrace.active {
@@ -210,7 +286,8 @@ public final class PortableTextSystem: TextSystem {
         let lines = trapping {
             try PortableText.layOut(key.string, font: portable, wrappingAt: key.width, options: key.options)
         }
-        layouts[key] = Entry(value: lines, generation: generation)
+        layouts.insert(key, lines, generation: generation, cost: TextCacheBudget.weight(of: key.string))
+        trimInFrame()
         return lines
     }
 

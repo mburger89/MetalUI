@@ -100,6 +100,16 @@ public struct MeasurementSubview {
         run.requireActive()
         return run.tree.measureNative(node, proposal: proposal, run: run)
     }
+
+    /// One axis of ``sizeThatFits(_:)``'s answer: the width when `horizontal`, else the height. A frame whose answer on that
+    /// axis no child can change answers without measuring its subtree (ruling `HS-M`); any other node is measured. The
+    /// number is always the one `sizeThatFits(proposal).size` holds. **`package`**: the split view's pane limits.
+    package func extent(horizontal: Bool, _ proposal: ProposedSize) -> Double {
+        run.requireActive()
+        if let known = run.tree.determinedExtent(node, proposal: proposal, horizontal: horizontal) { return known }
+        let size = run.tree.measureNative(node, proposal: proposal, run: run).size
+        return horizontal ? size.width : size.height
+    }
 }
 
 /// The subviews a `ProposalLayout.placeSubviews` call may measure and place.
@@ -165,6 +175,14 @@ public struct PlacementSubview {
     public func sizeThatFits(_ proposal: ProposedSize) -> LayoutMeasurement {
         run.requireActive()
         return run.tree.measureNative(node, proposal: proposal, run: run)
+    }
+
+    /// The same as ``MeasurementSubview/extent(horizontal:_:)``.
+    package func extent(horizontal: Bool, _ proposal: ProposedSize) -> Double {
+        run.requireActive()
+        if let known = run.tree.determinedExtent(node, proposal: proposal, horizontal: horizontal) { return known }
+        let size = run.tree.measureNative(node, proposal: proposal, run: run).size
+        return horizontal ? size.width : size.height
     }
 
     /// Records a placement. After `placeSubviews` returns, the subview is

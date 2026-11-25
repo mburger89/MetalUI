@@ -73,15 +73,39 @@ public struct FontKey: Hashable, Sendable {
         }
     }
 
+    /// The components that are not needed to reject an unequal key, held once per resolved font.
+    ///
+    /// **Why a box (`G50`, record 415).** A `GlyphKey` carries a `FontKey` and every placed glyph carries
+    /// a `GlyphKey`, so what a `FontKey` weighs is paid per glyph, per frame, and again per cached
+    /// placement: with the name, the variation array and the six-`Double` matrix inline it was 88 bytes
+    /// and a `GlyphKey` 128, so a `PlacedGlyph` was 264 and a `TextGlyph` 144. A 14 KB streaming
+    /// message therefore built a 3.7 MB memo and a 2 MB glyph array on every frame, and malloc kept the
+    /// freed blocks (measured +330 MiB `phys_footprint` over 1500 frames). Boxed, a copy is one retain
+    /// (it was two: the string and the array) and the key is 24 bytes. All fields are immutable and
+    /// `Sendable`, so the compiler checks the class `Sendable` with no `@unchecked`.
+    private final class Components: Sendable {
+        let postScriptName: String
+        let variations: [VariationCoordinate]
+        let matrix: Matrix
+
+        init(postScriptName: String, variations: [VariationCoordinate], matrix: Matrix) {
+            self.postScriptName = postScriptName
+            self.variations = variations
+            self.matrix = matrix
+        }
+    }
+
+    private let components: Components
+
     /// The resolved font's PostScript name.
-    public let postScriptName: String
-    /// The size in points.
+    public var postScriptName: String { components.postScriptName }
+    /// The size in points. Stored inline: it is the first component `==` compares after the hash.
     public let size: Double
     /// Sorted by ``VariationCoordinate/axis`` so that two fonts with the same
     /// coordinates in a different dictionary order compare equal.
-    public let variations: [VariationCoordinate]
+    public var variations: [VariationCoordinate] { components.variations }
     /// The font's transform matrix.
-    public let matrix: Matrix
+    public var matrix: Matrix { components.matrix }
 
     /// The four components above, hashed once, at the only initialiser.
     ///
@@ -117,10 +141,8 @@ public struct FontKey: Hashable, Sendable {
         hasher.combine(variations)
         hasher.combine(matrix)
 
-        self.postScriptName = postScriptName
+        self.components = Components(postScriptName: postScriptName, variations: variations, matrix: matrix)
         self.size = size
-        self.variations = variations
-        self.matrix = matrix
         self.precomputedHash = hasher.finalize()
     }
 
@@ -162,9 +184,12 @@ public struct FontKey: Hashable, Sendable {
     public static func == (lhs: FontKey, rhs: FontKey) -> Bool {
         lhs.precomputedHash == rhs.precomputedHash
             && lhs.size == rhs.size
-            && lhs.matrix == rhs.matrix
-            && lhs.postScriptName == rhs.postScriptName
-            && lhs.variations == rhs.variations
+            // The same box is the same three components: a copy of one key, which is nearly every
+            // comparison the atlas and the caches make.
+            && (lhs.components === rhs.components
+                || (lhs.matrix == rhs.matrix
+                    && lhs.postScriptName == rhs.postScriptName
+                    && lhs.variations == rhs.variations))
     }
 
     /// Feeds ``precomputedHash`` alone. Pinned by
