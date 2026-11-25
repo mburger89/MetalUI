@@ -148,7 +148,7 @@ struct PrepaintKey: Equatable {
 @MainActor
 final class PrepaintLedger {
     /// `var` for `rebase(to:_:)` (`G47`), the one writer after the ledger is closed.
-    internal(set) var key: PrepaintKey
+    var key: PrepaintKey
     var hitboxes: [Hitbox] = []
     /// Lock-step with `hitboxes` when any hitbox sat under an effect, else empty: the effect chain each was registered under (`RL-I`).
     var hitboxChains: [AXEffectChain?] = []
