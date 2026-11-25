@@ -13,7 +13,8 @@ import MetalUIPlatform
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
 private func press(_ key: String, _ modifiers: EventModifiers = [], unshifted: String = "") -> KeyPress {
-    KeyPress(phase: .down, key: KeyEquivalent(key.first!), characters: key, modifiers: modifiers, unshiftedKey: unshifted)
+    guard let first = key.first else { preconditionFailure("press needs a non-empty key") }
+    return KeyPress(phase: .down, key: KeyEquivalent(first), characters: key, modifiers: modifiers, unshiftedKey: unshifted)
 }
 
 /// **I1** A window with no recorder has `keyCaptureCount == 0`; one with a recorder registers exactly one capture

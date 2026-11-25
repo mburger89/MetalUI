@@ -209,7 +209,8 @@ private struct Work {
                 }
             }
             let clip = placement.clip
-            guard !clip.isEmpty, !extent.intersection(clip).isEmpty else { continue }
+            let overlap = extent.intersection(clip)
+            guard !clip.isEmpty, !overlap.isEmpty else { continue }
             let cut = raster(over: clip), over = raster(over: extent)
             var differing = 0, maxDelta = 0
             for y in clip.y..<clip.maxY {

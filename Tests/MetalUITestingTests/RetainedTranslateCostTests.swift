@@ -69,7 +69,8 @@ private func fingerprint(_ edit: (inout EnvironmentValues) -> Void = { _ in }) -
 /// **Mutation:** the identity path returning `true` for any two boxes (reddens the different-value arm).
 @Test @MainActor func aSharedFingerprintEqualsExactlyWhatTheFingerprintEquals() {
     let plain = SharedFingerprint(fingerprint())
-    #expect(plain == plain && plain == SharedFingerprint(fingerprint()))
+    let samePlain = plain
+    #expect(plain == samePlain && plain == SharedFingerprint(fingerprint()))
     #expect(plain != SharedFingerprint(fingerprint { $0.isEnabled = false }))
     var one = fingerprint(), two = fingerprint()
     one.custom[ObjectIdentifier(AMEnvBox.self)] = .uncomparable

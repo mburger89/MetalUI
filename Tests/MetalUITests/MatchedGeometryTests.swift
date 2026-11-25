@@ -551,10 +551,11 @@ private struct StillPair: Component, @MainActor Equatable {
 /// leaver also takes B's size), **MC3** (the move is dropped for a source leaver), **MC4** (the whole unit's ghost is
 /// translated), **MC6** (the move is never handed to the store).
 @Test @MainActor func aLeaverMovesToTheSourceAsItFades() throws {
-    let (leaver, newcomer) = leaverAndNewcomer(midSwap())
-    try #require(leaver != nil && newcomer != nil, "set up: both are drawn")
-    #expect(leaver!.0.near(R(112.5, 127.5, 50, 30)), "centre half-way to B's, own size: \(leaver!.0)")
-    #expect(abs(leaver!.1 - 0.5) < 0.01, "and half faded: \(leaver!.1)")
+    let (drawnLeaver, drawnNewcomer) = leaverAndNewcomer(midSwap())
+    _ = try #require(drawnNewcomer, "set up: both are drawn")
+    let leaver = try #require(drawnLeaver, "set up: both are drawn")
+    #expect(leaver.0.near(R(112.5, 127.5, 50, 30)), "centre half-way to B's, own size: \(leaver.0)")
+    #expect(abs(leaver.1 - 0.5) < 0.01, "and half faded: \(leaver.1)")
     let start = leaverAndNewcomer({
         let h = TransitionHarness()
         h.frame(0, nil, stage(false))
@@ -567,9 +568,9 @@ private struct StillPair: Component, @MainActor Equatable {
 /// flight's half-way frame at alpha 0.5, and it was transparent at the first frame. Mutation **MC5** (the newcomer's
 /// default insertion is dropped on a flight again: alpha 1).
 @Test @MainActor func theNewcomerFadesWhileItFlies() throws {
-    let (_, newcomer) = leaverAndNewcomer(midSwap())
-    try #require(newcomer != nil, "set up")
-    #expect(newcomer!.0.near(R(100, 120, 75, 45)) && abs(newcomer!.1 - 0.5) < 0.01, "flying and half faded: \(newcomer!)")
+    let (_, drawnNewcomer) = leaverAndNewcomer(midSwap())
+    let newcomer = try #require(drawnNewcomer, "set up")
+    #expect(newcomer.0.near(R(100, 120, 75, 45)) && abs(newcomer.1 - 0.5) < 0.01, "flying and half faded: \(newcomer)")
     let h = TransitionHarness()
     h.frame(0, nil, stage(false))
     let first = accents(h.frame(0, linear1, stage(true)))
@@ -584,10 +585,11 @@ private struct StillPair: Component, @MainActor Equatable {
 @Test @MainActor func aNonSourceLeaverMovesToo() throws {
     var o = MGOptions()
     o.oldSource = false
-    let (leaver, newcomer) = leaverAndNewcomer(midSwap(o))
-    try #require(leaver != nil && newcomer != nil, "set up")
-    #expect(leaver!.0.near(R(112.5, 127.5, 50, 30)), "S12: A's ghost half-way to B's centre: \(leaver!.0)")
-    #expect(newcomer!.0 == rectB, "the newcomer is at its own frame: \(newcomer!.0)")
+    let (drawnLeaver, drawnNewcomer) = leaverAndNewcomer(midSwap(o))
+    let leaver = try #require(drawnLeaver, "set up")
+    let newcomer = try #require(drawnNewcomer, "set up")
+    #expect(leaver.0.near(R(112.5, 127.5, 50, 30)), "S12: A's ghost half-way to B's centre: \(leaver.0)")
+    #expect(newcomer.0 == rectB, "the newcomer is at its own frame: \(newcomer.0)")
 }
 
 /// **`.position` moves the leaver, `.size` alone does not** (`S9`, `S10`). Mutation **MC2** (`properties` ignored).
@@ -658,15 +660,16 @@ private struct StillPair: Component, @MainActor Equatable {
     h.frame(0, linear1, unitStage(true))
     let f = h.frame(0.5, nil, unitStage(true))
     let rects = accents(f)
-    let plain = rects.first { $0.bounds.size.width == 20 }
-    let tile = rects.first { $0.bounds.size.width == 50 && $0.bounds.size.height == 30 }
-    try #require(plain != nil && tile != nil, "set up: \(rects.map(R.init))")
-    #expect(R(tile!).near(R(112.5, 127.5, 50, 30)), "the matched tile travels: \(R(tile!))")
-    #expect(R(plain!).x == 50 && R(plain!).y == 50, "the plain member fades in place: \(R(plain!))")
-    #expect(abs(plain!.background.a - 0.5) < 0.01 && abs(tile!.background.a - 0.5) < 0.01, "both half faded")
+    let plainRect = rects.first { $0.bounds.size.width == 20 }
+    let tileRect = rects.first { $0.bounds.size.width == 50 && $0.bounds.size.height == 30 }
+    let plain = try #require(plainRect, "set up: \(rects.map(R.init))")
+    let tile = try #require(tileRect, "set up: \(rects.map(R.init))")
+    #expect(R(tile).near(R(112.5, 127.5, 50, 30)), "the matched tile travels: \(R(tile))")
+    #expect(R(plain).x == 50 && R(plain).y == 50, "the plain member fades in place: \(R(plain))")
+    #expect(abs(plain.background.a - 0.5) < 0.01 && abs(tile.background.a - 0.5) < 0.01, "both half faded")
 }
 
-private final class DisappearLog { var count = 0 }
+private final class DisappearLog { var isEmpty: Bool { count < 1 }; var count = 0 }
 
 /// **The moving leaver's ghost parks its `onDisappear`** (`XF-J` carried): the callback of the carved member waits for the
 /// fade with the leaver's own ghost, not the unit's. Mutation **MC7** (the unit's ghost does not exempt the leaver's
@@ -693,13 +696,13 @@ private final class DisappearLog { var count = 0 }
     withAnimation(.linear(duration: 1)) { model.flag = true }
     platform.simulateTick(timestamp: 100.1)
     #expect(window.animationStore.transitions.ghostCount == 2, "the unit's ghost and the leaver's own: \(window.animationStore.transitions.ghostCount)")
-    #expect(log.count == 0 && window.animationStore.lifecycle.parkedCount == 1, "parked: \(log.count)")
+    #expect(log.isEmpty && window.animationStore.lifecycle.parkedCount == 1, "parked: \(log.count)")
     // The leaver's own ghost is the one that holds it: the unit's ghost carries the leaver's position as an exemption.
     let live = window.animationStore.transitions.liveGhosts
     #expect(window.animationStore.lifecycle.parkedOn == Set(live.filter { $0.exempt.isEmpty }.map(\.key)) && live.contains { !$0.exempt.isEmpty },
             "parked on the leaver's ghost, not the unit's: \(window.animationStore.lifecycle.parkedOn.count) of \(live.count)")
     platform.simulateTick(timestamp: 100.6)
-    #expect(log.count == 0, "still waiting half-way")
+    #expect(log.isEmpty, "still waiting half-way")
     platform.simulateTick(timestamp: 101.3)
     platform.simulateTick(timestamp: 101.4)
     #expect(log.count == 1 && window.animationStore.transitions.ghostCount == 0, "released once at the end: \(log.count)")

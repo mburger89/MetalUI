@@ -14,7 +14,7 @@ import Testing
 struct TLPanel: Component, @MainActor Equatable {
     let counter: TLCounter
     var content: some ElementGroup {
-        let _ = counter.builds += 1
+        let _: Void = counter.builds += 1
         VStack(alignment: .leading, spacing: 2) {
             Rectangle().fill(.secondary).frame(width: Pixels(40), height: Pixels(8))
             Rectangle().fill(.tertiary).frame(width: Pixels(40), height: Pixels(8))

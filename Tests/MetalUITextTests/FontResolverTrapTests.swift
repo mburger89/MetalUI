@@ -60,7 +60,8 @@ import MetalUIText
         for family in [nil, "Menlo"] as [String?] {
             for size in [13.0, 0.5] {
                 let key = FontResolver.resolve(family: family, size: size).key
-                precondition(key == key)
+                let sameKey = key
+                precondition(key == sameKey)
                 precondition(key.size == size)
             }
         }

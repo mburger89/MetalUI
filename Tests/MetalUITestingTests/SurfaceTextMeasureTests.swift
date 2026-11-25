@@ -24,7 +24,7 @@ private struct Measuring: Component {
     var count = 1
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        let _ = record()
+        let _: Void = record()
         Box().frame(width: 1, height: 1)
     }
     private func record() {
@@ -39,7 +39,7 @@ private struct MeasuringProposal: Component {
     let text: ProposalText
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        let _ = box.sizes = [measurer.resolve(text).measure(in: unbounded)]
+        let _: Void = box.sizes = [measurer.resolve(text).measure(in: unbounded)]
         Box().frame(width: 1, height: 1)
     }
 }

@@ -90,7 +90,7 @@ private struct Wrapped: Component {
 /// DA-B. The identifier survives a wrapper written before it (no loss was reproducible, so
 /// no mutation applies: this is a regression pin across 17 wrappers).
 @Test(arguments: Wrapper.allCases) @MainActor
-fileprivate func anIdentifierSurvivesAWrapperWrittenBeforeIt(wrapper: Wrapper) throws {
+private func anIdentifierSurvivesAWrapperWrittenBeforeIt(wrapper: Wrapper) throws {
     let window = try harnessWindow { VStack { Wrapped(wrapper: wrapper) } }
     let element = try window.element(identifier: "x")
     #expect(element.frame.size.width.value > 0)

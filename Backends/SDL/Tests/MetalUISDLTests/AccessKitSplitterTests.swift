@@ -69,7 +69,7 @@ private func snapshot(_ tree: AccessibilityTree, ids: AccessKitIDs) -> [UInt64: 
     }
     withCNode(try #require(nodes[n("outer")])) { c in
         let id = accesskit_node_author_id(c)
-        #expect(id != nil && String(cString: id!) == "editor.0")
+        #expect(id.map { String(cString: $0) } == "editor.0")
         accesskit_string_free(id)
     }
     let locked = try #require(nodes[n("locked")])

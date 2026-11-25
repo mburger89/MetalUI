@@ -64,11 +64,11 @@ private enum CWith { case menuAndAction, menuOnly, mismatched, noSelection }
 @MainActor private func cWindow(_ form: CForm, _ model: CModel, multi: Bool = false, with: CWith = .menuAndAction,
                                 over: Bool = false) throws -> TestWindow {
     @MainActor func menu(_ ids: Set<String>) -> some MenuContent {
-        let _ = model.menus.append(ids.sorted())
+        _ = model.menus.append(ids.sorted())
         return Button("Act") {}
     }
     @MainActor func menuInt(_ ids: Set<Int>) -> some MenuContent {
-        let _ = model.menus.append(ids.map(String.init).sorted())
+        _ = model.menus.append(ids.map(String.init).sorted())
         return Button("Act") {}
     }
     var action: (@MainActor (Set<String>) -> Void)?
@@ -234,7 +234,7 @@ private enum CWith { case menuAndAction, menuOnly, mismatched, noSelection }
             List(selection: model.selectionBinding) { ForEach(nodes) { CRow(node: $0, model: model) } }
         }
         .contextMenu(forSelectionType: String.self, menu: { (ids: Set<String>) in
-            let _ = model.menus.append(ids.sorted())
+            _ = model.menus.append(ids.sorted())
             return Button("Act") {}
         }, primaryAction: { model.primary.append($0.sorted()) })
     }

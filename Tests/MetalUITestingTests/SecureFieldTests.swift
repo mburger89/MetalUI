@@ -79,7 +79,7 @@ private let title = "Pass"
             TextField("Mild", text: box.otherBinding)
         }
     }
-    box.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    box.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     return (window, system)
 }
 

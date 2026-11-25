@@ -79,8 +79,8 @@ private func measured(_ string: String, size: Double = 13, width: Double? = 200,
 
     let guides: [Double] = [13, 25, 13 + lh13, 10]
     let heights: [Double] = [lh13, lh26, 2 * lh13, 10]
-    let top = guides.max()!
-    let below = zip(heights, guides).map { $0 - $1 }.max()!
+    let top = try #require(guides.max())
+    let below = try #require(zip(heights, guides).map { $0 - $1 }.max())
     let last = try placed(.lastTextBaseline)
     #expect(Double(last.stack.size.height.value) == top + below, "B2 last: \(top) + \(below)")
     #expect(last.children.map { Double($0.origin.y.value - last.stack.origin.y.value) } == guides.map { top - $0 },

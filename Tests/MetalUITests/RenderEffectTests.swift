@@ -460,7 +460,7 @@ private let linear1 = Animation.linear(duration: 1)
     // handed its content its parent's level would give the root's own id
     // back and could not be told apart (M2v's first spelling stayed green).
     func tapIDs(_ e: some ProposalElementGroup) -> [GlobalElementID] {
-        effectFrame(VStack { e }).hitboxes.filter { $0.handlers.gestures.count > 0 }.map(\.id)
+        effectFrame(VStack { e }).hitboxes.filter { !$0.handlers.gestures.isEmpty }.map(\.id)
     }
     let bare = tapIDs(fxBar(40, 20).onTapGesture {})
     let padded = tapIDs(fxBar(40, 20).onTapGesture {}.padding(Edges(all: px(0))))

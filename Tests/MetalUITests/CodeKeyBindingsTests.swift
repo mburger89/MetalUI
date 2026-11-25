@@ -52,7 +52,7 @@ func everyEntryRoundTripsThroughTheKeyTable(platform: KeyboardShortcut.Platform)
 @Test(arguments: KeyboardShortcut.Platform.allCases)
 func noClaimedKeyIsMissingFromTheList(platform: KeyboardShortcut.Platform) {
     let list = Set(CodeView.builtInKeyBindings(platform: platform).map(\.shortcut))
-    var characters: [Character] = (0x20...0x7E).map { Character(Unicode.Scalar($0)!) }
+    var characters: [Character] = (0x20...0x7E as ClosedRange<UInt8>).map { Character(Unicode.Scalar($0)) }
     characters += ["\r", "\t", "\u{1b}", "\u{7f}", "\u{f728}", "\u{f700}", "\u{f701}", "\u{f702}", "\u{f703}",
                    "\u{f729}", "\u{f72b}", "\u{f72c}", "\u{f72d}", "\u{f739}"]
     for character in characters {
@@ -134,6 +134,7 @@ func noClaimedKeyIsMissingFromTheList(platform: KeyboardShortcut.Platform) {
 
 /// The list is the same value on every call, and the default platform is `.current`.
 @Test func theListIsStable() {
-    #expect(CodeView.builtInKeyBindings(platform: .macOS) == CodeView.builtInKeyBindings(platform: .macOS))
+    let first = CodeView.builtInKeyBindings(platform: .macOS), second = CodeView.builtInKeyBindings(platform: .macOS)
+    #expect(first == second)
     #expect(CodeView.builtInKeyBindings() == CodeView.builtInKeyBindings(platform: .current))
 }

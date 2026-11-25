@@ -15,7 +15,7 @@ import Testing
 private struct Probe: Component {
     let count: BuildCount
     var content: some ElementGroup {
-        let _ = { count.n += 1 }()
+        let _: Void = { count.n += 1 }()
         Color.clear.frame(width: Pixels(100), height: Pixels(100))
     }
 }

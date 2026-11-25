@@ -201,8 +201,8 @@ struct RetainedThemeTests {
     @Test func anEqualThemeRebuiltEveryFrameHits() throws {
         let (w, box) = try thWindow(scoped: true)
         var frames: [FrameWork] = []
-        let lines = collectTrace {
-            let strip = try! w.frame(ofID: "strip")
+        let lines = try collectTrace {
+            let strip = try w.frame(ofID: "strip")
             let y = strip.origin.y.value + strip.size.height.value / 2
             box.theme = Theme.light
             w.resetFrameWork()

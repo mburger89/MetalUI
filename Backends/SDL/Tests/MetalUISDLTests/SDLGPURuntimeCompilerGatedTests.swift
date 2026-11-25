@@ -1,15 +1,7 @@
 import Foundation
 import Testing
 import SDLBridge
-import MetalUISDLGPU
 @testable import MetalUISDLGPU
-
-// Tests 18-27 of the run-time compile spec: they need the shader compiler library
-// (`METALUI_SHADERCROSS_LIB`, or found by the lookup of `RC-C`). Without it each is skipped and
-// the skip reason names the paths tried; `METALUI_REQUIRE_SHADERCROSS=1` turns the skip into a
-// failure (a CI job that builds shadercross sets it; none is added, `BS-G`). Same suite as
-// `SDLGPURuntimeCompilerTests` (serialized, the process cache is global).
-
 enum RuntimeCompilerSupport {
     /// Loads the process-wide compiler on first read.
     static let available: Bool = SDLGPUShaderCompiler.isAvailable

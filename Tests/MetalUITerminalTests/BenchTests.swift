@@ -75,8 +75,15 @@ import MetalUITerminal
         var text = ""
         var line = 0
         while true {
-            let length = [20, 90, 119, 120, 121, 200, 240, 300].randomElement(using: &rng)!
-            var body = String((0..<length).map { _ in "abcdefghijklmnopqrstuvwxyz 0123456789".randomElement(using: &rng)! })
+            guard let length = [20, 90, 119, 120, 121, 200, 240, 300].randomElement(using: &rng) else {
+                preconditionFailure("the length list is not empty")
+            }
+            var body = String((0..<length).map { _ -> Character in
+                guard let character = "abcdefghijklmnopqrstuvwxyz 0123456789".randomElement(using: &rng) else {
+                    preconditionFailure("the alphabet is not empty")
+                }
+                return character
+            })
             if line % 7 == 0 { body = "\u{1B}[31m" + body + "\u{1B}[0m日本" }
             text += body + "\r\n"
             line += 1

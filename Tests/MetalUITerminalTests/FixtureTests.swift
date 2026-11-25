@@ -89,12 +89,22 @@ struct Fixture {
             case "u":
                 var j = i + 3
                 while chars[j] != "}" { j += 1 }
-                out.append(contentsOf: Array(String(Unicode.Scalar(hex((i + 3)..<j))!).utf8))
+                if let scalar = Unicode.Scalar(hex((i + 3)..<j)) {
+                    out.append(contentsOf: Array(String(scalar).utf8))
+                } else {
+                    Issue.record("\\u{...} escape is not a Unicode scalar: \(String(String.UnicodeScalarView(chars[i..<j])))")
+                }
                 i = j + 1
             default: out.append(contentsOf: Array(String(n).utf8)); i += 2
             }
         }
         return out
+    }
+
+    /// An integer field of a fixture file; a malformed one is recorded and read as 0.
+    static func integer<S: StringProtocol>(_ text: S, in name: String) -> Int {
+        guard let value = Int(text) else { Issue.record("\(name): \(text) is not an integer"); return 0 }
+        return value
     }
 
     static func parse(_ source: String, name: String) -> Fixture {
@@ -114,16 +124,16 @@ struct Fixture {
             case "size":
                 let n = parts[1].split(separator: " ").compactMap { Int($0) }
                 f.cols = n[0]; f.rows = n[1]
-            case "scrollback": f.scrollback = Int(parts[1])!
+            case "scrollback": f.scrollback = integer(parts[1], in: name)
             case "input": f.input += unescape(String(parts[1].dropFirst().dropLast()))
             case "text": block = "text"; f.text = []
             case "history": block = "history"; f.history = []
             case "cursor":
                 let n = parts[1].split(separator: " ")
-                f.cursor = (Int(n[0])!, Int(n[1])!, n.count > 2 && n[2] == "pending")
+                f.cursor = (integer(n[0], in: name), integer(n[1], in: name), n.count > 2 && n[2] == "pending")
             case "attr":
                 let n = parts[1].split(separator: " ").map(String.init)
-                f.attrs.append((Int(n[0])!, Int(n[1])!, attributes(Array(n.dropFirst(2)))))
+                f.attrs.append((integer(n[0], in: name), integer(n[1], in: name), attributes(Array(n.dropFirst(2)))))
             case "replies": f.replies = unescape(String(parts[1].dropFirst().dropLast()))
             case "events": f.events = parts.count > 1 ? parts[1].split(separator: " ").map(String.init) : []
             case "modes":

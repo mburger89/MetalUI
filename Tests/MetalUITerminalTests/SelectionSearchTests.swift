@@ -120,7 +120,7 @@ extension TerminalEmulator {
         #expect(e.selection == .linear(range(pos(top, 0), pos(top, 5))))
     }
 
-    @Test func aFullLinearSelectionEqualsTheRowTextJoinedByTheWrapRules() {
+    @Test func aFullLinearSelectionEqualsTheRowTextJoinedByTheWrapRules() throws {
         var rng = SeededRandom(seed: 0x5E1EC7)
         let alphabet = Array("ab cd  efgh世\u{301}z") + ["\r\n", "\r\n"].flatMap { Array($0) }
         for _ in 0..<60 {
@@ -135,9 +135,13 @@ extension TerminalEmulator {
             e.selection = .linear(range(pos(first, 0), pos(last, cols - 1)))
             var expected = ""
             for row in first...last {
-                let stored = e.row(at: row)!
+                let stored = try #require(e.row(at: row))
                 let wraps = stored.wrapsToNext && row < last
-                expected += wraps ? String(decoding: stored.bytes, as: UTF8.self) : e.rowText(row)!
+                if wraps {
+                    expected += String(decoding: stored.bytes, as: UTF8.self)
+                } else {
+                    expected += try #require(e.rowText(row))
+                }
                 if row < last && !wraps { expected += "\n" }
             }
             #expect(e.selectedText() == expected, "cols \(cols) rows \(rows) input \(input.debugDescription)")
@@ -376,9 +380,9 @@ extension TerminalEmulator {
         #expect(e.search("row12", from: pos(top + 900, 0), backwards: false) == nil)
     }
 
-    @Test func aFoundRangeCanBeAssignedAsTheSelection() {
+    @Test func aFoundRangeCanBeAssignedAsTheSelection() throws {
         let e = term(5, 4, "say hello there")
-        let found = e.search("hello", from: pos(0, 0), backwards: false)!
+        let found = try #require(e.search("hello", from: pos(0, 0), backwards: false))
         e.selection = .linear(found)
         #expect(e.selectedText() == "hello")
     }
@@ -404,9 +408,9 @@ extension TerminalEmulator {
         #expect(e.wordRange(at: pos(9, 0)) == nil)
     }
 
-    @Test func aWordCrossesASoftWrapAndASelectionOfItReadsBack() {
+    @Test func aWordCrossesASoftWrapAndASelectionOfItReadsBack() throws {
         let e = term(5, 4, "xx abcdefgh yy")
-        let word = e.wordRange(at: pos(0, 4))!
+        let word = try #require(e.wordRange(at: pos(0, 4)))
         #expect(word == range(pos(0, 3), pos(2, 0)))
         e.selection = .linear(word)
         #expect(e.selectedText() == "abcdefgh")
@@ -423,12 +427,12 @@ extension TerminalEmulator {
         #expect(e.wordRange(at: pos(0, 2)) == range(pos(0, 0), pos(0, 3)))
     }
 
-    @Test func aLineIsTheWholeLogicalLine() {
+    @Test func aLineIsTheWholeLogicalLine() throws {
         let e = term(5, 5, "abcdefghij\r\nxy\r\n")
         #expect(e.lineRange(at: pos(1, 2)) == range(pos(0, 0), pos(1, 4)))
         #expect(e.lineRange(at: pos(0, 0)) == range(pos(0, 0), pos(1, 4)))
         #expect(e.lineRange(at: pos(2, 1)) == range(pos(2, 0), pos(2, 4)))
-        e.selection = .linear(e.lineRange(at: pos(0, 3))!)
+        e.selection = .linear(try #require(e.lineRange(at: pos(0, 3))))
         #expect(e.selectedText() == "abcdefghij")
         #expect(e.lineRange(at: pos(40, 0)) == nil)
     }

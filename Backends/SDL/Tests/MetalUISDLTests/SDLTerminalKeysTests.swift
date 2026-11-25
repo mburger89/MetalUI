@@ -19,12 +19,12 @@ private func keyEvent(keycode: UInt32, scancode: UInt32, _ modifiers: Modifiers 
 /// **1** Insert and F13-F20 (the function keys the encoder numbers 25..34) arrive as AppKit's function-key
 /// characters, not flagged keypad. Mutation: drop the Insert entry from `SDLKeys.named` (Insert's row fails: it
 /// arrived empty); shift an F-key's entry by one (its row fails).
-@Test func insertAndF13ToF20ArriveAsFunctionKeyCharacters() {
+@Test func insertAndF13ToF20ArriveAsFunctionKeyCharacters() throws {
     let insert = keyEvent(keycode: 0x4000_0049, scancode: 73)
     #expect(insert.characters == "\u{f727}" && insert.charactersIgnoringModifiers == "\u{f727}" && !insert.isKeypad)
     for index in 0..<8 {   // SDL_SCANCODE_F13 = 104
         let event = keyEvent(keycode: 0x4000_0000 | UInt32(104 + index), scancode: UInt32(104 + index))
-        let expected = String(UnicodeScalar(0xF710 + UInt32(index))!)
+        let expected = String(try #require(UnicodeScalar(0xF710 + UInt32(index))))
         #expect(event.charactersIgnoringModifiers == expected && event.characters == expected && !event.isKeypad,
                 "F\(13 + index)")
     }
@@ -34,7 +34,7 @@ private func keyEvent(keycode: UInt32, scancode: UInt32, _ modifiers: Modifiers 
 /// layout may give with Num Lock on), is the character AppKit reports with `isKeypad`.
 /// Mutation: derive `isKeypad` from the keycode range only (the plain-digit rows fail); drop `isKeypad`
 /// (every row fails); drop KP_EQUALS or KP_COMMA from `keypadScancodes` (its row fails).
-@Test func everyKeypadKeyIsFlaggedWhateverTheKeycode() {
+@Test func everyKeypadKeyIsFlaggedWhateverTheKeycode() throws {
     // (scancode, SDLK_KP_* keycode, character)
     let rows: [(UInt32, UInt32, String)] = [
         (84, 0x4000_0054, "/"), (85, 0x4000_0055, "*"), (86, 0x4000_0056, "-"), (87, 0x4000_0057, "+"),
@@ -44,7 +44,7 @@ private func keyEvent(keycode: UInt32, scancode: UInt32, _ modifiers: Modifiers 
         (103, 0x4000_0067, "="), (133, 0x4000_0085, ","),
     ]
     for (scancode, keycode, character) in rows {
-        let plain = character.unicodeScalars.first!.value
+        let plain = try #require(character.unicodeScalars.first).value
         for (spelling, code) in [("SDLK_KP", keycode), ("plain", plain)] {
             let event = keyEvent(keycode: code, scancode: scancode)
             #expect(event.isKeypad && event.characters == character && event.charactersIgnoringModifiers == character

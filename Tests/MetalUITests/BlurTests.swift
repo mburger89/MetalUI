@@ -197,7 +197,7 @@ private let linear1 = Animation.linear(duration: 1)
 /// chain and differ from the bare content's. Mutation: two layers.
 @Test @MainActor func theLayoutModifierBlurCaseIsOneIdentityLevel() throws {
     func tapIDs(_ e: some ProposalElementGroup) -> [GlobalElementID] {
-        effectFrame(VStack { e }).hitboxes.filter { $0.handlers.gestures.count > 0 }.map(\.id)
+        effectFrame(VStack { e }).hitboxes.filter { !$0.handlers.gestures.isEmpty }.map(\.id)
     }
     let bare = tapIDs(fxBar(40, 20).onTapGesture {})
     let padded = tapIDs(fxBar(40, 20).onTapGesture {}.padding(Edges(all: px(0))))

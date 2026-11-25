@@ -107,7 +107,7 @@ import Testing
     let cold = try w.accessibilityTree
     let coldTable = cold.nodes.first { $0.value.role == .table && $0.value.columnCount != nil }
     #expect(coldTable != nil, "the table is published on frame 1")
-    #expect(cold.nodes.values.filter { $0.role == .row && $0.rowIndex != nil }.isEmpty,
+    #expect(!cold.nodes.values.contains { $0.role == .row && $0.rowIndex != nil },
             "frame 1 publishes no rows: \(cold.nodes.values.filter { $0.role == .row }.count)")
     try await w.runUntilIdle()
     let after = try dataRows(w).count

@@ -168,7 +168,7 @@ private struct SequenceStateChip: Component {
     let log: GCLog
     @GestureState var s = 0
     var content: some ElementGroup {
-        let _ = log.add("body s=\(s)")
+        let _: Void = log.add("body s=\(s)")
         chip(pressThenDrag(log)
             .updating($s) { v, st, _ in st += 1; log.add("upd \(seq(v))") }
             .onEnded { log.add("ended \(seq($0))") })
@@ -244,7 +244,7 @@ private struct SimultaneousChip: Component {
     let log: GCLog
     @GestureState var s = 0
     var content: some ElementGroup {
-        let _ = log.add("body s=\(s)")
+        let _: Void = log.add("body s=\(s)")
         chip(DragGesture(minimumDistance: 0)
             .simultaneously(with: LongPressGesture(minimumDuration: 0.3, maximumDistance: Pixels(100)))
             .updating($s) { v, st, _ in
@@ -279,7 +279,7 @@ private struct ExclusiveChip: Component {
     let log: GCLog
     @GestureState var s = 0
     var content: some ElementGroup {
-        let _ = log.add("body s=\(s)")
+        let _: Void = log.add("body s=\(s)")
         chip(LongPressGesture(minimumDuration: 0.3, maximumDistance: Pixels(100))
             .exclusively(before: DragGesture(minimumDistance: 0))
             .updating($s) { v, st, _ in
@@ -349,7 +349,7 @@ private struct CustomStateChip: Component {
     let log: GCLog
     @GestureState var s = 0
     var content: some ElementGroup {
-        let _ = log.add("body s=\(s)")
+        let _: Void = log.add("body s=\(s)")
         chip(HoldGesture(log: log).updating($s) { held, st, _ in st = held ? 1 : 0; log.add("upd \(held)") })
     }
 }

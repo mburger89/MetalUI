@@ -13,13 +13,27 @@ import Testing
 private typealias Frame = (x: Float, y: Float, w: Float, h: Float)
 
 /// The leaf rects by tag (alpha 0.11 -> 11, ...), in window points.
-@MainActor private func leaves(_ w: TestWindow) -> [Int: Frame] {
+@MainActor private func leaves(_ w: TestWindow) -> Leaves {
     var out: [Int: Frame] = [:]
     for r in w.scene.rects where r.background.a > 0.1 && r.background.a < 0.3 {
         let tag = Int((r.background.a * 100).rounded())
         out[tag] = (r.bounds.origin.x, r.bounds.origin.y, r.bounds.size.width, r.bounds.size.height)
     }
-    return out
+    return Leaves(frames: out)
+}
+
+/// The leaf rects by tag. A tag with no leaf records an issue, so a missing leaf fails the test where it is read.
+private struct Leaves {
+    let frames: [Int: Frame]
+    var keys: [Int] { Array(frames.keys) }
+    var values: [Frame] { Array(frames.values) }
+    subscript(_ tag: Int) -> Frame {
+        guard let frame = frames[tag] else {
+            Issue.record("no leaf \(tag)")
+            return (0, 0, 0, 0)
+        }
+        return frame
+    }
 }
 
 private func overlap(_ a: Frame, _ b: Frame) -> Float {
@@ -93,20 +107,20 @@ private let allLeaves = Array(11...17)
     let f = leaves(w)
     #expect(f.keys.sorted() == allLeaves, "\(f.keys.sorted())")
     for t in allLeaves {
-        let r = try #require(f[t])
+        let r = f[t]
         #expect(r.w >= minPane && r.h >= minPane, "leaf \(t) \(r)")
         #expect(r.x >= 0 && r.y >= 0 && r.x + r.w <= 640 && r.y + r.h <= 480, "leaf \(t) outside the island \(r)")
     }
     for a in allLeaves { for b in allLeaves where a < b {
-        #expect(overlap(f[a]!, f[b]!) == 0, "leaves \(a) and \(b) overlap: \(f[a]!) \(f[b]!)")
+        #expect(overlap(f[a], f[b]) == 0, "leaves \(a) and \(b) overlap: \(f[a]) \(f[b])")
     } }
-    let covered = allLeaves.reduce(Float(0)) { $0 + f[$1]!.w * f[$1]!.h }
+    let covered = allLeaves.reduce(Float(0)) { $0 + f[$1].w * f[$1].h }
     let island: Float = 640 * 480
     #expect(covered <= island && covered > island * 0.97, "leaves cover \(covered) of \(island)")
     // The island itself is the clipped background, and the frames after the first stay the same.
     let before = leaves(w)
     for _ in 0..<3 { w.window.setNeedsRedraw(); w.tick() }
-    for t in allLeaves { #expect(same(before[t]!, leaves(w)[t]!), "leaf \(t) moved on a redraw") }
+    for t in allLeaves { #expect(same(before[t], leaves(w)[t]), "leaf \(t) moved on a redraw") }
 }
 
 private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Point<Pixels> {
@@ -118,11 +132,11 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
 @Test @MainActor func draggingTheInnermostDividerResizesOnlyItsTwoPanes() throws {
     let w = try editorWindow()
     let before = leaves(w)
-    w.drag(from: dividerPoint(between: before[14]!, and: before[15]!, vertical: true), to: pt(before[14]!.x + before[14]!.w + 20.5, before[14]!.y + 10))
+    w.drag(from: dividerPoint(between: before[14], and: before[15], vertical: true), to: pt(before[14].x + before[14].w + 20.5, before[14].y + 10))
     let after = leaves(w)
-    #expect(after[14]!.w == before[14]!.w + 20 && after[15]!.w == before[15]!.w - 20, "\(before[14]!) -> \(after[14]!), \(before[15]!) -> \(after[15]!)")
-    #expect(after[14]!.h == before[14]!.h && after[15]!.h == before[15]!.h)
-    for t in allLeaves where t != 14 && t != 15 { #expect(same(before[t]!, after[t]!), "leaf \(t) moved: \(before[t]!) -> \(after[t]!)") }
+    #expect(after[14].w == before[14].w + 20 && after[15].w == before[15].w - 20, "\(before[14]) -> \(after[14]), \(before[15]) -> \(after[15])")
+    #expect(after[14].h == before[14].h && after[15].h == before[15].h)
+    for t in allLeaves where t != 14 && t != 15 { #expect(same(before[t], after[t]), "leaf \(t) moved: \(before[t]) -> \(after[t])") }
 }
 
 /// 2b -- every inner divider, one by one, moves only the panes of its own split: the two neighbours' main-axis sizes
@@ -138,14 +152,14 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
     for (a, b, vertical, moving) in cases {
         let w = try editorWindow()
         let before = leaves(w)
-        let from = dividerPoint(between: before[a]!, and: before[b]!, vertical: vertical)
+        let from = dividerPoint(between: before[a], and: before[b], vertical: vertical)
         let to = vertical ? pt(Float(from.x.value) + 12, Float(from.y.value)) : pt(Float(from.x.value), Float(from.y.value) + 12)
         w.drag(from: from, to: to)
         let after = leaves(w)
-        let moved = Set(allLeaves.filter { !same(before[$0]!, after[$0]!) })
+        let moved = Set(allLeaves.filter { !same(before[$0], after[$0]) })
         #expect(!moved.isEmpty, "divider \(a)|\(b) did not move anything")
         #expect(moved.isSubset(of: moving), "divider \(a)|\(b) moved leaves outside its split: \(moved.subtracting(moving))")
-        #expect(after[a]!.w >= minPane && after[a]!.h >= minPane && after[b]!.w >= minPane && after[b]!.h >= minPane)
+        #expect(after[a].w >= minPane && after[a].h >= minPane && after[b].w >= minPane && after[b].h >= minPane)
     }
 }
 
@@ -156,15 +170,15 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
 @Test @MainActor func draggingTheOutermostDividerMovesWholeSubtrees() throws {
     let w = try editorWindow()
     let before = leaves(w)
-    w.drag(from: dividerPoint(between: before[11]!, and: before[16]!, vertical: true), to: pt(before[11]!.x + before[11]!.w + 40.5, 240))
+    w.drag(from: dividerPoint(between: before[11], and: before[16], vertical: true), to: pt(before[11].x + before[11].w + 40.5, 240))
     let after = leaves(w)
-    #expect(after[11]!.w == before[11]!.w + 40, "\(before[11]!) -> \(after[11]!)")
-    #expect(after[16]!.w == before[16]!.w - 40 && after[17]!.w == before[17]!.w - 40)
-    for t in allLeaves { #expect(after[t]!.h == before[t]!.h, "leaf \(t) changed height") }
-    for t in allLeaves { #expect(after[t]!.w >= minPane && after[t]!.h >= minPane, "leaf \(t) \(after[t]!)") }
-    for a in allLeaves { for b in allLeaves where a < b { #expect(overlap(after[a]!, after[b]!) == 0, "\(a) \(b)") } }
+    #expect(after[11].w == before[11].w + 40, "\(before[11]) -> \(after[11])")
+    #expect(after[16].w == before[16].w - 40 && after[17].w == before[17].w - 40)
+    for t in allLeaves { #expect(after[t].h == before[t].h, "leaf \(t) changed height") }
+    for t in allLeaves { #expect(after[t].w >= minPane && after[t].h >= minPane, "leaf \(t) \(after[t])") }
+    for a in allLeaves { for b in allLeaves where a < b { #expect(overlap(after[a], after[b]) == 0, "\(a) \(b)") } }
     // The deep leaves are in V1's region, to the left of the divider.
-    for t in 11...15 { #expect(after[t]!.x + after[t]!.w <= after[16]!.x, "leaf \(t) crosses the outer divider") }
+    for t in 11...15 { #expect(after[t].x + after[t].w <= after[16].x, "leaf \(t) crosses the outer divider") }
 }
 
 /// 2d -- dragging the outermost divider past every limit stops at the minima: no negative or zero size, the far
@@ -173,14 +187,14 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
     let w = try editorWindow()
     let before = leaves(w)
     let y: Float = 240
-    w.drag(from: dividerPoint(between: before[11]!, and: before[16]!, vertical: true), to: pt(639, y))
+    w.drag(from: dividerPoint(between: before[11], and: before[16], vertical: true), to: pt(639, y))
     var after = leaves(w)
-    #expect(after[16]!.w == minPane && after[17]!.w == minPane, "\(after[16]!)")
-    for t in allLeaves { #expect(after[t]!.w >= minPane && after[t]!.h >= minPane, "leaf \(t) \(after[t]!)") }
-    w.drag(from: pt(after[16]!.x - 0.5, y), to: pt(0, y))
+    #expect(after[16].w == minPane && after[17].w == minPane, "\(after[16])")
+    for t in allLeaves { #expect(after[t].w >= minPane && after[t].h >= minPane, "leaf \(t) \(after[t])") }
+    w.drag(from: pt(after[16].x - 0.5, y), to: pt(0, y))
     after = leaves(w)
-    for t in allLeaves { #expect(after[t]!.w >= minPane && after[t]!.h >= minPane, "leaf \(t) \(after[t]!)") }
-    #expect(after[11]!.w >= minPane)
+    for t in allLeaves { #expect(after[t].w >= minPane && after[t].h >= minPane, "leaf \(t) \(after[t])") }
+    #expect(after[11].w >= minPane)
 }
 
 /// 3 -- at the point where an inner divider (V1's A | H2, a row divider) meets the outer divider (V1 | V5), the
@@ -193,14 +207,14 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
     for _ in 0..<2 {
         let w = try editorWindow()
         let before = leaves(w)
-        let crossing = pt(before[11]!.x + before[11]!.w + 0.5, before[11]!.y + before[11]!.h + 0.5)
+        let crossing = pt(before[11].x + before[11].w + 0.5, before[11].y + before[11].h + 0.5)
         w.hover(at: crossing)
         #expect(w.pointerStyle == .columnResize, "\(String(describing: w.pointerStyle))")
         w.drag(from: crossing, to: pt(Float(crossing.x.value) + 25, Float(crossing.y.value) + 25))
         let after = leaves(w)
-        #expect(after[11]!.w == before[11]!.w + 25, "the outer divider moved: \(before[11]!) -> \(after[11]!)")
-        #expect(after[11]!.h == before[11]!.h, "the inner divider did not move")
-        results.append(allLeaves.map { after[$0]! })
+        #expect(after[11].w == before[11].w + 25, "the outer divider moved: \(before[11]) -> \(after[11])")
+        #expect(after[11].h == before[11].h, "the inner divider did not move")
+        results.append(allLeaves.map { after[$0] })
     }
     #expect(zip(results[0], results[1]).allSatisfy { same($0, $1) })
 }
@@ -222,15 +236,15 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
     }
     let w = try harnessWindow(size: sz(640, 480)) { VStack(spacing: 0) { tree() } }
     let before = leaves(w)
-    w.drag(from: dividerPoint(between: before[12]!, and: before[13]!, vertical: true), to: pt(before[12]!.x + before[12]!.w + 10.5, before[12]!.y + 5))
-    w.drag(from: dividerPoint(between: before[11]!, and: before[12]!, vertical: false), to: pt(before[11]!.x + 5, before[11]!.y + before[11]!.h + 15.5))
-    w.drag(from: dividerPoint(between: before[11]!, and: before[14]!, vertical: true), to: pt(before[11]!.x + before[11]!.w + 20.5, 400))
+    w.drag(from: dividerPoint(between: before[12], and: before[13], vertical: true), to: pt(before[12].x + before[12].w + 10.5, before[12].y + 5))
+    w.drag(from: dividerPoint(between: before[11], and: before[12], vertical: false), to: pt(before[11].x + 5, before[11].y + before[11].h + 15.5))
+    w.drag(from: dividerPoint(between: before[11], and: before[14], vertical: true), to: pt(before[11].x + before[11].w + 20.5, 400))
     #expect(Set(store.saved.keys) == ["inner-h", "left-v", "outer-h"], "\(store.saved.keys.sorted())")
     #expect(store.saved.values.allSatisfy { $0.count == 2 }, "\(store.saved)")
     #expect(store.writes == 3, "one write per drag, each to its own name: \(store.writes)")
     let moved = leaves(w)
     let reopened = try harnessWindow(size: sz(640, 480)) { VStack(spacing: 0) { tree() } }
-    for t in 11...14 { #expect(same(leaves(reopened)[t]!, moved[t]!), "leaf \(t) not restored: \(leaves(reopened)[t]!) vs \(moved[t]!)") }
+    for t in 11...14 { #expect(same(leaves(reopened)[t], moved[t]), "leaf \(t) not restored: \(leaves(reopened)[t]) vs \(moved[t])") }
 }
 
 @MainActor private final class NestedMemoryStore: SplitViewAutosaveStore {
@@ -245,10 +259,10 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
 @Test @MainActor func siblingNestedSplitViewsKeepSeparateState() throws {
     let w = try editorWindow()
     let before = leaves(w)
-    w.drag(from: dividerPoint(between: before[16]!, and: before[17]!, vertical: false), to: pt(before[16]!.x + 5, before[16]!.y + before[16]!.h + 30.5))
+    w.drag(from: dividerPoint(between: before[16], and: before[17], vertical: false), to: pt(before[16].x + 5, before[16].y + before[16].h + 30.5))
     let after = leaves(w)
-    #expect(after[16]!.h == before[16]!.h + 30 && after[17]!.h == before[17]!.h - 30)
-    for t in 11...15 { #expect(same(before[t]!, after[t]!), "leaf \(t) moved with its sibling's divider") }
+    #expect(after[16].h == before[16].h + 30 && after[17].h == before[17].h - 30)
+    for t in 11...15 { #expect(same(before[t], after[t]), "leaf \(t) moved with its sibling's divider") }
 }
 
 /// 5 -- Alloy's report: three sibling islands, each clipped, in one HSplitView in one body. Draws the first frame
@@ -269,9 +283,9 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
     #expect(f.keys.sorted() == [11, 12, 13], "\(f.keys.sorted())")
     #expect(f.values.allSatisfy { $0.w > 0 && $0.h == 300 })
     #expect(f.values.reduce(0) { $0 + $1.w } == 598, "two 1-point dividers: \(f)")
-    w.drag(from: dividerPoint(between: f[11]!, and: f[12]!, vertical: true), to: pt(f[11]!.x + f[11]!.w + 20.5, 150))
+    w.drag(from: dividerPoint(between: f[11], and: f[12], vertical: true), to: pt(f[11].x + f[11].w + 20.5, 150))
     let after = leaves(w)
-    #expect(after[11]!.w == f[11]!.w + 20 && after[12]!.w == f[12]!.w - 20 && after[13]!.w == f[13]!.w)
+    #expect(after[11].w == f[11].w + 20 && after[12].w == f[12].w - 20 && after[13].w == f[13].w)
 }
 
 // MARK: - HS-J: a bare nested split view is flexible, as SwiftUI's is
@@ -297,15 +311,15 @@ private func dividerPoint(between a: Frame, and b: Frame, vertical: Bool) -> Poi
 @Test @MainActor func aBareNestedSplitViewStretchesLikeSwiftUIs() throws {
     let w = try harnessWindow(size: sz(600, 400)) { VStack(spacing: 0) { bareNest() } }
     let f = leaves(w)
-    #expect(f[11]!.w == 300 && f[12]!.w == 300, "\(f[11]!) \(f[12]!)")
-    #expect(f[13]!.x == 301 && f[13]!.w == 299 && f[13]!.h == 400, "\(f[13]!)")
-    #expect(f[11]!.h + f[12]!.h == 399, "\(f[11]!) \(f[12]!)")
+    #expect(f[11].w == 300 && f[12].w == 300, "\(f[11]) \(f[12])")
+    #expect(f[13].x == 301 && f[13].w == 299 && f[13].h == 400, "\(f[13])")
+    #expect(f[11].h + f[12].h == 399, "\(f[11]) \(f[12])")
 }
 
 /// HS-J -- the same on the other axis (probe `V{H{red, green}, blue}`: red 300, green 299 at x 301, blue 600 wide).
 @Test @MainActor func aBareNestedHSplitViewInAVSplitViewStretches() throws {
     let w = try harnessWindow(size: sz(600, 400)) { VStack(spacing: 0) { bareNestVertical() } }
     let f = leaves(w)
-    #expect(f[11]!.w == 300 && f[12]!.x == 301 && f[12]!.w == 299, "\(f[11]!) \(f[12]!)")
-    #expect(f[13]!.w == 600 && f[13]!.h > 100, "\(f[13]!)")
+    #expect(f[11].w == 300 && f[12].x == 301 && f[12].w == 299, "\(f[11]) \(f[12])")
+    #expect(f[13].w == 600 && f[13].h > 100, "\(f[13])")
 }

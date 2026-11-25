@@ -26,7 +26,10 @@ private func privateDirectory() throws -> String {
     return path
     #else
     var template = Array("/tmp/msi-XXXXXX".utf8CString)
-    let made = template.withUnsafeMutableBufferPointer { mkdtemp($0.baseAddress!) != nil }
+    let made = template.withUnsafeMutableBufferPointer {
+        guard let base = $0.baseAddress else { return false }
+        return mkdtemp(base) != nil
+    }
     try #require(made, "mkdtemp failed")
     return String(decoding: template.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     #endif

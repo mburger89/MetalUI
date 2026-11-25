@@ -327,4 +327,7 @@ public struct FrameWork: Sendable, Equatable {
                   tableDataReads: l.tableDataReads + r.tableDataReads,
                   tableColdFrames: l.tableColdFrames + r.tableColdFrames)
     }
+
+    /// Adds `rhs` into `lhs` field by field, the compound form of ``+(_:_:)``.
+    public static func += (lhs: inout FrameWork, rhs: FrameWork) { lhs = lhs + rhs }
 }

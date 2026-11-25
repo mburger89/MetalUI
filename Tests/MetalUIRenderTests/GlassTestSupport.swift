@@ -54,7 +54,7 @@ func glassRecord(_ b: MUIBounds, tint: MUIHsla = glassNoColor, radius: Float = 0
     r.lensDepth = lensDepth; r.band = band; r.rimStrength = rim
     r.blendK = blendK; r.press = press; r.pressLift = pressLift
     let slots = members.map { MUIGlassMember(bounds: $0.0, radii: $0.1) }
-    if slots.count > 0 { r.member0 = slots[0] }
+    if !slots.isEmpty { r.member0 = slots[0] }
     if slots.count > 1 { r.member1 = slots[1] }
     if slots.count > 2 { r.member2 = slots[2] }
     if slots.count > 3 { r.member3 = slots[3] }

@@ -185,7 +185,7 @@ private let threeLines = "hello\nworld\nthird\n"
 /// through the buffer (default state) centres neither view and leaves B's state where it was.
 @Test @MainActor func findStepsAndCentresOnlyInTheSteppingView() throws {
     var text = codeText(lines: 1000)
-    let first = text.range(of: "line 301")!.lowerBound
+    let first = try #require(text.range(of: "line 301")).lowerBound
     text.replaceSubrange(first..<text.index(first, offsetBy: 8), with: "foo 301 ")
     let s = try Split(text)
     let matches = s.buffer.snapshot().ranges(of: "foo 301")

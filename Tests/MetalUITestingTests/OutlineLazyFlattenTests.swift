@@ -55,7 +55,7 @@ private struct LeafRow: Component {
     }
 
     var content: some ProposalElementGroup {
-        let _ = serials.seen[name] = serial
+        let _: Void = serials.seen[name] = serial
         ProposalText(name).frame(height: Pixels(20))
     }
 }
@@ -65,10 +65,10 @@ private struct NodeRow: Component {
     let serials: Serials
 
     @ElementBuilder var content: some ElementGroup {
-        let _ = node.bodies += 1
+        let _: Void = node.bodies += 1
         if node.isFolder {
             DisclosureGroup(isExpanded: node.binding) {
-                let _ = node.contentCalls += 1
+                let _: Void = node.contentCalls += 1
                 ForEach(node.kids) { NodeRow(node: $0, serials: serials) }
             } label: { ProposalText(node.name) }
         } else {

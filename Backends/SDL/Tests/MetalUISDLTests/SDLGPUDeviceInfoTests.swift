@@ -4,9 +4,8 @@ import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
 import MetalUIShaderTypes
-import MetalUISDLGPU
-@testable import MetalUISDL
 @testable import MetalUISDLGPU
+@testable import MetalUISDL
 import ReplayFixture
 
 // Adapter name, software flag, limits and the off-main-thread device
@@ -65,7 +64,10 @@ private func roundTrip(on device: SDLGPUDevice) -> Bool {
           let up = device.makeTransferBuffer(size: 256, direction: .upload),
           let down = device.makeTransferBuffer(size: 256, direction: .download),
           let memory = up.map() else { return false }
-    bytes.withUnsafeBytes { memory.copyMemory(from: $0.baseAddress!, byteCount: 256) }
+    bytes.withUnsafeBytes {
+        guard let base = $0.baseAddress else { preconditionFailure("256 bytes have a base address") }
+        memory.copyMemory(from: base, byteCount: 256)
+    }
     up.unmap()
     guard let first = try? device.submitBatchSynchronously({ $0.copy(up, to: buffer, destinationOffset: 0, size: 256) }) else { return false }
     first.waitBlocking()

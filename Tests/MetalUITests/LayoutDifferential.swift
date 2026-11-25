@@ -157,7 +157,8 @@ enum LayoutDifferential {
             frame.render(&root)
             last = frame
         }
-        return last!
+        guard let last else { preconditionFailure("frames must be at least 1") }
+        return last
     }
 
     /// `render`, summarized: the recorded element count, the diagnostics and the

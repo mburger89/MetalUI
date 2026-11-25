@@ -4,9 +4,8 @@ import MetalUICore
 import MetalUIPlatform
 import MetalUIScene
 import MetalUIShaderTypes
-import MetalUISDLGPU
-@testable import MetalUISDL
 @testable import MetalUISDLGPU
+@testable import MetalUISDL
 import ReplayFixture
 
 // A borrowed device under the window's own frames (ruling `GA-E` item 4, spec

@@ -114,9 +114,9 @@ func untransformedPinScene() -> (Scene, GlyphAtlas) {
     atlas.beginFrame()
     for g in 0..<5 {
         let key = GlyphKey(font: font, glyph: UInt16(g), size: 10, subpixelVariant: 0, scaleFactor: 1)
-        let packed = atlas.packed(for: key) {
+        guard let packed = atlas.packed(for: key, rasterize: {
             GlyphImage(width: 7, height: 9, bytes: (0..<63).map { UInt8(($0 * 37 + g * 11) % 256) })
-        }!
+        }) else { preconditionFailure("a fresh atlas has room for five 7x9 glyphs") }
         scene.insert(MUIGlyph(bounds: Bounds(origin: Point(x: ScaledPixels(Float(20 + g * 9)), y: ScaledPixels(90)),
                                              size: Size(width: ScaledPixels(7), height: ScaledPixels(9))),
                               slot: packed.slot, contentMask: Bounds(origin: Point(x: ScaledPixels(15), y: ScaledPixels(85)),
@@ -229,12 +229,12 @@ let untransformedPinHash: UInt64 = 0xc1c0_b5e3_50b2_17a8
     let font = FontKey(resolvedPostScriptName: "SlotClamp", size: 10, variations: [],
                        matrix: .init(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0))
     atlas.beginFrame()
-    let empty = atlas.packed(for: GlyphKey(font: font, glyph: 1, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
+    let empty = try #require(atlas.packed(for: GlyphKey(font: font, glyph: 1, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
         GlyphImage(width: 6, height: 6, bytes: [UInt8](repeating: 0, count: 36))
-    }!
-    let neighbour = atlas.packed(for: GlyphKey(font: font, glyph: 2, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
+    })
+    let neighbour = try #require(atlas.packed(for: GlyphKey(font: font, glyph: 2, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
         GlyphImage(width: 6, height: 6, bytes: (0..<36).map { $0 % 6 == 0 ? 255 : 0 })
-    }!
+    })
     atlas.endFrame()
     try #require(neighbour.slot.x == empty.slot.x + 6 && neighbour.slot.y == empty.slot.y, "slots abut")
     var scene = Scene()
@@ -314,9 +314,9 @@ private func solidGlyphSlot(width: Int, height: Int) -> (GlyphAtlas, AtlasSlot) 
     let font = FontKey(resolvedPostScriptName: "SolidSlot", size: 10, variations: [],
                        matrix: .init(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0))
     atlas.beginFrame()
-    let packed = atlas.packed(for: GlyphKey(font: font, glyph: 1, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
+    guard let packed = atlas.packed(for: GlyphKey(font: font, glyph: 1, size: 10, subpixelVariant: 0, scaleFactor: 1), rasterize: {
         GlyphImage(width: width, height: height, bytes: [UInt8](repeating: 255, count: width * height))
-    }!
+    }) else { preconditionFailure("a fresh 64x64 atlas has room for the slot") }
     atlas.endFrame()
     return (atlas, packed.slot)
 }

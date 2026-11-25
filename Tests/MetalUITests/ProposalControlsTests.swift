@@ -569,7 +569,7 @@ private struct Counter: Component {
         // transparent scope (`EV-`).
         let button = try controlBounds(window.lastFrameBounds(), onStack ? id(0, 0, 0, 0) : id(0, 1, 0, 0))
         controlClick(platform, at: controlCentre(button))
-        #expect(model.count == 0, "\(name): .disabled(true) gates the click")
+        #expect(model.isEmpty, "\(name): .disabled(true) gates the click")
         withExtendedLifetime(window) {}
     }
 }

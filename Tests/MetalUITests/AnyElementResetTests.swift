@@ -442,7 +442,7 @@ private struct ERFocusB: Element {
     let (window, _) = try lcWindow(size: 100) {
         Box(style: erStyle(width: 100, height: 100, column: true)) {
             ScrollViewReader { proxy in
-                let _ = ERProxy.proxy = proxy
+                let _: Void = ERProxy.proxy = proxy
                 ScrollView {
                     Box(style: erStyle(width: 100, height: nil, column: true)) {
                         Box(style: erStyle(width: 100, height: 200))
