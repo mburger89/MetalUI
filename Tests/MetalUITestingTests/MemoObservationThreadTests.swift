@@ -25,7 +25,7 @@ import Testing
 private func moCard(_ label: String, value: Int) -> some ElementGroup {
     VStack(spacing: 2) {
         Text(label).frame(width: Pixels(70), height: Pixels(14))
-        Box().frame(width: Pixels(30), height: Pixels(8)).background(value % 2 == 0 ? Color.red : Color.accent)
+        Box().frame(width: Pixels(30), height: Pixels(8)).background(value.isMultiple(of: 2) ? Color.red : Color.accent)
     }
 }
 

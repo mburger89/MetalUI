@@ -140,4 +140,3 @@ extension ComputeShaderReflection {
                   threadCountZ: reflection.threadCount.z)
     }
 }
-

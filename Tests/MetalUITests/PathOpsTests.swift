@@ -54,7 +54,7 @@ private let linear1 = Animation.linear(duration: 1)
         ("RoundedRectangle", RoundedRectangle(cornerRadius: 20, style: .circular).path(in: wide), "M(100,30)", (50, 60)),
         ("Capsule", Capsule().path(in: wide), "M(100,30)", (50, 60)),
         ("Circle", Circle().path(in: wide), "M(80,30)", (50, 60)),
-        ("Ellipse", Ellipse().path(in: wide), "M(100,30)", (50, 60)),
+        ("Ellipse", Ellipse().path(in: wide), "M(100,30)", (50, 60))
     ]
     for (name, path, start, quarter) in cases {
         #expect(trace(path).first == start, "\(name): \(trace(path))")
@@ -64,7 +64,7 @@ private let linear1 = Animation.linear(duration: 1)
         ("RoundedRectangle", RoundedRectangle(cornerRadius: 20, style: .circular).trim(from: 0, to: 0.25).path(in: wide), (50, 60)),
         ("Capsule", Capsule().trim(from: 0, to: 0.25).path(in: wide), (50, 60)),
         ("Circle", Circle().trim(from: 0, to: 0.25).path(in: wide), (50, 60)),
-        ("Ellipse", Ellipse().trim(from: 0, to: 0.25).path(in: wide), (50, 60)),
+        ("Ellipse", Ellipse().trim(from: 0, to: 0.25).path(in: wide), (50, 60))
     ]
     for (name, path, quarter) in trimmed {
         #expect(near(end(path), quarter.0, quarter.1, 1e-2), "\(name): \(String(describing: end(path)))")

@@ -30,7 +30,7 @@ private func makeApp(in directory: URL) throws -> URL {
         "CFBundleExecutable": "MyApp",
         "CFBundleIdentifier": "com.example.metalui.shader-bundle-test.\(UUID().uuidString)",
         "CFBundlePackageType": "APPL",
-        "CFBundleName": "MyApp",
+        "CFBundleName": "MyApp"
     ]
     let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
     try data.write(to: contents.appendingPathComponent("Info.plist"))

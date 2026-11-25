@@ -18,7 +18,7 @@ import Testing
         "\u{1B}[r", "\u{1B}[?6h", "\u{1B}[3L", "\u{1B}[2M", "\u{1B}[4@", "\u{1B}[9P", "\u{1B}[3S", "\u{1B}[3T", "\u{1B}[38;2;1;2;3m",
         "\u{1B}[38:2::9:8:7m", "\u{1B}[0m", "\u{1B}[1;4:3m", "\u{1B}7", "\u{1B}8", "\u{1B}c", "\u{1B}#8", "\u{1B}(0", "\u{1B}(B",
         "\u{1B}[?7l", "\u{1B}[?7h", "\u{1B}[4h", "\u{1B}[4l", "\u{1B}[6n", "\u{1B}[c", "\r\n", "\n\n\n", "\t\t", "\u{08}\u{08}",
-        "漢字", "e\u{301}", "😀", "\u{200D}", "日本語のテキスト", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "漢字", "e\u{301}", "😀", "\u{200D}", "日本語のテキスト", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     ].map { Array($0.utf8) }
 
     private func step(_ e: TerminalEmulator, _ rng: inout SeededRandom) {

@@ -413,7 +413,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
         child(rootID, 0): bounds(0, 0, 20, 10),
         outer: bounds(0, 0, 54, 64),
         inner: bounds(8, 8, 38, 48),
-        child(inner, 0): bounds(12, 12, 30, 40),
+        child(inner, 0): bounds(12, 12, 30, 40)
     ]
     try #require(frame.elementBounds.count == 5, "\(frame.elementBounds)")
     #expect(frame.elementBounds == expected)
@@ -461,7 +461,7 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
     let expected: [GlobalElementID: Bounds<Pixels>] = [
         rootID: bounds(0, 0, 120, 80),
         child(rootID, 0): bounds(0, 0, 30, 20),
-        child(rootID, 1): bounds(0, 0, 50, 10),
+        child(rootID, 1): bounds(0, 0, 50, 10)
     ]
     #expect(report.bounds == expected)
     #expect(report.unlowerable.isEmpty)

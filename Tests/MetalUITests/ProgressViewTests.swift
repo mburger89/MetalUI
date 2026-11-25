@@ -26,7 +26,7 @@ private let progressProposals: [(String, ProposedSize)] = [
     ("ideal", ProposedSize(width: nil, height: nil)),
     ("infWidth", ProposedSize(width: .infinity, height: nil)),
     ("w200", ProposedSize(width: 200, height: nil)),
-    ("w300", ProposedSize(width: 300, height: nil)),
+    ("w300", ProposedSize(width: 300, height: nil))
 ]
 
 private struct ProgressAsk: ProposalLayout {
@@ -132,7 +132,7 @@ private func spinnerStep(_ window: Window) throws -> Int {
     let bars: [(String, [String: SizeD])] = [
         ("value 0.3", try answers(ProgressView(value: 0.3))),
         ("value nil", try answers(ProgressView(value: nil as Double?))),
-        ("linear, no value", try answers(ProgressView().progressViewStyle(.linear))),
+        ("linear, no value", try answers(ProgressView().progressViewStyle(.linear)))
     ]
     for (name, measured) in bars {
         #expect(measured["ideal"] == SizeD(width: 0, height: 20), "\(name) ideal: \(String(describing: measured["ideal"]))")

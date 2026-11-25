@@ -144,7 +144,7 @@ private struct Today: Equatable, CustomStringConvertible {
         (Today(requests: 4, hits: 0, grafts: 0, skippedRequests: 0, misses: 5), 0, 5),
         (Today(requests: 4, hits: 0, grafts: 0, skippedRequests: 0, misses: 5), 5, 0),
         (Today(requests: 2, hits: 1, grafts: 1, skippedRequests: 2, misses: 0), 0, 0),
-        (Today(requests: 2, hits: 1, grafts: 1, skippedRequests: 2, misses: 0), 0, 0),
+        (Today(requests: 2, hits: 1, grafts: 1, skippedRequests: 2, misses: 0), 0, 0)
     ]
     for (index, want) in expected.enumerated() {
         w.resetFrameWork()

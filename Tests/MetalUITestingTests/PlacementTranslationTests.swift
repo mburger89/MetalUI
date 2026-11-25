@@ -177,4 +177,3 @@ func aShiftUnderAMovedRenderEffectIsReplayedCombined() async throws {
     #expect(prepaintHits >= 6 * 3, "the six cards replayed their prepaint at each step: \(prepaintHits), \(refusals)")
     #expect(redos == 0)
 }
-

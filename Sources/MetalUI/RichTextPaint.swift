@@ -70,6 +70,7 @@ extension PaintPass {
             return (start + line.visibleMinX, start + line.visibleMaxX)
         }
         // A pending underline: its colour, x extent, centre and thickness.
+        // swiftlint:disable:next large_tuple - the pending decoration run, kept as one tuple while painting
         var pending: (line: Int, color: Color, pattern: Text.LineStyle.Pattern, ink: GradientFill?, minX: Double,
                       maxX: Double, centre: Double, thickness: Double)?
         /// One decoration band over `[low, high]`: a single rect for a solid line, the pattern's segments

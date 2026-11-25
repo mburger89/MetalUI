@@ -64,19 +64,19 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         public var isSelected: Bool
         /// A check box's or radio button's state, from its `"1"`/`"0"` value
         /// (`DD-U` item 1); `nil` for every other role.
-        public var toggled: Bool? = nil
+        public var toggled: Bool?
         /// A slider's or stepper's value as a number, when it parses (`DD-U`
         /// item 1); `nil` otherwise.
-        public var numericValue: Double? = nil
+        public var numericValue: Double?
         /// A table's logical row count and a row's logical index (AB-L),
         /// AccessKit's `row_count`/`row_index` (plan task 12 part 2, `IX-AG`:
         /// the parity table found them untranslated).
-        public var rowCount: Int? = nil
-        public var rowIndex: Int? = nil
+        public var rowCount: Int?
+        public var rowIndex: Int?
         /// The node's hint, sent as AccessKit's `description` (`IX-AD`).
-        public var hint: String? = nil
+        public var hint: String?
         /// The node's identifier, sent as AccessKit's `author_id` (`IX-AD`).
-        public var authorID: String? = nil
+        public var authorID: String?
         /// Custom actions' names; each is pushed with its index as its id
         /// (`IX-AD`).
         public var customActions: [String] = []
@@ -91,19 +91,19 @@ public struct AccessKitSnapshot: Equatable, Sendable {
         public var numericRange: Bool = false
         /// A split divider's range, AccessKit's `min_numeric_value` and `max_numeric_value`, and its `orientation`
         /// (`HS-K`); `nil` for every other node.
-        public var range: ClosedRange<Double>? = nil
-        public var orientation: Orientation? = nil
+        public var range: ClosedRange<Double>?
+        public var orientation: Orientation?
         /// A tree item's level, AccessKit's `level` (ARIA's `aria-level`: 1 for a root, so the disclosure level plus one),
         /// and whether a group row is expanded, AccessKit's `expanded`; `nil` for a node outside an outline or a leaf
         /// (`OG-F`).
-        public var level: Int? = nil
-        public var expanded: Bool? = nil
+        public var level: Int?
+        public var expanded: Bool?
         /// A data table's column count, a cell's or column header's column and a column header's sort direction: AccessKit's
         /// `column_count`, `column_index` and `sort_direction` (`TBL-T`). `rowCount` and `rowIndex` above already count the
         /// header row for a data table, which AccessKit's indices do (the tree's own exclude it).
-        public var columnCount: Int? = nil
-        public var columnIndex: Int? = nil
-        public var sortDirection: SortDirection? = nil
+        public var columnCount: Int?
+        public var columnIndex: Int?
+        public var sortDirection: SortDirection?
 
         public static func == (a: Node, b: Node) -> Bool {
             a.id == b.id && a.role == b.role && a.label == b.label && a.value == b.value

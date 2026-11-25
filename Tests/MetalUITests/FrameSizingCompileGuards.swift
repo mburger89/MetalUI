@@ -225,7 +225,7 @@ func theSizingModifiersAreDeprecatedTowardFrame() throws {
         ("'width(fraction:)' is deprecated", "no SwiftUI counterpart"),
         ("'width(fraction:)' is deprecated", "declare a length with .frame(width:)"),
         ("'height(fraction:)' is deprecated", "no SwiftUI counterpart"),
-        ("'height(fraction:)' is deprecated", "declare a length with .frame(height:)"),
+        ("'height(fraction:)' is deprecated", "declare a length with .frame(height:)")
     ]
     try #require(expected.count == 11)
     for (name, replacement) in expected {

@@ -233,7 +233,7 @@ let untransformedPinHash: UInt64 = 0xc1c0_b5e3_50b2_17a8
         GlyphImage(width: 6, height: 6, bytes: [UInt8](repeating: 0, count: 36))
     })
     let neighbour = try #require(atlas.packed(for: GlyphKey(font: font, glyph: 2, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
-        GlyphImage(width: 6, height: 6, bytes: (0..<36).map { $0 % 6 == 0 ? 255 : 0 })
+        GlyphImage(width: 6, height: 6, bytes: (0..<36).map { $0.isMultiple(of: 6) ? 255 : 0 })
     })
     atlas.endFrame()
     try #require(neighbour.slot.x == empty.slot.x + 6 && neighbour.slot.y == empty.slot.y, "slots abut")

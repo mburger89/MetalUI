@@ -19,7 +19,7 @@ private let table: [(String, Material, ColorScheme, Float, Float)] = [
     ("regular", .regularMaterial, .dark, 0.2045, 0.6902),
     ("thick", .thickMaterial, .dark, 0.2010, 0.7804),
     ("ultraThick", .ultraThickMaterial, .dark, 0.2000, 0.8627),
-    ("bar", .bar, .dark, 0.1779, 0.8157),
+    ("bar", .bar, .dark, 0.1779, 0.8157)
 ]
 
 /// **MT-B test 1.** `tint(in:)` is `LK-L` item 3's table for every kind and scheme.

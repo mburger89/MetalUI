@@ -145,7 +145,7 @@ private func render<Root: Element>(width: Float = 300, height: Float = 200,
 /// offset plus (120, 80).
 @Test @MainActor func aLegacyFramePlacesItsChildAtEachOfTheNineAlignments() throws {
     func origin(_ alignment: ProposalAlignment) throws -> Origin {
-        let log = try render() { log in
+        let log = try render { log in
             Mark("leaf", log: log, width: 20, height: 20)
                 .frame(width: px(60), height: px(40), alignment: alignment)
         }
@@ -201,13 +201,13 @@ private func render<Root: Element>(width: Float = 300, height: Float = 200,
 /// — so the literals held on both authorities, and the test read both until
 /// stage 9 deleted the legacy one (record §51, lane 1).
 @Test @MainActor func chainedLegacyFramesAgreeWithSwiftUIsOrderingRules() throws {
-    let innerWide = try render() { log in
+    let innerWide = try render { log in
         Row {
             Mark("leaf", log: log, width: 20, height: 20).frame(width: px(100)).frame(width: px(50))
             Mark("sibling", log: log, width: 5, height: 5)
         }.alignItems(.flexStart).frame(width: px(300), height: px(200), alignment: .topLeading)
     }
-    let outerWide = try render() { log in
+    let outerWide = try render { log in
         Row {
             Mark("leaf", log: log, width: 20, height: 20).frame(width: px(50)).frame(width: px(100))
             Mark("sibling", log: log, width: 5, height: 5)
@@ -223,7 +223,7 @@ private func render<Root: Element>(width: Float = 300, height: Float = 200,
     #expect(Origin(try #require(outerWide.bounds["sibling"])).x == 100, "E2's outer width")
     #expect(outerLeafX == 40, "E2's leaf")
 
-    let aligned = try render() { log in
+    let aligned = try render { log in
         Row {
             Mark("leaf", log: log, width: 20, height: 20)
                 .frame(width: px(60), height: px(40))
@@ -255,13 +255,13 @@ private func render<Root: Element>(width: Float = 300, height: Float = 200,
 /// — so the literals held on both authorities, and the test read both until
 /// stage 9 deleted the legacy one (record §51, lane 1).
 @Test @MainActor func aLegacyFrameProposesItsWidthToAMeasuredLeaf() throws {
-    let framed = try render() { log in
+    let framed = try render { log in
         Column {
             Text("alpha bravo charlie delta").font(size: 12).frame(width: px(60))
             Mark("marker", log: log, width: 5, height: 5)
         }.frame(width: px(300), height: px(200), alignment: .top)
     }
-    let bare = try render() { log in
+    let bare = try render { log in
         Column {
             Text("alpha bravo charlie delta").font(size: 12)
             Mark("marker", log: log, width: 5, height: 5)

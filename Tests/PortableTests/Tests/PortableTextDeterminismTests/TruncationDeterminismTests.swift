@@ -36,7 +36,7 @@ let truncationCorpus: [TruncationCase] = [
     TruncationCase(text: quickFox, size: 15, width: 100, scale: 2,
                    options: TextLayoutOptions(maxLines: 3, truncation: .middle, alignment: .trailing)),
     TruncationCase(text: "Ready\nSet\nGo", size: 13, width: 100, scale: 2,
-                   options: TextLayoutOptions(maxLines: 2, alignment: .center)),
+                   options: TextLayoutOptions(maxLines: 2, alignment: .center))
 ]
 
 func pinTruncation(_ truncationCase: TruncationCase,

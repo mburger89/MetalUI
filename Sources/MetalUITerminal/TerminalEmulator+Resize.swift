@@ -143,7 +143,7 @@ extension TerminalEmulator {
         rows = height
         regionTop = 0
         regionBottom = height - 1
-        tabStops = (0..<width).map { $0 < oldCols ? tabStops[$0] : ($0 % 8 == 0 && $0 > 0) }
+        tabStops = (0..<width).map { $0 < oldCols ? tabStops[$0] : ($0.isMultiple(of: 8) && $0 > 0) }
         dirty = Array(repeating: true, count: height)
         needsFullFrame = true
         if width != oldCols { reflowGeneration += 1 }

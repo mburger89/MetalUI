@@ -556,7 +556,7 @@ extension CodeView {
     // MARK: The plan
 
     @MainActor
-    func makePlan(_ id: GlobalElementID, bounds: Bounds<Pixels>, stored: CodeViewState,
+    func makePlan(_ id: GlobalElementID, bounds: Bounds<Pixels>, stored: CodeViewState, // swiftlint:disable:this cyclomatic_complexity function_body_length - one pass that plans every CodeView feature, kept in one place so the passes agree
                   environment: EnvironmentValues, frame: Frame) -> (CodeViewPlan, CodeViewState) {
         let focused = frame.focusedElement == id
         let system = frame.textSystem
@@ -1257,7 +1257,7 @@ extension CodeView {
     }
 
     @MainActor
-    func paintContent(_ id: GlobalElementID, bounds: Bounds<Pixels>, plan: CodeViewPlan, pass: inout PaintPass) {
+    func paintContent(_ id: GlobalElementID, bounds: Bounds<Pixels>, plan: CodeViewPlan, pass: inout PaintPass) { // swiftlint:disable:this cyclomatic_complexity function_body_length - one paint pass over every CodeView layer, in paint order
         let scale = plan.scale
         let scaleD = Double(scale)
         let theme = decorations.theme

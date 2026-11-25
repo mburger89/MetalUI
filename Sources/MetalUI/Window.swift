@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - the window and its frame pipeline are one unit
 import Foundation
 import Observation
 import MetalUICore
@@ -11,7 +12,7 @@ import MetalUITextSystem
 /// One window: its element tree, focus, input dispatch and frame loop, drawn
 /// through a `PlatformWindow`. Every member is main-actor isolated.
 @MainActor
-public final class Window {
+public final class Window { // swiftlint:disable:this type_body_length - the window owns the whole frame pipeline state
     let platformWindow: any PlatformWindow   // internal: the app shell reads it (WindowShell.swift)
 
     /// Builds and walks the root element for one frame.
@@ -1078,6 +1079,7 @@ public final class Window {
         return Size(width: size.width, height: Pixels(max(size.height.value, 0) + drawnChromeHeightValue))
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length - the window initialiser wires every subsystem in dependency order
     init<Root: Element>(platformWindow: any PlatformWindow,
                         startsDisplayLink: Bool = true,
                         textSystem: (any TextSystem)? = nil,
@@ -2270,6 +2272,14 @@ public final class Window {
         return true
     }
 
+    /// `RK-AI`: puts the state table back as the abandoned attempt found it; a test that asked records its digest before the attempt (`before`),
+    /// as the attempt left it and after the rollback.
+    private func rollBackAttempt(recordingFrom before: [String]?) {
+        let during = before == nil ? nil : stateTable.attemptDigest
+        stateTable.rollbackAttempt()
+        if let before, let during { testingRollbackDigests?.append((before: before, during: during, after: stateTable.attemptDigest)) }
+    }
+
     /// The build-and-adopt half of `drawFrameIfNeeded` (ruling `CR-Q`): builds
     /// one frame at `scaleFactor` — taking the parked root transaction, so a
     /// second call in one `beginFrame()` gets none — and adopts it: the read-
@@ -2411,11 +2421,7 @@ public final class Window {
             // transaction (the same value is passed), the window's `scrollTo` queue, the build counters.
             memos.noteRedo(frame.redoEntries)
             scrollRequests.restore(pendingScrollRequests)
-            let rollbackMid = rollbackBefore == nil ? nil : stateTable.attemptDigest
-            stateTable.rollbackAttempt()   // `RK-AI`: the redo plans from the table the attempt found, not from what its prepaint wrote
-            if let rollbackBefore, let rollbackMid {
-                testingRollbackDigests?.append((before: rollbackBefore, during: rollbackMid, after: stateTable.attemptDigest))
-            }
+            rollBackAttempt(recordingFrom: rollbackBefore)   // `RK-AI`: the redo plans from the table the attempt found, not from what its prepaint wrote
             if let checkpoint { animationStore.rollbackBuild(checkpoint) }
             surfaceRegistry.rollbackBuild()
             memos.redoInProgress = true

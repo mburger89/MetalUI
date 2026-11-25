@@ -169,7 +169,7 @@ private func groups(_ scene: Scene, _ kind: Scene.GroupFilter.Kind) -> [Int] {
     try #require(blurred.count == 1, "a blur group: \(scene.groupFilters)")
     let box = scene.groups[blurred[0]].bounds
     #expect(gxDescribe(box) == "(43.0, 43.0, 116.0×116.0)", "the box: \(gxDescribe(box))")
-    #expect(Int(box.size.width) % 4 == 0 && Int(box.size.height) % 4 == 0, "whole levels")
+    #expect(Int(box.size.width).isMultiple(of: 4) && Int(box.size.height).isMultiple(of: 4), "whole levels")
     #expect(scene.groupFilters[blurred[0]].sigma == 12, "sigma: \(scene.groupFilters[blurred[0]].sigma)")
     #expect(ImageFilter(rawValue: scene.groups[blurred[0]].filter & 0xFF) == .linear, "read linearly at L = 2")
 }

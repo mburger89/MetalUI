@@ -15,7 +15,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 
 private let allMaterials: [(String, Material)] = [
     ("ultraThin", .ultraThinMaterial), ("thin", .thinMaterial), ("regular", .regularMaterial),
-    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar),
+    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar)
 ]
 
 /// Rects that draw anything: a tint rect would show here.
@@ -54,7 +54,7 @@ private func tinted(_ scene: Scene) -> [MUIRect] { scene.rects.filter { $0.backg
         .light: ["ultraThin": (0.9250, 0.4706), "thin": (0.9145, 0.5961), "regular": (0.9121, 0.7137),
                  "thick": (0.9052, 0.8275), "ultraThick": (0.8996, 0.9373), "bar": (1.0000, 0.8000)],
         .dark: ["ultraThin": (0.2248, 0.5059), "thin": (0.2105, 0.5961), "regular": (0.2045, 0.6902),
-                "thick": (0.2010, 0.7804), "ultraThick": (0.2000, 0.8627), "bar": (0.1779, 0.8157)],
+                "thick": (0.2010, 0.7804), "ultraThick": (0.2000, 0.8627), "bar": (0.1779, 0.8157)]
     ]
     for scheme in [ColorScheme.light, .dark] {
         for (name, material) in allMaterials {

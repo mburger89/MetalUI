@@ -317,7 +317,6 @@ func inputRenameRoot() -> some Element {
 }
 // end guide
 
-
 // guide: input #6
 /// A field and an inert panel: a click on the panel ends editing.
 struct InputCommit: Component {
@@ -417,7 +416,6 @@ func inputCopyFromCode(_ window: Window, _ graph: InputGraph) -> InputGraph? {
     return window.clipboard.read(InputGraph.self)
 }
 // end guide
-
 
 // guide: input #8
 /// A bitmap drawn in code: a filled disc of `side` pixels.

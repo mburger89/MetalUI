@@ -18,17 +18,17 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "Jotter", targets: ["Jotter"]),
-        .library(name: "JotterKit", targets: ["JotterKit"]),
+        .library(name: "JotterKit", targets: ["JotterKit"])
     ],
     dependencies: [
-        .package(name: "MetalUI", path: "../..", traits: metalUITraits),
+        .package(name: "MetalUI", path: "../..", traits: metalUITraits)
     ],
     targets: [
         // Everything but the entry point, so a test imports it plainly.
         .target(
             name: "JotterKit",
             dependencies: [
-                .product(name: "MetalUI", package: "MetalUI"),
+                .product(name: "MetalUI", package: "MetalUI")
             ]
         ),
         .executableTarget(
@@ -40,7 +40,7 @@ let package = Package(
                 // On every platform (SG-D): a target naming these fails to build on macOS
                 // when they are conditional here ("unable to resolve module dependency: 'CFreeType'").
                 .product(name: "MetalUIPortableText", package: "MetalUI"),
-                .product(name: "MetalUISystemFonts", package: "MetalUI"),
+                .product(name: "MetalUISystemFonts", package: "MetalUI")
             ]
         ),
         .testTarget(
@@ -50,9 +50,9 @@ let package = Package(
                 .product(name: "MetalUI", package: "MetalUI"),
                 .product(name: "MetalUITesting", package: "MetalUI"),
                 .product(name: "MetalUIPortableText", package: "MetalUI"),
-                .product(name: "MetalUISystemFonts", package: "MetalUI"),
+                .product(name: "MetalUISystemFonts", package: "MetalUI")
             ]
-        ),
+        )
     ],
     swiftLanguageModes: [.v6]
 )

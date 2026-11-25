@@ -35,7 +35,7 @@ private func swizzleDisplayOptions() throws -> () -> Void {
     let pairs: [(Selector, Selector)] = [
         (#selector(getter: NSWorkspace.accessibilityDisplayShouldIncreaseContrast), #selector(getter: DisplaySwizzle.fakeContrast)),
         (#selector(getter: NSWorkspace.accessibilityDisplayShouldDifferentiateWithoutColor), #selector(getter: DisplaySwizzle.fakeDifferentiate)),
-        (#selector(getter: NSWorkspace.accessibilityDisplayShouldInvertColors), #selector(getter: DisplaySwizzle.fakeInvert)),
+        (#selector(getter: NSWorkspace.accessibilityDisplayShouldInvertColors), #selector(getter: DisplaySwizzle.fakeInvert))
     ]
     for (original, replacement) in pairs {
         let method = try #require(class_getInstanceMethod(NSWorkspace.self, original))

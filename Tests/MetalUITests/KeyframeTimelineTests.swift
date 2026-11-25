@@ -169,7 +169,7 @@ private let k1 = "-0.100:0.000 0.000:0.000 0.050:2.500 0.100:5.000 0.150:7.500 0
 @Test func springValuesMatchK4dAtPointOne() {
     let probe: [(duration: Double, bounce: Double, value: Double)] = [
         (0.4, 0.0, 4.656), (0.4, 0.3, 5.614), (0.4, 0.5, 6.473), (0.4, -0.3, 3.724),
-        (1.0, 0.0, 1.313), (1.0, 0.3, 1.457), (0.5, 0.15, 3.881), (0.2, 0.7, 13.679),
+        (1.0, 0.0, 1.313), (1.0, 0.3, 1.457), (0.5, 0.15, 3.881), (0.2, 0.7, 13.679)
     ]
     for arm in probe {
         let timeline = KeyframeTimeline(initialValue: 0.0) {

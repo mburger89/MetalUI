@@ -383,7 +383,7 @@ private func replies(_ e: TerminalEmulator) -> String {
     @Test func everyFlagAndItsReset() {
         let on: [(String, KeyPath<TerminalAttributes, Bool>)] = [
             ("1", \.bold), ("2", \.dim), ("3", \.italic), ("5", \.blink), ("6", \.blink), ("7", \.inverse),
-            ("8", \.hidden), ("9", \.strikethrough),
+            ("8", \.hidden), ("9", \.strikethrough)
         ]
         for (code, path) in on { #expect(pen(code)[keyPath: path], "SGR \(code)") }
         #expect(!pen("1;22").bold && !pen("2;22").dim && !pen("1;2;22").dim)

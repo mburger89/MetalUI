@@ -1,4 +1,3 @@
-
 /// The identity of a **resolved** font: what an atlas, a shaping cache or a
 /// metrics cache may safely be keyed on (spec §6.1) — for glyph identity. It
 /// does NOT fully identify shaping behaviour: the UI font and `"System Font"`

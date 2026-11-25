@@ -100,7 +100,7 @@ private let c1Menu = PlatformMenu(token: 7, items: [
     PlatformMenuItem(id: 5, kind: .action, title: "Flag", isOn: true),
     PlatformMenuItem(id: 6, kind: .action, title: "Off", isEnabled: false),
     PlatformMenuItem(id: 7, kind: .action, title: "Shift",
-                     shortcut: PlatformKeyEquivalent(key: "s", modifiers: [.command, .shift])),
+                     shortcut: PlatformKeyEquivalent(key: "s", modifiers: [.command, .shift]))
 ])
 
 /// Every item of `menu`, submenus flattened depth-first.
@@ -164,7 +164,7 @@ private let appName = ProcessInfo.processInfo.processName
         PlatformMenuItem(id: 1, kind: .action, title: "Fork", accessibilityIdentifier: "fork-1", help: "Fork it"),
         PlatformMenuItem(id: 2, kind: .action, title: "Rename", isEnabled: false,
                          accessibilityIdentifier: "rename-1", help: "Nothing to rename"),
-        PlatformMenuItem(id: 3, kind: .action, title: "Plain"),
+        PlatformMenuItem(id: 3, kind: .action, title: "Plain")
     ]), target: AppKitMenuTarget())
     try #require(menu.items.count == 3)
     #expect(menu.items[0].toolTip == "Fork it")
@@ -353,7 +353,7 @@ private let appName = ProcessInfo.processInfo.processName
             ("Edit", "Select All", "selectAll:", "a", false),
             ("Window", "Minimize", "performMiniaturize:", "m", false),
             ("Window", "Zoom", "performZoom:", "", false),
-            ("Window", "Bring All to Front", "arrangeInFront:", "", true),
+            ("Window", "Bring All to Front", "arrangeInFront:", "", true)
         ]
         for row in expected {
             let menu = try mainMenu(row.menu)
@@ -481,7 +481,6 @@ private let appName = ProcessInfo.processInfo.processName
     #expect(log.entries == ["key[⌘z]", "key[⌘z]"], "a menu click delivers the key")
 }
 
-
 /// **MN-AM.** An empty help is no `toolTip`, and an item rebuilt with its help
 /// changed from "x" to "" has none (AppKit rebuilds the menu at each open).
 /// Mutation: drop the `isEmpty` check at the `toolTip` line (both redden).
@@ -489,7 +488,7 @@ private let appName = ProcessInfo.processInfo.processName
 @Test func anEmptyHelpLeavesNoAppKitToolTip() throws {
     func tip(_ help: String?) -> String? {
         AppKitMenuBuilder.menu(from: PlatformMenu(token: 1, items: [
-            PlatformMenuItem(id: 1, kind: .action, title: "Fork", help: help),
+            PlatformMenuItem(id: 1, kind: .action, title: "Fork", help: help)
         ]), target: AppKitMenuTarget()).items.first?.toolTip
     }
     #expect(tip("x") == "x")
@@ -514,7 +513,7 @@ private let appName = ProcessInfo.processInfo.processName
         PlatformMenuItem(id: 4, kind: .action, title: "Unknown", image: PlatformMenuImage(symbol: "no.such.symbol.xyz")),
         PlatformMenuItem(id: 5, kind: .action, title: "None"),
         PlatformMenuItem(id: 6, kind: .submenu([PlatformMenuItem(id: 7, kind: .action, title: "Inner")]), title: "More",
-                         image: PlatformMenuImage(symbol: "folder")),
+                         image: PlatformMenuImage(symbol: "folder"))
     ]
     let menu = AppKitMenuBuilder.menu(from: PlatformMenu(token: 1, items: items), target: AppKitMenuTarget())
     let built = menu.items
@@ -545,7 +544,7 @@ private let appName = ProcessInfo.processInfo.processName
         PlatformMenuItem(id: 1, kind: .action, title: "Fix login", accessibilityLabel: "Fix login, running"),
         PlatformMenuItem(id: 2, kind: .submenu([PlatformMenuItem(id: 3, kind: .action, title: "Inner")]), title: "More",
                          accessibilityLabel: "More, submenu"),
-        PlatformMenuItem(id: 4, kind: .action, title: "Plain"),
+        PlatformMenuItem(id: 4, kind: .action, title: "Plain")
     ]), target: AppKitMenuTarget())
     try #require(menu.items.count == 3)
     #expect(menu.items[0].accessibilityLabel() == "Fix login, running")

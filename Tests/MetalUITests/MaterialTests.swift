@@ -13,7 +13,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 
 private let materials: [(String, Material)] = [
     ("ultraThin", .ultraThinMaterial), ("thin", .thinMaterial), ("regular", .regularMaterial),
-    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar),
+    ("thick", .thickMaterial), ("ultraThick", .ultraThickMaterial), ("bar", .bar)
 ]
 
 /// `color` (straight, gamma, 0…1) at `alpha` over the grey `backdrop`
@@ -35,7 +35,7 @@ private func rgba(_ c: MUIHsla) -> Rgba { Hsla(h: c.h, s: c.s, l: c.l, a: c.a).t
         .light: ["ultraThin": (246, 111), "thin": (242, 139), "regular": (239, 166), "thick": (235, 191),
                  "ultraThick": (231, 215), "bar": (255, 204)],
         .dark: ["ultraThin": (155, 29), "thin": (135, 32), "regular": (115, 36), "thick": (96, 40),
-                "ultraThick": (79, 44), "bar": (84, 37)],
+                "ultraThick": (79, 44), "bar": (84, 37)]
     ]
     for scheme in [ColorScheme.light, .dark] {
         var environment = EnvironmentValues()

@@ -222,7 +222,7 @@ func aStreamingFrameLogsOneEntryPerWrittenState() async throws {
             index.record(88.8, at: 1, id: 1)
             index.forgetMeasurements(width: 123)
             index.record(7.7, at: 2, id: 2)
-        }),
+        })
     ]
     for (name, mutate) in scenarios {
         let index = make()

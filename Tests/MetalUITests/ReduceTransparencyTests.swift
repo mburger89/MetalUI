@@ -35,7 +35,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// (not through `Material`): ultraThin and regular, by scheme.
 private let rtGrey: [ColorScheme: [String: Float]] = [
     .light: ["ultraThin": 0.9250, "regular": 0.9121],
-    .dark: ["ultraThin": 0.2248, "regular": 0.2045],
+    .dark: ["ultraThin": 0.2248, "regular": 0.2045]
 ]
 
 private let rtMaterials: [(String, Material)] = [("ultraThin", .ultraThinMaterial), ("regular", .regularMaterial)]

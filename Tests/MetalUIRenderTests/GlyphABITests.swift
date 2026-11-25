@@ -709,10 +709,8 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     // Find a pixel the glyph definitely inks, so "covered" is meaningful.
     var inkX = -1, inkY = -1
     for row in 0..<slot.height where inkY < 0 {
-        for column in 0..<slot.width {
-            if atlas.pixels[(slot.y + row) * atlas.width + slot.x + column] > 200 {
-                inkX = column; inkY = row; break
-            }
+        for column in 0..<slot.width where atlas.pixels[(slot.y + row) * atlas.width + slot.x + column] > 200 {
+            inkX = column; inkY = row; break
         }
     }
     try #require(inkY >= 0, "the glyph must have a near-opaque pixel for this test to mean anything")

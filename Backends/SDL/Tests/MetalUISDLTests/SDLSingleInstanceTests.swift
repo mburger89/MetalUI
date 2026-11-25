@@ -747,7 +747,7 @@ struct BadMessage: Sendable, CustomTestStringConvertible {
             BadMessage(name: "embedded NUL", bytes: frame(payload: payload(strings: [[0x61, 0x00, 0x62]]))),
             BadMessage(name: "empty string", bytes: frame(payload: payload(strings: [[]]))),
             BadMessage(name: "bytes left in the payload", bytes: frame(payload: one + [1, 2, 3])),
-            BadMessage(name: "count above the strings", bytes: frame(payload: payload(strings: [[0x61]], declaredCount: 2))),
+            BadMessage(name: "count above the strings", bytes: frame(payload: payload(strings: [[0x61]], declaredCount: 2)))
         ]
     }
 }

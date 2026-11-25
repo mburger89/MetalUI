@@ -72,15 +72,15 @@ private func styleOfRoot<E: StyledElement>(_ element: inout E) throws -> (Style,
     // inline (horizontal) one. Hand-derived from SwiftUI's own meaning of the
     // names, not from `Alignment`'s implementation.
     let expected: [(Alignment, AlignItems, JustifyItems)] = [
-        (.topLeading,     .flexStart, .start),
-        (.top,            .flexStart, .center),
-        (.topTrailing,    .flexStart, .end),
-        (.leading,        .center,    .start),
-        (.center,         .center,    .center),
-        (.trailing,       .center,    .end),
-        (.bottomLeading,  .flexEnd,   .start),
-        (.bottom,         .flexEnd,   .center),
-        (.bottomTrailing, .flexEnd,   .end),
+        (.topLeading, .flexStart, .start),
+        (.top, .flexStart, .center),
+        (.topTrailing, .flexStart, .end),
+        (.leading, .center, .start),
+        (.center, .center, .center),
+        (.trailing, .center, .end),
+        (.bottomLeading, .flexEnd, .start),
+        (.bottom, .flexEnd, .center),
+        (.bottomTrailing, .flexEnd, .end)
     ]
     var seen: Set<String> = []
     for (alignment, block, inline) in expected {

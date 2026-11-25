@@ -77,7 +77,7 @@ private func naiveFind(_ hay: [UInt8], _ query: String, fold: Bool, whole: Bool,
         for i in 0..<edits {
             let at = randomBoundary(buffer.snapshot(), &rng)
             let v = visits {
-                if i % 2 == 0 { buffer.replace(at..<at, with: "é") } else { buffer.replace(at..<advanced(buffer.snapshot(), at, scalars: 1), with: "") }
+                if i.isMultiple(of: 2) { buffer.replace(at..<at, with: "é") } else { buffer.replace(at..<advanced(buffer.snapshot(), at, scalars: 1), with: "") }
             }
             worst = max(worst, v)
             total += v
@@ -138,7 +138,7 @@ private func naiveFind(_ hay: [UInt8], _ query: String, fold: Bool, whole: Bool,
             return try visits {
                 _ = try? buffer.applyExternalEdits([
                     CodeTextEdit(range: at..<advanced(buffer.snapshot(), at, scalars: 5), text: "patched"),
-                    CodeTextEdit(range: at2..<at2, text: "new line\n"),
+                    CodeTextEdit(range: at2..<at2, text: "new line\n")
                 ], expectingVersion: buffer.version)
             }
         }

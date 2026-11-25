@@ -41,7 +41,7 @@ private func sessionMenu() -> MenuItems {
         Toggle("Pinned", isOn: .constant(true)).accessibilityLabel("Pinned session"),
         Button("Blank") {}.accessibilityLabel(""),
         Button("Direct", systemImage: "star") {}.accessibilityLabel("Direct, starred"),
-        Menu("More") { Button("Inner") {}.accessibilityLabel("Inner, nested") }.accessibilityLabel("More, submenu"),
+        Menu("More") { Button("Inner") {}.accessibilityLabel("Inner, nested") }.accessibilityLabel("More, submenu")
     ]))
     #expect(items.map(\.title) == ["Fix login", "Early", "Plain", "Pinned", "Blank", "Direct", "More"])
     #expect(items.map(\.accessibilityLabel) == ["Fix login, running", "Early, idle", nil, "Pinned session", nil,
@@ -56,7 +56,7 @@ private func sessionMenu() -> MenuItems {
 /// Mutation: read the label from `Text`'s own `axNode` in `Text._menuItemLabel()` (the item then has "inside").
 @Test @MainActor func aLabelOnTheTextInsideIsNotTheItemsLabel() {
     let items = evaluate(MenuItems([
-        Button { } label: { Text("B").accessibilityLabel("inside") },
+        Button { } label: { Text("B").accessibilityLabel("inside") }
     ]))
     #expect(items.map(\.title) == ["B"])
     #expect(items.map(\.accessibilityLabel) == [nil])

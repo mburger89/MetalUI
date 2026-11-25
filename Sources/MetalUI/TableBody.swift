@@ -110,6 +110,7 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
         var editor: LegacyContent<TextField>.GroupPrepaint?
     }
 
+    // swiftlint:disable:next function_body_length - one pass that lays out every table region
     mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let frame = pass.frame
         // 1. `data.count`, once. 2. The columns: O(C), and no element is built.

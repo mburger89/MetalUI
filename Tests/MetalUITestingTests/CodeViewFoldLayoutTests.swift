@@ -8,7 +8,6 @@ import MetalUITesting
 // text system; counters, never a clock. Lines are `line0`, `line1`, ... so every row's place is the pitch times its
 // shown index.
 
-
 @MainActor private struct Fx {
     let window: TestWindow
     let buffer: CodeBuffer

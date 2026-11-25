@@ -28,7 +28,7 @@ private func clear(_ texture: SDLGPUTexture, _ color: (Float, Float, Float, Floa
 
 /// Whether every texel of `bytes` is `expected` (each channel within one step).
 private func everyTexel(_ bytes: [UInt8]?, is expected: [UInt8]) -> Bool {
-    guard let bytes, bytes.count % 4 == 0, !bytes.isEmpty else { return false }
+    guard let bytes, bytes.count.isMultiple(of: 4), !bytes.isEmpty else { return false }
     return stride(from: 0, to: bytes.count, by: 4).allSatisfy { offset in
         (0..<4).allSatisfy { abs(Int(bytes[offset + $0]) - Int(expected[$0])) <= 1 }
     }
@@ -123,7 +123,7 @@ private func waitFor(_ semaphore: DispatchSemaphore, seconds: Double) {
         let device = try GPUTestSupport.requireDevice()
         let texture = try target(device)
         for round in 0..<20 {
-            let (first, second): ((Float, Float, Float, Float), (Float, Float, Float, Float)) = round % 2 == 0
+            let (first, second): ((Float, Float, Float, Float), (Float, Float, Float, Float)) = round.isMultiple(of: 2)
                 ? ((0, 1, 0, 1), (0, 0, 1, 1)) : ((0, 0, 1, 1), (0, 1, 0, 1))
             _ = try device.submitBatchSynchronously(clear(texture, first))
             _ = try device.submitBatchSynchronously(clear(texture, second))

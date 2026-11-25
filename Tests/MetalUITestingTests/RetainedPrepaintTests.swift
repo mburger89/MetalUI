@@ -37,7 +37,7 @@ private let fb9a7e42Frames = [
     // `RW-S`: the graph panel is a counted miss (the drag is inside it, `SB-X`), no longer ineligible; paints and the scene are unmoved.
     Fb9a7e42Frame(arm: .panels, requests: 798, prepaints: 886, paints: 184, hits: 31, misses: 4, ineligible: 0,
                   skippedPaints: 900, evaluations: 3, skips: 32, refusals: 0, measures: 57, cacheHits: 330,
-                  cacheMisses: 223, memoHits: 363, memoMisses: 55, subtreeHits: 11),
+                  cacheMisses: 223, memoHits: 363, memoMisses: 55, subtreeHits: 11)
 ]
 
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
@@ -78,7 +78,7 @@ private struct AfterPrepaintFrame {
 private let afterPrepaintFrames = [
     AfterPrepaintFrame(arm: .value, prepaints: 219, skippedPrepaints: 667, prepaintHits: 29, prepaintIneligible: 0),
     AfterPrepaintFrame(arm: .environment, prepaints: 219, skippedPrepaints: 667, prepaintHits: 29, prepaintIneligible: 0),
-    AfterPrepaintFrame(arm: .panels, prepaints: 153, skippedPrepaints: 733, prepaintHits: 31, prepaintIneligible: 0),   // `RW-S`
+    AfterPrepaintFrame(arm: .panels, prepaints: 153, skippedPrepaints: 733, prepaintHits: 31, prepaintIneligible: 0)   // `RW-S`
 ]
 
 /// 1b — the node drag's tenth frame with prepaint replay: the build and layout work is `fb9a7e42`'s to the unit (798 requests, the

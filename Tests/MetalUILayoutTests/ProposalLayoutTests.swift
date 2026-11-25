@@ -426,7 +426,7 @@ private func layOutReference(
         tree.newNativeFrame(child: tree.newNativeSpacer(), width: 5),
         tree.newNativeOverlayAttachment(child: tree.newNativeSpacer(), overlay: fixedLeaf(tree, 1, 1)),
         fixedLeaf(tree, 1, 1),
-        tree.newNativeSpacer(),
+        tree.newNativeSpacer()
     ]
     let layout = ScriptedLayout(
         measure: { _, subviews in
@@ -483,7 +483,7 @@ private struct PlacingFromTheStashLayout: ProposalLayout {
                                observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 0)
         let a = tree.newNativeLayout(StashingPlacementLayout(), children: [
-            tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 5, height: 5)) },
+            tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 5, height: 5)) }
         ])
         let b = tree.newNativeLayout(PlacingFromTheStashLayout(), children: [])
         let root = tree.newNativeLinearStack(children: [a, b], axis: .horizontal)

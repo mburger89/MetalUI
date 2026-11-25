@@ -133,7 +133,7 @@ enum TextEditing {
     /// line. **`mode` `.verticalField` (`VT-F`)**: Return, ⇧Return and Enter submit and never insert (unclaimed
     /// without an `onSubmit`); ⌥↩ and ⌃↩ on a Mac, Alt+Enter elsewhere, insert a line break; the shortcut
     /// modifier's Return passes on as in an editor. `nil` reads the mode from `lines`.
-    static func key(_ key: KeyEvent, text: String, state: TextEditState,
+    static func key(_ key: KeyEvent, text: String, state: TextEditState, // swiftlint:disable:this cyclomatic_complexity - one switch over every editing command
                     clipboard: () -> String?, platform: Platform = platform,
                     lines: TextLineModel? = nil, mode: KeyMode? = nil, secure: Bool = false) -> KeyOutcome {
         let mode = mode ?? (lines == nil ? .singleLine : .editor)

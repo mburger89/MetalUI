@@ -1239,7 +1239,7 @@ private struct LCDefaultMonitorPane: Component {
 private struct LCAssignedMonitorPane: Component {
     let factory: LCMonitorFactory
     let value: Int
-    @State var monitor: LCMonitor? = nil
+    @State var monitor: LCMonitor?
     var content: some ElementGroup {
         Box().frame(width: Pixels(10 + Float(value)), height: Pixels(20))
             .onAppear { monitor = factory.make(); monitor?.start() }

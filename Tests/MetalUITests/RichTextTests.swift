@@ -285,7 +285,7 @@ private func note(_ message: String) -> Comment { Comment(rawValue: message) }
         ("Text(\"a\")", Text("a")),
         ("bold, red, italic", Text("a").bold().foregroundColor(.red).italic()),
         ("font(.title)", Text("a").font(.title)),
-        ("one run of two equal texts", rtJoin(Text("a"), Text("b"))),
+        ("one run of two equal texts", rtJoin(Text("a"), Text("b")))
     ]
     for (name, text) in plainOnes {
         let seen = calls(text)
@@ -295,7 +295,7 @@ private func note(_ message: String) -> Comment { Comment(rawValue: message) }
     let styledOnes: [(String, Text)] = [
         ("underline()", Text("a").underline()),
         ("kerning(0)", Text("a").kerning(0)),
-        ("two runs", rtJoin(Text("a").bold(), Text("b"))),
+        ("two runs", rtJoin(Text("a").bold(), Text("b")))
     ]
     for (name, text) in styledOnes {
         let seen = calls(text)

@@ -233,7 +233,7 @@ private func portableFrame<E: Element>(_ element: E) throws -> Frame {
         ("ColorPicker", try glyphs(ColorPicker("**b**", selection: .constant(.red)), ColorPicker(variable, selection: .constant(.red)))),
         ("ProgressView", try glyphs(ProgressView("**b**", value: 0.5), ProgressView(variable, value: 0.5))),
         ("ProgressView(spinner)", try glyphs(ProgressView("**b**"), ProgressView(variable))),
-        ("Menu", try glyphs(Menu("**b**") { Button("x") {} }, Menu(variable) { Button("x") {} })),
+        ("Menu", try glyphs(Menu("**b**") { Button("x") {} }, Menu(variable) { Button("x") {} }))
     ]
     for (name, counts) in pairs {
         #expect(counts.1 - counts.0 == 4, "\(name): the variable draws the four asterisks the literal does not: \(counts)")

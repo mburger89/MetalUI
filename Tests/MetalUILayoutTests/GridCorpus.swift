@@ -161,7 +161,9 @@ GridCorpusCase(id: 20, proposal: (nil, 80.0), alignment: .bottom, horizontalSpac
     children: [.row(.center, [.init(.fixed(60.0, 30.0), anchor: .top)]), .row(nil, [.init(.flexW(10.0), priority: -1.0, columnAlignment: .leading), .init(.flexH(30.0), span: 2, priority: 1.0)]), .row(nil, [.init(.clampW(10.0, 40.0, 30.0), priority: -1.0)])],
     size: (98.0, 140.0), rects: [(0.0, 0.0, 60.0, 30.0), (0.0, 100.0, 60.0, 10.0), (68.0, 30.0, 30.0, 80.0), (0.0, 110.0, 40.0, 30.0)]),
 GridCorpusCase(id: 21, proposal: (300.0, 200.0), alignment: .trailing, horizontalSpacing: 12.0, verticalSpacing: 5.0,
-    children: [.row(.bottom, [.init(.half, columnAlignment: .center, unsizedHorizontal: true, unsizedVertical: true)]), .row(nil, [.init(.flexW(10.0), priority: 1.0), .init(.flexH(40.0), priority: 1.0, columnAlignment: .center, unsizedVertical: true), .init(.clampW(0.0, 40.0, 40.0), priority: 1.0, anchor: .bottomLeading, columnAlignment: .leading)]), .row(nil, [.init(.flexW(30.0), priority: -1.0, anchor: .top, columnAlignment: .center, unsizedVertical: true), .init(.clampBoth(20.0, 30.0), unsizedHorizontal: true), .init(.clampW(0.0, 40.0, 20.0), anchor: .bottomLeading, columnAlignment: .center, unsizedVertical: true)])],
+    children: [.row(.bottom, [.init(.half, columnAlignment: .center, unsizedHorizontal: true, unsizedVertical: true)]),
+             .row(nil, [.init(.flexW(10.0), priority: 1.0), .init(.flexH(40.0), priority: 1.0, columnAlignment: .center, unsizedVertical: true), .init(.clampW(0.0, 40.0, 40.0), priority: 1.0, anchor: .bottomLeading, columnAlignment: .leading)]),
+             .row(nil, [.init(.flexW(30.0), priority: -1.0, anchor: .top, columnAlignment: .center, unsizedVertical: true), .init(.clampBoth(20.0, 30.0), unsizedHorizontal: true), .init(.clampW(0.0, 40.0, 20.0), anchor: .bottomLeading, columnAlignment: .center, unsizedVertical: true)])],
     size: (222.0, 90.0), rects: [(29.5, 0.0, 59.0, 10.0), (0.0, 30.0, 118.0, 10.0), (130.0, 15.0, 40.0, 40.0), (182.0, 15.0, 40.0, 40.0), (0.0, 60.0, 118.0, 30.0), (135.0, 60.0, 30.0, 30.0), (182.0, 70.0, 40.0, 20.0)]),
 GridCorpusCase(id: 22, proposal: (nil, nil), alignment: .topLeading, horizontalSpacing: 3.0, verticalSpacing: 5.0,
     children: [.spanning(.init(.flexH(30.0), unsizedHorizontal: true))],
@@ -459,6 +461,6 @@ GridCorpusCase(id: 119, proposal: (nil, 80.0), alignment: .bottomTrailing, horiz
     size: (10.0, 58.0), rects: [(0.0, 0.0, 10.0, 30.0), (0.0, 38.0, 10.0, 20.0)]),
 GridCorpusCase(id: 120, proposal: (200.0, 100.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
     children: [.row(nil, [.init(.flexH(30.0))]), .row(nil, [.init(.spacer)])],
-    size: (170.0, 108.0), rects: [(70.0, 0.0, 30.0, 100.0), (0.0, 100.0, 170.0, 8.0)]),
+    size: (170.0, 108.0), rects: [(70.0, 0.0, 30.0, 100.0), (0.0, 100.0, 170.0, 8.0)])
 // END CORPUS: 120 kept of 185 generated; 65 skipped because SwiftUI and the model differ, 0 because an answer was infinite
 ]

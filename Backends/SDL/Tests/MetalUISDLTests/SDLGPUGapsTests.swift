@@ -103,7 +103,7 @@ private func drawRed(_ device: SDLGPUDevice, answers: Answers = Answers(),
                 pass.setViewport(x: 0, y: 0, width: .nan, height: 8),
                 pass.setViewport(x: .infinity, y: 0, width: 8, height: 8),
                 pass.setScissor(x: 0, y: 0, width: -1, height: 8),
-                pass.setScissor(x: 0, y: 0, width: 8, height: -3),
+                pass.setScissor(x: 0, y: 0, width: 8, height: -3)
             ]
         }
         #expect(answers.values == Array(repeating: false, count: 6))
