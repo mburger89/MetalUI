@@ -60,9 +60,11 @@ enum AppKitCursor {
     /// that is set and replaced needs no balancing, so a window closing, a pointer leaving or an
     /// app deactivating while hidden cannot leave the pointer invisible for good.
     nonisolated(unsafe) static let hiddenCursor: NSCursor = {
-        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1, pixelsHigh: 1, bitsPerSample: 8,
-                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                                   colorSpaceName: .deviceRGB, bytesPerRow: 4, bitsPerPixel: 32)!
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1, pixelsHigh: 1, bitsPerSample: 8,
+                                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 4, bitsPerPixel: 32) else {
+            return .arrow   // AppKit could not make the 1×1 image: the pointer stays visible rather than the app trapping
+        }
         if let data = rep.bitmapData { for i in 0..<4 { data[i] = 0 } }
         let image = NSImage(size: NSSize(width: 1, height: 1))
         image.addRepresentation(rep)

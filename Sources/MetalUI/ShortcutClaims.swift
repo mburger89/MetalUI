@@ -89,7 +89,8 @@ extension KeyboardShortcut {
 
     /// Function key `n` (1...35) as a key equivalent, AppKit's `NSF1FunctionKey` + n - 1.
     fileprivate static func functionKey(_ n: Int) -> KeyEquivalent {
-        KeyEquivalent(Character(Unicode.Scalar(UInt32(0xF704 + n - 1))!))
+        guard let scalar = Unicode.Scalar(UInt32(0xF704 + n - 1)) else { preconditionFailure("function key \(n) is outside 1...35") }
+        return KeyEquivalent(Character(scalar))
     }
 
     private static var macOSReserved: [(String, KeyEquivalent, EventModifiers)] {

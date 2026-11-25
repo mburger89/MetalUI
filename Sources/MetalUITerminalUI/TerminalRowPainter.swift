@@ -139,7 +139,7 @@ package final class TerminalRowPainter {
         }
 
         // Glyphs.
-        row.forEachCellByRun({ column, width, bytes, run in
+        row.forEachCellByRun({ column, _, bytes, run in
             guard column < columns else { return }
             let info = runInfo[run + 1]
             guard !info.colors.hidden else { return }

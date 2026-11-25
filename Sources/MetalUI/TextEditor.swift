@@ -243,7 +243,11 @@ public struct TextEditor: Element, StyledElement {
         // The UTF-16 offset of every grapheme boundary, to map the text
         // system's ranges onto graphemes.
         var boundaries = [0]
-        for character in characters { boundaries.append(boundaries.last! + character.utf16.count) }
+        var total = 0
+        for character in characters {
+            total += character.utf16.count
+            boundaries.append(total)
+        }
         func grapheme(atUTF16 unit: Int) -> Int {
             var index = 0
             while index + 1 < boundaries.count && boundaries[index + 1] <= unit { index += 1 }

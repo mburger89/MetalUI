@@ -56,9 +56,10 @@ extension TestWindow {
             scene, size: Size(width: DevicePixels(Int32(width)), height: DevicePixels(Int32(height))))
         // bgra8Unorm, premultiplied, little-endian.
         guard let provider = CGDataProvider(data: Data(bgra) as CFData),
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
               let image = CGImage(
                 width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
-                bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bytesPerRow: width * 4, space: space,
                 bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
                                          | CGBitmapInfo.byteOrder32Little.rawValue),
                 provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)

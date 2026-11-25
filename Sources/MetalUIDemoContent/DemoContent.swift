@@ -335,8 +335,8 @@ struct CounterPanel: Element {
             .alignSelf(.flexStart)
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Box<Chrome>.Layout) {
+    mutating func requestLayout(_ id: GlobalElementID,
+                                pass: inout LayoutPass) -> (LayoutNodeID, Box<Chrome>.Layout) {
         // Published for the `F` binding, which cannot construct this id itself.
         counterID = id
         // **In `requestLayout` rather than anywhere else, and that is forced
@@ -373,16 +373,16 @@ struct CounterPanel: Element {
         return result
     }
 
-    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Chrome>.Layout,
-                                  pass: inout PrepaintPass) -> Chrome.GroupPrepaint {
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Box<Chrome>.Layout,
+                           pass: inout PrepaintPass) -> Chrome.GroupPrepaint {
         built.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
     }
 
-    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Chrome>.Layout,
-                               prepaint: inout Chrome.GroupPrepaint,
-                               pass: inout PaintPass) {
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Box<Chrome>.Layout,
+                        prepaint: inout Chrome.GroupPrepaint,
+                        pass: inout PaintPass) {
         built.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
     }
 }

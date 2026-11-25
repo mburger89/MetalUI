@@ -461,7 +461,7 @@ private struct SelectionMenu: MenuContent {
     let selectAll: @MainActor () -> Void
 
     /// The two items. SPI: see `MenuContent`.
-    @_spi(MenuInternals) public func _menuNodes(in context: _MenuContext) -> _MenuNodes {
+    func _menuNodes(in context: _MenuContext) -> _MenuNodes {
         _MenuNodes([MenuNode(kind: .action, title: "Copy", isEnabled: copyEnabled, run: copy),
                     MenuNode(kind: .action, title: "Select All", isEnabled: true, run: selectAll)])
     }

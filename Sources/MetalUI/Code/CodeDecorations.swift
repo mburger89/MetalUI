@@ -841,7 +841,7 @@ public final class CodeDecorations {
         if reprioritised { _ = register(owner); changed = true }
         if !mapped.isEmpty {
             let empty = runs.isEmpty
-            if !(empty && (existing == nil || existing!.tree.runs(in: mapped).allSatisfy { $0.payload == Self.validEmpty })) {
+            if !(empty && (existing.map { $0.tree.runs(in: mapped).allSatisfy { $0.payload == Self.validEmpty } } ?? true)) {
                 let sub: HighlightSubLayer
                 if let existing { sub = existing } else {
                     sub = HighlightSubLayer(layer: layer.rawValue, ownerID: register(owner), tree: RunTree(total: total, payload: Self.validEmpty))

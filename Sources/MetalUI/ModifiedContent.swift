@@ -586,7 +586,7 @@ extension LayoutModifier: ModifierLayerKind {
     /// A proposal layer has no `.id(_:)`: always `nil`, and a write is dropped.
     public var _elementID: ElementID? {
         get { nil }
-        set {}
+        set { _ = newValue } // dropped on purpose: a proposal layer has no `.id(_:)`
     }
 
     /// The native wrapper this modifier registers around its one child — or
@@ -609,14 +609,14 @@ extension LayoutModifier: ModifierLayerKind {
         case let .allowsHitTesting(enabled):
             var result: R?
             pass.allowsHitTesting(enabled) { result = inside() }
-            return result!
+            return scopeResult(result)
         case let .clip(cornerRadius):
             var result: R?
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
                          cornerRadii: Corners(all: cornerRadius)) {
                 result = inside()
             }
-            return result!
+            return scopeResult(result)
         case let .clipShape(shape, style):
             let region = shape.geometry(in: bounds).clip(style: style)
             var result: R?
@@ -624,10 +624,11 @@ extension LayoutModifier: ModifierLayerKind {
                          cornerRadii: region.radii) {
                 result = inside()
             }
-            return result!
+            return scopeResult(result)
         case .rotationEffect, .scaleEffect, .offset, .rotation3DEffect, .projectionEffect:
             // Hitboxes and accessibility records inside follow the effect (`GX-I`).
-            return pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
+            guard let effect = renderEffect else { preconditionFailure("a render-effect layer has an effect") }
+            return pass.withRenderEffect(effect, bounds: bounds, inside)
         case let .glassEffect(glass, shape):
             // Inside a `GlassEffectContainer` the glass registers (shape, glass, rect, union tag) and the container
             // emits the merged blobs at its paint (`LG-I`); outside one this registers nothing.
@@ -677,7 +678,8 @@ extension LayoutModifier: ModifierLayerKind {
             pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),
                       borderColor: color, borderWidths: Edges(all: width))
         case .rotationEffect, .scaleEffect, .offset, .rotation3DEffect, .projectionEffect:
-            pass.withRenderEffect(renderEffect!, bounds: bounds, inside)
+            guard let effect = renderEffect else { preconditionFailure("a render-effect layer has an effect") }
+            pass.withRenderEffect(effect, bounds: bounds, inside)
         case let .shadow(token, radius, x, y):
             // The colour fades on a store track (`GX-J`, `AN-AB`'s colour
             // precedent); radius and offset were animated in layout.

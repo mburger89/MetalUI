@@ -199,7 +199,7 @@ final class SymbolRasterCache {
         }
         guard let image = configured(spec, extra: extra) else { return nil }
         var data = [UInt8](repeating: 0, count: pixelWidth * pixelHeight * 4)
-        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
         data.withUnsafeMutableBytes { buffer in
             guard let context = CGContext(data: buffer.baseAddress, width: pixelWidth, height: pixelHeight, bitsPerComponent: 8,
                                           bytesPerRow: pixelWidth * 4, space: space,

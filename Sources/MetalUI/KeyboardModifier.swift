@@ -289,7 +289,7 @@ public struct KeyboardModifier<Content: ProposalElementGroup>: Element {
         // An `onKeyPress` layer the chain below holds as its outermost (`KF-AD`) is this layer's:
         // this is the focus target, and a handler inside it would not hear.
         if var holder = content as? KeyboardLayerHolder, let taken = holder.takeKeyPresses() {
-            content = holder as! Content
+            content = trapCast(holder) as Content
             handlers.keyboard = KeyboardAttachment.make(
                 keyPresses: taken + (handlers.keyboard?.keyPresses ?? []),
                 focusInteractions: handlers.keyboard?.focusInteractions,

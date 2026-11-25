@@ -341,7 +341,7 @@ extension Frame {
                 entry.graft = nil
                 memos.retained.noteIneligible(.graft, reason: refusal ?? "segment")
                 memos.graftRefusals.append(refusal ?? "segment")
-                RetainedTrace.emit("retained graft ineligible \(RetainedTrace.path(entry.id!)) because \(refusal ?? "?")")
+                RetainedTrace.emit("retained graft ineligible \(entry.id.map { RetainedTrace.path($0) } ?? "?") because \(refusal ?? "?")")
                 continue
             }
             let graft = GraftRecord(key: item.key, contentSerial: item.contentSerial, segment: segment, events: item.events,

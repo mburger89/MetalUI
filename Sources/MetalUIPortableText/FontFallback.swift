@@ -135,7 +135,8 @@ extension PortableText {
             let face = font.fallbacks.isEmpty ? font : coveringFace(character, font: font)
             let level = offset < levels.count ? levels[offset] : 0
             let script = offset < scripts.count ? scripts[offset] : 0
-            if runKey == nil || face !== runKey!.font || level != runKey!.level || script != runKey!.script {
+            let continuesRun = runKey.map { face === $0.font && level == $0.level && script == $0.script } ?? false
+            if !continuesRun {
                 try flush()
                 runKey = (face, level, script)
                 runStart = offset

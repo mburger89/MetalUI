@@ -50,7 +50,11 @@ extension PortableText {
         var isBoundary = [Bool](repeating: false, count: units.count + 1)
         var boundaries: [Int] = [0]
         boundaries.reserveCapacity(text.count + 1)
-        for character in text { boundaries.append(boundaries.last! + character.utf16.count) }
+        var total = 0
+        for character in text {
+            total += character.utf16.count
+            boundaries.append(total)
+        }
         for boundary in boundaries { isBoundary[boundary] = true }
 
         let ignorable = ignorableUnits(of: text, count: units.count)
@@ -72,7 +76,10 @@ extension PortableText {
             var end = boundary + 1
             while !clusterStart[end] { end += 1 }
             let inside = (start + 1..<end).filter { isBoundary[$0] }
-            let k = inside.firstIndex(of: boundary)! + 1
+            guard let position = inside.firstIndex(of: boundary) else {
+                preconditionFailure("a boundary strictly inside a cluster is one of the cluster's inner boundaries")
+            }
+            let k = position + 1
             if clusterGlyphs[start].count == 1, let ligature = clusterGlyphs[start].first {
                 let carets = ligature.font.shaping.ligatureCarets(of: ligature.glyph.id)
                 if carets.count >= inside.count { return pen[start] + carets[k - 1] }

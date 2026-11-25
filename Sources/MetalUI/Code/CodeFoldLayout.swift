@@ -135,8 +135,8 @@ extension CodeViewPlan {
         while i < shownTo {
             let row = rows[i]
             i += 1
-            guard row.fold != nil, let bounds = foldPlaceholderBounds(row) else { continue }
-            var node = AXNode(role: .button, label: "Folded lines \(row.buffer + 2) to \(row.fold!.lines.upperBound)")
+            guard let fold = row.fold, let bounds = foldPlaceholderBounds(row) else { continue }
+            var node = AXNode(role: .button, label: "Folded lines \(row.buffer + 2) to \(fold.lines.upperBound)")
             node.declarations.identifier = "fold-placeholder-\(row.buffer)"
             let child = GlobalElementID.child(of: id, at: row.buffer, name: ElementID("fold-placeholder-\(row.buffer)"))
             CodeViewStats.foldPlaceholderNodes += 1

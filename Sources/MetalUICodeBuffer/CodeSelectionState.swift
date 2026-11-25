@@ -78,7 +78,11 @@ public final class CodeSelectionState {
     }
 
     /// The buffer this state selects in.
-    public var buffer: CodeBuffer { retainedBuffer ?? weakBuffer! }
+    public var buffer: CodeBuffer {
+        if let retainedBuffer { return retainedBuffer }
+        guard let weakBuffer else { preconditionFailure("a CodeBuffer's own selection state was used after the buffer was released") }
+        return weakBuffer
+    }
 
     /// The selections, sorted and merged: no two overlap and no two carets coincide, at least one. An
     /// edit moves them; assigning replaces them, makes the input's **first** element the primary
@@ -453,7 +457,7 @@ extension CodeSelectionState {
 
     /// Moves the running snippet over one edit; the one call the buffer makes per state per event.
     func moveSnippet(start: Int, end: Int, newLength: Int) {
-        snippet!.move(start: start, end: end, newLength: newLength)
+        snippet?.move(start: start, end: end, newLength: newLength)
     }
 
     /// The snippet with its text adjusted to the insertion: every line after the first prefixed with `indent`, a

@@ -148,7 +148,7 @@ extension Frame {
             return (layer.rect, layer.texture)
         }) else { return nil }
         let placed = anchor.placed(rect)
-        if rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty { return nil }
+        if rasterClip != placement.clip, placed.isDisjoint(with: placement.clip) { return nil }
         var quad = placement.quad(over: placed)
         quad.opacity = paint.alpha
         return (quad, texture)

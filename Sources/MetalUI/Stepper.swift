@@ -184,7 +184,7 @@ public struct Stepper: Element, StyledElement {
             composed.actions[adjustment] = { action in
                 // The key is `AccessibilityAdjustment`'s, so the cast holds by
                 // construction (`Box.onAction`'s reasoning).
-                run((action as! AccessibilityAdjustment).direction == .increment ? .forward : .backward)
+                run((trapCast(action) as AccessibilityAdjustment).direction == .increment ? .forward : .backward)
             }
         }
         if composed.axNode.role == .generic { composed.axNode.role = .incrementor }

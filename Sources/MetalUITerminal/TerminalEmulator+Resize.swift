@@ -73,7 +73,13 @@ extension TerminalEmulator {
         }
 
         // Which content row is the screen's top.
-        let topRow = hasTop ? result(topIndex)!.newRow : content.count
+        let topRow: Int
+        if hasTop {
+            guard let top = result(topIndex) else { preconditionFailure("the screen's top row is tracked while hasTop") }
+            topRow = top.newRow
+        } else {
+            topRow = content.count
+        }
         let cursorNew = cursorIndex.flatMap { result($0) }
         var top = max(0, topRow - max(0, height - oldRows))
         let reference = cursorNew?.newRow ?? max(content.count - 1, 0)

@@ -42,7 +42,11 @@ final class DropDestinationTarget {
     private let targeted: @MainActor (Bool) -> Void
     /// The delegate of an `onDrop(of:delegate:)` destination, else `nil`
     /// (`DE-A`). Held in this class box, never on `Handlers` (`IX-N`).
-    let delegate: (any DropDelegate)?
+    /// Held strongly on purpose, and the `weak_delegate` disable is the only path: like
+    /// SwiftUI's, a `DropDelegate` is a value (often a struct), so `weak` does not compile
+    /// for it and would drop it at once if it did. It cannot cycle: the box owns the
+    /// delegate and nothing it holds points back at the box.
+    let delegate: (any DropDelegate)? // swiftlint:disable:this weak_delegate
 
     /// A delegate-driven destination for `types` (`DE-A`): `accepts` and the
     /// session's callbacks run through the delegate.

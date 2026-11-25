@@ -218,8 +218,10 @@ extension Element {
         // A removal ghost anchored here is the first thing drawn in this element's run (`XF-F`); a styled element draws
         // it inside its decoration instead, above its own fill (`paintDecoration`).
         if pass.frame.hasGhostAnchors, !(self is any StyledElement) { pass.frame.paintAnchoredGhosts(at: layout.id) }
-        paint(layout.id, bounds: pass.bounds(of: layout.node),
-              layout: &layout.state, prepaint: &prepaint!, pass: &pass)
+        prepaint.withRequired { inner in
+            paint(layout.id, bounds: pass.bounds(of: layout.node),
+                  layout: &layout.state, prepaint: &inner, pass: &pass)
+        }
     }
 }
 
