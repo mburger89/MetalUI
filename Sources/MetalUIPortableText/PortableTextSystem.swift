@@ -62,21 +62,9 @@ public final class PortableTextSystem: TextSystem {
 
     /// The portable text system over `resolver`'s registered fonts — HarfBuzz,
     /// FreeType and libunibreak, no CoreText (`TS-C`).
-    public convenience init(resolver: PortableFontResolver) {
-        self.init(resolver: resolver, entryLimit: TextCacheBudget.entries, costLimit: TextCacheBudget.cost)
-    }
-
-    /// A system with its own cache budget, for a test that has to cross it without laying out thousands of strings.
-    init(resolver: PortableFontResolver, entryLimit: Int, costLimit: Int) {
-        precondition(entryLimit > 0 && costLimit > 0, "a cache bound is positive")
+    public init(resolver: PortableFontResolver) {
         self.resolver = resolver
-        self.entryLimit = entryLimit
-        self.costLimit = costLimit
     }
-
-    /// The budget the four cache tables share (`TS-F`).
-    private let entryLimit: Int
-    private let costLimit: Int
 
     /// Resolves `descriptor` against the registered fonts and returns its key.
     public func resolveFont(_ descriptor: FontDescriptor) -> FontKey {
@@ -110,7 +98,6 @@ public final class PortableTextSystem: TextSystem {
         let value = TextMeasurement(widestLine: lines.reduce(0) { max($0, $1.advance) },
                                     totalHeight: Double(lines.count) * portable.metrics.lineHeight)
         measurements.insert(key, value, generation: generation, cost: TextCacheBudget.overhead)
-        trimInFrame()
         return value
     }
 
@@ -132,7 +119,6 @@ public final class PortableTextSystem: TextSystem {
         }
         let offsets = trapping { try PortableText.caretOffsets(string, font: registered(font)) }
         caretOffsetsByString.insert(key, offsets, generation: generation, cost: TextCacheBudget.weight(of: string))
-        trimInFrame()
         return offsets
     }
 
@@ -180,7 +166,6 @@ public final class PortableTextSystem: TextSystem {
             try PortableText.styledLines(text, fonts: fonts, wrappingAt: width, options: options).measurement
         }
         styledMeasurements.insert(key, value, generation: generation, cost: TextCacheBudget.overhead)
-        trimInFrame()
         return value
     }
 
@@ -219,7 +204,7 @@ public final class PortableTextSystem: TextSystem {
     public func beginFrame() { generation += 1 }
 
     /// Drops measurements no frame has asked for since the previous one — the
-    /// same two-frame lifetime `ShapingCache` gives its entries.
+    /// same two-frame lifetime `ShapingCache` gives its working set (`TS-G`: there is no stale entry here for a budget to bound).
     public func endFrame() {
         if ShapingTrace.active { trace.finish(frame: generation, system: "portable") }
         let cutoff = generation - 1
@@ -227,37 +212,9 @@ public final class PortableTextSystem: TextSystem {
         layouts.removeOlder(than: cutoff)
         styledMeasurements.removeOlder(than: cutoff)
         caretOffsetsByString.removeOlder(than: cutoff)
-        bound(inFrame: false)
     }
 
-    /// The entries and weight the four tables hold together, against `TextCacheBudget` (`TS-F`): the two-frame lifetime
-    /// alone lets a frame that looked up a great deal of text keep all of it for the next.
     private var heldEntries: Int { measurements.count + layouts.count + styledMeasurements.count + caretOffsetsByString.count }
-    private var heldCost: Int { measurements.cost + layouts.cost + styledMeasurements.cost + caretOffsetsByString.cost }
-
-    /// Inside a frame an eviction runs once the tables are a quarter over the budget.
-    private func trimInFrame() {
-        if heldEntries > TextCacheBudget.inFrameLimit(entryLimit) || heldCost > TextCacheBudget.inFrameLimit(costLimit) { bound(inFrame: true) }
-    }
-
-    /// Evicts the least recently touched entries, oldest generation first, until the tables fit the budget.
-    private func bound(inFrame: Bool) {
-        let current = inFrame ? generation : nil
-        var stamps: [(generation: Int, cost: Int)] = []
-        stamps.reserveCapacity(heldEntries)
-        measurements.appendStamps(to: &stamps, inFrame: current)
-        layouts.appendStamps(to: &stamps, inFrame: current)
-        styledMeasurements.appendStamps(to: &stamps, inFrame: current)
-        caretOffsetsByString.appendStamps(to: &stamps, inFrame: current)
-        guard let cut = TextCacheBudget.cut(&stamps, entries: entryLimit, cost: costLimit) else { return }
-        let share = TextCacheBudget.shares(of: cut.allowance, among: [
-            measurements.count(atRank: cut.generation, inFrame: current), layouts.count(atRank: cut.generation, inFrame: current),
-            styledMeasurements.count(atRank: cut.generation, inFrame: current), caretOffsetsByString.count(atRank: cut.generation, inFrame: current)])
-        measurements.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[0])
-        layouts.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[1])
-        styledMeasurements.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[2])
-        caretOffsetsByString.evict(olderThan: cut.generation, inFrame: current, andUpTo: share[3])
-    }
 
     /// Entry count of all four tables, for tests.
     var heldEntryCount: Int { heldEntries }
@@ -284,7 +241,6 @@ public final class PortableTextSystem: TextSystem {
             try PortableText.layOut(key.string, font: portable, wrappingAt: key.width, options: key.options)
         }
         layouts.insert(key, lines, generation: generation, cost: TextCacheBudget.weight(of: key.string))
-        trimInFrame()
         return lines
     }
 
