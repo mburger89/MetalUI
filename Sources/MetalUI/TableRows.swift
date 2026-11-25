@@ -167,12 +167,14 @@ struct TableCellLayout: ProposalLayout {
 /// so the layout and prepaint state a phase produces is still there for the next.
 @MainActor
 class AnyTableCell {
+    // The three settable properties below are overridden by the concrete cell; on the abstract base a write is
+    // dropped on purpose (the cell has no such state), so each setter discards `newValue`.
     /// Frozen cells paint this under their content (`TBL-K`).
-    var rowBackground: Color? { get { nil } set {} }
+    var rowBackground: Color? { get { nil } set { _ = newValue } }
     /// Cell mode's fill, ring and click (`TCM-D`); `nil` and ignored for a row table.
-    var decor: TableCellDecor? { get { nil } set {} }
+    var decor: TableCellDecor? { get { nil } set { _ = newValue } }
     /// What an accessibility client reads of the cell (`TBL-T`); `nil` and ignored while none collects.
-    var accessibility: TableCellAccessibility? { get { nil } set {} }
+    var accessibility: TableCellAccessibility? { get { nil } set { _ = newValue } }
     func requestLayout(under parent: GlobalElementID?, at cursor: inout Int, pass: inout LayoutPass) -> ProposalNodeID {
         fatalError("AnyTableCell is abstract")
     }

@@ -17,7 +17,7 @@ import MetalUIShaderTypes
 // Spec `docs/superpowers/specs/2026-10-13-retained-build-skip-design.md`, rulings
 // `docs/superpowers/2026-10-13-retained-build-skip-decisions.md`.
 
-/// Whether `METALUI_TRACE_RETAINED=1` also traces prepaint decisions (`retainedTraces`, read once).
+// Whether `METALUI_TRACE_RETAINED=1` also traces prepaint decisions (`retainedTraces`, read once).
 
 // MARK: - The journal
 
@@ -632,7 +632,7 @@ struct RetainedVerifySnapshot {
         if let d = first(transforms, other.transforms) { return "scene transforms \(d)" }
         if counts != other.counts { return "scene counts \(counts) vs \(other.counts)" }
         if hitboxes != other.hitboxes {
-            let first = zip(hitboxes, other.hitboxes).enumerated().first { $0.element.0 != $0.element.1 }
+            let first = zip(hitboxes.indices, zip(hitboxes, other.hitboxes)).first { $0.1.0 != $0.1.1 }
             return "hitboxes (\(hitboxes.count) vs \(other.hitboxes.count)) first difference \(String(describing: first))"
         }
         if tabOrder != other.tabOrder { return "tab order" }
@@ -648,7 +648,7 @@ struct RetainedVerifySnapshot {
         if inertBlockers != other.inertBlockers { return "inert chrome blockers" }
         if bounds != other.bounds { return "element bounds" }
         if tree != other.tree {
-            let first = zip(tree, other.tree).enumerated().first { $0.element.0 != $0.element.1 }
+            let first = zip(tree.indices, zip(tree, other.tree)).first { $0.1.0 != $0.1.1 }
             return "layout tree (\(tree.count) vs \(other.tree.count) nodes) first difference \(String(describing: first))"
         }
         if let d = other.channels.difference(from: channels) { return "build calls on the tables: \(d)" }

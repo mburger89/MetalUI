@@ -85,7 +85,7 @@ public struct FixtureGroup: Equatable, Sendable {
             case .image, .group: records = images.count
             case .backdrop: throw .invalid("\(name) holds a backdrop run (a group draws its materials flat)")
             }
-            guard run.count > 0, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
+            guard run.count >= 1, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
                 throw .invalid("\(name) run \(k) \(run.kind) \(run.start)+\(run.count) exceeds \(records) records")
             }
             if run.kind == .image {

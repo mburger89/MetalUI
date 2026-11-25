@@ -272,7 +272,7 @@ final class SpliceStore {
         var ghosts: [SpliceGhost] = []
         if let scene = previousScene {
             for row in removed {
-                guard let range = row.range, range.count > 0 else { continue }
+                guard let range = row.range, !range.isEmpty else { continue }
                 let slice = scene.capturedPrimitives(inSequences: range, excluding: []).primitives
                 if !slice.isEmpty { ghosts.append(SpliceGhost(captures: slice, origin: list.origin)) }
             }

@@ -434,11 +434,11 @@ enum AccessibilityTreeBuilder {
         /// label, E5), **a modal one**, or one whose role a trait sets.
         func distributes(hasChildren: Bool) -> Bool {
             let handsDown = label != nil || value != nil || hint != nil || identifier != nil
-                || !traits.intersection([.isHeader, .isSelected]).isEmpty || hasDeclaredAction
+                || !traits.isDisjoint(with: [.isHeader, .isSelected]) || hasDeclaredAction
             return role == .generic && record.declared.logicalCount == nil && record.declared.logicalIndex == nil
                 && !record.isClickable && !isFocusable && !actions.contains(.increment)
                 && declarations.childBehavior == nil && declarations.addedTraits
-                    .intersection([.isModal, .isButton, .isLink, .isImage, .isStaticText]).isEmpty
+                    .isDisjoint(with: [.isModal, .isButton, .isLink, .isImage, .isStaticText])
                 && handsDown && hasChildren
         }
 
@@ -450,7 +450,7 @@ enum AccessibilityTreeBuilder {
         mutating func resolveText() {
             let isButtonLike = record.isClickable || hasDeclaredAction
             if let text = record.text, declarations.childBehavior != .contain {
-                if isButtonLike || !traits.intersection([.isButton, .isHeader, .isLink]).isEmpty {
+                if isButtonLike || !traits.isDisjoint(with: [.isButton, .isHeader, .isLink]) {
                     label = label ?? text                   // a button reads its string
                 } else if value == nil {
                     value = label ?? text                   // a static text's label is its value
@@ -698,7 +698,7 @@ enum AccessibilityTreeBuilder {
     /// A child `.combine` treats as a slider rather than a pressable control
     /// (`IX-AI`): it adjusts and does not press.
     private static func isAdjustable(_ node: Resolving) -> Bool {
-        !node.actions.intersection([.increment, .decrement]).isEmpty && !node.actions.contains(.press)
+        !node.actions.isDisjoint(with: [.increment, .decrement]) && !node.actions.contains(.press)
     }
 
     /// A combined node's role rank (`IX-AI`): SwiftUI ranks a slider over a

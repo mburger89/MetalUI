@@ -25,6 +25,7 @@ final class Node: @unchecked Sendable {
     }
 
     var count: Int { height == 0 ? chunks.count : children.count }
+    var isEmpty: Bool { height == 0 ? chunks.isEmpty : children.isEmpty }
 
     func recompute() {
         var s = Summary.zero
@@ -579,7 +580,7 @@ struct Rope: Sendable {
             var s = Summary.zero
             if n.height == 0 {
                 for ch in n.chunks {
-                    if ch.count == 0 { out.append("empty chunk") }
+                    if ch.isEmpty { out.append("empty chunk") }
                     if ch.count > Rope.maxChunk { out.append("chunk of \(ch.count) bytes") }
                     if let first = ch.bytes.first {
                         if isContinuation(first) { out.append("chunk starts inside a scalar") }
@@ -598,7 +599,7 @@ struct Rope: Sendable {
                 }
             }
             if n.count > Rope.maxEntries { out.append("node with \(n.count) entries") }
-            if n.count == 0 && !isRoot { out.append("empty node") }
+            if n.isEmpty && !isRoot { out.append("empty node") }
             if s != n.summary { out.append("node summary is stale") }
         }
         check(root, isRoot: true)

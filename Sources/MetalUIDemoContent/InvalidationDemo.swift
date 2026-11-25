@@ -83,7 +83,7 @@ private struct InvalidationLeaf: Component, @MainActor Equatable {
     let cell: InvalidationDemoCell
     let memo: Bool
     var content: some ElementGroup {
-        let _ = invalidationDemoModel.counts[memo ? 0 : 1] += 1
+        let _: Void = invalidationDemoModel.counts[memo ? 0 : 1] += 1
         Text("\(cell.value)").font(size: 11).frame(width: Pixels(28), height: Pixels(14))
     }
     static func == (l: InvalidationLeaf, r: InvalidationLeaf) -> Bool {
@@ -96,7 +96,7 @@ private struct InvalidationBranch: Component, @MainActor Equatable {
     let first: Int
     let memo: Bool
     var content: some ElementGroup {
-        let _ = invalidationDemoModel.counts[memo ? 0 : 1] += 1
+        let _: Void = invalidationDemoModel.counts[memo ? 0 : 1] += 1
         InvalidationRow(level: level, first: first, memo: memo)
     }
     static func == (l: InvalidationBranch, r: InvalidationBranch) -> Bool {
@@ -137,7 +137,7 @@ private func invalidationTree(memo: Bool) -> some ElementGroup {
 struct InvalidationReadout: Component {
     var content: some ElementGroup {
         let model = invalidationDemoModel
-        let _ = model.snapshot()
+        let _: Void = model.snapshot()
         HStack(spacing: 40) {
             Text("equatable(): \(model.shown[0]) getters in the last bump's frame").font(size: 12)
             Text("plain: \(model.shown[1]) getters in the last bump's frame").font(size: 12)
@@ -165,7 +165,7 @@ private struct InvalidationEnvironmentReader: Component, @MainActor Equatable {
     @Environment(\.invalidationDemoKey) var value
     @Environment(\.colorScheme) var scheme
     var content: some ElementGroup {
-        let _ = invalidationDemoModel.environmentBodies += 1
+        let _: Void = invalidationDemoModel.environmentBodies += 1
         Text("key \(value), \(scheme == .dark ? "dark" : "light")").font(size: 12)
             .foregroundColor(scheme == .dark ? Color.accent : Color.red)
     }

@@ -794,7 +794,7 @@ struct MainThreadAnswer<T>: @unchecked Sendable { let value: T }
              #selector(NSAccessibilityElement.accessibilityDisclosedRows):
             node.outlineLevel != nil
         case #selector(NSAccessibilityElement.setAccessibilityDisclosed(_:)):
-            liveBridge != nil && !node.actions.intersection([.expand, .collapse]).isEmpty
+            liveBridge != nil && !node.actions.isDisjoint(with: [.expand, .collapse])
         // Plan task 12 part 2 (`IX-AA`, `IX-AG`): the selection setters only
         // where a list offers them, and `AXFocused` settable only where the
         // window would honour it (`isFocusable`, AB-J).

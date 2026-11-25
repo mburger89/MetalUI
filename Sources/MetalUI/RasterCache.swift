@@ -604,7 +604,7 @@ extension Frame {
         let placed = anchor.placed(mask.rect)
         // An overscanned raster wholly outside the clip draws nothing: the cut
         // raster was empty there, so no image (the scene's count is unchanged).
-        if rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty { return nil }
+        if rasterClip != placement.clip, placed.isDisjoint(with: placement.clip) { return nil }
         return (placement.quad(over: placed), cache.texture(for: key, color: paint.color, mask: mask))
     }
 }

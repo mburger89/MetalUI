@@ -586,7 +586,7 @@ extension LayoutModifier: ModifierLayerKind {
     /// A proposal layer has no `.id(_:)`: always `nil`, and a write is dropped.
     public var _elementID: ElementID? {
         get { nil }
-        set {}
+        set { _ = newValue } // dropped on purpose: a proposal layer has no `.id(_:)`
     }
 
     /// The native wrapper this modifier registers around its one child — or

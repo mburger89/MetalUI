@@ -165,7 +165,7 @@ public final class PseudoTerminal: @unchecked Sendable {
     /// available now, or -1 at end of file (the child's side is closed, or the
     /// pty is closed).
     public func read(into buffer: UnsafeMutableRawBufferPointer) -> Int {
-        guard let base = buffer.baseAddress, buffer.count > 0 else { return 0 }
+        guard let base = buffer.baseAddress, !buffer.isEmpty else { return 0 }
         // Under the lock so the descriptor cannot be closed (and reused) mid-read.
         lock.lock()
         defer { lock.unlock() }

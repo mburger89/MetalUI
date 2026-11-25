@@ -277,7 +277,7 @@ public struct ReplayFixture: Equatable, Sendable {
             case .backdrop: backdropCount
             case .group: imageCount
             }
-            guard run.count > 0, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
+            guard run.count >= 1, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
                 throw .invalid("run \(index) \(run.kind) \(run.start)+\(run.count) exceeds \(records) records")
             }
             if run.kind == .image {

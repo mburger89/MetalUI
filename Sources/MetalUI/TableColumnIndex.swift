@@ -21,6 +21,7 @@ struct ColumnExtentIndex: Equatable {
 
     /// The number of columns.
     var count: Int { offsets.count - 1 }
+    var isEmpty: Bool { offsets.count == 1 }
 
     /// The sum of every width.
     var totalWidth: Double { offsets[offsets.count - 1] }
@@ -36,7 +37,7 @@ struct ColumnExtentIndex: Equatable {
 
     /// The largest `i` with `offset(of: i) <= x`, clamped into `0...count - 1` (0 when empty). O(log C).
     func index(containing x: Double) -> Int {
-        guard count > 0 else { return 0 }
+        guard !isEmpty else { return 0 }
         // The first position whose offset is greater than x, minus one.
         var low = 0, high = count
         while low < high {
@@ -60,7 +61,7 @@ struct ColumnExtentIndex: Equatable {
     /// `0...max(0, totalWidth − viewport)` as `UniformWindow` clamps it, so for equal widths this is
     /// `UniformWindow.lines` over the same count.
     func window(offset: Double, viewport: Double, overscan: Int) -> Range<Int> {
-        guard count > 0 else { return 0..<0 }
+        guard !isEmpty else { return 0..<0 }
         let top = Swift.min(Swift.max(0, offset), Swift.max(0, totalWidth - viewport))
         let first = Swift.max(0, index(containing: top) - overscan)
         let last = Swift.min(count, firstIndex(startingAtOrAfter: top + viewport) + overscan)

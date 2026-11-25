@@ -1,4 +1,3 @@
-import MetalUIPlatform
 #if canImport(MetalUIAppKit)
 import AppKit
 import Metal

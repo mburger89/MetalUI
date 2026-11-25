@@ -1632,8 +1632,9 @@ public final class AppKitPlatform: Platform {
     // MARK: App shell (rulings `AS-C` item 7, `AS-G` item 5)
 
     /// The application delegate this platform owns (`NSApp.delegate` is
-    /// weak), installed by ``run()``. Internal so a test drives it.
-    let applicationDelegate = AppKitApplicationDelegate()
+    /// weak), installed by ``run()``. Internal so a test drives it. Strong on purpose:
+    /// this is the owning reference.
+    let applicationDelegate = AppKitApplicationDelegate() // swiftlint:disable:this weak_delegate
 
     /// Asked by `applicationShouldTerminate(_:)` — ⌘Q, Quit, a logout or
     /// shutdown — through the application delegate (ruling `AS-C` item 7).

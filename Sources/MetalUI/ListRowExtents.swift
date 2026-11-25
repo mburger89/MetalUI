@@ -35,6 +35,7 @@ final class RowExtentIndex<ID: Hashable> {
 
     /// The number of rows — `data.count` at the last rebuild.
     private(set) var count: Int
+    var isEmpty: Bool { count < 1 }
     /// The caller's `estimatedRowHeight`, already clamped (nil: not declared).
     let declaredEstimate: Double?
     /// The width every recorded height was measured at, set by
@@ -107,7 +108,7 @@ final class RowExtentIndex<ID: Hashable> {
     /// `y` exactly on a boundary belongs to the row below it — clamped into
     /// `0..<count` (negative → 0, past the end → the last row; empty → 0).
     func index(containing y: Double) -> Int {
-        guard count > 0, y > 0 else { return 0 }
+        guard !isEmpty, y > 0 else { return 0 }
         let estimate = self.estimate
         var step = 1
         while step <= count / 2 { step <<= 1 }

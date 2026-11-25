@@ -48,7 +48,7 @@ public final class TerminalSnapshotSource: @unchecked Sendable {
     /// Feeds `bytes` on `queue` (at once when already there, else a copy is queued), publishes, merges the
     /// damage into the pending snapshot and wakes the bound view if it is not already woken.
     public func feed(_ bytes: UnsafeRawBufferPointer) {
-        guard bytes.count > 0 else { return }
+        guard !bytes.isEmpty else { return }
         if onQueue {
             feedOnQueue(bytes)
         } else {

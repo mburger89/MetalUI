@@ -73,6 +73,8 @@ package struct RasterRect: Hashable, Sendable {
         let x1 = min(maxX, o.maxX), y1 = min(maxY, o.maxY)
         return RasterRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
+    /// Whether the two rectangles share no pixel (their intersection is empty).
+    package func isDisjoint(with o: RasterRect) -> Bool { intersection(o).isEmpty }
     package func union(_ o: RasterRect) -> RasterRect {
         if isEmpty { return o }
         if o.isEmpty { return self }
