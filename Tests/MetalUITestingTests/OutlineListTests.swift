@@ -366,7 +366,7 @@ private func bigTree() -> [Node] {
     return try harnessWindow(size: sz(300, 400)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = model.proxy = proxy
+                let _: Void = model.proxy = proxy
                 ProposalScrollView {
                     List(selection: selection) {
                         ForEach(tree) { FolderRow(node: $0, model: model) }
@@ -410,7 +410,7 @@ private func bigTree() -> [Node] {
     window.window.setNeedsRedraw()
     settle(window)
     #expect(texts(window)["R2/S/L15"] == nil, "L15 is 20 rows down: not realised, not in view")
-    #expect(rows(window).filter(\.isSelected).isEmpty, "so no realised row reads selected")
+    #expect(!rows(window).contains { $0.isSelected }, "so no realised row reads selected")
 }
 
 // MARK: - performance (OG-I)

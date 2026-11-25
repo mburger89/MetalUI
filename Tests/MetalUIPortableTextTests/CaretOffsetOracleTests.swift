@@ -161,7 +161,8 @@ let caretContractStrings = [
         try #require(offsets.count == text.count + 1, label)
         #expect(offsets.first == 0, label)
         #expect(zip(offsets, offsets.dropFirst()).allSatisfy { $0 <= $1 }, label)
-        #expect(abs(offsets.last! - system.measure(text, font: key, wrappingAt: nil).widestLine) <= 1e-9, label)
+        let last = try #require(offsets.last)
+        #expect(abs(last - system.measure(text, font: key, wrappingAt: nil).widestLine) <= 1e-9, label)
         #expect(apple.caretOffsets(text, font: cascade.key).count == text.count + 1, label)
     }
 }

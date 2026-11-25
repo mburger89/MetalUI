@@ -1,20 +1,6 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
 @testable import MetalUISDLGPU
-
-// Compute on an app's own device (rulings GA-D, GA-E, GA-G; spec §6 C1-C4, C8,
-// C10). A device is made per test, so the suite is serialized, and it runs on
-// the main actor like every other SDL test: Vulkan's device creation raced when
-// two tests made one at once in the Linux image (`make()` answered nil), and the
-// main actor is the serialization the other SDL tests already have. C9
-// (`SDLGPUWindowDeviceTests.swift`) is an extension of this suite for the same
-// reason.
-//
-// The append kernel (`AppShaders/append.comp.hlsl`): 1024 threads, thread `i`
-// with `v = i * 7 % 13 < 5` claims a slot by InterlockedAdd on word 0 of a
-// read-write byte-address buffer and writes `i` to word `1 + slot`.
-
 private let threadCount = 1024
 private let bufferBytes = 4 * (threadCount + 1)
 private let expectedAppended = (0..<threadCount).filter { ($0 * 7) % 13 < 5 }

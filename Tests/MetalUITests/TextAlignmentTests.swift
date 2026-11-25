@@ -17,9 +17,9 @@ private func lineStarts<C: ElementGroup>(@ElementBuilder _ content: () -> C) thr
     let glyphs = frame.finalizedScene().glyphs
     try #require(glyphs.count > 20)
     let tops = glyphs.map(\.bounds.origin.y)
-    let split = (tops.min()! + tops.max()!) / 2
-    let first = glyphs.filter { $0.bounds.origin.y < split }.map(\.bounds.origin.x).min()!
-    let second = glyphs.filter { $0.bounds.origin.y >= split }.map(\.bounds.origin.x).min()!
+    let split = (try #require(tops.min()) + (try #require(tops.max()))) / 2
+    let first = try #require(glyphs.filter { $0.bounds.origin.y < split }.map(\.bounds.origin.x).min())
+    let second = try #require(glyphs.filter { $0.bounds.origin.y >= split }.map(\.bounds.origin.x).min())
     return [first, second]
 }
 

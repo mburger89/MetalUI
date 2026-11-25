@@ -97,7 +97,8 @@ private struct TextClickFixture {
     let point = pt(380, r.origin.y.value + r.size.height.value / 2)
     f.window.click(at: point, modifierFlags: .primary)
     #expect(f.clicks.value.isEmpty)
-    #expect(f.buffer.primarySelection == CodeSelection(caret: f.geometry.hit(at: point)!.offset))
+    let hit = try #require(f.geometry.hit(at: point))
+    #expect(f.buffer.primarySelection == CodeSelection(caret: hit.offset))
     #expect(f.geometry.hit(at: point)?.region == .pastLineEnd)
 }
 

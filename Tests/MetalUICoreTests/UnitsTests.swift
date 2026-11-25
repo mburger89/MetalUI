@@ -38,7 +38,8 @@ import Testing
 }
 
 @Test func devicePixelsAreEquatable() {
-    #expect(DevicePixels(1080) == DevicePixels(1080))
+    let a = DevicePixels(1080), b = DevicePixels(1080)
+    #expect(a == b)
     #expect(DevicePixels(1080) != DevicePixels(1081))
 }
 
@@ -46,8 +47,9 @@ import Testing
     #expect(DevicePixels(1) < DevicePixels(2))
     #expect(DevicePixels(2) > DevicePixels(1))
     #expect(DevicePixels(-1) < DevicePixels(0))
-    #expect(DevicePixels(5) <= DevicePixels(5))
-    #expect(DevicePixels(5) >= DevicePixels(5))
+    let five = DevicePixels(5), alsoFive = DevicePixels(5)
+    #expect(five <= alsoFive)
+    #expect(five >= alsoFive)
 }
 
 @Test func devicePixelsAreHashableByValue() {

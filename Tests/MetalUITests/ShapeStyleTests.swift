@@ -192,12 +192,14 @@ private struct SSLoop: ShapeStyle {
 /// `Equatable` custom value equals itself and a non-`Equatable` one equals nothing. Mutations: `init` wrapping an
 /// `AnyShapeStyle` in a custom box (reddens the idempotence arm); `CustomBox.equals` always true (reddens the last).
 @Test @MainActor func anAnyShapeStyleRoundTripsAndComparesByWhatItWraps() throws {
-    #expect(AnyShapeStyle(Color.red) == AnyShapeStyle(Color.red))
+    let red = AnyShapeStyle(Color.red), redAgain = AnyShapeStyle(Color.red)
+    #expect(red == redAgain)
     #expect(AnyShapeStyle(Color.red) != AnyShapeStyle(Color.blue))
     #expect(AnyShapeStyle(AnyShapeStyle(Color.red)) == AnyShapeStyle(Color.red), "wrapping twice is wrapping once")
     #expect(AnyShapeStyle(Material.thinMaterial) != AnyShapeStyle(Material.thickMaterial))
     let g = LinearGradient(colors: [.red, .blue], startPoint: .top, endPoint: .bottom)
-    #expect(AnyShapeStyle(g) == AnyShapeStyle(g) && AnyShapeStyle(g) != AnyShapeStyle(Color.red))
+    let wrapped = AnyShapeStyle(g), wrappedAgain = AnyShapeStyle(g)
+    #expect(wrapped == wrappedAgain && wrapped != AnyShapeStyle(Color.red))
     let env = EnvironmentValues()
     let resolved = AnyShapeStyle(Color.red).resolve(in: env)
     #expect(resolved == ResolvedShapeStyle(.color(.red)), "the built-in's storage survives erasure")
@@ -206,10 +208,13 @@ private struct SSLoop: ShapeStyle {
     #expect(AnyShapeStyle(SSBrand()).resolve(in: env) != AnyShapeStyle(SSBrand()).resolve(in: dark), "resolves per scheme")
     #expect(AnyShapeStyle(SSNested()).resolve(in: env) == AnyShapeStyle(SSBrand()).resolve(in: env), "compositions nest")
     struct Same: ShapeStyle, Equatable { func resolve(in environment: EnvironmentValues) -> some ShapeStyle { Color.red } }
-    #expect(AnyShapeStyle(Same()) == AnyShapeStyle(Same()), "an Equatable custom value equals its twin")
-    #expect(AnyShapeStyle(SSBrand()) != AnyShapeStyle(SSBrand()), "a non-Equatable custom style equals nothing but itself")
+    let twin = AnyShapeStyle(Same()), twinAgain = AnyShapeStyle(Same())
+    #expect(twin == twinAgain, "an Equatable custom value equals its twin")
+    let brand = AnyShapeStyle(SSBrand()), brandAgain = AnyShapeStyle(SSBrand())
+    #expect(brand != brandAgain, "a non-Equatable custom style equals nothing but itself")
     let one = AnyShapeStyle(SSBrand())
-    #expect(one == one, "the same box equals itself")
+    let sameBox = one
+    #expect(one == sameBox, "the same box equals itself")
 }
 
 /// A custom composition paints against the environment where it sits: dark scope, dark colour. Mutation:

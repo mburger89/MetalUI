@@ -144,7 +144,8 @@ private let dylib = "libSDL3_shadercross.dylib"
             let fake = FakeFiles(files: ["/app/bin/lib/\(name)"])
             let order = try Locator.loadOrder(fake.attempts(executableDirectory: "/app/bin", windows: c.windows, macOS: c.macOS))
             #expect(order.first == "/app/bin/lib/\(name)", "\(name): \(order)")
-            #expect(order.last == c.names.last!, "the loader name stays last")
+            let loaderName = try #require(c.names.last)
+            #expect(order.last == loaderName, "the loader name stays last")
             let sub = fake.attempts(executableDirectory: "/app/bin", windows: c.windows, macOS: c.macOS)
                 .filter { $0.source == .besideExecutableSubLib }
             #expect(sub.map(\.path) == c.names.map { "/app/bin/lib/\($0)" })

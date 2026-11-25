@@ -107,7 +107,7 @@ private let returnKey = "\r", tabKey = "\t", escapeKey = "\u{1b}", f2Key = "\u{f
 /// **F5** Tab from the last column commits and wraps to the next row's first column. Mutation: Tab does not wrap an edit.
 @Test @MainActor func tabAtTheLastColumnWrapsAfterTheCommit() async throws {
     let e = try await Editing(columns: 3)
-    w3: do {
+    do {
         e.w.click(at: rowPoint(3, column: 2)); try await e.w.runUntilIdle()
         try await e.key(returnKey); try await e.key(tabKey)
         #expect(e.model.active == TableCell(row: 4, column: 0), "wrapped: \(String(describing: e.model.active))")

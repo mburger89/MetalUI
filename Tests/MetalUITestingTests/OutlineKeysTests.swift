@@ -55,7 +55,7 @@ private struct FolderRow: Component {
     let node: KNode
     let model: Folders
     @ElementBuilder var content: some ElementGroup {
-        let _ = bump()
+        let _: Void = bump()
         if let kids = node.kids {
             DisclosureGroup(isExpanded: model.binding(node.id)) {
                 ForEach(kids) { FolderRow(node: $0, model: model) }
@@ -433,7 +433,7 @@ private func rowY(_ index: Int) -> Float { 10 + 32 * Float(index) + 16 }
         #expect(opened.node.actions.contains(.collapse) && !opened.node.actions.contains(.expand), "\(form): now it offers collapse")
         #expect(!platform.simulateAccessibilityRequest(.expand(opened.id)), "\(form): expand is refused on an expanded group")
         let z = try rowNode(window, "Z")
-        #expect(z.node.actions.intersection([.expand, .collapse]).isEmpty, "\(form): a leaf offers neither")
+        #expect(z.node.actions.isDisjoint(with: [.expand, .collapse]), "\(form): a leaf offers neither")
         #expect(!platform.simulateAccessibilityRequest(.expand(z.id)) && !platform.simulateAccessibilityRequest(.collapse(z.id)),
                 "\(form): and refuses both")
         // The triangle: a press toggles, as AXPress does.
@@ -462,7 +462,7 @@ private func rowY(_ index: Int) -> Float { 10 + 32 * Float(index) + 16 }
         let window = try listWindow(form, tree(), model, enabled: false)
         let platform = window.platformWindow
         let a = try rowNode(window, "A")
-        #expect(a.node.actions.intersection([.expand, .collapse]).isEmpty, "\(form): no action is offered: \(a.node.actions)")
+        #expect(a.node.actions.isDisjoint(with: [.expand, .collapse]), "\(form): no action is offered: \(a.node.actions)")
         #expect(!platform.simulateAccessibilityRequest(.expand(a.id)), "\(form): expand is refused")
         let tree = try window.accessibilityTree
         let cell = try #require(tree.nodes[a.node.children[0]])

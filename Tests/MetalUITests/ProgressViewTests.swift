@@ -87,7 +87,7 @@ private func spinnerBounds(_ window: Window, side: Float = 32) throws -> Bounds<
     // The innermost: the box records the same bounds one level up.
     let leaves = boxes.filter { candidate in !boxes.contains { $0.key.parent == candidate.key } }
     try #require(leaves.count == 1, "one \(side)×\(side) indicator, found \(boxes.count)")
-    return leaves.first!.value
+    return try #require(leaves.first).value
 }
 
 /// Which of the 24 step angles (15° apart, clockwise from 12 o'clock) the
@@ -135,9 +135,9 @@ private func spinnerStep(_ window: Window) throws -> Int {
         ("linear, no value", try answers(ProgressView().progressViewStyle(.linear))),
     ]
     for (name, measured) in bars {
-        #expect(measured["ideal"] == SizeD(width: 0, height: 20), "\(name) ideal: \(measured["ideal"]!)")
-        #expect(measured["w200"] == SizeD(width: 200, height: 20), "\(name) w200: \(measured["w200"]!)")
-        #expect(measured["infWidth"] == SizeD(width: .infinity, height: 20), "\(name) ∞: \(measured["infWidth"]!)")
+        #expect(measured["ideal"] == SizeD(width: 0, height: 20), "\(name) ideal: \(String(describing: measured["ideal"]))")
+        #expect(measured["w200"] == SizeD(width: 200, height: 20), "\(name) w200: \(String(describing: measured["w200"]))")
+        #expect(measured["infWidth"] == SizeD(width: .infinity, height: 20), "\(name) ∞: \(String(describing: measured["infWidth"]))")
     }
 }
 
@@ -146,7 +146,7 @@ private func spinnerStep(_ window: Window) throws -> Int {
 @Test @MainActor func aSmallBarIsTwelveTall() throws {
     for (size, height) in [(ControlSize.small, 12.0), (.mini, 12), (.large, 20)] {
         let measured = try answers(ProgressView(value: 0.3).controlSize(size))
-        #expect(measured["w200"] == SizeD(width: 200, height: height), "\(size): \(measured["w200"]!)")
+        #expect(measured["w200"] == SizeD(width: 200, height: height), "\(size): \(String(describing: measured["w200"]))")
     }
 }
 
@@ -157,10 +157,11 @@ private func spinnerStep(_ window: Window) throws -> Int {
     let text = try controlTextSize("Loading")
     let measured = try answers(ProgressView("Loading", value: 0.3))
     // The answer is unrounded; the recorded text bounds are rounded (within 1).
-    #expect(abs(measured["ideal"]!.width - Double(text.width.value)) < 1
-                && measured["ideal"]!.height == Double(text.height.value) + 20,
-            "ideal \(measured["ideal"]!) (text \(text))")
-    #expect(measured["w300"] == SizeD(width: 300, height: Double(text.height.value) + 20), "w300 \(measured["w300"]!)")
+    let ideal = try #require(measured["ideal"], "an ideal answer")
+    #expect(abs(ideal.width - Double(text.width.value)) < 1
+                && ideal.height == Double(text.height.value) + 20,
+            "ideal \(ideal) (text \(text))")
+    #expect(measured["w300"] == SizeD(width: 300, height: Double(text.height.value) + 20), "w300 \(String(describing: measured["w300"]))")
     let frame = try controlRender(controlRoot { ProgressView("Loading", value: 0.3).frame(width: Pixels(300)) })
     let bar = try #require(frame.elementBounds.values.first { $0.size.width.value == 300 && $0.size.height.value == 20 })
     let title = try #require(frame.elementBounds.values.first { $0.size == text })
@@ -176,7 +177,7 @@ private func spinnerStep(_ window: Window) throws -> Int {
     try #require(caption.height != body.height, "the caption and body heights must differ, or this cannot fail")
     let measured = try answers(ProgressView(value: 0.3) { Text("L") } currentValueLabel: { Text("30%") })
     let height = Double(label.height.value) + 20 + Double(caption.height.value)
-    #expect(measured["w300"] == SizeD(width: 300, height: height), "w300 \(measured["w300"]!), expected height \(height)")
+    #expect(measured["w300"] == SizeD(width: 300, height: height), "w300 \(String(describing: measured["w300"])), expected height \(height)")
 }
 
 /// **V1** (`LK-E` item 3). A titled spinner stacks the title below, centred,
@@ -185,9 +186,10 @@ private func spinnerStep(_ window: Window) throws -> Int {
 @Test @MainActor func aTitledSpinnerStacksTheTitleBelowFourPointsApart() throws {
     let text = try controlTextSize("Loading")
     let measured = try answers(ProgressView("Loading"))
-    #expect(abs(measured["ideal"]!.width - Double(max(32, text.width.value))) < 1
-                && measured["ideal"]!.height == 36 + Double(text.height.value),
-            "ideal \(measured["ideal"]!) (text \(text))")
+    let ideal = try #require(measured["ideal"], "an ideal answer")
+    #expect(abs(ideal.width - Double(max(32, text.width.value))) < 1
+                && ideal.height == 36 + Double(text.height.value),
+            "ideal \(ideal) (text \(text))")
     let frame = try controlRender(controlRoot { ProgressView("Loading") })
     let spinner = try #require(frame.elementBounds.values.first { $0.size.width.value == 32 && $0.size.height.value == 32 })
     let title = try #require(frame.elementBounds.values.first { $0.size == text })
@@ -269,9 +271,9 @@ private func progressNodes(_ tree: AccessibilityTree) -> [AccessibilityNode] {
 /// Mutation: ignore the style.
 @Test @MainActor func progressViewStyleCircularDrawsARingAndLinearAnIndeterminateBar() throws {
     let ring = try answers(ProgressView(value: 0.3).progressViewStyle(.circular))
-    #expect(ring["w300"] == SizeD(width: 32, height: 32), "ring \(ring["w300"]!)")
+    #expect(ring["w300"] == SizeD(width: 32, height: 32), "ring \(String(describing: ring["w300"]))")
     let bar = try answers(ProgressView().progressViewStyle(.linear))
-    #expect(bar["w300"] == SizeD(width: 300, height: 20), "indeterminate bar \(bar["w300"]!)")
+    #expect(bar["w300"] == SizeD(width: 300, height: 20), "indeterminate bar \(String(describing: bar["w300"]))")
     // The ring publishes as a progress indicator with its fraction.
     let (window, platform) = try progressWindow { ProgressView(value: 0.25).progressViewStyle(.circular) }
     let nodes = progressNodes(try controlTree(window, platform))
@@ -284,10 +286,10 @@ private func progressNodes(_ tree: AccessibilityTree) -> [AccessibilityNode] {
 /// the outermost wins.
 @Test @MainActor func theInnermostProgressViewStyleWins() throws {
     let own = try answers(VStack { ProgressView(value: 0.3).progressViewStyle(.linear) }.progressViewStyle(.circular))
-    #expect(own["w300"] == SizeD(width: 300, height: 20), "the view's own .linear: \(own["w300"]!)")
+    #expect(own["w300"] == SizeD(width: 300, height: 20), "the view's own .linear: \(String(describing: own["w300"]))")
     let nearer = try answers(VStack { VStack { ProgressView(value: 0.3) }.progressViewStyle(.circular) }
         .progressViewStyle(.linear))
-    #expect(nearer["w300"] == SizeD(width: 32, height: 32), "the nearer container's .circular: \(nearer["w300"]!)")
+    #expect(nearer["w300"] == SizeD(width: 32, height: 32), "the nearer container's .circular: \(String(describing: nearer["w300"]))")
 }
 
 // MARK: - Animation (V10, V13; LK-F)

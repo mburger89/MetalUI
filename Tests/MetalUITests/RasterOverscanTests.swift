@@ -282,7 +282,8 @@ private func drawnTexels(_ images: [(image: MUIImage, texture: ImageTexture)]) -
                         canonical.local = .identity
                         let extent = RasterAnchor.shadowExtent(paint, full: full)
                         let clip = placement.clip
-                        guard !clip.isEmpty, !extent.intersection(clip).isEmpty else { continue }
+                        let overlap = extent.intersection(clip)
+                        guard !clip.isEmpty, !overlap.isEmpty else { continue }
                         let cut = frame.shadowCoverage(canonical, full: full, clip: clip, cache: cache)
                         let over = frame.shadowCoverage(canonical, full: full, clip: extent, cache: cache)
                         var differing = 0
@@ -301,7 +302,8 @@ private func drawnTexels(_ images: [(image: MUIImage, texture: ImageTexture)]) -
                         canonical.local = .identity
                         let extent = RasterAnchor.blurExtent(paint, full: full)
                         let clip = placement.clip
-                        guard !clip.isEmpty, !extent.intersection(clip).isEmpty else { continue }
+                        let overlap = extent.intersection(clip)
+                        guard !clip.isEmpty, !overlap.isEmpty else { continue }
                         let cut = frame.blurLayer(canonical, full: full, clip: clip, cache: cache)
                         let over = frame.blurLayer(canonical, full: full, clip: extent, cache: cache)
                         var differing = 0
@@ -320,7 +322,8 @@ private func drawnTexels(_ images: [(image: MUIImage, texture: ImageTexture)]) -
                         let full = outer.concatenating(paint.local)
                         let extent = RasterAnchor.gradientExtent(paint, outer: outer)
                         let clip = placement.clip
-                        guard !clip.isEmpty, !extent.intersection(clip).isEmpty else { continue }
+                        let overlap = extent.intersection(clip)
+                        guard !clip.isEmpty, !overlap.isEmpty else { continue }
                         let cut = frame.gradientPixels(paint, full: full, clip: clip, cache: cache)
                         let over = frame.gradientPixels(paint, full: full, clip: extent, cache: cache)
                         var differing = 0

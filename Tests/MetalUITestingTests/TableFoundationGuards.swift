@@ -20,7 +20,8 @@ private struct Named { var name: String }
     #else
     #expect(String.StandardComparator.lexical.compare("B", "a") == .orderedAscending)
     #endif
-    #expect(String.StandardComparator.tableDefault == String.StandardComparator.tableDefault)
+    let tableDefault = String.StandardComparator.tableDefault, tableDefaultAgain = String.StandardComparator.tableDefault
+    #expect(tableDefault == tableDefaultAgain)
     func takes<S: SortComparator>(_: S.Type) {}
     takes(Never.self)
 }

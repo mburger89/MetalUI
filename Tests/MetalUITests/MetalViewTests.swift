@@ -39,6 +39,12 @@ private final class Captured<T> {
     var value: T?
 }
 
+/// The Metal context a surface's draw closure receives on this backend.
+@MainActor private func metalContext(_ ctx: any GPUSurfaceContext) -> MetalDrawContext {
+    guard let metal = ctx as? MetalDrawContext else { preconditionFailure("the Metal backend hands a surface a MetalDrawContext") }
+    return metal
+}
+
 /// A weak reference a draw closure fills.
 @MainActor
 private final class WeakTexture {
@@ -216,8 +222,8 @@ private func redFill(_ draws: Counter) -> @MainActor (any GPUSurfaceContext) -> 
     let version = Counter()
     let (window, platform) = try window(startsDisplayLink: true) {
         GPUSurface(value: version.value) { ctx in
-            let metal = ctx as! MetalDrawContext
-            log.value!.append(Seen(target: metal.target, pixelSize: [ctx.pixelSize.width.value, ctx.pixelSize.height.value],
+            let metal = metalContext(ctx)
+            log.value?.append(Seen(target: metal.target, pixelSize: [ctx.pixelSize.width.value, ctx.pixelSize.height.value],
                              scale: ctx.scaleFactor, time: ctx.time, frameIndex: ctx.frameIndex,
                              isNew: ctx.isNewTarget))
         }
@@ -226,7 +232,7 @@ private func redFill(_ draws: Counter) -> @MainActor (any GPUSurfaceContext) -> 
     platform.scaleFactor = 2
     platform.fakeSurface.scaleFactor = 2
     platform.simulateTick(timestamp: 3.25)
-    var seen: [Seen] { log.value! }
+    var seen: [Seen] { log.value ?? [] }
     try #require(seen.count == 1, "set up: the first tick drew once")
     let first = seen[0]
     #expect(first.target.pixelFormat == .bgra8Unorm, "bgra8Unorm, never _sRGB (§7.8)")
@@ -326,7 +332,7 @@ private func redFill(_ draws: Counter) -> @MainActor (any GPUSurfaceContext) -> 
         HStack {
             if shown.value {
                 GPUSurface { ctx in
-                    target.value = (ctx as! MetalDrawContext).target
+                    target.value = metalContext(ctx).target
                     ctx.clear(red: 1, green: 0, blue: 0, alpha: 1)
                 }
                 .frame(width: px(20), height: px(20))
@@ -361,7 +367,7 @@ private func redFill(_ draws: Counter) -> @MainActor (any GPUSurfaceContext) -> 
         await MainActor.run {
             guard let device = MTLCreateSystemDefaultDevice(),
                   let pair = try? makeFakeWindow(device: device, content: {
-                      GPUSurface { ctx in (ctx as! MetalDrawContext).commandBuffer.commit() }
+                      GPUSurface { ctx in metalContext(ctx).commandBuffer.commit() }
                           .frame(width: Pixels(20), height: Pixels(20))
                   }) else { return }
             pair.0.drawFrameIfNeeded()
@@ -500,8 +506,8 @@ private struct NotMetal: GPUSurfaceContext {
     width.value = 30
     let (window, platform) = try window(startsDisplayLink: true) {
         GPUSurface { ctx in
-            let metal = ctx as! MetalDrawContext
-            log.value!.append(Seen(texture: metal.target, isNew: ctx.isNewTarget))
+            let metal = metalContext(ctx)
+            log.value?.append(Seen(texture: metal.target, isNew: ctx.isNewTarget))
         }
         .frame(width: px(Float(width.value)), height: px(20))
     }
@@ -509,7 +515,7 @@ private struct NotMetal: GPUSurfaceContext {
     platform.scaleFactor = 2
     platform.fakeSurface.scaleFactor = 2
     platform.simulateTick(timestamp: 1)
-    var seen: [Seen] { log.value! }
+    var seen: [Seen] { log.value ?? [] }
     try #require(seen.count == 1, "set up: the first tick drew once")
     #expect([seen[0].texture.width, seen[0].texture.height] == [60, 40] as [Int])
 

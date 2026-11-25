@@ -172,7 +172,7 @@ private func labelAndWell<E: Element>(_ root: E) throws -> (label: Bounds<Pixels
         let tree = try controlTree(window, platform)
         let wells = tree.nodes.filter { $0.value.role == .colorWell }
         try #require(wells.count == 1, "one colour well: \(tree.nodes.values.map(\.role))")
-        let well = wells.first!.value
+        let well = try #require(wells.first).value
         #expect(well.value == expected, "value \(well.value ?? "nil")")
         #expect(well.label == nil, "no label on the well (C1)")
         #expect(well.actions.contains(.press) && well.isFocusable, "pressable and focusable")

@@ -18,8 +18,8 @@ import Testing
     let model: PaneModel
     let source: TerminalSnapshotSource
     var content: some ElementGroup {
-        let _ = model.reads.append(focused)
-        let _ = model.setPane = { [focused = $focused] in focused.wrappedValue = $0 }
+        let _: Void = model.reads.append(focused)
+        let _: Void = model.setPane = { [focused = $focused] in focused.wrappedValue = $0 }
         VStack(spacing: 0) {
             TerminalView(snapshotSource: source, theme: .xterm, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
         }.focused($focused)

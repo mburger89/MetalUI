@@ -157,7 +157,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
     @FocusState var focused: RPField?
     let m: RPLog
     var content: some ElementGroup {
-        let _ = m.fields.append(focused)
+        let _: Void = m.fields.append(focused)
         Column {
             TextField("a", text: m.texts[0]) { m.texts[0] = $0 }.focused($focused, equals: .a)
                 .frame(width: px(100), height: px(24))
@@ -424,7 +424,7 @@ private func farCorner(_ b: Bounds<Pixels>) -> Point<Pixels> {
     let m: RPLog
     let region: Bool
     var content: some ElementGroup {
-        let _ = m.flags.append(focused)
+        let _: Void = m.flags.append(focused)
         let field = Column {
             square(20).focusable().focused($focused)
         }
@@ -579,7 +579,7 @@ extension StyledElement {
     @State var taps = 0
     let m: RPLog
     var content: some ElementGroup {
-        let _ = m.log.append("taps \(taps)")
+        let _: Void = m.log.append("taps \(taps)")
         Box().frame(width: px(100), height: px(100)).onClick { taps += 1 }
     }
 }

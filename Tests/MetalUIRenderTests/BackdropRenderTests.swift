@@ -136,8 +136,11 @@ private func composite(blurred: [Float], destination: [Float], grayTint l: Float
         bytes[i + 1] = 0                  // g
         bytes[i + 2] = isRed ? 255 : 0    // r
     } }
-    bytes.withUnsafeBytes { texture.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0,
-                                            withBytes: $0.baseAddress!, bytesPerRow: width * 4) }
+    bytes.withUnsafeBytes {
+        guard let base = $0.baseAddress else { preconditionFailure("the stripe buffer is not empty") }
+        texture.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0,
+                        withBytes: base, bytesPerRow: width * 4)
+    }
     return texture
 }
 

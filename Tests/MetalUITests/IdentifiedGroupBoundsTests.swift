@@ -47,7 +47,7 @@ private func sizedStyle(width: Float, height: Float) -> Style {
     let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: fixedColumn(width: 100, height: 100)) {
             ScrollViewReader { proxy in
-                let _ = Holder.proxy = proxy
+                let _: Void = Holder.proxy = proxy
                 ScrollView {
                     Box(style: fixedColumn(width: 100, height: nil)) {
                         Box(style: sizedStyle(width: 100, height: 200))

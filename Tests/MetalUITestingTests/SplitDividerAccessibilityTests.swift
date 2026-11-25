@@ -212,6 +212,7 @@ import Testing
     let value = try #require(Double(text))
     try window.setAccessibilityValue(value + 20, on: inner)
     let after = leaves()
-    #expect(after[12] == before[12]! + 20 && after[13] == before[13]! - 20, "\(before) -> \(after)")
+    let before12 = try #require(before[12]), before13 = try #require(before[13])
+    #expect(after[12] == before12 + 20 && after[13] == before13 - 20, "\(before) -> \(after)")
     #expect(after[11] == before[11] && after[14] == before[14], "only the inner split's panes moved: \(before) -> \(after)")
 }

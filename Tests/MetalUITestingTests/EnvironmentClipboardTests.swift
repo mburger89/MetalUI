@@ -66,7 +66,8 @@ private struct CopyButton: Component, @MainActor Equatable {
     #expect(a.platformWindow.clipboard == nil && b.platformWindow.clipboard == "from b")
     try a.click(try a.element(identifier: "copy-button"))
     #expect(a.platformWindow.clipboard == "from a" && b.platformWindow.clipboard == "from b")
-    #expect(a.window.clipboard == a.window.clipboard && a.window.clipboard != b.window.clipboard, "equal per window (replay compares it)")
+    let aFirstRead = a.window.clipboard, aSecondRead = a.window.clipboard
+    #expect(aFirstRead == aSecondRead && aFirstRead != b.window.clipboard, "equal per window (replay compares it)")
 }
 
 /// **CB-S, test 4.** The environment value does not break `.equatable()` replay: an idle frame over an equatable
@@ -182,6 +183,6 @@ private let copyLabel = "Copy code"
     try window.click(button)
     markdownSettle(window, frames: 3)
     // Under `METALUI_VERIFY_RETAINED=1` and `METALUI_VERIFY_LAYOUT_MEMO=1` every frame re-evaluates on purpose, so only the plain run can count shaping (`BM-M`).
-    if !rsVerifying && !layoutMemoVerifying { #expect(meter.measuredStrings.filter { $0.contains("let a") }.isEmpty, "the press re-measured the code: \(meter.measuredStrings)") }
+    if !rsVerifying && !layoutMemoVerifying { #expect(!meter.measuredStrings.contains { $0.contains("let a") }, "the press re-measured the code: \(meter.measuredStrings)") }
     #expect(window.platformWindow.clipboard == "let a = 1\nlet b = 2")
 }

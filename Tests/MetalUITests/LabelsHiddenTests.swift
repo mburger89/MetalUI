@@ -71,7 +71,7 @@ private enum LBControl: CaseIterable {
     let field = try #require(tree.nodes.first { $0.value.role == .textField }, "no text field")
     let controls = tree.nodes.filter { $0.value.role == kind.role }
     try #require(controls.count == 1, "\(kind): one \(kind.role) node: \(tree.nodes.values.map(\.role))")
-    let control = controls.first!
+    let control = try #require(controls.first)
     return (try #require(tree.geometry[field.key]?.frame), try #require(tree.geometry[control.key]?.frame),
             control.value)
 }

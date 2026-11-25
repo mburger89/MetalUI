@@ -61,7 +61,7 @@ private let buttonID = controlID([0, 0, 1])
     let found = tree.nodes.filter { $0.value.role == .popUpButton }
     try #require(found.count == 1, "one pop-up button: \(tree.nodes.values.map(\.role))",
                  sourceLocation: sourceLocation)
-    let (id, node) = found.first!
+    let (id, node) = try #require(found.first, sourceLocation: sourceLocation)
     let frame = try #require(tree.geometry[id]?.frame, sourceLocation: sourceLocation)
     return (id, node, frame)
 }
@@ -94,7 +94,7 @@ private let buttonID = controlID([0, 0, 1])
 /// selected title's width.
 @MainActor
 @Test func aMenuPickersButtonIsAsWideAsItsWidestOption() throws {
-    let widest = try titles.map { try controlTextSize($0).width.value }.max()!
+    let widest = try #require(try titles.map { try controlTextSize($0).width.value }.max())
     let indicator = try controlTextSize(" \u{2304}").width.value
     let padding = Button<Text>.metrics(.regular).padding
     let expected = widest + indicator + 2 * padding
@@ -374,6 +374,7 @@ private struct SingleEntry<Content: Element>: Element {
 
 /// A `TextSystem` counting `measure` calls whose string is one of `watched`.
 private final class CountingTextSystem: TextSystem, @unchecked Sendable {
+    var isEmpty: Bool { count < 1 }
     let base = CoreTextTextSystem()
     var watched: Set<String> = []
     var count = 0
@@ -438,7 +439,7 @@ private final class CountingTextSystem: TextSystem, @unchecked Sendable {
     #expect(system.count == 299, "the first frame measures every title but the selected: \(system.count)")
     system.count = 0
     controlRedraw(window)
-    #expect(system.count == 0, "a warm frame measures none: \(system.count)")
+    #expect(system.isEmpty, "a warm frame measures none: \(system.count)")
     source.titles[5] = "Option five"
     system.watched.insert("Option five")
     system.count = 0

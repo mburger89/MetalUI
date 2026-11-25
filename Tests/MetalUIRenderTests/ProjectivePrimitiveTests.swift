@@ -113,9 +113,10 @@ private func render(_ scene: Scene, size: Int = 100, atlas: GlyphAtlas? = nil) t
     let font = FontKey(resolvedPostScriptName: "ProjectivePin", size: 10, variations: [],
                        matrix: .init(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0))
     atlas.beginFrame()
-    let slot = atlas.packed(for: GlyphKey(font: font, glyph: 1, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
+    let packed = try #require(atlas.packed(for: GlyphKey(font: font, glyph: 1, size: 10, subpixelVariant: 0, scaleFactor: 1)) {
         GlyphImage(width: 7, height: 9, bytes: (0..<63).map { UInt8(($0 * 37 + 11) % 256) })
-    }!.slot
+    })
+    let slot = packed.slot
     atlas.endFrame()
     func scene(projective: Bool) -> Scene {
         // A rotation by 30 degrees about (50, 50).

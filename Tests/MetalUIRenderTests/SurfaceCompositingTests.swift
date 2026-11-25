@@ -70,8 +70,9 @@ private func filledTarget(_ device: any MTLDevice, side: Int,
     let texture = try #require(device.makeTexture(descriptor: descriptor))
     let bytes = [UInt8]((0..<(side * side)).flatMap { _ in [texel.b, texel.g, texel.r, texel.a] })
     bytes.withUnsafeBytes { raw in
+        guard let base = raw.baseAddress else { preconditionFailure("the fill buffer is not empty") }
         texture.replace(region: MTLRegionMake2D(0, 0, side, side), mipmapLevel: 0,
-                        withBytes: raw.baseAddress!, bytesPerRow: side * 4)
+                        withBytes: base, bytesPerRow: side * 4)
     }
     return texture
 }
@@ -117,7 +118,8 @@ private func filledTarget(_ device: any MTLDevice, side: Int,
     }
 
     // No texture for A: its run draws nothing, B's still draws.
-    let partial = try renderer.renderOffscreen(scene, size: size, surfaces: [b.id: textures[b.id]!])
+    let textureB = try #require(textures[b.id])
+    let partial = try renderer.renderOffscreen(scene, size: size, surfaces: [b.id: textureB])
     #expect(rgba(partial, 10, 10, width: SurfaceParity.side) == [0, 0, 0, 255], "A unbound: the background")
     #expect(rgba(partial, 30, 30, width: SurfaceParity.side) == [0, 0, 255, 255], "B still drawn")
 }

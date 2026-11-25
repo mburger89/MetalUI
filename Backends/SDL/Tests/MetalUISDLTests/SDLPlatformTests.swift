@@ -134,7 +134,7 @@ private func hiddenWindow() throws -> (SDLPlatform, SDLWindow) {
 
 /// `KF-AH`: SDL's F1...F20 keycodes reach MetalUI as AppKit's `NSF1FunctionKey`...`NSF20FunctionKey`
 /// (`U+F704`...`U+F717`). Mutation: drop the F13-F20 rows from `SDLKeys.named` — reddens.
-@Test func sdlFunctionKeysMapToAppKitsCodes() {
+@Test func sdlFunctionKeysMapToAppKitsCodes() throws {
     let expected: [(UInt32, String)] = [
         (0x4000_003A, "\u{f704}"), (0x4000_0045, "\u{f70f}"),
         (0x4000_0068, "\u{f710}"), (0x4000_006F, "\u{f717}"),
@@ -145,8 +145,9 @@ private func hiddenWindow() throws -> (SDLPlatform, SDLWindow) {
     }
     for n in 0..<20 {
         let keycode: UInt32 = n < 12 ? 0x4000_003A + UInt32(n) : 0x4000_0068 + UInt32(n - 12)
+        let scalar = try #require(Unicode.Scalar(0xF704 + UInt32(n)))
         #expect(SDLKeys.characters(forKeycode: keycode, modifiers: .shift).ignoringModifiers
-                == String(Unicode.Scalar(0xF704 + UInt32(n))!), "F\(n + 1)")
+                == String(scalar), "F\(n + 1)")
     }
     // F21 (SDLK_F21) is beyond Alloy's NamedKey and stays unmapped.
     #expect(SDLKeys.characters(forKeycode: 0x4000_0070, modifiers: []) == ("", ""))

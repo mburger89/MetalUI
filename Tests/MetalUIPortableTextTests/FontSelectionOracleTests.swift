@@ -106,7 +106,7 @@ let pinnedSelectionDifferences: Set<SelectionDifference> = [
     }
     var loads = 0
     for face in names.filter(isRegular) + names.filter({ !isRegular($0) }) {
-        let path = pathOf[face.postScript]!
+        let path = try #require(pathOf[face.postScript])
         resolver.register(face, inCascade: false) {
             loads += 1
             return [UInt8](try Data(contentsOf: URL(fileURLWithPath: path)))

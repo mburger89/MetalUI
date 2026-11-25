@@ -28,7 +28,7 @@ private struct Counter: Component, Animatable {
         set { x = newValue }
     }
     var content: some ElementGroup {
-        let _ = acNote("counter", x)
+        let _: Void = acNote("counter", x)
         ProposalLayoutContainer(RecordsProposedWidth(log: acWidths)) { Rectangle(width: Pixels(10), height: Pixels(10)) }
             .frame(width: Pixels(Float(100 + x)), height: Pixels(40))
             .transaction { $0.animation = nil }
@@ -39,7 +39,7 @@ private struct Counter: Component, Animatable {
 private struct PlainCounter: Component {
     var x: Double
     var content: some ElementGroup {
-        let _ = acNote("plain", x)
+        let _: Void = acNote("plain", x)
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
     }
 }
@@ -48,7 +48,7 @@ private struct PlainCounter: Component {
 private struct EmptyData: Component, Animatable {
     var x: Double
     var content: some ElementGroup {
-        let _ = acNote("empty", x)
+        let _: Void = acNote("empty", x)
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
     }
 }
@@ -144,7 +144,7 @@ private struct EqCounter: Component, Animatable, @MainActor Equatable {
     }
     static func == (l: EqCounter, r: EqCounter) -> Bool { l.x == r.x }
     var content: some ElementGroup {
-        let _ = acNote("eq", x)
+        let _: Void = acNote("eq", x)
         // The frame's own animation is off, so only the component's interpolation moves the width.
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
             .transaction { $0.animation = nil }
@@ -154,7 +154,7 @@ private struct EqCounter: Component, Animatable, @MainActor Equatable {
 private struct EqRoot: Component {
     let model: ACModel
     var content: some ElementGroup {
-        let _ = model.tick
+        let _: Int = model.tick
         VStack(spacing: 0) { EqCounter(x: model.x).equatable() }
     }
 }
@@ -191,7 +191,8 @@ private var acVerifying: Bool { ProcessInfo.processInfo.environment["METALUI_VER
         if i > 0 { seen.append(last("eq") ?? -1) }
     }
     #expect(zip(seen, seen.dropFirst()).allSatisfy { $0 < $1 }, "and sees a rising value: \(seen)")
-    #expect(seen.last! < 200 && seen.first! > 0, "in between: \(seen)")
+    let seenLast = try #require(seen.last), seenFirst = try #require(seen.first)
+    #expect(seenLast < 200 && seenFirst > 0, "in between: \(seen)")
     #expect(seen.count == 4, "set up: four in-flight evaluations")
     for _ in 0..<8 { w.advance(by: 0.1) }
     #expect(last("eq") == 200, "landed")
@@ -277,7 +278,7 @@ private struct Rebuilds: Component, Animatable {
     }
     var content: some ElementGroup {
         taps += 1
-        let _ = acNote("taps", Double(taps))
+        _ = acNote("taps", Double(taps))
         return Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
     }
 }
@@ -358,5 +359,5 @@ private struct SteadyEquatable: Component, @MainActor Equatable {
     // `values[index]` write does not (-60 and -12), same writes, one lookup instead of three in `consume`.
     #expect(allocations == 322, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
     #endif
-    #expect(h.store.vectorTrackRebuilds == 0 && h.store.count == 0, "and no track: \(h.store.vectorTrackRebuilds) \(h.store.count)")
+    #expect(h.store.vectorTrackRebuilds == 0 && h.store.isEmpty, "and no track: \(h.store.vectorTrackRebuilds) \(h.store.count)")
 }

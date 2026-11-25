@@ -167,7 +167,7 @@ import Testing
     try #require(bars.count == 1)
     #expect(bars[0].background.a == 1 && bars[0].background.h > 0.95 && bars[0].background.s > 0.9, "red: \(bars[0].background)")
     let plain = try stripWindow(StripModel(tabs: plainTabs))
-    #expect(plain.scene.rects.filter { $0.bounds.size.width == 3 && $0.bounds.size.height == 14 }.isEmpty)
+    #expect(!plain.scene.rects.contains { $0.bounds.size.width == 3 && $0.bounds.size.height == 14 })
 }
 
 /// 7 - a drag reports (from, to) at the release, with the index the tab has afterwards; a tiny drag and a drag that ends where
@@ -278,13 +278,14 @@ import Testing
 @Test @MainActor func aDraggedTabDimsAndMarksWhereItWouldLand() throws {
     let m = StripModel(tabs: plainTabs)
     var seen: [MUIRect] = []
-    var window: TestWindow!
-    window = try harnessWindow(size: sz(500, 100)) {
+    var built: TestWindow?
+    let window = try harnessWindow(size: sz(500, 100)) {
         VStack(spacing: 0) {
-            TabStrip(selection: m.binding, tabs: m.tabs).onMoveTab { _, _ in seen = window.scene.rects }
+            TabStrip(selection: m.binding, tabs: m.tabs).onMoveTab { _, _ in seen = built?.scene.rects ?? [] }
             Spacer()
         }
     }
+    built = window
     window.tick(); window.tick()
     let bar: (MUIRect) -> Bool = { $0.bounds.size.width == 2 && $0.bounds.size.height == 31 }
     window.drag(from: try body(window, "main.swift"), to: pt(try body(window, "c.swift").x.value + 20, 16)); window.tick()
@@ -309,7 +310,8 @@ import Testing
     func strip(_ icon: Image?) -> TabStrip<String> {
         TabStrip(selection: m.binding, tabs: [TabStripItem(id: "a", title: "x", icon: icon)])
     }
-    #expect(strip(Image(systemName: "doc")) == strip(Image(systemName: "doc")))
+    let docStrip = strip(Image(systemName: "doc")), docStripAgain = strip(Image(systemName: "doc"))
+    #expect(docStrip == docStripAgain)
     #expect(strip(Image(systemName: "doc")) != strip(Image(systemName: "star")))
     #expect(strip(nil) != strip(Image(systemName: "doc")))
 }

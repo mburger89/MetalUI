@@ -604,7 +604,7 @@ func theMeasuredDifferences() throws {
           + "geometryDifferences=\(geometryDifferences)")
     print("MEASURE | font | pt x scale | glyphs | worst per-pixel | worst per-glyph mean | adjusted |")
     for key in worst.keys.sorted(by: { ($0.file, $0.size, $0.scale) < ($1.file, $1.size, $1.scale) }) {
-        let w = worst[key]!
+        let w = try #require(worst[key])
         print("MEASURE | \(key.file) | \(key.size) x\(key.scale) | \(w.glyphs) | \(w.max) | "
               + String(format: "%.3f", w.mean)
               + " | \(coreTextAdjustedSizes.contains(key) ? "yes" : "no") |")

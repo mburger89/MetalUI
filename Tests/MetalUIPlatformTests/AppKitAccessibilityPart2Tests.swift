@@ -256,9 +256,11 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
     await #expect(processExitsWith: .success) {
         let held = await MainActor.run { () -> MainThreadAnswer<(AppKitAccessibilityElement, AppKitAccessibilityElement, AppKitAccessibilityBridge, Log)> in
             var published = listTree()
-            published.nodes[nid("r0")]!.hint = "help"
-            published.nodes[nid("r0")]!.identifier = "ident"
-            published.nodes[nid("r0")]!.customActions = ["One", "Two"]
+            guard var r0 = published.nodes[nid("r0")] else { preconditionFailure("the list tree has a node r0") }
+            r0.hint = "help"
+            r0.identifier = "ident"
+            r0.customActions = ["One", "Two"]
+            published.nodes[nid("r0")] = r0
             let (bridge, log) = makeBridge(published)
             let row = bridge.element(for: nid("r0"))
             let outline = bridge.element(for: nid("outline"))

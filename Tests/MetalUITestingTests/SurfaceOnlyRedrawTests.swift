@@ -1,17 +1,8 @@
 import Foundation
-import MetalUI
+@testable import MetalUI
 import MetalUIPlatform
 import MetalUITesting
 import Testing
-@testable import MetalUI
-
-// Surface-scoped redraw (Alloy gap 5, rulings `TRM-P`…`TRM-T`, record 337): a `SurfaceRedrawTrigger` draws one
-// `GPUSurface` in a frame with no build. PLAIN public API plus `window.window.testing…` reads; headless, portable,
-// no sleeping: the simulated clock moves the timed requests (`TW-A`).
-//
-// Every test names the mutation it was shown red against. "Routed through `setNeedsRedraw`" means
-// `Window.drainSurfaceTrigger` also calls `setNeedsRedraw()` — the trigger becomes a full-frame request.
-
 private let side = sz(200, 100)
 
 /// What a tree's builds read and what its surfaces drew.

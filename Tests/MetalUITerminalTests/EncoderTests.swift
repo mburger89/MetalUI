@@ -83,10 +83,10 @@ private let modifierRows: [(TerminalModifiers, String)] = [
         Self.check(rows)
     }
 
-    @Test func functionKeysOneToFour() {
+    @Test func functionKeysOneToFour() throws {
         var rows: [Row] = []
         for (i, f) in ["P", "Q", "R", "S"].enumerated() {
-            let k = Character(UnicodeScalar(0xF704 + UInt32(i))!)
+            let k = Character(try #require(UnicodeScalar(0xF704 + UInt32(i))))
             for (mods, p) in modifierRows {
                 for app in [false, true] {
                     rows.append(Row(name: "F\(i + 1)", key: k, mods: mods, cursor: app,
@@ -97,11 +97,11 @@ private let modifierRows: [(TerminalModifiers, String)] = [
         Self.check(rows)
     }
 
-    @Test func functionKeysFiveToTwenty() {
+    @Test func functionKeysFiveToTwenty() throws {
         let numbers = ["15", "17", "18", "19", "20", "21", "23", "24", "25", "26", "28", "29", "31", "32", "33", "34"]
         var rows: [Row] = []
         for (i, n) in numbers.enumerated() {
-            let k = Character(UnicodeScalar(0xF708 + UInt32(i))!)
+            let k = Character(try #require(UnicodeScalar(0xF708 + UInt32(i))))
             for (mods, p) in modifierRows {
                 rows.append(Row(name: "F\(i + 5)", key: k, mods: mods,
                                 expect: p.isEmpty ? "\(E)[\(n)~" : "\(E)[\(n);\(p)~"))

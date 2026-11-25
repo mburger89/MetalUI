@@ -540,7 +540,7 @@ private var dtVerifying: Bool { ProcessInfo.processInfo.environment["METALUI_VER
     try #require(window.animationStore.transitions.ghostCount == 1, "set up: a ghost that draws nothing")
     platform.simulateTick(timestamp: 101.3)
     #expect(log.entries == [] && window.animationStore.lifecycle.parkedCount == 1, "mid-fade: \(log.entries)")
-    #expect(window.lastScene.rects.filter { $0.bounds.size.width == 50 }.isEmpty, "and no rect is drawn")
+    #expect(!window.lastScene.rects.contains { $0.bounds.size.width == 50 }, "and no rect is drawn")
     platform.simulateTick(timestamp: 101.7)
     #expect(log.entries == ["disappear"] && window.animationStore.transitions.ghostCount == 0, "\(log.entries)")
 }
@@ -637,7 +637,7 @@ private var dtVerifying: Bool { ProcessInfo.processInfo.environment["METALUI_VER
     let alphas = window.lastScene.rects.filter { $0.bounds.size.width == 60 }.map(\.background.a)
     #expect(window.animationStore.transitions.ghostCount == 0 && alphas.count == 1, "no ghost, one rect: \(alphas)")
     #expect(alphas.first.map { $0 > 0.99 } == true, "the new element is opaque at the swap frame: \(alphas)")
-    #expect(window.lastScene.rects.filter { $0.bounds.size.width == 50 }.isEmpty, "and the old one is gone at once")
+    #expect(!window.lastScene.rects.contains { $0.bounds.size.width == 50 }, "and the old one is gone at once")
     #expect(log.entries.sorted() == ["appear B", "disappear A"], "both callbacks run in the swap step (212): \(log.entries)")
 }
 

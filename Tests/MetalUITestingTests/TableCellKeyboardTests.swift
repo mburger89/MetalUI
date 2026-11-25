@@ -171,7 +171,7 @@ private let returnKey = "\r", tabKey = "\t", escapeKey = "\u{1b}"
     for _ in 0..<12 {
         w.typeKey(.leftArrow); try await w.runUntilIdle()
         let stepped = try box()
-        #expect(stepped.x >= 100 && stepped.x + 100 <= 800, "column \(model.active!.column) is clear of the frozen one: \(stepped)")
+        #expect(stepped.x >= 100 && stepped.x + 100 <= 800, "column \(String(describing: model.active?.column)) is clear of the frozen one: \(stepped)")
     }
     w.typeKey(.downArrow, modifierFlags: Modifiers.primary); try await w.runUntilIdle()
     let bottom = try box()

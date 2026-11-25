@@ -15,7 +15,8 @@ private func id(_ names: String...) -> GlobalElementID {
     for name in names {
         current = GlobalElementID.child(of: current, at: 0, name: ElementID(name))
     }
-    return current!
+    guard let current else { preconditionFailure("id needs at least one name") }
+    return current
 }
 
 @MainActor

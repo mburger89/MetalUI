@@ -58,9 +58,11 @@ private func ordered(_ s: FrameTimingSample) -> Bool {
     #expect(stamp <= received && received <= sample.buildStart, "input <= receive <= frame start")
     #expect(ordered(sample), "buildStart <= layoutEnd <= prepaintEnd <= paintEnd <= commit")
     #expect(sample.presented == nil, "the headless renderer reports no presentation")
-    #expect(samples.map(\.frameIndex) == Array(samples.first!.frameIndex ..< samples.first!.frameIndex + UInt64(samples.count)))
+    let firstSample = try #require(samples.first)
+    #expect(samples.map(\.frameIndex) == Array(firstSample.frameIndex ..< firstSample.frameIndex + UInt64(samples.count)))
     window.typeKey("a")
-    #expect(timing.samples.last!.frameIndex == sample.frameIndex + 1, "indices count up")
+    let newest = try #require(timing.samples.last)
+    #expect(newest.frameIndex == sample.frameIndex + 1, "indices count up")
     #expect(sample.inputToCommit != nil && sample.frameDuration == sample.commit - sample.buildStart)
 }
 
@@ -150,9 +152,9 @@ private struct WidthBox: Component {
     @State var width: Float = 20
     @State var show = false
     var content: some ElementGroup {
-        let _ = holder.binding = $width
-        let _ = holder.show = $show
-        let _ = builds?.times.append(FrameTiming.now())
+        let _: Void = holder.binding = $width
+        let _: Void = holder.show = $show
+        let _: Void? = builds?.times.append(FrameTiming.now())
         Box().frame(width: Pixels(width), height: Pixels(10)).background(.accent)
         if show {
             Box().frame(width: Pixels(5), height: Pixels(5)).onAppear { if onAppearWrite { width = 40 } }
@@ -177,7 +179,8 @@ private struct WidthBox: Component {
     window.tick()
     let first = try #require(seen.first)
     #expect(first.frames == window.framesDrawn, "framesDrawn was already advanced: the frame is over")
-    #expect(first.committed == timing.samples.last!.commit && first.committed > 0)
+    let lastSample = try #require(timing.samples.last)
+    #expect(first.committed == lastSample.commit && first.committed > 0)
     #expect(first.dirty == false, "nothing had dirtied the window before the write")
     #expect(window.window.needsRedraw, "the callback's write scheduled the next frame")
     window.tick()
@@ -204,8 +207,9 @@ private struct WidthBox: Component {
     #expect(builds.times.count >= 2, "the onAppear write must have forced a second build")
     let sample = try #require(timing.last)
     #expect(ordered(sample))
-    #expect(sample.layoutEnd >= builds.times.last!, "layoutEnd belongs to the second build")
-    #expect(sample.buildStart <= builds.times.first!, "buildStart precedes the first")
+    let lastBuild = try #require(builds.times.last), firstBuild = try #require(builds.times.first)
+    #expect(sample.layoutEnd >= lastBuild, "layoutEnd belongs to the second build")
+    #expect(sample.buildStart <= firstBuild, "buildStart precedes the first")
 }
 
 /// 1.8 — the presented time lands in the ring slot of the right frame, later, from outside any frame; where the
@@ -417,7 +421,8 @@ private func readTrace(_ path: String) -> [String] {
 @Test @MainActor func aReentrantDispatchDoesNotClobberTheOuterInput() throws {
     let timing = FrameTiming()
     let window = try timedWindow(timing)
-    window.window.onInput = { [unowned window] event in
+    window.window.onInput = { [weak window] event in
+        guard let window else { return false }
         guard case .keyDown = event else { return false }   // inner: unclaimed, so clean
         window.send(.modifiersChanged([]))
         return true   // outer: claimed, so the window is dirtied
@@ -527,7 +532,8 @@ private let interval = ImmediateInput.fallbackInterval
     let timing = FrameTiming()
     let (window, clock) = try immediateWindow(timing)
     var nestedDraws: [Int] = []
-    timing.onFrame = { [unowned window, unowned clock] _ in
+    timing.onFrame = { [weak window, weak clock] _ in
+        guard let window, let clock else { return }
         clock.advance(by: 10 * interval)
         let drawn = window.window.framesDrawn
         window.send(keyA())   // dispatched while the frame is still running

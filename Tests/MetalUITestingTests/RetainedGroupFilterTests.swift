@@ -31,8 +31,7 @@ private struct MixedShadow: Component, @MainActor Equatable {
     let window = try TestWindow(size: sz(200, 200), textSystem: { harnessTextSystem() }) { ZStack(alignment: .topLeading) { MixedShadow().equatable() } }
     window.window.setNeedsRedraw(); window.tick()
     let first = window.scene
-    let filtered = first.groupFilters.firstIndex { $0.kind == .shadow }
-    try #require(filtered != nil, "set up: the first frame filters on the GPU route: \(first.groupFilters)")
+    let filtered = try #require(first.groupFilters.firstIndex { $0.kind == .shadow }, "set up: the first frame filters on the GPU route: \(first.groupFilters)")
     window.resetFrameWork()
     for _ in 0..<3 { window.window.setNeedsRedraw(); window.tick() }
     let sum = window.frameWork.dropFirst().reduce(window.frameWork[0], +)
@@ -41,5 +40,5 @@ private struct MixedShadow: Component, @MainActor Equatable {
     #expect(replayed.groupFilters == first.groupFilters, "the same filters: \(replayed.groupFilters) for \(first.groupFilters)")
     #expect(replayed.groups.map { [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height] } == first.groups.map { [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height] }, "the same boxes")
     let index = try #require(replayed.groupFilters.firstIndex { $0.kind == .shadow })
-    #expect(replayed.groupScenes[index].groups.count == first.groupScenes[filtered!].groups.count, "the inner opacity group is kept")
+    #expect(replayed.groupScenes[index].groups.count == first.groupScenes[filtered].groups.count, "the inner opacity group is kept")
 }

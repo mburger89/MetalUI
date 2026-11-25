@@ -1,10 +1,9 @@
 import Testing
 import Foundation
-import MetalUI
+@testable import MetalUI
 import MetalUIScene
 import MetalUIPortableText
 import MetalUITesting
-@testable import MetalUI
 #if canImport(Darwin)
 import MetalUITestSupport
 #endif
@@ -43,7 +42,7 @@ private let blue = Color(red: 0, green: 0, blue: 1)
 /// **2** For each stretch the highest layer that sets `italic` wins it, and likewise `weight`, each independently
 /// of `foreground`; a higher `italic: false` turns the slope off; a layer that sets neither lets the one below through.
 /// **Mutation:** the first layer to set a face keeps it (`if italic == nil { italic = i }`) so the lowest layer wins.
-@Test @MainActor func theHighestLayerThatSetsAFaceWinsPerStretch() {
+@Test @MainActor func theHighestLayerThatSetsAFaceWinsPerStretch() throws {
     let buffer = CodeBuffer(String(repeating: "a", count: 30) + "\n")
     let decorations = CodeDecorations(buffer: buffer)
     set(decorations, buffer, [(0..<20, CodeStyle(foreground: red, italic: true, weight: .bold))], layer: .syntax)
@@ -59,7 +58,8 @@ private let blue = Color(red: 0, green: 0, blue: 1)
     // The partition splits where a face changes even though the colour does not (0..<8 / 8..<10 are both red).
     let parts = decorations.stylingOfLine(0..<30).foreground
     #expect(parts.map(\.bytes) == [8, 2, 2, 2, 2, 4, 4, 6], "\(parts.map(\.bytes))")
-    #expect(Set(parts.map(\.face)).count == 5 && parts.first!.face != 0 && parts.last!.face == 0)
+    let firstPart = try #require(parts.first), lastPart = try #require(parts.last)
+    #expect(Set(parts.map(\.face)).count == 5 && firstPart.face != 0 && lastPart.face == 0)
 }
 
 /// **3** A partition with no faces digests as it did before faces existed: the literal is the digest master computes
@@ -107,8 +107,10 @@ private func fontBytes(_ name: String) -> [UInt8] {
 /// `.bold()` or `.italic()` result changes.
 @MainActor private func facesTextSystem(bold: Bool = true, italic: Bool = true) -> any TextSystem {
     guard let resolver = try? PortableFontResolver(defaultFont: harnessFontBytes) else { preconditionFailure("Noto Sans did not load") }
-    if bold { try! resolver.register(fontBytes("NotoSans-Bold")) }
-    if italic { try! resolver.register(fontBytes("NotoSans-Italic")) }
+    do {
+        if bold { try resolver.register(fontBytes("NotoSans-Bold")) }
+        if italic { try resolver.register(fontBytes("NotoSans-Italic")) }
+    } catch { preconditionFailure("Noto Sans faces did not register: \(error)") }
     return PortableTextSystem(resolver: resolver)
 }
 
@@ -164,7 +166,8 @@ private let sentence = "go The quick brown fox jumps over tail"
     let text = String(sentence.dropFirst(3).prefix(19))
     let expected = Float(plain.system.measure(text, font: italic, wrappingAt: nil).widestLine
                          - plain.system.measure(text, font: regular, wrappingAt: nil).widestLine)
-    let moved = (after.last!.x - before.last!.x)
+    let tailAfter = try #require(after.last), tailBefore = try #require(before.last)
+    let moved = (tailAfter.x - tailBefore.x)
     #expect(abs(expected) > 2 && abs(moved - expected) <= 1.5, "the tail moved \(moved), the faces differ by \(expected)")
 }
 
@@ -209,7 +212,7 @@ private let sentence = "go The quick brown fox jumps over tail"
                                   in: 0..<buffer.utf8Count, layer: .syntax, asOf: buffer.version)
     })
     let a = plain.glyphs(row: 0), b = slanted.glyphs(row: 0)
-    #expect(a.count == b.count && Set(a.map(\.y)).count > 0)
+    #expect(a.count == b.count && !Set(a.map(\.y)).isEmpty)
     #expect(zip(a, b).filter { $0.width != $1.width }.count > 5, "the run really is another face")
     #expect(zip(a, b).allSatisfy { abs($0.y + 0 - $1.y) <= 1 || $0.width != $1.width }, "glyphs of the same size are at the same height")
     // Noto's faces share one ascent, so also drive the shift directly: a face whose line starts lower than the view font's.
@@ -267,7 +270,8 @@ private let sentence = "go The quick brown fox jumps over tail"
     let regular = plain.system.resolveFont(descriptor()), italic = plain.system.resolveFont(descriptor(italic: true))
     let expected = Float(plain.system.measure("The quick brown fox", font: italic, wrappingAt: nil).widestLine
                          - plain.system.measure("The quick brown fox", font: regular, wrappingAt: nil).widestLine)
-    #expect(abs((b.last!.x - a.last!.x) - expected) <= 1.5, "\(b.last!.x - a.last!.x) vs \(expected)")
+    let tailB = try #require(b.last), tailA = try #require(a.last)
+    #expect(abs((tailB.x - tailA.x) - expected) <= 1.5, "\(tailB.x - tailA.x) vs \(expected)")
     // The buffer rows are untouched.
     #expect(plain.glyphs(row: 0).map(\.x) == slanted.glyphs(row: 0).map(\.x))
 }
