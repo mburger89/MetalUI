@@ -44,12 +44,22 @@ struct XRRoot: Component {
     /// A `TimelineView` and an element with `onAppear` and `onDisappear` that comes and goes, above the container: the timeline cursors and the
     /// lifecycle events a redo must deliver once (`RK-U`).
     var extras = false
+    /// Thirty replayed cards, each under its own opacity that changes once (at step `i + 1`), in a corner clipped to a point: with the window-wide backoff
+    /// off, every step has a card whose paint-only ambient changed and was never quarantined, so every step redoes (the single card is quarantined 8, 16, ... builds).
+    var multi = false
     var content: some ElementGroup {
         let dimmed = side.model.n % 2 == 1
         let blocks = g49Blocks + [G49Block(id: 999, kind: 1, text: xrStreaming(Int(side.inputs.offset)))]
         VStack(spacing: 0) {
             // The redo's trigger: a replayed card under an ancestor whose opacity changes (`RK-C`).
             ZStack { RPCard(title: "A", shade: 1, log: side.log).equatable() }.opacity(dimmed ? 0.5 : 1)
+            if multi {
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(0..<30), id: \.self) { i in
+                        ZStack { RPCard(title: "M\(i)", shade: 1, log: side.log).equatable() }.opacity(side.model.n > i ? 0.5 : 1)
+                    }
+                }.frame(width: Pixels(1), height: Pixels(1)).clipped()
+            }
             if extras {
                 TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 1)) { context in
                     Text("tick \(context.date.timeIntervalSinceReferenceDate)").frame(width: Pixels(160), height: Pixels(14))
@@ -96,8 +106,8 @@ struct XRRoot: Component {
     }
 }
 
-@MainActor func xrPair(_ arm: XRArm = .transcript, extras: Bool = false) throws -> RPPair<some Element> {
-    try RPPair(size: sz(420, 600), scale: 2, warm: 8, accessibility: false) { side in VStack(spacing: 0) { XRRoot(side: side, arm: arm, extras: extras) } }
+@MainActor func xrPair(_ arm: XRArm = .transcript, extras: Bool = false, multi: Bool = false) throws -> RPPair<some Element> {
+    try RPPair(size: sz(420, 600), scale: 2, warm: 8, accessibility: false) { side in VStack(spacing: 0) { XRRoot(side: side, arm: arm, extras: extras, multi: multi) } }
 }
 
 /// One streamed word and one opacity change on both sides, settled, one frame each.
@@ -166,12 +176,14 @@ func theRedoFrameRegistersTheElementBoundsAFreshFrameDoes() async throws {
 /// index journal off (the index contents differ), the marks not restored, the journals not truncated.
 @Test(.enabled(if: !rsVerifying, xrVerifyingNote), arguments: XRArm.allCases) @MainActor
 func aRolledBackAttemptLeavesEveryStoreAsItFoundIt(arm: XRArm) async throws {
-    let pair = try xrPair(arm)
+    rpRedoBackoff = false   // a redo every step (the cards of `multi`), so the attempt meets the steps that wrap, scroll and pack
+    defer { rpRedoBackoff = true }
+    let pair = try xrPair(arm, multi: true)
     pair.on.window.testingRollbackDigests = []
     for _ in 0..<30 { await xrStep(pair, zoom: arm == .zoom, scrolls: arm == .mirrored) }
     let rolled = try #require(pair.on.window.testingRollbackDigests)
-    try #require(rolled.count >= 2, "\(arm.rawValue): redos \(rolled.count)")
-    var wrote = 0, wroteAtlas = 0
+    try #require(rolled.count >= 10, "\(arm.rawValue): redos \(rolled.count)")
+    var wrote = 0, wroteAtlas = 0, wroteIndex = 0
     for (index, digests) in rolled.enumerated() {
         let differing = Set(digests.before).symmetricDifference(Set(digests.after)).sorted().prefix(3)
         #expect(digests.before == digests.after, "\(arm.rawValue) redo \(index): \(differing)")
@@ -179,8 +191,11 @@ func aRolledBackAttemptLeavesEveryStoreAsItFoundIt(arm: XRArm) async throws {
         // The atlas's lines (`GL-K`): the glyph map, the slot map and the packer line; the attempt packed glyphs the rollback had to forget.
         let atlasBefore = Set(digests.before.filter { $0.hasPrefix("packer ") || $0.hasPrefix("slot ") })
         if Set(digests.during.filter { $0.hasPrefix("packer ") || $0.hasPrefix("slot ") }) != atlasBefore { wroteAtlas += 1 }
+        // The index's contents are in the entry lines (`attemptContents`): the attempt recorded a measured extent, or rebuilt it.
+        if Set(digests.during.filter { $0.contains("heights [") }) != Set(digests.before.filter { $0.contains("heights [") }) { wroteIndex += 1 }
     }
     #expect(wrote >= 1, "\(arm.rawValue): no attempt wrote anything the rollback had to undo")
+    if [XRArm.transcript, .variableList, .grid].contains(arm) { #expect(wroteIndex >= 1, "\(arm.rawValue): no attempt recorded an extent the rollback had to undo") }
     if arm != .mirrored { #expect(wroteAtlas >= 1, "\(arm.rawValue): no attempt packed a glyph the rollback had to forget") }
     #expect(pair.on.window.testingAtlasAttempt.growthsInAbandoned == 0, "\(arm.rawValue): the atlas doubled inside an abandoned attempt")
 }
@@ -519,7 +534,7 @@ func aRedoneFrameDeliversEachEventOnceAndKeepsTheTimelineCursors() async throws 
 func theFixturesHoldWithTheRedoBackoffOff(arm: XRArm) async throws {
     rpRedoBackoff = false
     defer { rpRedoBackoff = true }
-    let pair = try xrPair(arm, extras: arm == .transcript)
+    let pair = try xrPair(arm, extras: arm == .transcript, multi: true)
     pair.frames = []
     var redone = 0, backedOff = 0
     for step in 0..<30 {
@@ -531,7 +546,7 @@ func theFixturesHoldWithTheRedoBackoffOff(arm: XRArm) async throws {
         #expect(xrDanglingGlyphs(pair.on) == 0, "\(arm.rawValue) step \(step): dangling glyph records")
         #expect(pair.on.window.testingAtlasSlots == pair.off.window.testingAtlasSlots, "\(arm.rawValue) step \(step): atlas")
     }
-    #expect(redone >= 2, "\(arm.rawValue): redos \(redone) of 30 (the entry's own quarantine still spaces them, doubling)")
+    #expect(redone >= 20, "\(arm.rawValue): redos \(redone) of 30: with the backoff off and a card that changes each step, nearly every step is redone")
     #expect(backedOff == 0, "\(arm.rawValue): the switch is off, so no build is suspended: \(backedOff)")
 }
 
