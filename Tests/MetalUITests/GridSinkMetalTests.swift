@@ -58,7 +58,6 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, side: Int) -> [Int] {
     return [Int(pixels[i + 2]), Int(pixels[i + 1]), Int(pixels[i]), Int(pixels[i + 3])]
 }
 
-
 /// A synthetic 6 x 6 glyph (a fully covered ring), so the tests need no font: `sprite(at:color:sink:)` packs it
 /// in the sink's atlas and returns its record.
 @MainActor private struct Synthetic {
@@ -119,13 +118,13 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, side: Int) -> [Int] {
 @Test @MainActor func adjacentCellBackgroundsLeaveNoSeam() throws {
     let plan = Plan()
     plan.draw = { sink in
-        for column in 0..<4 { sink.fillRect(box(Float(column * 8), 0, 8, 8), color: column % 2 == 0 ? white : red) }
+        for column in 0..<4 { sink.fillRect(box(Float(column * 8), 0, 8, 8), color: column.isMultiple(of: 2) ? white : red) }
     }
     let (window, platform) = try gridWindow(plan)
     window.drawFrameIfNeeded()
     let p = platform.fakeSurface.readPixels()
     for x in 0..<32 {
-        let want = (x / 8) % 2 == 0 ? [255, 255, 255, 255] : [255, 0, 0, 255]
+        let want = (x / 8).isMultiple(of: 2) ? [255, 255, 255, 255] : [255, 0, 0, 255]
         for y in 0..<8 where bgra(p, x, y, side: 32) != want {
             Issue.record("pixel \(x),\(y) is \(bgra(p, x, y, side: 32)), want \(want)"); return
         }

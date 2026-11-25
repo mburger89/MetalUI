@@ -278,11 +278,11 @@ struct FaceTraits: Equatable {
         ("ultralight", -0.8), ("extralight", -0.8), ("ultrathin", -0.8), ("hairline", -0.8),
         ("thin", -0.6), ("light", -0.4), ("book", 0), ("regular", 0), ("roman", 0), ("normal", 0),
         ("medium", 0.23), ("semibold", 0.3), ("demibold", 0.3), ("demi", 0.3), ("extrabold", 0.56),
-        ("ultrabold", 0.62), ("heavy", 0.56), ("extrablack", 0.62), ("black", 0.62), ("bold", 0.4),
+        ("ultrabold", 0.62), ("heavy", 0.56), ("extrablack", 0.62), ("black", 0.62), ("bold", 0.4)
     ]
     /// `usWeightClass` 100…900 on the same scale.
     private static let classWeights: [(Int, Double)] = [
-        (100, -0.8), (200, -0.6), (300, -0.4), (400, 0), (500, 0.23), (600, 0.3), (700, 0.4), (800, 0.56), (900, 0.62),
+        (100, -0.8), (200, -0.6), (300, -0.4), (400, 0), (500, 0.23), (600, 0.3), (700, 0.4), (800, 0.56), (900, 0.62)
     ]
 
     /// The Japanese weight-number convention (`W0`…`W9`, Hiragino's styles)

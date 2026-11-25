@@ -200,12 +200,12 @@ package func scaffoldFiles(_ options: ScaffoldOptions) throws -> [ScaffoldFile] 
         ScaffoldFile(path: ".gitignore", contents: gitignore),
         ScaffoldFile(path: "README.md", contents: readme(options)),
         ScaffoldFile(path: "Packaging/macOS/Info.plist", contents: infoPlist(options)),
-        ScaffoldFile(path: "scripts/bundle-macos.sh", contents: bundleScript(options), executable: true),
+        ScaffoldFile(path: "scripts/bundle-macos.sh", contents: bundleScript(options), executable: true)
     ]
     if options.crossPlatform {
         files += [
             ScaffoldFile(path: "Packaging/linux/\(options.bundleIdentifier).desktop", contents: desktopEntry(options)),
-            ScaffoldFile(path: "Packaging/windows/\(name).rc", contents: "1 ICON \"\(name).ico\"\n"),
+            ScaffoldFile(path: "Packaging/windows/\(name).rc", contents: "1 ICON \"\(name).ico\"\n")
         ]
     }
     return files
@@ -406,7 +406,7 @@ let swiftKeywords: Set<String> = [
     "private", "protocol", "public", "rethrows", "static", "struct", "subscript", "typealias", "var",
     "break", "case", "catch", "continue", "default", "defer", "do", "else", "fallthrough", "for", "guard", "if",
     "in", "repeat", "return", "throw", "switch", "where", "while",
-    "Any", "as", "await", "false", "is", "nil", "self", "Self", "super", "throws", "true", "try",
+    "Any", "as", "await", "false", "is", "nil", "self", "Self", "super", "throws", "true", "try"
 ]
 
 /// The generated test (HT-O): the starter's button pressed through MetalUI's

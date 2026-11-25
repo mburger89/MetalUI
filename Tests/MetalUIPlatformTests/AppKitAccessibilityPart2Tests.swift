@@ -56,7 +56,7 @@ private func listTree() -> AccessibilityTree {
                                 isSelectable: true),
         "r2": AccessibilityNode(role: .row, label: "Row 2", actions: [.press], rowIndex: 2, isSelectable: true),
         "plainTable": AccessibilityNode(role: .table, children: [nid("plain")], rowCount: 1),
-        "plain": AccessibilityNode(role: .row, label: "Plain", rowIndex: 0),
+        "plain": AccessibilityNode(role: .row, label: "Plain", rowIndex: 0)
     ])
 }
 
@@ -75,7 +75,7 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         "more": AccessibilityNode(role: .link, label: "More"),
         "outline": AccessibilityNode(role: .table, children: [nid("r0"), nid("r1")], rowCount: 40),
         "r0": AccessibilityNode(role: .row, label: "Row 0", rowIndex: 7),
-        "r1": AccessibilityNode(role: .row, label: "Row 1", rowIndex: 8),
+        "r1": AccessibilityNode(role: .row, label: "Row 1", rowIndex: 8)
     ]))
     let title = bridge.element(for: nid("title"))
     let more = bridge.element(for: nid("more"))
@@ -110,7 +110,7 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
     let published = tree(roots: ["mail", "plain"], [
         "mail": AccessibilityNode(role: .button, label: "Mail", actions: [.press],
                                   customActions: ["Archive", "Delete"]),
-        "plain": AccessibilityNode(role: .button, label: "Plain", actions: [.press]),
+        "plain": AccessibilityNode(role: .button, label: "Plain", actions: [.press])
     ])
     let (bridge, log) = makeBridge(published)
     let mail = bridge.element(for: nid("mail"))
@@ -233,7 +233,7 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
         "isOutline": { _ in
             let (list, _) = makeBridge(tree(roots: ["l"], ["l": AccessibilityNode(role: .table, isOutline: true)]))
             return list.element(for: nid("l")).accessibilityRole() == .outline
-        },
+        }
     ]
     let fields = Set(Mirror(reflecting: full).children.compactMap(\.label))
     #expect(fields.count == 25, "the neutral node's field count: \(fields.sorted())")
@@ -308,7 +308,7 @@ private let setSelectedRows = #selector(NSAccessibilityElement.setAccessibilityS
     let (bridge, log) = makeBridge(tree(roots: ["none", "some", "plain"], [
         "none": AccessibilityNode(role: .staticText, value: text, textSelection: AccessibilityTextSelection(range: nil)),
         "some": AccessibilityNode(role: .staticText, value: text, textSelection: AccessibilityTextSelection(range: 1..<3)),
-        "plain": AccessibilityNode(role: .staticText, value: text),
+        "plain": AccessibilityNode(role: .staticText, value: text)
     ]))
     let none = bridge.element(for: nid("none")), some = bridge.element(for: nid("some")), plain = bridge.element(for: nid("plain"))
     #expect(none.accessibilitySelectedTextRange() == NSRange(location: NSNotFound, length: 0))

@@ -8,7 +8,7 @@ import MetalUICore
 private struct ChildSpec {
     var lo: Double, hi: Double, ideal: Double
     var height: Double = 10
-    var priority: Double? = nil
+    var priority: Double?
 }
 
 private final class CallLog: @unchecked Sendable { var calls: [String] = [] }

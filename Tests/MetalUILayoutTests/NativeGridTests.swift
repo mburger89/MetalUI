@@ -2438,7 +2438,7 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
         },
         GridWrapperKind(name: "ZStack{one}", carriesAttribute: false, carriesPriority: true) {
             $0.newNativeOverlay(children: [$1], alignment: .center)
-        },
+        }
     ]
 }
 
@@ -2654,7 +2654,7 @@ private func gridWrapperKinds() -> [GridWrapperKind] {
             children: [.row(nil, [.init(.half, columnAlignment: .trailing), .init(.fixed(10.0, 40.0), priority: 1.0)]),
                        .row(nil, [.init(.clampBoth(20.0, 50.0))]),
                        .row(nil, [.init(.flexH(20.0), priority: -1.0)])],
-            size: (38.0, 80.0), rects: [(10.0, 30.0, 10.0, 10.0), (28.0, 0.0, 10.0, 40.0), (0.0, 48.0, 20.0, 24.0), (0.0, 80.0, 20.0, 0.0)]),
+            size: (38.0, 80.0), rects: [(10.0, 30.0, 10.0, 10.0), (28.0, 0.0, 10.0, 40.0), (0.0, 48.0, 20.0, 24.0), (0.0, 80.0, 20.0, 0.0)])
     ]
     try #require(cases.count == 5, "one per classify-spans symptom, and two with no span")
     for divergent in cases {

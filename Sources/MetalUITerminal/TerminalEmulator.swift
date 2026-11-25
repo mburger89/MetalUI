@@ -88,7 +88,7 @@ public final class TerminalEmulator {
         parser = VTParser(payloadCap: payloadCap)
     }
 
-    static func defaultTabStops(_ cols: Int) -> [Bool] { (0..<cols).map { $0 % 8 == 0 && $0 > 0 } }
+    static func defaultTabStops(_ cols: Int) -> [Bool] { (0..<cols).map { $0.isMultiple(of: 8) && $0 > 0 } }
 
     /// The oldest retained absolute row.
     public var firstRow: Int { scrolledOff - scrollback.count }

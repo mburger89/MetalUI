@@ -305,7 +305,7 @@ private final class CountingProvider: NSObject, NSPasteboardItemDataProvider, @u
 @Test @MainActor func aMoveProposalAnswersMoveFromEnteredAndUpdated() throws {
     let cases: [(DropProposal?, NSDragOperation)] = [
         (DropProposal(operation: .move), .move), (DropProposal(operation: .copy), .copy), (nil, .copy),
-        (DropProposal(operation: .forbidden), []),
+        (DropProposal(operation: .forbidden), [])
     ]
     for (proposal, expected) in cases {
         let delegate = ProposingDelegate(proposal)

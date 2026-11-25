@@ -155,7 +155,7 @@ struct ELPrepaintRefusalArm: CustomStringConvertible, Sendable {
         ELPrepaintRefusalArm(extra: .popover, reason: "presentationAnchor"),
         ELPrepaintRefusalArm(extra: .menu, reason: "contextMenus"),
         ELPrepaintRefusalArm(extra: .innerHit, reason: "effectAndLayoutInner"),
-        ELPrepaintRefusalArm(extra: .namedSpace, reason: "geometryNamedSpace"),
+        ELPrepaintRefusalArm(extra: .namedSpace, reason: "geometryNamedSpace")
     ]
 }
 

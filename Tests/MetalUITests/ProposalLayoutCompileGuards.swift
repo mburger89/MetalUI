@@ -276,7 +276,7 @@ func aFixedAndAFlexibleFrameDimensionCannotBeCombined() throws {
         ("ModifiedContent(content: Leaf(), modifier: .frame(width: Pixels(10), minWidth: Pixels(5)))",
          "extra argument 'minWidth' in call"),
         ("Leaf().nativeFrame(width: Pixels(10), minWidth: Pixels(5))",
-         "extra argument 'minWidth' in call"),
+         "extra argument 'minWidth' in call")
     ]
     for (spelling, diagnostic) in rejected {
         let result = try typecheckFile(frameLeafSource + """

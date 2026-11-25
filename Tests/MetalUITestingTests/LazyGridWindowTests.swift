@@ -151,7 +151,7 @@ private struct EqCell: Component, @MainActor Equatable {
     window.resize(to: sz(300, 200))
     window.tick(); window.tick(); window.tick()
     #expect(window.lastFrameWork.layoutMemoRootHits == 0, "resize root hits \(window.lastFrameWork.layoutMemoRootHits)")
-    #expect(window.lastFrameWork.lazyUnitsRealized % 5 == 0 && window.lastFrameWork.lazyUnitsRealized >= 65,
+    #expect(window.lastFrameWork.lazyUnitsRealized.isMultiple(of: 5) && window.lastFrameWork.lazyUnitsRealized >= 65,
             "\(window.lastFrameWork.lazyUnitsRealized)")
 }
 

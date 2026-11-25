@@ -6,7 +6,6 @@ import MetalUIScene
 import MetalUITerminal
 import MetalUITextSystem
 
-
 /// The terminal's content, internal so the public ``TerminalView`` can wrap it in `.equatable()` itself (`TRM-BD`):
 /// `Equatable` over the source object, theme, exceptions and flags, closures not compared. It holds the `@State`,
 /// the environment reads and the whole modifier chain.
@@ -264,7 +263,7 @@ public struct TerminalView: Component, @MainActor Equatable {
     }
 
     /// Whether two views draw and behave alike: the same source object, theme, exceptions and flags; closures are not compared.
-    public static func == (l: TerminalView, r: TerminalView) -> Bool { 
+    public static func == (l: TerminalView, r: TerminalView) -> Bool {
         TerminalViewField.same(l.snapshotSource, l.theme, l.keyCaptureExceptions, l.optionAsMeta, l.cursorBlink, l.blinkStopsAfterIdle, l.boldIsBright, l.cursorStyle, l.accessibilityLabel,
                                r.snapshotSource, r.theme, r.keyCaptureExceptions, r.optionAsMeta, r.cursorBlink, r.blinkStopsAfterIdle, r.boldIsBright, r.cursorStyle, r.accessibilityLabel)
     }

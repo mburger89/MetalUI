@@ -589,7 +589,7 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
         (bar, bounds(84, 46, 804, 12)),
         (sidebarPad, bounds(16, 113, 196, sidebarHeight + 28)),
         (sidebar, bounds(30, 127, 168, sidebarHeight)),
-        (child(sidebar, 0), bounds(30, 127, 168, library)),
+        (child(sidebar, 0), bounds(30, 127, 168, library))
     ]
     for row in 1...4 {
         let y = 127 + library + 10 + Float(row - 1) * 36
@@ -640,7 +640,7 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
         (cardPad, bounds(280, loweredCardY, 360, loweredColumn + 40)),
         (column, bounds(300, loweredCardY + 20, 320, loweredColumn)),
         (child(column, 0), bounds(300, loweredCardY + 20, 320, 26)),
-        (child(column, 1), bounds(300, loweredCardY + 20 + 26 + 8, 320, paragraphHeight)),
+        (child(column, 1), bounds(300, loweredCardY + 20 + 26 + 8, 320, paragraphHeight))
     ]
     for row in modalRows + expected {
         #expect(modal.bounds[row.id] == row.lowered,

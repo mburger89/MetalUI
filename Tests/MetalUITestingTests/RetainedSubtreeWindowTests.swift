@@ -28,7 +28,7 @@ private let predictions = [
     // `.value` plus the panels: the inspector and the top bar replay. The graph panel (a `List`, a `ScrollView` and a
     // `TextField`) was ineligible (`stateWrite`, `SB-J`); read-only `withState` makes it eligible (`RW-H`...`RW-J`), and the drag
     // is inside it, so the pointer-press rule (`SB-X`) makes it a counted **miss** each frame: 31 / 4 / 0 (`RW-S`).
-    Prediction(arm: .panels, hits: 31, misses: 4, ineligible: 0, retainsNodes: true),
+    Prediction(arm: .panels, hits: 31, misses: 4, ineligible: 0, retainsNodes: true)
 ]
 
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 paints a hit as a miss: the paint-skipped counts this test pins are not its to read"), arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor

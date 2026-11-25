@@ -88,7 +88,7 @@ private func referenceMasks() -> [AlphaMask] {
         seeded(0, 0, 1, 1), seeded(0, 0, 1, 37), seeded(0, 0, 37, 1),
         seeded(0, 0, 13, 9), seeded(0, 0, 16, 10), seeded(-3, 7, 61, 40),
         AlphaMask(rect: RasterRect(x: 2, y: -5, width: 20, height: 11), alpha: [UInt8](repeating: 255, count: 220)),
-        AlphaMask(rect: RasterRect(x: 0, y: 0, width: 23, height: 17), alpha: sparse),
+        AlphaMask(rect: RasterRect(x: 0, y: 0, width: 23, height: 17), alpha: sparse)
     ]
 }
 

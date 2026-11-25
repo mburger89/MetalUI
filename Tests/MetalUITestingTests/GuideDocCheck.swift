@@ -583,7 +583,7 @@ enum GuideDocs {
         (3, "A second sentence retains nothing"),
         (4, ""),
         (5, "- A list item that cancels the press."),
-        (6, "- A list item that cancels the press (pin: `x`)."),
+        (6, "- A list item that cancels the press (pin: `x`).")
     ]
     let flagged = GuideDocs.unpinnedBehaviourSentences(in: prose)
     #expect(flagged.map(\.line) == [3, 5], "read \(flagged)")

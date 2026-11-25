@@ -17,7 +17,7 @@ let fallbackStrings = [
     "ǄǅǆǇǈǉǊǋǌ digraphs and ǞǟǠǡ letters",
     "mixed: Ɠ at the start, ƞ in the middle, Ʀ at the end Ʀ",
     "Ƣƣ Ƥƥ Ʀ Ƨƨ Ʃ ƪ ƫ Ƭƭ Ʈ Ưư Ʊ Ʋ Ƴƴ Ƶƶ Ʒ Ƹƹ ƺ ƻ Ƽƽ ƾ ƿ",
-    "no fallback at all here",
+    "no fallback at all here"
 ]
 
 @MainActor

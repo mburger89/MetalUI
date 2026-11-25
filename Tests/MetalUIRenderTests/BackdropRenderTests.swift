@@ -131,7 +131,7 @@ private func composite(blurred: [Float], destination: [Float], grayTint l: Float
     var bytes = [UInt8](repeating: 255, count: width * height * 4)
     for y in 0..<height { for x in 0..<width {
         let i = (y * width + x) * 4
-        let isRed = (x / 4) % 2 == 0
+        let isRed = (x / 4).isMultiple(of: 2)
         bytes[i] = isRed ? 0 : 255        // b
         bytes[i + 1] = 0                  // g
         bytes[i + 2] = isRed ? 255 : 0    // r
@@ -171,7 +171,7 @@ private func composite(blurred: [Float], destination: [Float], grayTint l: Float
     var stripes = [Float](repeating: 0, count: w * h * 4)
     for y in 0..<h { for x in 0..<w {
         let i = (y * w + x) * 4
-        if (x / 4) % 2 == 0 { stripes[i] = 1 } else { stripes[i + 2] = 1 }
+        if (x / 4).isMultiple(of: 2) { stripes[i] = 1 } else { stripes[i + 2] = 1 }
         stripes[i + 3] = 1
     } }
     let reference = BackdropBlurReference.blur(stripes, width: w, height: h, sigma: 52)

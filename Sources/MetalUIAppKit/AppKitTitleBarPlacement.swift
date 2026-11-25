@@ -55,7 +55,7 @@ final class TitleBarPlacement {
     static let backstopNotifications: [Notification.Name] = [
         NSWindow.didResizeNotification, NSWindow.didEndLiveResizeNotification,
         NSWindow.didExitFullScreenNotification, NSWindow.didBecomeKeyNotification,
-        NSWindow.didResignKeyNotification,
+        NSWindow.didResignKeyNotification
     ]
 
     /// Places at once and hooks the window. `observesFrames` is a test seam: `false` leaves the

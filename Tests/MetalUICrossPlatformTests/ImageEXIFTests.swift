@@ -83,7 +83,7 @@ private func pngOrientation(_ bytes: [UInt8]) -> Image.Orientation? {
         ("value 9", orientationTIFF(9, bigEndian: false)),
         ("value 0xFFFF", orientationTIFF(0xFFFF, bigEndian: false)),
         ("bad byte-order mark", [0x49, 0x4D, 0x2A, 0] + Array(orientationTIFF(6, bigEndian: false)[4...])),
-        ("bad magic", [0x49, 0x49, 0x2B, 0] + Array(orientationTIFF(6, bigEndian: false)[4...])),
+        ("bad magic", [0x49, 0x49, 0x2B, 0] + Array(orientationTIFF(6, bigEndian: false)[4...]))
     ]
     for (name, tiff) in rows {
         #expect(read(tiff) == nil, "\(name)")

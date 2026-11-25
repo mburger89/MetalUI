@@ -92,7 +92,7 @@ private struct LoggedSequence: Component {
         "changed second(true, nil)",
         "changed second(true, start=(110.0,100.0) loc=(110.0,100.0))",
         "changed second(true, start=(110.0,100.0) loc=(130.0,100.0))",
-        "ended second(true, start=(110.0,100.0) loc=(130.0,100.0))",
+        "ended second(true, start=(110.0,100.0) loc=(130.0,100.0))"
     ], "\(log.entries)")
 }
 
@@ -111,7 +111,7 @@ private struct LoggedSequence: Component {
     window.send(up(at(230, 150))); window.tick()
     #expect(log.entries.suffix(2) == [
         "changed second(true, start=(113.0,100.0) loc=(130.0,100.0))",
-        "ended second(true, start=(113.0,100.0) loc=(130.0,100.0))",
+        "ended second(true, start=(113.0,100.0) loc=(130.0,100.0))"
     ], "\(log.entries)")
 }
 
@@ -150,7 +150,7 @@ private struct LoggedSequence: Component {
     w1.send(up()); w1.tick()
     #expect(early.entries.suffix(3) == [
         "changed first(true)", "changed second(true, nil)",
-        "ended second(true, start=(100.0,100.0) loc=(100.0,100.0))",
+        "ended second(true, start=(100.0,100.0) loc=(100.0,100.0))"
     ], "\(early.entries)")
 
     let far = GCLog()
@@ -187,7 +187,7 @@ private struct SequenceStateChip: Component {
     #expect(log.entries.filter { $0.hasPrefix("upd") } == [
         "upd first(true)", "upd second(true, nil)",
         "upd second(true, start=(110.0,100.0) loc=(110.0,100.0))",
-        "upd second(true, start=(110.0,100.0) loc=(130.0,100.0))",
+        "upd second(true, start=(110.0,100.0) loc=(130.0,100.0))"
     ], "\(log.entries)")
     #expect(log.distinct.filter { $0.hasPrefix("body") } == ["body s=0", "body s=1", "body s=2", "body s=3", "body s=4",
                                                             "body s=0"], "\(log.distinct)")
@@ -269,7 +269,7 @@ private struct SimultaneousChip: Component {
         "upd first=start=(100.0,100.0) loc=(100.0,100.0) second=true",
         "upd first=start=(100.0,100.0) loc=(110.0,100.0) second=true",
         "upd first=start=(100.0,100.0) loc=(120.0,100.0) second=true",
-        "ended first=true second=true",
+        "ended first=true second=true"
     ], "\(log.entries)")
     #expect(log.distinct.filter { $0.hasPrefix("body") } == ["body s=0", "body s=1", "body s=2", "body s=3", "body s=0"],
             "\(log.distinct)")
@@ -380,7 +380,7 @@ private struct CustomStateChip: Component {
     #expect(log.entries == [
         "changed first(true)", "changed second(true, nil)",
         "changed second(true, start=(110.0,100.0) loc=(110.0,100.0))",
-        "ended second(true, start=(110.0,100.0) loc=(110.0,100.0))",
+        "ended second(true, start=(110.0,100.0) loc=(110.0,100.0))"
     ], "\(log.entries)")
 }
 

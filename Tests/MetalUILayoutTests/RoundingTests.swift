@@ -5,9 +5,9 @@ import Testing
     // Three children of 33.333… in a 100 row. Naive per-width rounding gives
     // 33+33+33 = 99. Cumulative rounding must recover the missing pixel.
     let input = [
-        LayoutRect(x: 0,       y: 0, width: 33.3333, height: 10),
+        LayoutRect(x: 0, y: 0, width: 33.3333, height: 10),
         LayoutRect(x: 33.3333, y: 0, width: 33.3333, height: 10),
-        LayoutRect(x: 66.6666, y: 0, width: 33.3333, height: 10),
+        LayoutRect(x: 66.6666, y: 0, width: 33.3333, height: 10)
     ]
     let out = roundLayout(input)
     #expect(out.map(\.x) == [0, 33, 67])
@@ -17,8 +17,8 @@ import Testing
 
 @Test func roundingIsIdentityOnIntegers() {
     let input = [
-        LayoutRect(x: 0,   y: 0,  width: 200, height: 50),
-        LayoutRect(x: 200, y: 0,  width: 400, height: 50),
+        LayoutRect(x: 0, y: 0, width: 200, height: 50),
+        LayoutRect(x: 200, y: 0, width: 400, height: 50)
     ]
     #expect(roundLayout(input) == input)
 }

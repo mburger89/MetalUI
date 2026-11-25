@@ -76,7 +76,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
         PlatformToolbarItem(id: "automatic.4", placement: .automatic,
                             control: .textField(placeholder: "Filter", text: filter)),
         PlatformToolbarItem(id: "status.5", placement: .status, control: .label(text: "Ready")),
-        PlatformToolbarItem(id: "search", placement: .search, control: .search(prompt: "Search", text: search)),
+        PlatformToolbarItem(id: "search", placement: .search, control: .search(prompt: "Search", text: search))
     ])
 }
 
@@ -319,7 +319,7 @@ private struct Panel: Component {
                             isEnabled: false),
         PlatformToolbarItem(id: "on", placement: .automatic, control: .button(title: "On", image: nil)),
         PlatformToolbarItem(id: "inner", placement: .automatic, control: .toggle(title: "T", isOn: false),
-                            isEnabled: false),
+                            isEnabled: false)
     ]), "\(String(describing: sent))")
 
     _ = platform.simulateInput(.toolbarAction(ToolbarActionEvent(item: "off", action: .press)))
@@ -382,7 +382,7 @@ private struct Panel: Component {
         PlatformToolbarItem(id: "help", placement: .automatic, control: .button(title: "H", image: nil),
                             help: "Tip"),
         PlatformToolbarItem(id: "automatic.4.0", placement: .automatic, control: .button(title: "G", image: nil)),
-        PlatformToolbarItem(id: "click", placement: .automatic, control: .button(title: "C", image: nil)),
+        PlatformToolbarItem(id: "click", placement: .automatic, control: .button(title: "C", image: nil))
     ]), "\(String(describing: sent))")
 
     _ = platform.simulateInput(.toolbarAction(ToolbarActionEvent(item: "click", action: .press)))

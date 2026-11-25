@@ -49,7 +49,7 @@ package enum ClipboardMime {
         ("public.png", "image/png"),
         ("public.jpeg", "image/jpeg"),
         ("public.tiff", "image/tiff"),
-        ("public.data", "application/octet-stream"),
+        ("public.data", "application/octet-stream")
     ]
     private static let customPrefix = "application/x-"
     private static let foreignPrefix = "mime:"

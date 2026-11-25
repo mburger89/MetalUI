@@ -35,11 +35,11 @@ private func sampleTree() -> AccessibilityTree {
                 role: .table, children: [AccessibilityNodeID("row")], rowCount: 1),
             AccessibilityNodeID("row"): AccessibilityNode(
                 role: .row, label: "First", value: "3", isSelected: true, isFocusable: true,
-                actions: [.increment, .decrement], rowIndex: 0),
+                actions: [.increment, .decrement], rowIndex: 0)
         ],
         geometry: [
             AccessibilityNodeID("group"): bounds(0, 0, 100, 50),
-            AccessibilityNodeID("button"): bounds(10, 5, 30, 20),
+            AccessibilityNodeID("button"): bounds(10, 5, 30, 20)
         ],
         focused: AccessibilityNodeID("row"))
 }
@@ -64,7 +64,7 @@ private func sampleTree() -> AccessibilityTree {
         Node(id: 4, role: .table, label: nil, value: nil, bounds: nil, children: [5],
              actions: [], isDisabled: false, isSelected: false, rowCount: 1),
         Node(id: 5, role: .row, label: "First", value: "3", bounds: nil, children: [],
-             actions: [.increment, .decrement, .focus], isDisabled: false, isSelected: true, rowIndex: 0),
+             actions: [.increment, .decrement, .focus], isDisabled: false, isSelected: true, rowIndex: 0)
     ]
     try #require(snapshot.nodes.count == expected.count)
     for (got, want) in zip(snapshot.nodes, expected) { #expect(got == want, "node \(want.id)") }
@@ -111,7 +111,7 @@ private func sampleTree() -> AccessibilityTree {
             AccessibilityNodeID("radio"): AccessibilityNode(role: .radioButton, label: "A", value: "1"),
             AccessibilityNodeID("group"): AccessibilityNode(role: .radioGroup, label: "Flavor"),
             AccessibilityNodeID("slider"): AccessibilityNode(role: .slider, value: "5"),
-            AccessibilityNodeID("stepper"): AccessibilityNode(role: .incrementor, label: "Qty", value: "2.5"),
+            AccessibilityNodeID("stepper"): AccessibilityNode(role: .incrementor, label: "Qty", value: "2.5")
         ],
         geometry: [:], focused: nil)
     let snapshot = AccessKitSnapshot.translate(tree, title: "", scale: 1, ids: AccessKitIDs())

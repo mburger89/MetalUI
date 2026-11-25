@@ -214,7 +214,7 @@ extension SDLGPURuntimeCompilerTests {
         let results = Results(count: 8)
         DispatchQueue.concurrentPerform(iterations: 8) { index in
             var ok = true
-            for _ in 0..<3 { if (try? compile(index)) != serial[index] { ok = false } }
+            for _ in 0..<3 where (try? compile(index)) != serial[index] { ok = false }
             results.set(index, ok)
         }
         #expect(results.values == Array(repeating: true, count: 8))

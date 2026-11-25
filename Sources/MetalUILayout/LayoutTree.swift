@@ -19,11 +19,6 @@ public struct LayoutNodeID: Hashable, Sendable {
     public let generation: UInt64
     /// The node's slot in the tree that issued it.
     public let index: Int
-
-    init(generation: UInt64, index: Int) {
-        self.generation = generation
-        self.index = index
-    }
 }
 
 /// Structure-of-arrays node storage, reset per layout pass.
@@ -539,7 +534,7 @@ public final class LayoutTree {
     /// presenting its **first** child's spacing edges (`SP1`, `SP2`). Spacers below it are not marked by an
     /// enclosing stack.
     package func newNativeFirstFitting(children: [LayoutNodeID], horizontal: Bool,
-                                      vertical: Bool) -> LayoutNodeID {
+                                       vertical: Bool) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = appendNode(children: children)
         recordParent(id, of: children)
@@ -1564,7 +1559,6 @@ public final class LayoutTree {
         }
     }
 
-
     /// The children whose edges a union reads along `axis`: a spacer across its stack's axis
     /// (a standard edge alone, K3h), and a zero-by-zero fixed frame (a plain button's strut), add nothing beside another child (probe `DS9b`: `{text; Spacer()}`
     /// reads exactly as a text, `{rect; Spacer(); text}` as `{rect; text}`), so it is left out unless
@@ -1920,7 +1914,7 @@ public final class LayoutTree {
 
     /// One axis of `newNativeFrame`'s validation (ruling SA-J); `axis` and
     /// `Axis` spell the parameter names the messages carry.
-    private static func validateFrameAxis(_ axis: String, _ Axis: String, fixed: Double?,
+    private static func validateFrameAxis(_ axis: String, _ Axis: String, fixed: Double?, // swiftlint:disable:this identifier_name
                                           min: Double?, ideal: Double?, max: Double?) {
         if let fixed {
             precondition(fixed >= 0 && fixed.isFinite,

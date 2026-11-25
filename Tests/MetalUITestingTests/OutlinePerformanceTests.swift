@@ -311,7 +311,7 @@ private func hits(_ work: [FrameWork]) -> Int { work.reduce(0) { $0 + $1.outline
     model.selection = "R2/S/L15"
     model.proxy?.scrollTo("R2/S/L15")
     try await window.runUntilIdle()
-    
+
     let rows = ((try? window.elements(role: .row)) ?? []).filter(\.isSelected)
     let target = try #require(rows.first, "the selected row is realised")
     let top = target.frame.origin.y.value, bottom = top + target.frame.size.height.value

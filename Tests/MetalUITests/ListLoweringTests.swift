@@ -586,7 +586,7 @@ private func lKernelWindow(widths: [Float], rowHeight: Double, logicalCount: Int
         (ProposedSize(width: nil, height: 100), SizeD(width: 37, height: 1120)),    // vs K6d 0x100
         (ProposedSize(width: .infinity, height: .infinity),
          SizeD(width: .infinity, height: 1120)),                                    // vs K6e infxinf
-        (ProposedSize(width: 0, height: 0), SizeD(width: 0, height: 1120)),
+        (ProposedSize(width: 0, height: 0), SizeD(width: 0, height: 1120))
     ]
     for (proposal, expected) in answers {
         let measured = fixture.tree.measureNativeLayout(root: fixture.node, proposal: proposal)
@@ -771,7 +771,7 @@ private func lKernelWindow(widths: [Float], rowHeight: Double, logicalCount: Int
     let d2 = try #require(totals[12]).advanced(by: -(try #require(totals[8])))
     #expect(d1 == d2,
             "the lookups must be linear in the LOGICAL row count: \(totals.sorted { $0.key < $1.key })")
-    #expect(d1 % 4 == 0, "four rows' worth: \(d1)")
+    #expect(d1.isMultiple(of: 4), "four rows' worth: \(d1)")
 }
 
 // MARK: - 2.6 A zero row height lowers quietly

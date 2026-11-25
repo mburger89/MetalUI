@@ -21,7 +21,7 @@ let resolverQueries = [
     "NotoSans", "Noto  Sans", " Noto Sans", "Noto Sans ", "Noto", "Noto Sans Arabic", "NotoSansArabic-Regular",
     "noto sans arabic regular", "Source Sans 3", "SourceSans3-Regular", "Source Sans 3 Regular", "source sans 3",
     "SOURCESANS3-REGULAR", "Source Sans", "Nope", "", "Noto Sans Bold", "Noto Sans-Bold", "Noto Sans Italic",
-    "Noto Sans\u{0}", "Nöto Sans", "Helvetica",
+    "Noto Sans\u{0}", "Nöto Sans", "Helvetica"
 ]
 
 let bundledFaces = ["NotoSans-Regular.ttf", "SourceSans3-Regular.otf", "NotoSansArabic-Regular.ttf"]

@@ -97,5 +97,5 @@ let expected: [Pinned] = [
     Pinned(glyph: 1, width: 0, height: 0, left: 0, top: 0, checksum: 0xcbf29ce484222325),  // SourceSans3-Regular.otf ' ' 26pt v0 @1x
     Pinned(glyph: 1, width: 0, height: 0, left: 0, top: 0, checksum: 0xcbf29ce484222325),  // SourceSans3-Regular.otf ' ' 26pt v0 @2x
     Pinned(glyph: 1, width: 0, height: 0, left: 0, top: 0, checksum: 0xcbf29ce484222325),  // SourceSans3-Regular.otf ' ' 26pt v3 @1x
-    Pinned(glyph: 1, width: 0, height: 0, left: 0, top: 0, checksum: 0xcbf29ce484222325),  // SourceSans3-Regular.otf ' ' 26pt v3 @2x
+    Pinned(glyph: 1, width: 0, height: 0, left: 0, top: 0, checksum: 0xcbf29ce484222325)  // SourceSans3-Regular.otf ' ' 26pt v3 @2x
 ]

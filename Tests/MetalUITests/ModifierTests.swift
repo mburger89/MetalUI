@@ -309,7 +309,7 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
                      effect: { _, d, _, _ in d.hoverBackground = .separator }),
         ModifierCase(name: "focusBackground(_:)",
                      apply: { $0.focusBackground(.scrim) },
-                     effect: { _, d, _, _ in d.focusBackground = .scrim }),
+                     effect: { _, d, _, _ in d.focusBackground = .scrim })
 
         // MARK: Size — the eight deprecated sizing rows, unchanged, built in a
         // class-D witness (`DeprecatedSizingCases`, below the table's type).
@@ -360,7 +360,7 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
                      effect: { s, _, _, _ in s.flexShrink = 42 }),
         ModifierCase(name: "flexBasis(_ points:)",
                      apply: { $0.flexBasis(px(43)) },
-                     effect: { s, _, _, _ in s.flexBasis = .length(.pixels(px(43))) }),
+                     effect: { s, _, _, _ in s.flexBasis = .length(.pixels(px(43))) })
         // `flexBasis(fraction:)`'s row, unchanged, in a class-D witness since
         // plan task 15 deprecated it (`CX-C` item 2; `DeprecatedFlexBasisCase`).
     ] + oldSpelling(DeprecatedFlexBasisCase()) + [
@@ -586,7 +586,7 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
         // `Column { … }.flexDirection(.row)` cannot compile.
         ModifierCase(name: "flexDirection(_:)",
                      apply: { $0.flexDirection(.columnReverse) },
-                     effect: { s, _, _, _ in s.flexDirection = .columnReverse }),
+                     effect: { s, _, _, _ in s.flexDirection = .columnReverse })
     ]
 
     // 38 − 2 (`borderWidth` ×2, ruling `OM-M`) + 8 (lane 2's paint-only
@@ -664,7 +664,7 @@ private struct DeprecatedFlexBasisCase: DeprecatedSpelling {
         ("contentShape(inset:)", { $0.contentShape(inset: px(3)) }),
         ("contentShape(_:)", { $0.contentShape(Circle()) }),
         ("background", { $0.background(.accent) }),
-        ("id", { $0.id("kept") }),
+        ("id", { $0.id("kept") })
     ]
     try #require(later.count == 15)
     for (name, apply) in later {

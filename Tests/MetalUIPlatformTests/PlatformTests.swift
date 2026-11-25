@@ -452,7 +452,7 @@ import MetalUIRender
 
     let table: [(NSEvent.Phase, InputPhase)] = [
         ([], .none), (.began, .began), (.stationary, .changed), (.changed, .changed),
-        (.ended, .ended), (.cancelled, .cancelled), (.mayBegin, .mayBegin),
+        (.ended, .ended), (.cancelled, .cancelled), (.mayBegin, .mayBegin)
     ]
     for (phase, expected) in table {
         #expect(MetalHostView.inputPhase(phase) == expected, "\(phase)")

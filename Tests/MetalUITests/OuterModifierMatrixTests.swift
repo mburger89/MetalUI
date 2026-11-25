@@ -328,7 +328,7 @@ private struct ProposalMatrixRow {
     let outer: (bare: Float, declared: Float)
     /// A `distributes` row's declared-arm gaps (before the first member, between
     /// each pair, before the marker), derived before the run.
-    var gaps: [Float]? = nil
+    var gaps: [Float]?
     let arms: @MainActor () throws -> (bare: ProposalObservation, declared: ProposalObservation, storage: Bool?)
 }
 
@@ -733,7 +733,7 @@ private struct ProposalMatrixRow {
                                    TwoMembers().width(px(70))
                                },
                                nil)
-                          }),
+                          })
     ]
 
     let covered = Set(rows.flatMap(\.kinds))

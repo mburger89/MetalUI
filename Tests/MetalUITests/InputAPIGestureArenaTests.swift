@@ -194,7 +194,7 @@ private func close(_ a: [Double], _ b: [Double]) -> Bool {
     let target = region(rootID, [
         normal(DragGesture(minimumDistance: 0, button: .secondary).onChanged { _ in log.entries.append("secondary") }),
         normal(MagnifyGesture().onChanged { _ in log.entries.append("magnify") }
-            .exclusively(before: DragGesture(minimumDistance: 0).onChanged { _ in log.entries.append("drag") })),
+            .exclusively(before: DragGesture(minimumDistance: 0).onChanged { _ in log.entries.append("drag") }))
     ])
     var arena = try #require(GestureArena(target: target, ancestors: [], mode: .press))
     run(arena.press(at: pt(50, 60), clickCount: 1, continuing: false), log)
@@ -215,7 +215,7 @@ private func close(_ a: [Double], _ b: [Double]) -> Bool {
         normal(TapGesture().onEnded { log.entries.append("tap") }),
         normal(DragGesture(minimumDistance: 0, button: .secondary)
             .onChanged { _ in log.entries.append("secondary") }
-            .onEnded { _ in log.entries.append("secondary end") }),
+            .onEnded { _ in log.entries.append("secondary end") })
     ], onClick: { log.entries.append("click") })
     #expect(GestureArena(target: target, ancestors: [], mode: .button(2)) == nil, "no middle leaf, no arena")
     var arena = try #require(GestureArena(target: target, ancestors: [], mode: .button(1)))
@@ -394,7 +394,7 @@ private func close(_ a: [Double], _ b: [Double]) -> Bool {
     let log = ALog()
     let target = region(rootID, [
         normal(MagnifyGesture().onChanged { _ in log.entries.append("m") }
-            .simultaneously(with: RotateGesture().onChanged { _ in log.entries.append("r") })),
+            .simultaneously(with: RotateGesture().onChanged { _ in log.entries.append("r") }))
     ])
     var arena = try #require(GestureArena(target: target, ancestors: [], mode: .pinch))
     run(arena.magnify(mag(0, .began)), log)
@@ -406,7 +406,7 @@ private func close(_ a: [Double], _ b: [Double]) -> Bool {
     log.entries = []
     let twice = region(rootID, [
         normal(MagnifyGesture().onChanged { _ in log.entries.append("a") }
-            .simultaneously(with: MagnifyGesture().onChanged { _ in log.entries.append("b") })),
+            .simultaneously(with: MagnifyGesture().onChanged { _ in log.entries.append("b") }))
     ])
     var both = try #require(GestureArena(target: twice, ancestors: [], mode: .pinch))
     run(both.magnify(mag(0, .began)), log)
@@ -426,7 +426,7 @@ private func close(_ a: [Double], _ b: [Double]) -> Bool {
         normal(DragGesture(minimumDistance: 0).onChanged { _ in log.entries.append("drag") }),
         normal(DragGesture(minimumDistance: 0, button: .secondary).onChanged { _ in log.entries.append("secondary") }),
         normal(LongPressGesture(minimumDuration: 0).onEnded { _ in log.entries.append("long") }),
-        normal(MagnifyGesture().onChanged { _ in log.entries.append("magnify") }),
+        normal(MagnifyGesture().onChanged { _ in log.entries.append("magnify") })
     ], onClick: { log.entries.append("click") })
     #expect(GestureArena(target: region(rootID, [normal(TapGesture())], onClick: {}), ancestors: [],
                          mode: .pinch) == nil, "no pinch leaf, no pinch arena")

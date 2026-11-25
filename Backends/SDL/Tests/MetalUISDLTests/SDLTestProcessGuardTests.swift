@@ -179,7 +179,6 @@ private func startLivingChild() throws -> Process {
 }
 #endif
 
-
 /// Blocks the calling process for up to 20 s so a signal must be what ends it. Synchronous so
 /// the semaphore wait is not in an async context.
 private func holdUntilKilled() {

@@ -405,12 +405,10 @@ private func clippedSprite(_ slot: AtlasSlot, atX x: Float, y: Float,
     // loudly rather than silently mis-positioning the glyph if it is not.
     var inkRow = -1, inkCol = -1
     search: for row in 0..<min(6, slot.height) {
-        for column in 0..<min(6, slot.width) {
-            if atlas.pixels[(slot.y + row) * atlas.width + slot.x + column] > 200 {
-                inkRow = row
-                inkCol = column
-                break search
-            }
+        for column in 0..<min(6, slot.width) where atlas.pixels[(slot.y + row) * atlas.width + slot.x + column] > 200 {
+            inkRow = row
+            inkCol = column
+            break search
         }
     }
     try #require(inkRow >= 0 && inkCol >= 0,

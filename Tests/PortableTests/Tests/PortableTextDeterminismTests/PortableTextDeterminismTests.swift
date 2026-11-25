@@ -52,7 +52,7 @@ let corpus: [EmitCase] = [
              originX: 3.5, originY: 40),
     EmitCase(font: sourceSans, text: "in a box", size: 11, scale: 2, originX: 7.125, originY: 18),
     EmitCase(font: notoSansArabic, text: "مَرْحَبًا بالعالم", size: 19, scale: 2,
-             originX: 5.25, originY: 30),
+             originX: 5.25, originY: 30)
 ]
 
 let atlasSide = 512
@@ -164,7 +164,7 @@ let wrapCorpus: [WrapCase] = [
     WrapCase(font: notoSans, text: "The quick brown fox jumps over the lazy dog.", size: 13, width: 60),
     WrapCase(font: notoSans, text: "Affix the fluffy waffle: AV To Ty LT jig!", size: 11, width: 7.25),
     WrapCase(font: sourceSans, text: "tab\tseparated\tcolumns and Supercalifragilistic words", size: 17, width: 90),
-    WrapCase(font: sourceSans, text: "Ready\nSet\r\nGo\u{2028}now", size: 26, width: nil),
+    WrapCase(font: sourceSans, text: "Ready\nSet\r\nGo\u{2028}now", size: 26, width: nil)
 ]
 
 /// FNV-1a 64 over each line's range bounds (Int32 LE) and its advance's bit
@@ -268,7 +268,7 @@ struct ParagraphCase: CustomStringConvertible {
 /// hyphen (substituted and dropped), tabs.
 let paragraphCorpus: [ParagraphCase] = [
     ParagraphCase(font: notoSans, text: "The quick brown fox jumps over the lazy dog. AV To Ty\nsoft\u{AD}hyphen\u{AD}ated", size: 13, width: 120, scale: 2),
-    ParagraphCase(font: sourceSans, text: "tab\tseparated\tcolumns wrap\u{2028}here and there", size: 17, width: 90, scale: 1),
+    ParagraphCase(font: sourceSans, text: "tab\tseparated\tcolumns wrap\u{2028}here and there", size: 17, width: 90, scale: 1)
 ]
 
 /// A paragraph pinned like an `emit` case: rects, `height` in the advance
@@ -391,7 +391,7 @@ let expectedResolutions: [(query: String?, face: String)] = [
     ("noto sans arabic regular", "NotoSansArabic-Regular"), ("NotoSansArabic-Regular", "NotoSansArabic-Regular"),
     ("source sans 3", "SourceSans3-Regular"), ("SOURCESANS3-REGULAR", "SourceSans3-Regular"),
     ("Source Sans 3 Regular", "NotoSans-Regular"), (" Noto Sans", "NotoSans-Regular"), ("Nöto Sans", "NotoSans-Regular"),
-    ("Source Sans", "NotoSans-Regular"), ("", "NotoSans-Regular"),
+    ("Source Sans", "NotoSans-Regular"), ("", "NotoSans-Regular")
 ]
 
 @Suite struct FontResolverDeterminismTests {

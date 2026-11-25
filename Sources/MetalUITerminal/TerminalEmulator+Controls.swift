@@ -187,9 +187,9 @@ extension TerminalEmulator {
         case 1005: currentModes.mouseEncoding = on ? .utf8 : .legacy
         case 1006: currentModes.mouseEncoding = on ? .sgr : .legacy
         case 2004: currentModes.bracketedPaste = on
-        case 47: on ? enterAlternate(clear: false) : leaveAlternate(clear: false)
-        case 1047: on ? enterAlternate(clear: false) : leaveAlternate(clear: true)
-        case 1048: on ? saveCursor() : restoreCursor()
+        case 47: if on { enterAlternate(clear: false) } else { leaveAlternate(clear: false) }
+        case 1047: if on { enterAlternate(clear: false) } else { leaveAlternate(clear: true) }
+        case 1048: if on { saveCursor() } else { restoreCursor() }
         case 1049:
             if on {
                 guard !onAlternate else { return }

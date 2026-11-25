@@ -347,7 +347,7 @@ final class TerminalViewModel {
         let blinks = cursorBlink && snapshot.modes.cursorStyle.blinking
         let idle = blinksStopped(now: now, activity: activity)
         let elapsed = max(0, now - activity)
-        let phaseOn = !blinks || idle || Int((elapsed + 1e-6) / Self.blinkHalfPeriod) % 2 == 0
+        let phaseOn = !blinks || idle || Int((elapsed + 1e-6) / Self.blinkHalfPeriod).isMultiple(of: 2)
         var shape: TerminalRowPainter.CursorShape?
         let cursor = snapshot.cursor
         if cursor.visible, cursor.row >= 0, cursor.row < snapshot.size.rows {

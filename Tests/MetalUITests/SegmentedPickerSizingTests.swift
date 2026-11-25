@@ -41,7 +41,7 @@ private func read<E: Element>(_ root: E, width: Float = 420, height: Float = 420
 
 /// Segment widths against `expected` to a hundredth, named by `what`.
 @MainActor private func expectSegments(_ frame: Frame, _ expected: [Float], _ what: String,
-                            sourceLocation: SourceLocation = #_sourceLocation) {
+                                       sourceLocation: SourceLocation = #_sourceLocation) {
     let read = segments(frame)
     #expect(read.count == expected.count && zip(read, expected).allSatisfy { abs($0 - $1) < 0.01 },
             "\(what): segments \(expected), read \(read)", sourceLocation: sourceLocation)

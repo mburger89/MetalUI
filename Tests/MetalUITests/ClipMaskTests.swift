@@ -235,7 +235,7 @@ private struct CMRing: Shape {
         ("circle", effectFrame(twoLeaves().clipShape(Circle()))),
         ("capsule", effectFrame(twoLeaves().clipShape(Capsule()))),
         ("rounded", effectFrame(twoLeaves().clipShape(RoundedRectangle(cornerRadius: px(12))))),
-        ("c6", effectFrame(twoLeaves().clipShape(Circle()).clipShape(Capsule()))),
+        ("c6", effectFrame(twoLeaves().clipShape(Circle()).clipShape(Capsule())))
     ]
     for (name, frame) in frames {
         let scene = frame.finalizedScene()

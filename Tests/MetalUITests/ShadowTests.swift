@@ -273,8 +273,8 @@ func visibleBounds(_ image: MUIImage) -> MUIBounds {
 /// square at (80, 80)'s shadow is padded about 3 × 5, offset 10, and its
 /// colour lies between `.textPrimary` and `.accent`.
 @MainActor private func expectHalfWayShadow<E: Element>(_ tree: (Bool) -> E,
-                                                         from: Rgba = Theme.light[.textPrimary].toRgba(),
-                                                         to: Rgba = Theme.light[.accent].toRgba()) throws {
+                                                        from: Rgba = Theme.light[.textPrimary].toRgba(),
+                                                        to: Rgba = Theme.light[.accent].toRgba()) throws {
     let h = TransitionHarness()
     h.frame(0, nil, tree(false), side: 200)
     h.frame(0, linear1, tree(true), side: 200)

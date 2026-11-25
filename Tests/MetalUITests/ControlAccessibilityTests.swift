@@ -46,7 +46,7 @@ private func tree<E: Element>(_ root: E, stateTable: StateTable = StateTable()) 
         ("radio", .radioButton, "0", .radioButton, 0),
         ("group", .radioGroup, nil, .radioGroup, nil),
         ("slider", .slider, "5", .slider, 5),
-        ("stepper", .incrementor, "1", .incrementor, 1),
+        ("stepper", .incrementor, "1", .incrementor, 1)
     ]
     let frame = Bounds(origin: Point(x: controlPx(0), y: controlPx(0)),
                        size: Size(width: controlPx(10), height: controlPx(10)))

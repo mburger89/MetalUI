@@ -381,7 +381,7 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.002 }
                     calls.count += 1
                     return LayoutMeasurement(size: SizeD(width: 10, height: 10))
                 }
-                if marked && (row + column) % 2 == 0 { tree.markTextSpacing(leaf, .text(sf13.metrics)) }
+                if marked && (row + column).isMultiple(of: 2) { tree.markTextSpacing(leaf, .text(sf13.metrics)) }
                 leaves.append(leaf)
             }
             columns.append(tree.newNativeLinearStack(children: leaves, axis: .vertical, spacing: nil))
