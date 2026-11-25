@@ -1,6 +1,7 @@
 import Foundation
 @testable import MetalUI
 import MetalUIScene
+import Observation
 import MetalUITesting
 import Testing
 
