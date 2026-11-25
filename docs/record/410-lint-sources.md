@@ -31,3 +31,14 @@ Date: 2026-11-24. Branch `fix/lint-sources`. Scope: `Sources/` and `Backends/SDL
 
 No public API change (the inventory scripts print nothing); no new allocation on a hot path.
 `legacy_swiftui_aspect_ratio` hits were all in `Tests/`.
+
+## The allocation pin
+
+`aNonAnimatableComponentAllocatesWhatItDid` read 394 on master and 322 here (steady frame, debug build).
+Bisected by reverting files to master one at a time: 60 from `StateTable`'s generation sweep
+(`storage[id]!.isLive = ...`, two writes per live key) and 12 from `LoweringState.consume`
+(`items[node]!.consumed = true`): a dictionary key subscript written through `!` allocates per write, where
+`index(forKey:)` and an in-place `values[index]` write does not. Same writes, no work skipped. A first
+`Optional.required` that moved the payload out and back, and later a computed `required` on the element
+phases (`Component`, `ElementGroup`), each added allocations; those sites use the closure form
+`withRequired`, which adds none. Pin set to 322.

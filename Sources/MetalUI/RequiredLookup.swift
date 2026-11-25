@@ -40,6 +40,21 @@ extension Optional {
     }
 }
 
+extension Optional {
+    /// `body` on the wrapped value of an optional the caller has already set, in place.
+    ///
+    /// The closure form of ``required`` for the hot element phases: passing `body` straight
+    /// through allocates nothing, where a computed-property projection costs a few allocations
+    /// a frame in a debug build (measured, record 410).
+    @inline(__always)
+    mutating func withRequired<R>(_ body: (inout Wrapped) -> R) -> R {
+        guard self != nil else { preconditionFailure("an optional the caller had already set is nil") }
+        // The one audited force unwrap besides ``required``.
+        // swiftlint:disable:next force_unwrapping
+        return body(&self!)
+    }
+}
+
 /// The result a scope helper's body stored. The helpers (`clipped`, `deferred`, `inScroller`, …) run
 /// their body exactly once, so `nil` is a bug in the helper, not a state to handle.
 @inline(__always)
