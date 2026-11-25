@@ -693,3 +693,17 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
     #expect(atlas.wasRolledBack(x: Float(slot.x), y: Float(slot.y), width: Float(slot.width), height: Float(slot.height)))
     #expect(!atlas.wasRolledBack(x: 50, y: 50, width: 3, height: 3))
 }
+
+/// Two windows of a pair start with the same atlas, however far apart their first frames ran (`RK-AD`, record 419). A window draws its first frame before the pair pins the
+/// timeline clock, on a simulated clock anchored on `Date()` a few ms apart per window; the digits of those two instants stayed in the atlases, in an order the other
+/// window did not pack them, so `theFixturesHoldWithTheRedoBackoffOff` failed on about 1 pair in 12 with a timeline in the tree (and on every step of the run that drew
+/// it: the slot layout is meant to be identical, so the test is unchanged and the harness was at fault). Sixty pairs, so the mutation reads red: the `testingReclaimAtlas`
+/// line of `RPPair.init` removed (about 99% of runs).
+@Test @MainActor func aPairOfWindowsWithATimelineStartsWithTheSameAtlas() throws {
+    var different = 0
+    for _ in 0..<60 {
+        let pair = try xrPair(.transcript, extras: true)
+        if pair.on.window.testingAtlasSlots != pair.off.window.testingAtlasSlots { different += 1 }
+    }
+    #expect(different == 0, "\(different) of 60 pairs started with different atlases")
+}
