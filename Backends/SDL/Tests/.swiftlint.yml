@@ -1,0 +1,5 @@
+# Nested config for the test targets; the root .swiftlint.yml still supplies included/excluded and every other rule.
+disabled_rules:
+  - redundant_discardable_let  # inside result builders `let _ = expr` is a declaration; `_ = expr` is a stray `()` statement that does not compile
+  - empty_count                # counter and log types here (Calls, Counter, ClickLog, ...) have `count` but no `isEmpty`
+  - shorthand_operator         # FrameWork defines `+` but no `+=`

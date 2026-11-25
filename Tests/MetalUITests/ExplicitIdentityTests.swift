@@ -573,6 +573,5 @@ private func resetWork<Root: Element, Step>(_ steps: [Step], table: StateTable,
     }
     try #require(c.count == 2)
     #expect(c[1].work <= 1000, "C, 1000 conditionals gone absent: one pass: \(c)")
-    // swiftlint:disable:next empty_count - `(work: Int, count: Int)` is not a Collection: it has `count` but no `isEmpty`
     #expect(c[1].count == 0, "C: every absent subtree was reset: \(c)")
 }

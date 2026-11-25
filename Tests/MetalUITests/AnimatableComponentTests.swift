@@ -28,7 +28,6 @@ private struct Counter: Component, Animatable {
         set { x = newValue }
     }
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = acNote("counter", x)
         ProposalLayoutContainer(RecordsProposedWidth(log: acWidths)) { Rectangle(width: Pixels(10), height: Pixels(10)) }
             .frame(width: Pixels(Float(100 + x)), height: Pixels(40))
@@ -40,7 +39,6 @@ private struct Counter: Component, Animatable {
 private struct PlainCounter: Component {
     var x: Double
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = acNote("plain", x)
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
     }
@@ -50,7 +48,6 @@ private struct PlainCounter: Component {
 private struct EmptyData: Component, Animatable {
     var x: Double
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = acNote("empty", x)
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
     }
@@ -147,7 +144,6 @@ private struct EqCounter: Component, Animatable, @MainActor Equatable {
     }
     static func == (l: EqCounter, r: EqCounter) -> Bool { l.x == r.x }
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = acNote("eq", x)
         // The frame's own animation is off, so only the component's interpolation moves the width.
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
@@ -158,7 +154,6 @@ private struct EqCounter: Component, Animatable, @MainActor Equatable {
 private struct EqRoot: Component {
     let model: ACModel
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.tick
         VStack(spacing: 0) { EqCounter(x: model.x).equatable() }
     }
@@ -361,6 +356,5 @@ private struct SteadyEquatable: Component, @MainActor Equatable {
     // box (the dictionaries it was copied with are made once per top, not once per key).
     #expect(allocations == 394, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
     #endif
-    // swiftlint:disable:next empty_count - `AnimationStore` is not a Collection: it has `count` but no `isEmpty`
     #expect(h.store.vectorTrackRebuilds == 0 && h.store.count == 0, "and no track: \(h.store.vectorTrackRebuilds) \(h.store.count)")
 }

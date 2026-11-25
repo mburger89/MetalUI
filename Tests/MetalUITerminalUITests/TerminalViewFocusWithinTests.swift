@@ -18,9 +18,7 @@ import Testing
     let model: PaneModel
     let source: TerminalSnapshotSource
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - a result builder needs the declaration; `_ =` would be a stray statement
         let _ = model.reads.append(focused)
-        // swiftlint:disable:next redundant_discardable_let - a result builder needs the declaration; `_ =` would be a stray statement
         let _ = model.setPane = { [focused = $focused] in focused.wrappedValue = $0 }
         VStack(spacing: 0) {
             TerminalView(snapshotSource: source, theme: .xterm, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })

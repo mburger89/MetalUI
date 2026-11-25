@@ -569,7 +569,6 @@ private struct Counter: Component {
         // transparent scope (`EV-`).
         let button = try controlBounds(window.lastFrameBounds(), onStack ? id(0, 0, 0, 0) : id(0, 1, 0, 0))
         controlClick(platform, at: controlCentre(button))
-        // swiftlint:disable:next empty_count - `ControlModel` is not a Collection: it has `count` but no `isEmpty`
         #expect(model.count == 0, "\(name): .disabled(true) gates the click")
         withExtendedLifetime(window) {}
     }

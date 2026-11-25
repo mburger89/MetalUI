@@ -154,9 +154,7 @@ private struct KMFocusPane: Component {
     let model: KMLog
 
     var content: some ProposalElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.flags.append(flag)
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         Rectangle(width: Pixels(40), height: Pixels(40))
             .focused($flag)

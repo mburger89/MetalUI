@@ -33,7 +33,6 @@ private func cycling(_ log: PhaseAnimLog, _ tx: TransactionLog? = nil, phases: [
     Column {
         Box().frame(width: Pixels(20), height: Pixels(20))
             .phaseAnimator(phases) { content, p in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = log.shown(p)
                 content
                 if let tx { TransactionRecorder(label: "p\(p)", log: tx) }
@@ -51,7 +50,6 @@ private func triggered(_ trigger: Int, _ log: PhaseAnimLog, _ tx: TransactionLog
     Column {
         Box().frame(width: Pixels(20), height: Pixels(20))
             .phaseAnimator(phases, trigger: trigger) { content, p in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = log.shown(p)
                 content
                 if let tx { TransactionRecorder(label: "p\(p)", log: tx) }
@@ -236,7 +234,6 @@ private func frame<E: Element>(_ root: E, at time: Double, _ store: AnimationSto
 @Test @MainActor func contentThatLeavesAndReturnsStartsAtTheFirstPhaseGSH() {
     let store = AnimationStore(), log = PhaseAnimLog()
     func host(_ shown: Bool) -> some Element {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         Column { if shown { Box().frame(width: Pixels(20), height: Pixels(20)).phaseAnimator([0, 1, 2], content: { c, p in let _ = log.shown(p); c }) } }
     }
     frame(host(true), at: 0, store)
@@ -255,9 +252,7 @@ private func frame<E: Element>(_ root: E, at time: Double, _ store: AnimationSto
     func host() -> some Element {
         Column {
             Box().frame(width: Pixels(20), height: Pixels(20))
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                 .phaseAnimator([5, 6], content: { c, p in let _ = inner.shown(p); c }, animation: { _ in linear04 })
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                 .phaseAnimator([0, 1, 2], content: { c, p in let _ = outer.shown(p); c }, animation: { _ in linear04 })
         }
     }
@@ -275,7 +270,6 @@ private func frame<E: Element>(_ root: E, at time: Double, _ store: AnimationSto
         HStack {
             ProposalText("a")
                 .phaseAnimator([0, 1, 2], trigger: trigger, content: { c, p in
-                    // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
                     let _ = log.shown(p)
                     c
                     TransactionRecorder(label: "p\(p)", log: tx)
@@ -297,7 +291,6 @@ private func frame<E: Element>(_ root: E, at time: Double, _ store: AnimationSto
     func host(_ trigger: Int) -> some Element {
         Column {
             PhaseAnimator([0, 1], trigger: trigger) { p in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = log.shown(p)
                 Text("t\(p)")
             } animation: { _ in linear04 }

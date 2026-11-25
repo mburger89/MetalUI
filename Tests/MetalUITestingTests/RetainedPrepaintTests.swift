@@ -244,7 +244,6 @@ struct RPCard: Component, @MainActor Equatable {
     func redraw() {
         for w in [on, off] { w.window.setNeedsRedraw(); w.tick() }
         frames.append(on.lastFrameWork)
-        // swiftlint:disable:next shorthand_operator - `FrameWork` has `+` but no `+=`
         work = work + on.lastFrameWork
     }
 

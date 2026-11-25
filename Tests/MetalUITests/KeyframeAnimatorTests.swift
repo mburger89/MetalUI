@@ -29,7 +29,6 @@ private func triggered(_ trigger: Int, _ log: AnimatorLog) -> some Element {
     Column {
         Box().frame(width: Pixels(20), height: Pixels(20))
             .keyframeAnimator(initialValue: 0.0, trigger: trigger) { content, value in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = log.value(value)
                 content
             } keyframes: { start in
@@ -121,7 +120,6 @@ private func near(_ a: Double?, _ b: Double) -> Bool { a.map { abs($0 - b) < 1e-
         Column {
             Box().frame(width: Pixels(20), height: Pixels(20))
                 .keyframeAnimator(initialValue: 0.0, repeating: true) { content, value in
-                    // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                     let _ = log.value(value)
                     content
                 } keyframes: { start in
@@ -202,7 +200,6 @@ private func near(_ a: Double?, _ b: Double) -> Bool { a.map { abs($0 - b) < 1e-
 @MainActor
 private func animated<E: ElementGroup>(_ element: E, _ trigger: Int, _ log: AnimatorLog) -> some ElementGroup {
     element.keyframeAnimator(initialValue: 0.0, trigger: trigger) { content, value in
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.value(value)
         content
     } keyframes: { start in
@@ -243,7 +240,6 @@ private func animated<E: ElementGroup>(_ element: E, _ trigger: Int, _ log: Anim
             animated(Box().frame(width: Pixels(20), height: Pixels(20)), 0, c)
             Box().frame(width: Pixels(20), height: Pixels(20))
                 .keyframeAnimator(initialValue: 0.0, repeating: true) { content, value in
-                    // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                     let _ = loop.value(value)
                     content
                 } keyframes: { start in

@@ -24,7 +24,6 @@ private struct Measuring: Component {
     var count = 1
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = record()
         Box().frame(width: 1, height: 1)
     }
@@ -40,7 +39,6 @@ private struct MeasuringProposal: Component {
     let text: ProposalText
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = box.sizes = [measurer.resolve(text).measure(in: unbounded)]
         Box().frame(width: 1, height: 1)
     }

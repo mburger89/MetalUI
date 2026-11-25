@@ -134,7 +134,6 @@ private func scrolledWindow(_ model: VModel, log: VLog, header: Float = 0,
         Box(style: column(width: 200, height: 200)) {
             if header > 0 { Box(style: column(width: 200, height: header)) }
             ScrollViewReader { proxy in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = proxyBox?.keep(proxy)
                 ScrollView {
                     Box(style: column(width: model.width)) {

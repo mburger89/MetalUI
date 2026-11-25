@@ -65,7 +65,6 @@ private final class ClickLog {
     window.drawFrameIfNeeded()
 
     click(platformWindow, at: pt(80, 80))
-    // swiftlint:disable:next empty_count - `ClickLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0, "the press never landed on the box")
     // And the box really is where this test assumes it is — otherwise the line
     // above would pass against a box that had somehow been laid out at 0x0.
@@ -165,7 +164,6 @@ private final class LabelBox {
     // 40..80, centred vertically at y 30..70.
     platformWindow.simulateInput(mouseDown(at: pt(20, 50)))
     platformWindow.simulateInput(mouseUp(at: pt(60, 50)))
-    // swiftlint:disable:next empty_count - `ClickLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0, "neither the pressed element nor the released one is clicked")
 
     // The positive control: the same two points each click their own box.
@@ -270,7 +268,6 @@ private final class LabelBox {
     // (50, 50) — which is inside BOTH boxes, with the inner one on top.
     platformWindow.simulateInput(mouseDown(at: pt(25, 25)))
     platformWindow.simulateInput(mouseUp(at: pt(50, 50)))
-    // swiftlint:disable:next empty_count - `ClickLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0,
             "the release landed on `inner`, so the press on `outer` is not a click")
 
@@ -314,7 +311,6 @@ private final class LabelBox {
     window.drawFrameIfNeeded()
 
     platformWindow.simulateInput(mouseUp(at: pt(20, 20)))
-    // swiftlint:disable:next empty_count - `ClickLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0, "a release with nothing active is not a click")
 }
 

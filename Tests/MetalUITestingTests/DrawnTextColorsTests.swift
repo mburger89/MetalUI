@@ -100,10 +100,8 @@ private func mixed() -> AttributedString {
     for _ in 0..<4 {
         step(asked)
         _ = try asked.drawnTextColors(in: asked.element(identifier: "mixed"))
-        // swiftlint:disable:next shorthand_operator - `FrameWork` has `+` but no `+=`
         askedWork = askedWork + asked.lastFrameWork
         step(quiet)
-        // swiftlint:disable:next shorthand_operator - `FrameWork` has `+` but no `+=`
         quietWork = quietWork + quiet.lastFrameWork
     }
     #expect(askedWork == quietWork && askedWork.builds >= 4, "asked \(askedWork) quiet \(quietWork)")

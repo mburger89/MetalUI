@@ -184,7 +184,6 @@ private func gridWindow(_ holder: Proxy) throws -> Window {
     let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: columnStyle(width: 100)) {
             ScrollViewReader { proxy in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = { holder.proxy = proxy }()
                 ScrollView(both) {
                     Column {

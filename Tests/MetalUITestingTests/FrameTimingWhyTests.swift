@@ -98,7 +98,6 @@ import Testing
 private struct SendsInputWhileBuilding: Component {
     let fire: @MainActor () -> Void
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = fire()
         Box().frame(width: Pixels(2), height: Pixels(2))
     }
@@ -181,7 +180,6 @@ private struct WhyStateBox: Component {
     let holder: WhyBinding
     @State var width: Float = 20
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = holder.width = $width
         Box().frame(width: Pixels(width), height: Pixels(10))
     }
@@ -205,7 +203,6 @@ private struct WhyGeoBox: Component {
     @State var side: Float = 20
     @State var seen: Float = 0
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = driver.size = $side
         Box().frame(width: Pixels(side), height: Pixels(10))
             .onGeometryChange(for: Float.self, of: { $0.size.width.value }) { measured in

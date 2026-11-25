@@ -163,7 +163,6 @@ struct MeasurePerformanceTests {
                     "\(name) frame: \(frame.unlowerableFields)")
         }
         #expect(cache.lookups > lookupsBefore)
-        // swiftlint:disable:next empty_count - `FontResolver.CallCounter` is not a Collection: it has `count` but no `isEmpty`
         #expect(warm.count == 0)
         #expect(cold.count == 1)
     }

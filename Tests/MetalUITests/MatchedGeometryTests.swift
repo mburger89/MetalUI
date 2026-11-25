@@ -696,14 +696,12 @@ private final class DisappearLog { var count = 0 }
     withAnimation(.linear(duration: 1)) { model.flag = true }
     platform.simulateTick(timestamp: 100.1)
     #expect(window.animationStore.transitions.ghostCount == 2, "the unit's ghost and the leaver's own: \(window.animationStore.transitions.ghostCount)")
-    // swiftlint:disable:next empty_count - `DisappearLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0 && window.animationStore.lifecycle.parkedCount == 1, "parked: \(log.count)")
     // The leaver's own ghost is the one that holds it: the unit's ghost carries the leaver's position as an exemption.
     let live = window.animationStore.transitions.liveGhosts
     #expect(window.animationStore.lifecycle.parkedOn == Set(live.filter { $0.exempt.isEmpty }.map(\.key)) && live.contains { !$0.exempt.isEmpty },
             "parked on the leaver's ghost, not the unit's: \(window.animationStore.lifecycle.parkedOn.count) of \(live.count)")
     platform.simulateTick(timestamp: 100.6)
-    // swiftlint:disable:next empty_count - `DisappearLog` is not a Collection: it has `count` but no `isEmpty`
     #expect(log.count == 0, "still waiting half-way")
     platform.simulateTick(timestamp: 101.3)
     platform.simulateTick(timestamp: 101.4)

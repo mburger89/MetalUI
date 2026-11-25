@@ -24,7 +24,6 @@ struct FMBool: Component, @MainActor Equatable {
     let log: FMLog
     @FocusState var focused: Bool
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.note(name)
         VStack(spacing: 2) {
             Text("\(name) \(focused ? "focused" : "idle")").frame(width: Pixels(90), height: Pixels(14))
@@ -40,7 +39,6 @@ struct FMWriter: Component, @MainActor Equatable {
     let log: FMLog
     @FocusState var focused: Bool
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.note("writer")
         VStack(spacing: 2) {
             Text("writer \(focused ? "focused" : "idle")").frame(width: Pixels(90), height: Pixels(14))
@@ -79,7 +77,6 @@ struct FMEnum: Component, @MainActor Equatable {
     let log: FMLog
     @FocusState var field: FMField?
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
         let _ = log.note("enum")
         VStack(spacing: 2) {
             Text("field \(field.map { "\($0)" } ?? "none")").frame(width: Pixels(90), height: Pixels(14))

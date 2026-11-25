@@ -300,7 +300,6 @@ private struct EventfulRow: Component {
     let window = try harnessWindow(size: sz(100, 100)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
                 let _ = box.keep(proxy)
                 ProposalScrollView {
                     VStack(spacing: Pixels(0)) {
