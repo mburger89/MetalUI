@@ -670,4 +670,25 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
         pair.redraw()
         try pair.compare("a frame after a scroll of \(delta)")
     }
+
+/// A record the attempt made names a glyph by its atlas rectangle, and the redo may pack a different glyph of the same size into the rectangle the rollback
+/// emptied (the packer is rewound, bitmaps of digits and of most capitals share a size): the rectangle is occupied again, so "is the slot still packed" cannot
+/// tell the record's glyph from the redo's. The atlas answers per rolled-back rectangle (`wasRolledBack`), whatever has been packed there since. Found by Linux CI
+/// on `aRedoWithATimelineInTheTreeEqualsAFreshFrame` (the timeline's new digits drew the redo's glyphs from the attempt's record). Mutation: `wasRolledBack`
+/// answering `false` (the aliased record is kept).
+@Test @MainActor func aRecordNamingARolledBackSlotIsRefusedEvenWhenTheRedoRefilledIt() throws {
+    func image(_ fill: UInt8) -> GlyphImage { GlyphImage(width: 12, height: 14, bytes: [UInt8](repeating: fill, count: 12 * 14)) }
+    let atlas = GlyphAtlas(width: 64, height: 64)
+    atlas.beginAttempt()
+    atlas.beginFrame()
+    let slot = try #require(atlas.slot(for: atlasKey(1), rasterize: { image(1) }))
+    atlas.endFrame()
+    atlas.rollbackAttempt()
+    atlas.beginFrame()
+    let again = try #require(atlas.slot(for: atlasKey(2), rasterize: { image(2) }))
+    atlas.endFrame()
+    #expect(again == slot, "another glyph of the same size takes the rectangle")
+    #expect(atlas.key(forSlot: slot) != nil, "so the rectangle is occupied and a presence check cannot tell")
+    #expect(atlas.wasRolledBack(x: Float(slot.x), y: Float(slot.y), width: Float(slot.width), height: Float(slot.height)))
+    #expect(!atlas.wasRolledBack(x: 50, y: 50, width: 3, height: 3))
 }
