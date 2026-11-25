@@ -70,9 +70,6 @@ private struct StreamingPane: Component {
 /// `store` holds the user's sizes.
 @MainActor private func streamedWidths(frames: Int, saved: [Double]? = nil, wrapped: Bool = false) async throws -> [[Double]] {
     let lines = LineBox()
-    ShapingTrace.sink = { lines.lines.append($0) }
-    ShapingTrace.active = true
-    defer { ShapingTrace.active = false; ShapingTrace.sink = nil }
     let stream = Stream()
     let store = saved.map { sizes -> MemoryStore in
         let store = MemoryStore()
@@ -81,6 +78,11 @@ private struct StreamingPane: Component {
     }
     let w = try harnessWindow(size: sz(1100, 700)) { splitFixture(stream, store: store, wrapped: wrapped) }
     try await w.runUntilIdle()
+    // The trace is on only from here, with no suspension point left: the switch and the sink are process-wide, and a test that
+    // suspended while holding them would read (and write) another main-actor test's frames in a parallel run.
+    ShapingTrace.sink = { lines.lines.append($0) }
+    ShapingTrace.active = true
+    defer { ShapingTrace.active = false; ShapingTrace.sink = nil }
     var perFrame: [[Double]] = []
     for _ in 0..<frames {
         lines.lines.removeAll()
