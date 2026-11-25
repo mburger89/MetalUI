@@ -594,9 +594,12 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
     ]
     var found: [String: String] = [:]
     for (name, run) in demos {
-        for (type, path) in try await run() where found[type] == nil { found[type] = "\(name): \(path.suffix(60))" }
+        for (type, held) in try await run() where found[type] == nil {
+            let parts = held.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
+            found[type] = "\(parts[0])|\(name): \(String(parts.last ?? "").suffix(60))"
+        }
     }
-    print("CENSUS \(found.sorted { $0.key < $1.key }.map { "\($0.key) <- \($0.value.prefix(80))" })")
+    print("CENSUS \(found.sorted { $0.key < $1.key }.map { "\($0.key) <- \($0.value.prefix(40))" })")
     #expect(found["RowExtentIndex"] != nil, "the census reaches a lazy container's index: \(found.keys.sorted())")
     var unclassified: [String] = []
     let framework = StateTable.frameworkModules
