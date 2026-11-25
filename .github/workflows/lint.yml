@@ -1,6 +1,6 @@
-# SwiftLint, report-only. Existing violations are frozen in .swiftlint-baseline.json;
-# the step prints only violations that are not in it, as PR annotations.
-# See docs/testing.md "Linting".
+# SwiftLint, blocking. Existing violations are frozen in .swiftlint-baseline.json;
+# the step prints only violations that are not in it, as PR annotations, and fails on any.
+# See docs/practices/linting.md.
 name: Lint
 
 on:
@@ -26,6 +26,4 @@ jobs:
     steps:
     - uses: actions/checkout@v7
     - name: SwiftLint (new violations only)
-      # Report-only: to make lint blocking later, remove this continue-on-error line.
-      continue-on-error: true
       run: swiftlint lint --baseline .swiftlint-baseline.json --reporter github-actions-logging

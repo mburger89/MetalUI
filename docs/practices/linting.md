@@ -27,7 +27,8 @@ swiftlint lint --baseline .swiftlint-baseline.json     # must print nothing on m
 ```
 
 The `Lint` workflow runs the same command (SwiftLint 0.65.1, the `ghcr.io/realm/swiftlint`
-container) on every pull request and master push and shows new violations as annotations.
+container) on every pull request and master push, shows new violations as annotations and
+fails the check on any.
 
 After fixing baselined violations, refresh the baseline so it shrinks:
 
