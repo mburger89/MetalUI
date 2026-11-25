@@ -4926,6 +4926,11 @@ extension Frame {
     private func flatAffine(_ a: Homography2D) -> [Double] { [a.a, a.b, a.c, a.d, a.tx, a.ty] }
 
     /// The prepaint-visible context at this point of prepaint.
+    ///
+    /// **A scroller's content extent is not part of the key** (`G49-A`): a window that reads it (`scrollTo` resolution,
+    /// `scrollPosition` target notes) is refused by the audit (`scrollRequest`, `scrollTarget`) or the unresolved-request gate
+    /// before a ledger is recorded, so no replayable prepaint holds a value derived from it. Keyed, a streaming row at the end
+    /// of a bottom-anchored transcript grew the extent of every frame and missed the ledger of every row above it.
     func prepaintExtras() -> PrepaintExtras {
         var effects: [[Double]] = []
         effects.reserveCapacity(prepaintEffects.count)
@@ -4950,8 +4955,8 @@ extension Frame {
             values = [s.axis == .vertical ? 1 : 0, Double(s.contentOrigin.x.value), Double(s.contentOrigin.y.value),
                       Double(s.viewport.origin.x.value), Double(s.viewport.origin.y.value),
                       Double(s.viewport.size.width.value), Double(s.viewport.size.height.value), s.offset,
-                      s.contentExtent, s.mirrored ? 1 : 0,   // `LD-E`: appended, so the indices above stand
-                      s.cross?.offset ?? 0, s.cross?.contentExtent ?? 0]   // `XS-L`: indices 10 and 11, a two-axis scroller's horizontal slot
+                      0, s.mirrored ? 1 : 0,   // index 8, the content extent, is not keyed (`G49-A`); `LD-E`: appended, so the indices above stand
+                      s.cross?.offset ?? 0, 0]   // `XS-L`: indices 10 and 11, a two-axis scroller's horizontal slot; 11, its extent, is not keyed
         }
         return PrepaintExtras(effects: effects, hitTestingDisabled: hitTestingDisabledDepth,
                               keyboardHidden: keyboardHiddenDepth,
