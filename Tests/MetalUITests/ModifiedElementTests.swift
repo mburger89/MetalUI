@@ -381,9 +381,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     try #require(flatValue.layerCount == 3 && genericValue.layerCount == 3,
                  "layers: flat \(flatValue.layerCount), generic \(genericValue.layerCount)")
 
-    let flat = try observe() { log in Row { flatChain(log) } }
-    let generic = try observe() { log in Row { genericChain(log) } }
-    let oracle = try observe() { log in
+    let flat = try observe { log in Row { flatChain(log) } }
+    let generic = try observe { log in Row { genericChain(log) } }
+    let oracle = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -394,7 +394,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let paddingsSwapped = try observe() { log in
+    let paddingsSwapped = try observe { log in
         Row {
             Box(style: paddingStyle(4), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -405,7 +405,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let idMoved = try observe() { log in
+    let idMoved = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -416,7 +416,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
-    let clickDropped = try observe() { log in
+    let clickDropped = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -427,7 +427,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let layerFewer = try observe() { log in
+    let layerFewer = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
@@ -436,7 +436,7 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let radiiSwapped = try observe() { log in
+    let radiiSwapped = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -519,9 +519,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     try #require(probe.layerCount == 2 && probe.outermost.elementID == ElementID("outer"),
                  "layers \(probe.layerCount), outermost name \(String(describing: probe.outermost.elementID))")
 
-    let flat = try observe() { log in Row { LayerLeaf("sibling", log: log); chain(log) } }
-    let oracle = try observe() { log in Row { LayerLeaf("sibling", log: log); nested(log, named: true) } }
-    let unnamed = try observe() { log in Row { LayerLeaf("sibling", log: log); nested(log, named: false) } }
+    let flat = try observe { log in Row { LayerLeaf("sibling", log: log); chain(log) } }
+    let oracle = try observe { log in Row { LayerLeaf("sibling", log: log); nested(log, named: true) } }
+    let unnamed = try observe { log in Row { LayerLeaf("sibling", log: log); nested(log, named: false) } }
 
     try #require(unnamed.leafID != oracle.leafID, "the leaf id comparison cannot fail")
     try #require(unnamed.layerIDs != oracle.layerIDs, "the layer id comparison cannot fail")

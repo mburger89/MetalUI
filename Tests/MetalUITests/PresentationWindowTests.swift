@@ -255,7 +255,7 @@ func theDemoModalDismissesOnAScrimClickAndSwallowsTheWheel() throws {
 @Test @MainActor
 func aPresentationInsideAFadedSubtreeIsStillFaded() throws {
     func portal(faded: Bool) throws -> MUIRect {
-        let (window, _) = try presentationWindow() {
+        let (window, _) = try presentationWindow {
             Row {
                 Box().frame(width: px(50), height: px(50)).background(.surface)
                 Box {
@@ -306,7 +306,7 @@ func aPresentationKeepsItsDeclaringScopesEnvironment() throws {
     func run(disabled: Bool) throws -> (clicks: Int, focused: Bool, hit: Bool, colour: Hsla, outside: Hsla,
                                         layoutProbes: [Int]) {
         let log = Log()
-        let (window, platform) = try presentationWindow() {
+        let (window, platform) = try presentationWindow {
             Row {
                 Box().frame(width: px(11), height: px(10)).background(.surface)
                 Deferred {
@@ -369,7 +369,7 @@ func aPresentationKeepsItsDeclaringScopesEnvironment() throws {
 @Test @MainActor
 func aPresentationPublishesItsAccessibilityRecordAndTakesFocus() throws {
     let log = Log()
-    let (window, platform) = try presentationWindow() {
+    let (window, platform) = try presentationWindow {
         Row {
             Box().frame(width: px(50), height: px(50)).background(.surface)
             Deferred {
@@ -474,7 +474,7 @@ func anAnimatedInsetInterpolatesItsValue() throws {
 /// **Renamed at stage 9** from `nestedPresentationsLandOnOneLayerUnderBothAuthorities` (`LR-FE` item 6).
 @Test @MainActor
 func nestedPresentationsLandOnOneLayer() throws {
-    let (window, _) = try presentationWindow() {
+    let (window, _) = try presentationWindow {
         Row {
             Box().frame(width: px(50), height: px(50)).background(.surface)
             Deferred {

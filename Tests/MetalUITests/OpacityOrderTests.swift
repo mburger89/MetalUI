@@ -304,7 +304,7 @@ private func ring<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Fl
                 .opacity(0.5).background(.accent)
         }),
         ("legacy layer", try read { layerG4 }),
-        ("proposal", try read { proposalG4 }),
+        ("proposal", try read { proposalG4 })
     ]
     let borders: [(String, Reading)] = [
         ("legacy element", try read {
@@ -313,7 +313,7 @@ private func ring<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Fl
                 .opacity(0.5).border(.accent, width: px(4))
         }),
         ("legacy layer", try read { layerH2 }),
-        ("proposal", try read { proposalH2 }),
+        ("proposal", try read { proposalH2 })
     ]
 
     for (name, r) in fills {

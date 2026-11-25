@@ -20,10 +20,10 @@ private func write(_ text: String, _ url: URL) throws {
 }
 
 private let stageSources: [(name: String, bytes: [UInt8])] = [
-    (name: "a.vert.hlsl", bytes: [UInt8]("v".utf8)), (name: "a.frag.hlsl", bytes: [UInt8]("f".utf8)),
+    (name: "a.vert.hlsl", bytes: [UInt8]("v".utf8)), (name: "a.frag.hlsl", bytes: [UInt8]("f".utf8))
 ]
 private let headers: [(name: String, bytes: [UInt8])] = [
-    (name: "common.hlsli", bytes: [UInt8]("common".utf8)), (name: "lib/util.hlsl", bytes: [UInt8]("util".utf8)),
+    (name: "common.hlsli", bytes: [UInt8]("common".utf8)), (name: "lib/util.hlsl", bytes: [UInt8]("util".utf8))
 ]
 private let display = "Sources/App/Shaders"
 private let blobs = ["SOURCE.sha256", "INCLUDES.sha256", "a.vert.spv", "a.vert.msl", "a.vert.dxil", "a.vert.json",

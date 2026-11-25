@@ -154,7 +154,7 @@ func aGetSetBindingCallsTheSetterOncePerWrite() {
 /// M2e (`init?` returns a binding over nil, falling back to a default).
 @Test @MainActor
 func theOptionalBindingInitialisersMatchSwiftUI() throws {
-    var absent: Int? = nil
+    var absent: Int?
     let overNil = Binding<Int?>(get: { absent }, set: { absent = $0 })
     #expect(Binding<Int>(overNil) == nil, "an unwrapped binding over nil is nil (B5)")
 

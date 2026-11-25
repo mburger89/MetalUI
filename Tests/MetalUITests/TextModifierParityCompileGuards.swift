@@ -58,7 +58,7 @@ func theSystemDefaultPaddingSpellingsStayAbsent() throws {
         ("a Component's edge form", """
             @MainActor struct C: Component { var content: some ElementGroup { Text("x") } }
             @MainActor public func probe() { _ = C().padding(.horizontal, 8) }
-            """),
+            """)
     ]
     for (name, source) in refusals {
         let result = try typecheckFile(source, importing: "MetalUI")

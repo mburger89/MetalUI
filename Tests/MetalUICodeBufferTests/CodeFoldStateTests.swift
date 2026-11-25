@@ -59,7 +59,7 @@ struct CodeFoldStateTests {
         Case(name: "from the body past the end opens", from: [4, 0], to: [6, 0], text: "", expected: []),
         Case(name: "below, no break", from: [6, 2], to: [6, 2], text: "x", expected: [2..<6]),
         Case(name: "below, a break at column 0 of the next row", from: [6, 0], to: [6, 0], text: "\n", expected: [2..<6]),
-        Case(name: "below, a deleted line", from: [7, 0], to: [8, 0], text: "", expected: [2..<6]),
+        Case(name: "below, a deleted line", from: [7, 0], to: [8, 0], text: "", expected: [2..<6])
     ]
 
     @Test(arguments: rules)
@@ -418,7 +418,7 @@ struct CodeFoldStateTests {
             let t = clock.measure {
                 for i in 0..<n {
                     // Worst case: a line break at row 0 shifts every fold, then its removal shifts them back.
-                    if i % 2 == 0 { b.replace(0..<0, with: "\n") } else { b.replace(0..<1, with: "") }
+                    if i.isMultiple(of: 2) { b.replace(0..<0, with: "\n") } else { b.replace(0..<1, with: "") }
                 }
             }
             return (Double(t.components.attoseconds) / 1e18 + Double(t.components.seconds)) / Double(n) * 1e6

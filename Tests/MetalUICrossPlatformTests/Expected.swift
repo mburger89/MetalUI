@@ -24,5 +24,5 @@
 // `0xd5a9cf3e477fb669`, 15710 glyphs.
 let expectedDemoFrames: [(Float, DemoFrame)] = [
     (1.0, DemoFrame(rects: 518, glyphs: 15677, runs: 1008, primitives: 0x5e19107324162109, atlas: 0x9f83d28ecad0a494)),
-    (2.0, DemoFrame(rects: 518, glyphs: 15677, runs: 1008, primitives: 0x26c7cd62eabf02ca, atlas: 0xda828bbe0b230bbd)),
+    (2.0, DemoFrame(rects: 518, glyphs: 15677, runs: 1008, primitives: 0x26c7cd62eabf02ca, atlas: 0xda828bbe0b230bbd))
 ]

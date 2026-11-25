@@ -91,7 +91,7 @@ private let negatives: [(name: String, fixture: String, mentions: String)] = [
         """, "navigationTitle"),
     ("WindowStyle.plain", """
         let style: WindowStyle = .plain
-        """, "plain"),
+        """, "plain")
 ]
 
 /// **2.1** (`AS-B`…`AS-G`, `AS-N`). Every app-shell spelling compiles from an

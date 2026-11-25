@@ -38,7 +38,7 @@ func fixtureText(lines count: Int, longLine: Bool = true) -> String {
 /// The text pieces random edits insert.
 let insertionPool: [String] = [
     "", "a", "xyz", "é", "日本", "😀", "👨‍👩‍👧‍👦", "\n", "\r\n", "\r", "line one\nline two\n", "\t", "  ",
-    "x\r\ny", String(repeating: "abc日", count: 300),
+    "x\r\ny", String(repeating: "abc日", count: 300)
 ]
 
 /// A model of the buffer: the plain bytes, with oracle versions of every conversion.

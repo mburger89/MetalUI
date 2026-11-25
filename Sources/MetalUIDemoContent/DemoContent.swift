@@ -1144,7 +1144,6 @@ private struct PriorityPreviewPanel: ProposalElement {
     }
 }
 
-
 /// The proposal-layout preview tree (`METALUI_NATIVE_LAYOUT_PREVIEW=1`), built
 /// only from the proposal vocabulary.
 @MainActor

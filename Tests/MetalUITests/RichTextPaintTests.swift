@@ -165,7 +165,7 @@ private func measured(_ system: any TextSystem, _ pieces: [(String, Double)]) ->
     let width = measured(system, [("ab  ", 10)]).widestLine
     let text = Text(content: .runs([
         TextRunRequest(string: "ab  ", font: .explicit(.system(size: 10)), background: .yellow),
-        TextRunRequest(string: "CD", font: .explicit(.system(size: 30))),
+        TextRunRequest(string: "CD", font: .explicit(.system(size: 30)))
     ]))
     let frame = rtFrame(rtTopLeft(text), system: system)
     let yellow = frame.resolve(.yellow)

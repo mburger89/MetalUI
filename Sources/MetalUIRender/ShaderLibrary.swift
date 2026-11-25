@@ -91,7 +91,7 @@ public enum ShaderLibrary {
             code.resourceURL,
             main.bundleURL,
             main.executableURL?.deletingLastPathComponent(),
-            code.bundleURL.deletingLastPathComponent(),
+            code.bundleURL.deletingLastPathComponent()
         ]
         #if DEBUG
         candidates += debugBuildDirectories()
@@ -116,7 +116,7 @@ public enum ShaderLibrary {
         #endif
         return [
             build.appendingPathComponent("\(triple)/debug", isDirectory: true),
-            build.appendingPathComponent("out/Products/Debug", isDirectory: true),
+            build.appendingPathComponent("out/Products/Debug", isDirectory: true)
         ]
     }
     #endif

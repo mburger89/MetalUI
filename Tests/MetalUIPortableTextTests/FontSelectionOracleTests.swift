@@ -26,7 +26,7 @@ private let oracleFamilies = [
     "American Typewriter", "Optima", "Baskerville", "Menlo", "Palatino", "Didot", "Hoefler Text", "Cochin",
     "Seravek", "Sukhumvit Set", "Charter", "Iowan Old Style", "Superclarendon", "Athelas", "Big Caslon",
     "Copperplate", "Marion", "Rockwell", "Georgia", "Verdana", "Trebuchet MS", "Arial", "Times New Roman",
-    "Courier New", "Kohinoor Bangla", "Kohinoor Telugu", "Kohinoor Gujarati", "Galvji", "Charter", "Hiragino Sans",
+    "Courier New", "Kohinoor Bangla", "Kohinoor Telugu", "Kohinoor Gujarati", "Galvji", "Charter", "Hiragino Sans"
 ]
 
 private let requestWeights: [Double?] = [nil, -0.8, -0.6, -0.4, 0, 0.23, 0.3, 0.4, 0.56, 0.62]
@@ -77,7 +77,7 @@ let pinnedSelectionDifferences: Set<SelectionDifference> = [
     SelectionDifference(family: "Sukhumvit Set", weight: -0.6, italic: false, coreText: "SukhumvitSet-Light",
                         portable: "SukhumvitSet-Thin"),
     SelectionDifference(family: "Sukhumvit Set", weight: -0.6, italic: true, coreText: "SukhumvitSet-Light",
-                        portable: "SukhumvitSet-Thin"),
+                        portable: "SukhumvitSet-Thin")
 ]
 
 /// **1.1.** Every (family, weight, slope) over the installed families: the

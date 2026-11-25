@@ -12,7 +12,7 @@ import Testing
 let rkVerifyChannels: [(channel: String, word: String)] = [
     ("hitboxes", "hitboxes"), ("tallies", "region tallies"), ("focus", "tab order"),
     ("accessibility", "accessibility records"), ("elementBounds", "element bounds"),
-    ("contextMenus", "context menus"), ("pressOnly", "press-only actions"),
+    ("contextMenus", "context menus"), ("pressOnly", "press-only actions")
 ]
 
 /// A tree whose single occurrence registers every channel of the ledger: a button (hitbox, focus stop, accessibility

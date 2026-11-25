@@ -41,8 +41,8 @@ private func authorityFrame(_ w: Float, _ h: Float,
 /// "masked to the viewport" and "masked to the window" are different rects.
 @MainActor
 private func renderInRowHost<E: Element>(_ element: E, _ w: Float, _ h: Float,
-                                            table: StateTable,
-                                            paddingTop: Float = 0) -> Frame {
+                                         table: StateTable,
+                                         paddingTop: Float = 0) -> Frame {
     var host = Style()
     host.flexDirection = .row
     host.alignItems = .stretch

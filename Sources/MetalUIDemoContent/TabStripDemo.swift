@@ -56,7 +56,7 @@ public final class TabStripDemoModel {
         File(id: 7, name: "Picker.swift"),
         File(id: 8, name: "Slider.swift", isDirty: true),
         File(id: 9, name: "Toggle.swift"),
-        File(id: 10, name: "Theme.swift"),
+        File(id: 10, name: "Theme.swift")
     ]
     /// The selected file's id.
     public var selected = 0

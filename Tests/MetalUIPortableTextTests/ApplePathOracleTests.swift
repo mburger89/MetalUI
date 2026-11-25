@@ -87,7 +87,7 @@ let coreTextAdjustedSizes: Set<SizeKey> = [
     SizeKey(file: notoSans, size: 17, scale: 1),
     SizeKey(file: sourceSans, size: 11, scale: 1),
     SizeKey(file: sourceSans, size: 13, scale: 1),
-    SizeKey(file: sourceSans, size: 17, scale: 1),
+    SizeKey(file: sourceSans, size: 17, scale: 1)
 ]
 
 // MARK: - The corpus
@@ -107,7 +107,7 @@ let corpusStrings = [
     "AV",
     "fi",
     "in a box",
-    "The quick brown fox jumps over the lazy dog.",
+    "The quick brown fox jumps over the lazy dog."
 ]
 let sizes: [Double] = [11, 13, 17, 26]
 let scales: [Float] = [1, 2]

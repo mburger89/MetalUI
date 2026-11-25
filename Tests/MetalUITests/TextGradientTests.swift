@@ -34,8 +34,8 @@ private struct Rendered {
 
 /// `content` at the top-left of a 200 x 200 frame, laid out, painted and drawn by `renderer` (a new one by default).
 @MainActor private func render<E: Element>(_ content: E, renderer given: Renderer? = nil,
-                                                                  harness: TransitionHarness? = nil,
-                                                                  t: Double = 0) throws -> Rendered {
+                                           harness: TransitionHarness? = nil,
+                                           t: Double = 0) throws -> Rendered {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
     let renderer = try given ?? Renderer(device: device)
     let frame = (harness ?? TransitionHarness()).frame(t, nil, boxed(content), side: 200)

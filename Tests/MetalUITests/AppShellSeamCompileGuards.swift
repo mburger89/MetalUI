@@ -30,7 +30,7 @@ let windowMembers: [(name: String, spelling: String)] = [
     ("performWindowDrag", "func performWindowDrag() -> Bool { false }"),
     ("setTitleBarMetrics", "func setTitleBarMetrics(height: Float?, controlsLeading: Float?) -> Bool { false }"),
     ("setSubtitle", "func setSubtitle(_ subtitle: String) {}"),
-    ("setDismissEnabled", "func setDismissEnabled(_ enabled: Bool) {}"),
+    ("setDismissEnabled", "func setDismissEnabled(_ enabled: Bool) {}")
 ]
 
 /// The four chrome requirements (`CW-F`), in the migration note's minimal honest spelling — present in every
@@ -39,7 +39,7 @@ let chromeMembers: [(name: String, spelling: String)] = [
     ("setWindowDragRegions", "func setWindowDragRegions(_ regions: [Bounds<Pixels>]) -> Bool { false }"),
     ("performWindowAction", "func performWindowAction(_ action: PlatformWindowAction) -> Bool { false }"),
     ("hasNativeWindowControls", "var hasNativeWindowControls: Bool { true }"),
-    ("isZoomed", "var isZoomed: Bool { false }"),
+    ("isZoomed", "var isZoomed: Bool { false }")
 ]
 
 /// The four `Platform` requirements (`AS-H` item 2), in the migration note's
@@ -48,7 +48,7 @@ private let platformMembers: [(name: String, spelling: String)] = [
     ("onTerminateRequest", "var onTerminateRequest: (() -> CloseRequestReply)?"),
     ("replyToTerminateRequest", "func replyToTerminateRequest(_ shouldTerminate: Bool) {}"),
     ("terminate", "func terminate() {}"),
-    ("onOpenURLs", "var onOpenURLs: (([String]) -> Void)?"),
+    ("onOpenURLs", "var onOpenURLs: (([String]) -> Void)?")
 ]
 
 /// A `PlatformWindow` conformer with every requirement that existed before

@@ -194,7 +194,7 @@ private func redraw(_ window: Window) {
     let arms: [(String, Frame)] = [
         ("zero", render(surface().frame(width: px(0), height: px(10)))),
         ("clipped", render(strip(lead: 60))),
-        ("transparent", render(surface().frame(width: px(20), height: px(10)).opacity(0))),
+        ("transparent", render(surface().frame(width: px(20), height: px(10)).opacity(0)))
     ]
     for (name, frame) in arms {
         #expect(frame.scene.surfaces.isEmpty && frame.scene.surfaceTargets.isEmpty,

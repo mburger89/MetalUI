@@ -58,7 +58,6 @@ private func lineStarts<C: ElementGroup>(@ElementBuilder _ content: () -> C) thr
     #expect(env[0] != env[1])
 }
 
-
 /// **3.18b.** 3.18's A1 and A4 for `ProposalText`: under `.center` and
 /// `.trailing` the short line moves by `(box − w₁) × ½` and `× 1` and the long
 /// line stays, the value read through the environment (a `ProposalText` has no

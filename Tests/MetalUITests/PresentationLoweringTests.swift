@@ -342,7 +342,7 @@ private struct PresentingPair: Component {
     }
     for (name, report, deferred) in [
         ("gapped column", column, pChild(pChild(pRoot, 0), 1)),
-        ("Stack", stack, pChild(pChild(pRoot, 0), 1)),
+        ("Stack", stack, pChild(pChild(pRoot, 0), 1))
     ] {
         #expect(report.bounds[pChild(deferred, 0)] == pBounds(5, 5, 10, 10),
                 "\(name): \(String(describing: report.bounds[pChild(deferred, 0)]))")

@@ -84,10 +84,10 @@ import MetalUITerminal
                 }
                 return character
             })
-            if line % 7 == 0 { body = "\u{1B}[31m" + body + "\u{1B}[0m日本" }
+            if line.isMultiple(of: 7) { body = "\u{1B}[31m" + body + "\u{1B}[0m日本" }
             text += body + "\r\n"
             line += 1
-            if line % 500 == 0 {
+            if line.isMultiple(of: 500) {
                 emulator.feed(Array(text.utf8))
                 text = ""
                 if emulator.firstRow + 10_000 < emulator.firstRow + 10_040, emulator.rowText(emulator.firstRow + 10_000) != nil { break }

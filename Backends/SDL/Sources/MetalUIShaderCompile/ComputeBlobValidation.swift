@@ -75,7 +75,7 @@ package enum ComputeBlobValidation {
     package static func validateBytes(_ bytes: [UInt8], format: ComputeBlobFormat, entryPoint: String) throws {
         switch format {
         case .spirv:
-            guard bytes.count % 4 == 0 else {
+            guard bytes.count.isMultiple(of: 4) else {
                 throw ComputeValidationError.invalidInput("SPIR-V bytes must be whole 32-bit words (\(bytes.count) bytes)")
             }
             guard bytes.count >= 4, Array(bytes[0..<4]) == [0x03, 0x02, 0x23, 0x07] else {

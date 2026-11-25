@@ -86,7 +86,7 @@ private func hex(_ v: UInt32) -> (Float, Float, Float) {
         ("blue", .blue, 0x0088FF, 0x0091FF), ("indigo", .indigo, 0x6155F5, 0x6D7CFF),
         ("purple", .purple, 0xCB30E0, 0xDB34F2), ("pink", .pink, 0xFF2D55, 0xFF375F),
         ("brown", .brown, 0xAC7F5E, 0xB78A66),
-        ("black", .black, 0x000000, 0x000000), ("white", .white, 0xFFFFFF, 0xFFFFFF),
+        ("black", .black, 0x000000, 0x000000), ("white", .white, 0xFFFFFF, 0xFFFFFF)
     ]
     let step: Float = 0.5 / 255
     for (name, color, light, dark) in table {

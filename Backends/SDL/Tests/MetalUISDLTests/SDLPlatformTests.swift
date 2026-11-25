@@ -14,7 +14,7 @@ import SDLBridge
         (0x20, " "), (0x09, "\t"), (0x0D, "\r"), (0x1B, "\u{1b}"), (0x08, "\u{7f}"),
         (0x4000_0052, "\u{f700}"), (0x4000_0051, "\u{f701}"), (0x4000_0050, "\u{f702}"), (0x4000_004F, "\u{f703}"),
         (0x4000_004A, "\u{f729}"), (0x4000_004D, "\u{f72b}"), (0x4000_004B, "\u{f72c}"), (0x4000_004E, "\u{f72d}"),
-        (0x4000_003A, "\u{f704}"), (0x4000_0045, "\u{f70f}"),
+        (0x4000_003A, "\u{f704}"), (0x4000_0045, "\u{f70f}")
     ]
     for (keycode, character) in expected {
         #expect(SDLKeys.characters(forKeycode: keycode, modifiers: []).ignoringModifiers == character,
@@ -137,7 +137,7 @@ private func hiddenWindow() throws -> (SDLPlatform, SDLWindow) {
 @Test func sdlFunctionKeysMapToAppKitsCodes() throws {
     let expected: [(UInt32, String)] = [
         (0x4000_003A, "\u{f704}"), (0x4000_0045, "\u{f70f}"),
-        (0x4000_0068, "\u{f710}"), (0x4000_006F, "\u{f717}"),
+        (0x4000_0068, "\u{f710}"), (0x4000_006F, "\u{f717}")
     ]
     for (keycode, character) in expected {
         #expect(SDLKeys.characters(forKeycode: keycode, modifiers: []) == (character, character),

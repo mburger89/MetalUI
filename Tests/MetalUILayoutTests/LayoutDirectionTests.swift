@@ -229,7 +229,7 @@ private struct PlacesNothing: ProposalLayout, Hashable {
     let wrappers: [(String, Double, (LayoutTree, LayoutNodeID) -> LayoutNodeID)] = [
         ("fixedSize", 80, { $0.newNativeFixedSize(child: $1, horizontal: true, vertical: true) }),
         ("aspectRatio", 80, { $0.newNativeAspectRatio(child: $1, ratio: 2, contentMode: .fit) }),
-        ("layoutPriority", 0, { $0.newNativeLayoutPriority(child: $1, priority: 1) }),
+        ("layoutPriority", 0, { $0.newNativeLayoutPriority(child: $1, priority: 1) })
     ]
     for (name, mirrored, wrap) in wrappers {
         func build(_ tree: LayoutTree) -> (root: LayoutNodeID, probes: [LayoutNodeID]) {

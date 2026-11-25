@@ -171,4 +171,3 @@ struct ELRoot: Component {
     await rsSettle()
     pair.redraw()
 }
-

@@ -15,7 +15,7 @@ import Testing
         ("a\\\"b", "\"a\\\\\\\"b\""),                                    // backslash-quote: both escaped
         ("trailing\\", "trailing\\"),                                    // no space, no quote: left alone
         ("C:\\dir\\file.txt", "C:\\dir\\file.txt"),
-        ("\\\\server\\share x", "\"\\\\server\\share x\""),             // interior backslashes are literal
+        ("\\\\server\\share x", "\"\\\\server\\share x\"")             // interior backslashes are literal
     ])
     func quoting(_ argument: String, _ expected: String) {
         #expect(WindowsCommandLine.quote(argument) == expected)

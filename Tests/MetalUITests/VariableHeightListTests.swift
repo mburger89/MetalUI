@@ -274,7 +274,7 @@ func aVariableRowIsMeasuredAtTheListsWidth() throws {
 @Test @MainActor
 func aVariableListAnswersMeasuredPlusEstimatedExtent() throws {
     let model = VModel(count: 100)
-    for id in 0..<100 { model.heights[id] = id < 8 ? (id % 2 == 0 ? 40 : 20) : 100 }
+    for id in 0..<100 { model.heights[id] = id < 8 ? (id.isMultiple(of: 2) ? 40 : 20) : 100 }
     let log = VLog()
     let (window, _) = try scrolledWindow(model, log: log, header: 30)
     let region = try #require(window.lastScrollRegions.first)
@@ -759,7 +759,7 @@ func selectionAndShiftRangesAreUnchangedInAVariableList() throws {
             ScrollView {
                 Box(style: column(width: 100)) {
                     List((0..<10).map(VItem.init), selection: model.binding) { item in
-                        VLeaf(key: item.id, height: item.id % 2 == 0 ? 20 : 30, log: nil)
+                        VLeaf(key: item.id, height: item.id.isMultiple(of: 2) ? 20 : 30, log: nil)
                     }
                 }
             }

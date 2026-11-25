@@ -77,7 +77,7 @@ package enum Stroker {
             if pattern.allSatisfy({ $0 == 0 }) { break }
         }
         var remaining = pattern[index] - offset
-        var on = index % 2 == 0
+        var on = index.isMultiple(of: 2)
         var out: [Polyline] = []
         var current: [PathPoint] = on ? [points[0]] : []
         for i in 0..<(points.count - 1) {

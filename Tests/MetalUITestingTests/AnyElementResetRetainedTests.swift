@@ -1,3 +1,5 @@
+// The ternaries below build `AnyElement` values (the subject of this test), not Void calls.
+// swiftlint:disable void_function_in_ternary
 import Foundation
 import MetalUI
 import MetalUITesting
@@ -204,3 +206,5 @@ struct ERTextW: Component { var content: some ElementGroup { Text("WWWW") } }
     a.window.setNeedsRedraw(); a.tick()
     #expect(widths(a) == widths(b), "the swap measures B's text: \(widths(a)) vs \(widths(b))")
 }
+
+// swiftlint:enable void_function_in_ternary

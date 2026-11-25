@@ -94,7 +94,7 @@ let runStrings = wrapStrings + [
     "http://a.b/c?d=e&f=g#h",
     "e.g. i.e. U.S.A.",
     "don't can't won't",
-    "«quoted» „quoted“ “quoted”",
+    "«quoted» „quoted“ “quoted”"
 ]
 
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_CONTENT_MEASURE"] == "1"))
@@ -144,7 +144,7 @@ let classSamples: [(String, String)] = [
     ("EM", "\u{1F3FB}"), ("RI", "\u{1F1E9}"), ("HL", "\u{5D0}"), ("CJ", "\u{3041}"), ("AI", "\u{A7}"),
     ("QU\"", "\""), ("QU'", "'"), ("Pi“", "\u{201C}"), ("Pf”", "\u{201D}"), ("Pi‘", "\u{2018}"), ("Pf’", "\u{2019}"),
     ("Pi«", "\u{AB}"), ("Pf»", "\u{BB}"), ("Pi‹", "\u{2039}"), ("Pf›", "\u{203A}"), ("„", "\u{201E}"), ("‟", "\u{201F}"),
-    ("⹂", "\u{2E42}"), ("OP「", "\u{300C}"), ("CL」", "\u{300D}"), ("OP‚", "\u{201A}"), ("BK", "\u{2028}"),
+    ("⹂", "\u{2E42}"), ("OP「", "\u{300C}"), ("CL」", "\u{300D}"), ("OP‚", "\u{201A}"), ("BK", "\u{2028}")
 ]
 
 /// Every ordered pair of class samples, with and without a space between,

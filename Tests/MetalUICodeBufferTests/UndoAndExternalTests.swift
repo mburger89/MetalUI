@@ -123,7 +123,7 @@ import Testing
         let tx = try buffer.applyExternalEdits([
             CodeTextEdit(range: 0..<5, text: "ALPHA!"),
             CodeTextEdit(range: 17..<22, text: "D"),
-            CodeTextEdit(range: 11..<11, text: "inserted\n"),
+            CodeTextEdit(range: 11..<11, text: "inserted\n")
         ])
         #expect(buffer.snapshot().text == "ALPHA!\nbeta\ninserted\ngamma\nD")
         guard case .edits(let events) = cursor.drain() else { return }
@@ -239,7 +239,7 @@ import Testing
                 default: if !lines.isEmpty { lines[Int.random(in: 0..<lines.count, using: &rng)] = "x\r" }
                 }
             }
-            let target = lines.joined(separator: "\n") + (round % 5 == 0 ? "\n" : "")
+            let target = lines.joined(separator: "\n") + (round.isMultiple(of: 5) ? "\n" : "")
             _ = try buffer.applyExternalReplacement(target)
             #expect(buffer.snapshot().text == target, "round \(round)")
             #expect(buffer.snapshot().rope.problems().isEmpty)

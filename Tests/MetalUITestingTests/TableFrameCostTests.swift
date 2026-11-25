@@ -66,7 +66,6 @@ private struct PlainRow: Identifiable { let id: Int }
     #expect(listSteady == 28, "list steady \(listSteady)")
 }
 
-
 // MARK: - The table's own cost (PR B, `TBL-M`; spec 4.4)
 
 private struct EqCell: Component, @MainActor Equatable {

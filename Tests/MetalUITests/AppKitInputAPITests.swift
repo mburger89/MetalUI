@@ -239,7 +239,7 @@ private func gesture(hid: Int64, field: UInt32, value: Double, phase: Int64) thr
 private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
     (.top, .top), (.leading, .left), (.bottom, .bottom), (.trailing, .right),
     (.topLeading, .topLeft), (.topTrailing, .topRight),
-    (.bottomLeading, .bottomLeft), (.bottomTrailing, .bottomRight),
+    (.bottomLeading, .bottomLeft), (.bottomTrailing, .bottomRight)
 ]
 
 /// **1.8** (`CI-H` item 8, `CI-P`). Every `PlatformPointerStyle` but the
@@ -259,7 +259,7 @@ private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
         (.arrow, .arrow), (.iBeam, .iBeam), (.verticalIBeam, .iBeamCursorForVerticalLayout),
         (.crosshair, .crosshair), (.openHand, .openHand), (.closedHand, .closedHand),
         (.pointingHand, .pointingHand), (.columnResize, .columnResize), (.rowResize, .rowResize),
-        (.zoomIn, .zoomIn), (.zoomOut, .zoomOut),
+        (.zoomIn, .zoomIn), (.zoomOut, .zoomOut)
     ]
     // The instrument: the expected cursors are pairwise distinct, so a swap
     // between any two of them is visible.
@@ -270,7 +270,7 @@ private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
         #expect(AppKitCursor.cursor(for: style) == cursor, "\(style)")
     }
     let sets: [(Bool, Bool, NSCursor.FrameResizeDirection.Set)] = [
-        (true, false, .inward), (false, true, .outward), (true, true, .all),
+        (true, false, .inward), (false, true, .outward), (true, true, .all)
     ]
     for (edge, position) in frameEdges {
         for (inward, outward, directions) in sets {
@@ -298,7 +298,7 @@ private let frameEdges: [(PlatformResizeEdge, NSCursor.FrameResizePosition)] = [
         (.columnResizeOneWay(towardTrailing: false), .columnResize(directions: .left)),
         (.columnResizeOneWay(towardTrailing: true), .columnResize(directions: .right)),
         (.rowResizeOneWay(towardDown: false), .rowResize(directions: .up)),
-        (.rowResizeOneWay(towardDown: true), .rowResize(directions: .down)),
+        (.rowResizeOneWay(towardDown: true), .rowResize(directions: .down))
     ]
     let all = cursors.map(\.1) + [.columnResize, .rowResize]
     for (i, a) in all.enumerated() { for b in all[(i + 1)...] { try #require(a != b, "premise: distinct") } }
