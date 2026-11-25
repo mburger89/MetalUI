@@ -694,6 +694,7 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
     session.beginAttempt(); session.needsFocus = false; session.endAttempt()
     #expect(!session.needsFocus, "an accepted attempt keeps its writes")
 
+
 /// A record the attempt made names a glyph by its atlas rectangle, and the redo may pack a different glyph of the same size into the rectangle the rollback
 /// emptied (the packer is rewound, bitmaps of digits and of most capitals share a size): the rectangle is occupied again, so "is the slot still packed" cannot
 /// tell the record's glyph from the redo's. The atlas answers per rolled-back rectangle (`wasRolledBack`), whatever has been packed there since. Found by Linux CI
