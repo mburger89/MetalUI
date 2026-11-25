@@ -2289,7 +2289,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         glyphAtlas.rollbackAttempt()   // `GL-K`
         let atlas = glyphAtlas
         let created = stateTable.rollbackAttempt { record in   // `GL-K`: a record the attempt made may name a glyph the rollback forgot
-            record.glyphSlotsAre(packed: { atlas.key(forAtlasX: $0.origin.x, y: $0.origin.y, width: $0.size.width, height: $0.size.height) != nil })
+            record.glyphSlotsAre(packed: { !atlas.wasRolledBack(x: $0.origin.x, y: $0.origin.y, width: $0.size.width, height: $0.size.height) })
         }
         if let before {
             let after = stateTable.attemptDigest + glyphAtlas.attemptDigest

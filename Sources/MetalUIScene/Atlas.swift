@@ -431,6 +431,14 @@ public final class GlyphAtlas {
     /// How many times the atlas doubled inside an attempt that was rolled back. Growth is not undone (nothing moves, and a
     /// renderer's texture of the old size is replaced anyway); the fixtures pin this at 0 so that a redo never costs one.
     package private(set) var growthsInAbandonedAttempts = 0
+    /// The slots the last rollback emptied (`GL-K`). A record that names one of them held a glyph the rollback forgot, even when the redo packed another glyph of the
+    /// same size into the same rectangle: the rectangle alone cannot tell the two apart, so a record is judged by this set, not by whether its slot is occupied.
+    private var rolledBackSlots: Set<AtlasSlot> = []
+
+    /// Whether the last rollback emptied the slot at this rectangle (a scene glyph's `atlasBounds`).
+    package func wasRolledBack(x: Float, y: Float, width: Float, height: Float) -> Bool {
+        rolledBackSlots.contains(AtlasSlot(x: Int(x), y: Int(y), width: Int(width), height: Int(height)))
+    }
     /// The most keys an attempt's log keeps its capacity for.
     package static let attemptLogRetainedKeys = 1024
     /// The keys the open attempt has logged (a test observable).
@@ -458,11 +466,13 @@ public final class GlyphAtlas {
         guard let found = attempt else { return }
         precondition(!isBuildingFrame, "rollbackAttempt called while a frame is being built")
         growthsInAbandonedAttempts += growCount - found.growCount
+        rolledBackSlots.removeAll(keepingCapacity: true)
         for key in attemptKeys {
             guard let removed = placed.removeValue(forKey: key) else { continue }
             let slot = removed.glyph.slot
             guard slot.width > 0, slot.height > 0 else { continue }
             keysBySlot.removeValue(forKey: slot)
+            rolledBackSlots.insert(slot)
             for row in 0..<slot.height {
                 let start = (slot.y + row) * width + slot.x
                 pixels.replaceSubrange(start..<(start + slot.width), with: repeatElement(0, count: slot.width))

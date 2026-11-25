@@ -207,6 +207,8 @@ miss** (`ContentMemoStore.Entry.needsObservation` also reads `record.contentSeri
 
 
 
+
+
 **Verify mode checks the rollback and the references held in state; a graft keys the scroll context its build read (`RK-AK`, `RK-AL`, record 419).** `METALUI_VERIFY_RETAINED=1` digests the table and the atlas before an attempt and after its rollback and traps naming the differing line (`rollback`); a framework class held in a state entry is `AttemptRestorable` or in `StateTable.classifiedReferences` (census test and verify trap). `Window.testingRedoBackoff = false` reads what the nine-build backoff hid. A layout that reads `LayoutPass.scrollContext` journals the read, and its graft stands only while that context is still the one in effect.
 
 **A redo is scoped to the occurrences that asked for it (`RK-AM`, `RK-AN`, record 422).** After the exact rollback, attempt 2 refuses graft and prepaint replay only at, under or above the failing occurrences and under a quarantined scope (`ContentMemoStore.redoScopes`, `quarantinedScopes`, at most 64); nothing suspends the window. A redo whose attempt 2 asks again escalates to a third build with every replay off and the nine-build backoff (`retainedRedoEscalations`, 0 across the suite); a channel declared unrestorable (`Frame.noteUnrestorable`), an occurrence with no identity and verify mode take that window-wide path directly. A new store written by a build that a rollback cannot undo owes `noteUnrestorable`.
