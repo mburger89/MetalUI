@@ -5,7 +5,7 @@ import MetalUICore
 // C14 lane 1 (`IV-E`, `IV-N`): the layout memo at the kernel. Window-level pins
 // are `MetalUITestingTests/LayoutMemoWindowTests.swift`. Counts, never time.
 
-private final class Calls: @unchecked Sendable { var count = 0 }
+private final class Calls: @unchecked Sendable { var isEmpty: Bool { count < 1 }; var count = 0 }
 
 private func keyed(_ tree: LayoutTree, _ key: String, width: Double = 20, height: Double = 10,
                               calls: Calls = Calls()) -> LayoutNodeID {
@@ -45,10 +45,8 @@ private let bounds = LayoutRect(x: 0, y: 0, width: 200, height: 200)
     #expect(tree.structuralSignature(of: left) != nil)
     #expect(tree.structuralSignature(of: right) == nil)
     #expect(tree.structuralSignature(of: root) == nil)
-    // swiftlint:disable:next empty_count - `Calls` is a counter class, not a Collection; it has no `isEmpty`
-    #expect(a.count == 0, "the keyed left subtree is answered by the memo")
-    // swiftlint:disable:next empty_count - `Calls` is a counter class, not a Collection; it has no `isEmpty`
-    #expect(d.count > 0, "the unkeyed leaf is measured again")
+    #expect(a.isEmpty, "the keyed left subtree is answered by the memo")
+    #expect(!d.isEmpty, "the unkeyed leaf is measured again")
     #expect(tree.lastNativeLayoutWork.memoHits >= 1)
 }
 

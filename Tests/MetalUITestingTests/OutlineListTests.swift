@@ -366,8 +366,7 @@ private func bigTree() -> [Node] {
     return try harnessWindow(size: sz(300, 400)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-                let _ = model.proxy = proxy
+                let _: Void = model.proxy = proxy
                 ProposalScrollView {
                     List(selection: selection) {
                         ForEach(tree) { FolderRow(node: $0, model: model) }

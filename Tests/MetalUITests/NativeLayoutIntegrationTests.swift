@@ -15,6 +15,7 @@ private final class NativeLayoutProbe: @unchecked Sendable {
 
 @MainActor
 private final class NativeTapProbe {
+    var isEmpty: Bool { count < 1 }
     var count = 0
 }
 
@@ -1028,8 +1029,7 @@ private struct NativeProposalProbe: ProposalElement {
     let center = Point(x: Pixels(50), y: Pixels(50))
     platformWindow.simulateInput(.mouseDown(MouseEvent(position: center)))
     platformWindow.simulateInput(.mouseUp(MouseEvent(position: center)))
-    // swiftlint:disable:next empty_count - `NativeTapProbe` is not a Collection: it has `count` but no `isEmpty`
-    #expect(probe.count == 0,
+    #expect(probe.isEmpty,
             "the gesture receives neither half of a click while hit testing is disabled")
 }
 

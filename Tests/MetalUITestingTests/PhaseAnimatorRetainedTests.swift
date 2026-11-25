@@ -16,8 +16,7 @@ private struct PulseHost: Component, @MainActor Equatable {
     var content: some ElementGroup {
         Box().frame(width: Pixels(40), height: Pixels(10)).background(.accent)
             .phaseAnimator([0, 1, 2]) { content, p in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-                let _ = seen.phases.append(p)
+                let _: Void = seen.phases.append(p)
                 content.opacity(p == 1 ? 0.5 : 1)
             } animation: { _ in .linear(duration: 0.4) }
     }

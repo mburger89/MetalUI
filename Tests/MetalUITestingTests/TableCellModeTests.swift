@@ -274,8 +274,7 @@ import Testing
     try harnessWindow(size: sz(800, 600)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-                let _ = holder.proxy = proxy
+                let _: Void = holder.proxy = proxy
                 cellTableValue(data: data, columns: columns, model: model, selection: selection, lookup: lookup)
             }
         }

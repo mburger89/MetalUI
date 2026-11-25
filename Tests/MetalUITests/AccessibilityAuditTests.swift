@@ -291,10 +291,8 @@ private struct AuditFocusForm: Component {
     let model: AuditFocusModel
 
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.field.append(field)
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.setField = { [field = $field] in field.wrappedValue = $0 }
+        let _: Void = model.field.append(field)
+        let _: Void = model.setField = { [field = $field] in field.wrappedValue = $0 }
         Box().frame(width: Pixels(20), height: Pixels(20)).focusable().focused($field, equals: .a)
             .accessibilityLabel("A")
         Box().frame(width: Pixels(20), height: Pixels(20)).focusable().focused($field, equals: .b)

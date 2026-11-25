@@ -248,8 +248,7 @@ private func text(_ claims: [ClaimedShortcut], _ platform: KeyboardShortcut.Plat
     let (app, platform) = try claimsApp(native: true)
     var runs = 0
     app.commands {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { runs += 1 }()
+        let _: Void = { runs += 1 }()
         CommandMenu("Tools") { Button("Run") {}.keyboardShortcut("r") }
     }
     runs = 0

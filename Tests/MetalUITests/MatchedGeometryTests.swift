@@ -669,7 +669,7 @@ private struct StillPair: Component, @MainActor Equatable {
     #expect(abs(plain.background.a - 0.5) < 0.01 && abs(tile.background.a - 0.5) < 0.01, "both half faded")
 }
 
-private final class DisappearLog { var count = 0 }
+private final class DisappearLog { var isEmpty: Bool { count < 1 }; var count = 0 }
 
 /// **The moving leaver's ghost parks its `onDisappear`** (`XF-J` carried): the callback of the carved member waits for the
 /// fade with the leaver's own ghost, not the unit's. Mutation **MC7** (the unit's ghost does not exempt the leaver's
@@ -696,15 +696,13 @@ private final class DisappearLog { var count = 0 }
     withAnimation(.linear(duration: 1)) { model.flag = true }
     platform.simulateTick(timestamp: 100.1)
     #expect(window.animationStore.transitions.ghostCount == 2, "the unit's ghost and the leaver's own: \(window.animationStore.transitions.ghostCount)")
-    // swiftlint:disable:next empty_count - `DisappearLog` is not a Collection: it has `count` but no `isEmpty`
-    #expect(log.count == 0 && window.animationStore.lifecycle.parkedCount == 1, "parked: \(log.count)")
+    #expect(log.isEmpty && window.animationStore.lifecycle.parkedCount == 1, "parked: \(log.count)")
     // The leaver's own ghost is the one that holds it: the unit's ghost carries the leaver's position as an exemption.
     let live = window.animationStore.transitions.liveGhosts
     #expect(window.animationStore.lifecycle.parkedOn == Set(live.filter { $0.exempt.isEmpty }.map(\.key)) && live.contains { !$0.exempt.isEmpty },
             "parked on the leaver's ghost, not the unit's: \(window.animationStore.lifecycle.parkedOn.count) of \(live.count)")
     platform.simulateTick(timestamp: 100.6)
-    // swiftlint:disable:next empty_count - `DisappearLog` is not a Collection: it has `count` but no `isEmpty`
-    #expect(log.count == 0, "still waiting half-way")
+    #expect(log.isEmpty, "still waiting half-way")
     platform.simulateTick(timestamp: 101.3)
     platform.simulateTick(timestamp: 101.4)
     #expect(log.count == 1 && window.animationStore.transitions.ghostCount == 0, "released once at the end: \(log.count)")

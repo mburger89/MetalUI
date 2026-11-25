@@ -30,7 +30,7 @@ private func item(_ n: Int) -> ClipboardItem {
                              ClipboardPayload(type: textType, bytes: .now(Array("text\(n)".utf8)))])
 }
 
-@MainActor private final class Calls { var count = 0; var mainThread: [Bool] = [] }
+@MainActor private final class Calls { var isEmpty: Bool { count < 1 }; var count = 0; var mainThread: [Bool] = [] }
 
 /// 2.9 — N items are written as N `NSPasteboardItem`s, listed by item and read by `(item, identifier)`; a second write
 /// replaces them all. **Mutation:** `clearContents()` once per item (leaves one item).
@@ -68,11 +68,9 @@ private func item(_ n: Int) -> ClipboardItem {
         ClipboardPayload(type: graphType, bytes: .later { calls.count += 1; calls.mainThread.append(Thread.isMainThread); return [4, 5, 6] }),
         ClipboardPayload(type: textType, bytes: .now(Array("t".utf8)))])
     #expect(window.writeClipboard(items: [lazyItem]))
-    // swiftlint:disable:next empty_count - `Calls` is a recorder with `count`, not a Collection; it has no `isEmpty`
-    #expect(calls.count == 0, "nothing exported at write")
+    #expect(calls.isEmpty, "nothing exported at write")
     #expect(window.clipboardItems().first?.contains("com.example.metalui.graph") == true, "listed without exporting")
-    // swiftlint:disable:next empty_count - `Calls` is a recorder with `count`, not a Collection; it has no `isEmpty`
-    #expect(calls.count == 0)
+    #expect(calls.isEmpty)
     #expect(window.readClipboard(item: 0, identifier: "com.example.metalui.graph") == [4, 5, 6])
     #expect(calls.count == 1 && calls.mainThread == [true], "exported once by the main-thread read")
 

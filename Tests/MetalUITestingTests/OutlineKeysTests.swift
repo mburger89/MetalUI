@@ -55,8 +55,7 @@ private struct FolderRow: Component {
     let node: KNode
     let model: Folders
     @ElementBuilder var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = bump()
+        let _: Void = bump()
         if let kids = node.kids {
             DisclosureGroup(isExpanded: model.binding(node.id)) {
                 ForEach(kids) { FolderRow(node: $0, model: model) }

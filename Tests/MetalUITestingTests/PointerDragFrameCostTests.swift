@@ -39,8 +39,7 @@ private struct WriterChip: Component {
     let button: MouseButton
     @State var dx: Float = 0
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { log.lastBuiltDx = dx; log.builds += 1 }()
+        let _: Void = { log.lastBuiltDx = dx; log.builds += 1 }()
         VStack(spacing: 0) {
             Rectangle().frame(width: Pixels(200), height: Pixels(200))
                 .gesture(DragGesture(minimumDistance: Pixels(0), button: button).onChanged { v in dx = Float(v.translation.width.value) })
@@ -314,8 +313,7 @@ private struct ObservedChip: Component {
     let model: DragModel
     let log: DxLog
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { log.lastBuiltDx = model.dx; log.builds += 1 }()
+        let _: Void = { log.lastBuiltDx = model.dx; log.builds += 1 }()
         VStack(spacing: 0) {
             Rectangle().frame(width: Pixels(200), height: Pixels(200))
                 .gesture(DragGesture(minimumDistance: Pixels(0)).onChanged { v in model.dx = Float(v.translation.width.value) })

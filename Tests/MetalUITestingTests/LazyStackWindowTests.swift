@@ -97,8 +97,7 @@ private struct StateRow: Component {
     let serials: Serials
     @State private var serial = 0
     var content: some ProposalElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = serials.seen[index] = serial
+        let _: Void = serials.seen[index] = serial
         ProposalText("row \(index)").frame(height: Pixels(20))
             .onAppear { if serial == 0 { serial = serials.mint() } }
     }
@@ -247,8 +246,7 @@ private final class ProxyBox {
     let window = try harnessWindow(size: sz(200, 200)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-                let _ = box.keep(proxy)
+                let _: Bool = box.keep(proxy)
                 ProposalScrollView {
                     LazyVStack(spacing: Pixels(0)) {
                         ForEach(0..<1000) { index in

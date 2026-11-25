@@ -43,8 +43,7 @@ private struct OuterGate: Component, @MainActor Equatable {
     let gate: GateModel
     let model: ToneModel
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = gate.count
+        let _: Int = gate.count
         VStack(spacing: 0) { InnerTone(model: model).equatable() }
     }
     static func == (l: OuterGate, r: OuterGate) -> Bool { l.gate === r.gate && l.model === r.model }

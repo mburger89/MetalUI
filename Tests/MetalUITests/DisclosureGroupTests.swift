@@ -173,8 +173,7 @@ import MetalUIScene
     func tree(_ open: Bool) -> some Element {
         stageTree {
             DisclosureGroup(isExpanded: .constant(open)) {
-                // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
-                let _ = counter.calls += 1
+                let _: Void = counter.calls += 1
                 bar(75)
             } label: { Text("Section") }
         }

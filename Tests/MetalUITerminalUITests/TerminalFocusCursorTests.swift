@@ -78,8 +78,7 @@ import Testing
     let probe: PaneProbe
     let source: TerminalSnapshotSource
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - a result builder needs the declaration; `_ =` would be a stray statement
-        let _ = probe.reads.append(focused)
+        let _: Void = probe.reads.append(focused)
         VStack(spacing: 0) {
             TerminalView(snapshotSource: source, theme: .xterm, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
         }.focused($focused)

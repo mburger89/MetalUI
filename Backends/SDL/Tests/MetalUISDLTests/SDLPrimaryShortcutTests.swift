@@ -52,6 +52,7 @@ private final class ShortcutSDLPlatform: Platform {
 @MainActor
 private final class Presses {
     var count = 0
+    var isEmpty: Bool { count < 1 }
 }
 
 /// An `App` over a hidden, offscreen-rendering `SDLPlatform` with one window
@@ -105,8 +106,7 @@ private func pressS(_ platform: ShortcutSDLPlatform, _ window: SDLWindow, modifi
     let (platform, app, window, sdlWindow) = try shortcutApp(presses, explicitCommand: false)
     pressS(platform, sdlWindow, modifiers: UInt32(MUI_MOD_CONTROL))
     #if os(macOS)
-    // swiftlint:disable:next empty_count - `Presses` is not a Collection: it has `count` but no `isEmpty`
-    #expect(presses.count == 0, "on macOS Ctrl+S is not the primary shortcut")
+    #expect(presses.isEmpty, "on macOS Ctrl+S is not the primary shortcut")
     #else
     #expect(presses.count == 1, "off Apple Ctrl+S runs a default shortcut once")
     #endif
@@ -128,8 +128,7 @@ private func pressS(_ platform: ShortcutSDLPlatform, _ window: SDLWindow, modifi
     let presses = Presses()
     let (platform, app, window, sdlWindow) = try shortcutApp(presses, explicitCommand: true)
     pressS(platform, sdlWindow, modifiers: UInt32(MUI_MOD_CONTROL))
-    // swiftlint:disable:next empty_count - `Presses` is not a Collection: it has `count` but no `isEmpty`
-    #expect(presses.count == 0, "Ctrl+S does not run a .command shortcut")
+    #expect(presses.isEmpty, "Ctrl+S does not run a .command shortcut")
     pressS(platform, sdlWindow, modifiers: UInt32(MUI_MOD_COMMAND))
     #expect(presses.count == 1, "Super+S (⌘S on macOS) runs a .command shortcut once")
     withExtendedLifetime((app, window)) {}

@@ -18,8 +18,7 @@ private struct MbMemo: Component, @MainActor Equatable {
     let counts: MbCounts
     static func == (a: MbMemo, b: MbMemo) -> Bool { a.model === b.model }
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { counts.memo += 1 }()
+        let _: Void = { counts.memo += 1 }()
         Text("v\(model.version)")
     }
 }
@@ -27,8 +26,7 @@ private struct MbMemo: Component, @MainActor Equatable {
 private struct MbSibling: Component, @MainActor Equatable {
     let counts: MbCounts
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { counts.sibling += 1 }()
+        let _: Void = { counts.sibling += 1 }()
         Text("sibling")
     }
 }
@@ -39,8 +37,7 @@ private struct MbMiddle: Component, @MainActor Equatable {
     let counts: MbCounts
     static func == (a: MbMiddle, b: MbMiddle) -> Bool { a.model === b.model }
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { counts.middle += 1 }()
+        let _: Void = { counts.middle += 1 }()
         VStack(spacing: 0) {
             MbMemo(model: model, counts: counts).equatable()
             MbSibling(counts: counts).equatable()
@@ -54,8 +51,7 @@ private struct MbTop: Component, @MainActor Equatable {
     let memoizedMiddle: Bool
     static func == (a: MbTop, b: MbTop) -> Bool { a.model === b.model && a.memoizedMiddle == b.memoizedMiddle }
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { counts.top += 1 }()
+        let _: Void = { counts.top += 1 }()
         if memoizedMiddle {
             MbMiddle(model: model, counts: counts).equatable()
         } else {

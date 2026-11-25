@@ -23,6 +23,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 }
 
 @MainActor private final class Counter {
+    var isEmpty: Bool { count < 1 }
     var count = 0
     var values: [String] = []
 }
@@ -77,16 +78,14 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 
     #expect(delegate.windowShouldClose?(nsWindow) == false, "a refusing handler refuses the close")
     #expect(asked.count == 1, "asked once")
-    // swiftlint:disable:next empty_count - `Counter` is not a Collection: it has `count` but no `isEmpty`
-    #expect(nsWindow.isVisible && closed.count == 0, "the window stays open, no onClose")
+    #expect(nsWindow.isVisible && closed.isEmpty, "the window stays open, no onClose")
 
     answer = true
     #expect(delegate.windowShouldClose?(nsWindow) == true, "an allowing handler allows it")
     #expect(asked.count == 2)
     appKit.onCloseRequest = nil
     #expect(delegate.windowShouldClose?(nsWindow) == true, "no handler: the close goes ahead")
-    // swiftlint:disable:next empty_count - `Counter` is not a Collection: it has `count` but no `isEmpty`
-    #expect(asked.count == 2 && closed.count == 0, "asking closes nothing by itself")
+    #expect(asked.count == 2 && closed.isEmpty, "asking closes nothing by itself")
     nsWindow.close()
     #expect(closed.count == 1, "the close that follows fires onClose once")
 }
@@ -103,8 +102,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     appKit.onCloseRequest = { asked.count += 1; return false }
     appKit.onClose = { closed.count += 1 }
     appKit.close()
-    // swiftlint:disable:next empty_count - `Counter` is not a Collection: it has `count` but no `isEmpty`
-    #expect(asked.count == 0, "close() asks nobody")
+    #expect(asked.isEmpty, "close() asks nobody")
     #expect(!nsWindow.isVisible, "and closes")
     #expect(closed.count == 1, "onClose once")
     appKit.close()
@@ -765,8 +763,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     let spy = built.window.observe(\.styleMask, options: []) { _, _ in MainActor.assumeIsolated { writes.count += 1 } }
     #expect(built.setTitleBarStyle(.hidden) == true, "Window's own call answers true")
     spy.invalidate()
-    // swiftlint:disable:next empty_count - `Counter` is not a Collection: it has `count` but no `isEmpty`
-    #expect(writes.count == 0, "no setStyleMask after init")
+    #expect(writes.isEmpty, "no setStyleMask after init")
     #expect(built.titleBarStyleMaskChanges == 0)
     #expect(changed.titleBarStyleMaskChanges == 1, "the counter counts the post-open path")
 

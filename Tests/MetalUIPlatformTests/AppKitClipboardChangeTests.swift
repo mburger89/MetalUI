@@ -26,7 +26,7 @@ private func changeWindow() throws -> (AppKitWindow, NSPasteboard, Counter) {
     return (window, pasteboard, counter)
 }
 
-@MainActor private final class Counter { var count = 0 }
+@MainActor private final class Counter { var isEmpty: Bool { count < 1 }; var count = 0 }
 
 private func foreignWrite(_ pasteboard: NSPasteboard, _ text: String) {
     pasteboard.clearContents()
@@ -46,8 +46,7 @@ private func keyDown() -> InputEvent {
     func becomeKey() { window.notificationCenter.post(name: NSWindow.didBecomeKeyNotification, object: nsWindow) }
 
     becomeKey()
-    // swiftlint:disable:next empty_count - `Counter` is a counter class, not a Collection; it has no `isEmpty`
-    #expect(counter.count == 0, "nothing changed since the handler was installed")
+    #expect(counter.isEmpty, "nothing changed since the handler was installed")
     foreignWrite(pasteboard, "one")
     becomeKey()
     #expect(counter.count == 1, "becoming key sees the foreign write")

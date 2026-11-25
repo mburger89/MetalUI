@@ -49,14 +49,10 @@ private struct Form: Component {
     let model: FormModel
 
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.flag.append(flag)
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.field.append(field)
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder or closure `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.setField = { [field = $field] in field.wrappedValue = $0 }
+        let _: Void = model.flag.append(flag)
+        let _: Void = model.field.append(field)
+        let _: Void = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        let _: Void = model.setField = { [field = $field] in field.wrappedValue = $0 }
         square().focusable().focused($flag)
         square().focusable().focused($field, equals: .a)
         if model.showB { square().focusable().focused($field, equals: .b) }
@@ -202,10 +198,8 @@ private struct Unfocusable: Component {
     @FocusState var flag: Bool
     let model: FormModel
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.flag.append(flag)
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        let _: Void = model.flag.append(flag)
+        let _: Void = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         square().focused($flag).id("n")
     }
 }
@@ -365,10 +359,8 @@ private struct Unfocusable2: Component {
     @FocusState var flag: Bool
     let model: FormModel
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.flag.append(flag)
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        let _: Void = model.flag.append(flag)
+        let _: Void = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         square().focusable().focused($flag)
     }
 }

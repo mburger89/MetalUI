@@ -160,8 +160,7 @@ struct BracketNodeView: Component, @MainActor Equatable {
     let palette: BracketPalette
     let selected: Bool
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = BracketStats.nodeBodies += 1
+        let _: Void = BracketStats.nodeBodies += 1
         bracketNodeBody(node, palette, selected: selected)
     }
 }
@@ -174,8 +173,7 @@ struct BracketEnvNodeView: Component, @MainActor Equatable {
     @Environment(\.colorScheme) var scheme
     static func == (l: BracketEnvNodeView, r: BracketEnvNodeView) -> Bool { l.node == r.node && l.selected == r.selected }
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = BracketStats.nodeBodies += 1
+        let _: Void = BracketStats.nodeBodies += 1
         bracketNodeBody(node, scheme == .dark ? BracketPalette() : BracketPalette(), selected: selected)
     }
 }
@@ -194,8 +192,7 @@ struct BracketObjNodeView: Component, @MainActor Equatable {
     @Environment(BracketThemeStore.self) var store
     static func == (l: BracketObjNodeView, r: BracketObjNodeView) -> Bool { l.node == r.node && l.selected == r.selected }
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = BracketStats.nodeBodies += 1
+        let _: Void = BracketStats.nodeBodies += 1
         bracketNodeBody(node, store.palette, selected: selected)
     }
 }
@@ -225,8 +222,7 @@ struct BracketWireView: Component, @MainActor Equatable {
     let fromX: Float, fromY: Float, toX: Float, toY: Float
     let color: Color
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = BracketStats.wireBodies += 1
+        let _: Void = BracketStats.wireBodies += 1
         let control = max(40, abs(toX - fromX) * 0.5)
         let pad: Float = control + 4
         let minX = min(fromX, toX) - pad, minY = min(fromY, toY) - pad

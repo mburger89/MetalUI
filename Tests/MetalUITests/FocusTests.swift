@@ -29,6 +29,7 @@ private func keyUp(_ characters: String) -> InputEvent {
 /// closure runs fresh every frame and builds a fresh element value, so a counter
 /// stored on the element itself would be discarded with the element.
 private final class KeyLog {
+    var isEmpty: Bool { count < 1 }
     var names: [String] = []
     var count: Int { names.count }
 }
@@ -164,8 +165,7 @@ private func rootID(_ name: String) -> GlobalElementID {
     }
 
     platformWindow.simulateInput(keyDown("x"))
-    // swiftlint:disable:next empty_count - `KeyLog` is not a Collection: it has `count` but no `isEmpty`
-    #expect(log.count == 0, "no focused element, so no element handler ran")
+    #expect(log.isEmpty, "no focused element, so no element handler ran")
     #expect(raw == ["window"], "the event reached the window instead")
 
     // The positive control: the same fixture does dispatch once focused, so the
@@ -627,8 +627,7 @@ private func rootID2() -> GlobalElementID {
         return false
     }
     platformWindow.simulateInput(keyUp("x"))
-    // swiftlint:disable:next empty_count - `KeyLog` is not a Collection: it has `count` but no `isEmpty`
-    #expect(log.count == 0, "keyUp is not dispatched")
+    #expect(log.isEmpty, "keyUp is not dispatched")
     #expect(raw == ["up"], "it falls through to the window unchanged")
 
     // The positive control: the same fixture does dispatch a keyDown.

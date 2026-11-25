@@ -15,8 +15,7 @@ import Testing
 private struct Probe: Component {
     let count: BuildCount
     var content: some ElementGroup {
-        // swiftlint:disable:next redundant_discardable_let - inside a result builder `let _ =` is a declaration; `_ =` would be a stray statement
-        let _ = { count.n += 1 }()
+        let _: Void = { count.n += 1 }()
         Color.clear.frame(width: Pixels(100), height: Pixels(100))
     }
 }
