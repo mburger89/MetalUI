@@ -192,3 +192,110 @@ func aStreamingFrameLogsOneEntryPerWrittenState() async throws {
     // compared write that finds its value unchanged, and the index journals inside the class, not in the log.
     #expect(logged.allSatisfy { $0 <= 1 } && logged.contains(1), "the log is the frame's writes, not the table: \(logged)")
 }
+
+// MARK: the index's journal on its own
+
+/// A `RowExtentIndex` journals what an attempt does to it (`RK-AJ`) and a rollback restores it bit for bit: records over measured and
+/// unmeasured rows, a record that changes only an id, a width change, a data change (rows moved, dropped, added), and the three
+/// together after records, each against a copy of the index as it was. Floats are accumulated in a history-dependent order, so a restore
+/// by the inverse delta is not exact; the journal holds the old node values. Mutations: the node journal off (the trees differ), the
+/// row journal off (heights and ids differ), the snapshot off (a rebuild or a width change is not undone), the snapshot taken after the
+/// first rebuild's arrays are replaced.
+@Test @MainActor func aRolledBackIndexIsTheIndexItWas() {
+    func make() -> RowExtentIndex<Int> {
+        let index = RowExtentIndex<Int>(count: 40, declaredEstimate: nil)
+        index.forgetMeasurements(width: 300)
+        for row in 0..<25 { index.record(Double(17 + (row * 7) % 13) / 3, at: row, id: row) }
+        return index
+    }
+    let scenarios: [(String, (RowExtentIndex<Int>) -> Void)] = [
+        ("records", { for row in [3, 30, 24, 3] { $0.record(41.37 + Double(row), at: row, id: row) } }),
+        ("an id", { $0.record($0.extent(at: 5), at: 5, id: 500) }),
+        ("a width", { $0.forgetMeasurements(width: 280) }),
+        ("a rebuild", { $0.rebuild(ids: [3, 4, 5, 99, 7, 100, 0]) }),
+        ("records then a rebuild", { index in
+            for row in 0..<10 { index.record(9.9 + Double(row), at: row, id: row) }
+            index.rebuild(ids: (0..<60).map { $0 % 41 })
+            index.record(1.5, at: 2, id: 2)
+        }),
+        ("records, a width, then records", { index in
+            index.record(88.8, at: 1, id: 1)
+            index.forgetMeasurements(width: 123)
+            index.record(7.7, at: 2, id: 2)
+        }),
+    ]
+    for (name, mutate) in scenarios {
+        let index = make()
+        let before = index.attemptContents
+        index.beginAttempt()
+        mutate(index)
+        #expect(index.attemptContents != before, "\(name): the scenario changed nothing")
+        index.rollbackAttempt()
+        #expect(index.attemptContents == before, "\(name): rolled back")
+        #expect(index.journalledWrites == 0, "\(name): the journal is freed")
+        // The same scenario on an index that accepts: nothing is undone.
+        let kept = make()
+        kept.beginAttempt()
+        mutate(kept)
+        let after = kept.attemptContents
+        kept.endAttempt()
+        #expect(kept.attemptContents == after && kept.journalledWrites == 0, "\(name): accepted")
+    }
+    // A quiet attempt (equal values) journals nothing.
+    let quiet = make()
+    quiet.beginAttempt()
+    for row in 0..<25 { quiet.record(quiet.extent(at: row), at: row, id: row) }
+    #expect(quiet.journalledWrites == 0, "equal records journal \(quiet.journalledWrites)")
+    quiet.endAttempt()
+}
+
+/// The undo log's own contract at the table (`RK-AI`): created, rewritten, deleted-by-reset and liveness-flipped entries come back as
+/// they were, versions included; `marked` and the journals return; an accepted attempt keeps its writes and frees the log, and a log
+/// above 1024 entries is dropped, not kept.
+@Test @MainActor func aRolledBackStateTableIsTheTableItWas() {
+    let table = StateTable()
+    let a = GlobalElementID.child(of: nil, at: 0, name: ElementID("a"))
+    let b = GlobalElementID.child(of: a, at: 0, name: ElementID("b")), c = GlobalElementID.child(of: a, at: 1, name: ElementID("c"))
+    table.withState(a, initial: 1) { $0 = 2 }
+    table.write(b, "old")
+    table.sweep()   // both entries tombstoned: unmarked, not live
+    let before = table.attemptDigest
+    let counter = table.entryVersion(a)
+    table.beginAttempt()
+    table.withState(a, initial: 0) { $0 = 99 }   // rewritten
+    table.write(b, 3.5)   // rewritten with another type
+    table.withState(c, initial: 7) { $0 += 1 }   // created
+    table.mark(b)   // a liveness flip
+    table.markJournal.append(c); table.readJournal.append(a)
+    #expect(table.attemptLogCount == 3 && table.attemptDigest != before)
+    let created = table.rollbackAttempt()
+    #expect(created == [c] && table.attemptDigest == before, "rolled back")
+    #expect(table.entryVersion(a) == counter && !table.attemptArmed && table.attemptLogCount == 0)
+    // A reset the attempt makes mid-frame (a conditional slot absent and produced again, `ID-C`) deletes what is under it; the rollback brings it back.
+    let slot = GlobalElementID.child(of: nil, at: 5, name: ElementID("slot")), under = GlobalElementID.child(of: slot, at: 0, name: ElementID("under"))
+    table.noteProduced(slot)
+    table.write(under, "kept")
+    table.sweep()
+    let beforeReset = table.attemptDigest
+    table.beginAttempt()
+    table.noteAbsent(slot)
+    table.noteProduced(slot)
+    #expect(table.peek(under, as: String.self) == nil, "the reset deleted the entry under the slot")
+    table.rollbackAttempt()
+    #expect(table.attemptDigest == beforeReset && table.peek(under, as: String.self) == "kept", "the deleted entry is back")
+    // Accepted: the writes stay.
+    table.beginAttempt()
+    table.withState(a, initial: 0) { $0 = 5 }
+    table.acceptAttempt()
+    #expect(table.peek(a, as: Int.self) == 5 && table.attemptLogCount == 0 && table.lastAttempt.loggedEntries == 1)
+    // Nothing armed: a rollback does nothing.
+    table.withState(a, initial: 0) { $0 = 6 }
+    table.rollbackAttempt()
+    #expect(table.peek(a, as: Int.self) == 6)
+    // A big log is dropped at accept.
+    table.beginAttempt()
+    for index in 0..<(StateTable.attemptLogRetainedEntries + 5) { table.write(GlobalElementID.child(of: a, at: index, name: ElementID("n\(index)")), index) }
+    #expect(table.attemptLogCount == StateTable.attemptLogRetainedEntries + 5)
+    table.acceptAttempt()
+    #expect(table.attemptLogCount == 0 && table.lastAttempt.loggedEntries == StateTable.attemptLogRetainedEntries + 5)
+}
