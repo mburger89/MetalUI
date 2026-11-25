@@ -575,7 +575,8 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
 /// Every class type held in a state entry, across the demo windows, is `AttemptRestorable` (it journals its own writes) or classified as a cache
 /// or immutable (`RK-AJ`). A class the census finds that is neither fails here by name and entry path; verify mode traps on it
 /// (`StateTable.verifyReferencesAreClassified`). Adding a class to an entry owes a conformance or a row in `StateTable.classifiedReferences`.
-@Test @MainActor func everyReferenceHeldInStateIsClassified() async throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 keeps the demo windows drawing (they never idle); the classification is the same without it")) @MainActor
+func everyReferenceHeldInStateIsClassified() async throws {
     let demos: [(String, () async throws -> [String: String])] = [
         ("demo", { try await xrCensus { demoContent() } }), ("textInput", { try await xrCensus { textInputDemoContent() } }),
         ("controls", { try await xrCensus { controlsDemoContent() } }), ("table", { try await xrCensus { tableDemoContent() } }),

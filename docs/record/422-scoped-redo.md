@@ -48,6 +48,13 @@ The eight backoff-behaviour pins of record 419's list and its two literals, now 
 - `BackgroundProminenceTests` `P7b` and `P14`: steady requests 41 to 40 and prepaints 42 to 41, 32 to 31 and 33 to 32. The measured frame is the first after a redo; the scoped redo quarantines only the occurrence that failed, so the one that did not replays at once.
 - `everyFrameChannelIsClassified` gained `unrestorableChannels`.
 
+## Found by running the whole suite under `METALUI_VERIFY_RETAINED=1` (record 419 had run filtered subsets only)
+
+- **The rollback channel trapped on the replayed frame's journals** (`aRetainedPrepaintReplayKeepsTheLiveValue`, a terminal test): verify mode's `takeUnsweptJournals` emptied the read and mark journals, which also dropped what an input handler had noted between frames, so the rollback channel saw them gone. It now only reads them; the rollback truncates them to what they held when the attempt began.
+- **The census missed classes** because no demo holds them: `OutlineIndex` (an `OutlineGroup`'s per-frame cache: `cache`; the census gained an `OutlineGroup` window), `GlobalElementID` (`immutable`), `RecordingEnd` (`immutable`: written by a key event, never by a build).
+- **`TableEditSession` is a class a build writes** (`TableBody`: the row position and last frame, the editor's focus, and the one-shot `needsSeed` and `needsFocus` flags consumed in prepaint): a redo's second attempt found the focus request already consumed and never made it. It is now `AttemptRestorable` and `TableBody` registers it in layout and prepaint (`aRolledBackTableEditSessionRequestsItsFocusAgain`). A real exactness gap of the redo since `RK-D`, only reachable with a cell-mode edit open in a frame that redoes.
+- The remaining verify-mode failures are the 13 count pins of record 419's baseline (same names), and two allocation pins that a temporary diagnostic print had disturbed in one run.
+
 ## Not here
 
 The movable-record work (record 416's Piece 3: `maskStraddlesEntryClip`, `inexactTranslation`) removes the redos' cause; this removes their cost. `Frame.noteUnrestorable` has no caller in the product: the census of record 419 found no state a rollback cannot restore.
