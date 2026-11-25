@@ -46,6 +46,16 @@ public final class PortableTextSystem: TextSystem {
     /// RT-F item 5) — what a warm styled frame is counted by.
     private(set) var styledHits = 0
     private(set) var styledMisses = 0
+    /// The caret offsets of a string (`TS-F`), by `(string, font)`, on the same two-frame lifetime: a text field reads them in
+    /// prepaint and in paint, and a key stroke changes the string once.
+    private struct CaretKey: Hashable {
+        let string: String
+        let font: FontKey
+    }
+    private var caretOffsetsByString: [CaretKey: Entry<[Double]>] = [:]
+    /// `PortableText.caretOffsets` calls this system made, and the lookups an entry answered.
+    private(set) var caretMisses = 0
+    private(set) var caretHits = 0
     private var generation = 0
     /// This frame's lookups for `METALUI_TRACE_SHAPING` (`TS-E`): a shape is a hit when a measurement or a laid-out line list
     /// answers, a miss when `PortableText.layOut` runs (the shaping), and a styled measure counts as the cache above does.
@@ -96,11 +106,24 @@ public final class PortableTextSystem: TextSystem {
     }
 
     /// The caret's x offset before each character and after the last (`TI-E`).
+    ///
+    /// Cached by `(string, font)` for the two frames a measurement is (`TS-F`); the empty string is `[0]` without a lookup.
     public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
-        if ShapingTrace.active {
-            trace.bypass(ShapingTrace.quoted(string) + "(caretOffsets " + ShapingTrace.describe(font) + ")")
+        guard !string.isEmpty else { return [0] }
+        let key = CaretKey(string: string, font: font)
+        if let hit = caretOffsetsByString[key] {
+            caretHits += 1
+            if ShapingTrace.active { trace.hit() }
+            caretOffsetsByString[key]?.generation = generation
+            return hit.value
         }
-        return trapping { try PortableText.caretOffsets(string, font: registered(font)) }
+        caretMisses += 1
+        if ShapingTrace.active {
+            trace.miss(ShapingTrace.quoted(string) + "(caretOffsets " + ShapingTrace.describe(font) + ")")
+        }
+        let offsets = trapping { try PortableText.caretOffsets(string, font: registered(font)) }
+        caretOffsetsByString[key] = Entry(value: offsets, generation: generation)
+        return offsets
     }
 
     /// Each display line's character range when `string` is wrapped at `width`.
@@ -191,6 +214,7 @@ public final class PortableTextSystem: TextSystem {
         measurements = measurements.filter { generation - $0.value.generation <= 1 }
         layouts = layouts.filter { generation - $0.value.generation <= 1 }
         styledMeasurements = styledMeasurements.filter { generation - $0.value.generation <= 1 }
+        caretOffsetsByString = caretOffsetsByString.filter { generation - $0.value.generation <= 1 }
     }
 
     /// The origin-free lines of `key`'s string.
