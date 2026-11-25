@@ -152,6 +152,8 @@ private let frameChannels: [String: Channel] = [
     "timing": .frameLocal,
     // G33 (b) (`HP-K`): the capacities the frame's hot stores started with, read by a test; never replayed.
     "startCapacities": .frameLocal,
+    // G51 (`HP-M`): the previous frame's collected counts of its composite and mask scopes and this frame's own, capacities only.
+    "scopeCaptureHints": .frameLocal, "scopeCaptureCounts": .frameLocal,
     // `TXS-B`, `TXS-C`: the selectable `Text`s' regions are registered by prepaint (an occurrence holding one leaves no prepaint
     // ledger, `taint("textSelection")`), and the window's session is handed in before the build and read by the selected `Text`'s
     // prepaint and paint: a subtree holding it misses retained replay (`retainedSubtreeHasPointerPressOrFocus`).
