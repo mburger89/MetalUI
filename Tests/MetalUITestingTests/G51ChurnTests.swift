@@ -49,6 +49,30 @@ func aStreamedFrameOfAScopedTranscriptStaysUnderItsCeilings() async throws {
     #endif
 }
 
+/// The redo frame and the one after it reserve what master's did (record 417): the abandoned attempt's storage is not dropped and reserved again
+/// beyond the one capture scope reserve the redo has always repeated. Profiled per frame: the frame that redoes makes at most 16 requests of 128 KiB or
+/// more (6 for a quiet streamed frame, master 16), the frame after it at most 15 (master 9: the six translated records, above). Mutation: a second
+/// scene reserve in the redo (the first number), the redo's fresh frame reserving from no hint (the second).
+@Test(.enabled(if: !rsVerifying, g51Verifying)) @MainActor
+func aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid() async throws {
+    #if canImport(Darwin)
+    let inputs = G51Inputs()
+    let w = try await g51Window(rows: 40, inputs: inputs)
+    var perFrame: [(large: Int, redos: Int)] = []
+    for _ in 0..<14 {
+        inputs.words += 1
+        await rsSettle()
+        w.window.setNeedsRedraw()
+        let p = try #require(profileAllocations { w.tick() })
+        perFrame.append((p.large, w.lastFrameWork.retainedRedos))
+    }
+    let redone = try #require(perFrame.firstIndex { $0.redos > 0 }, "the fixture redoes: \(perFrame)")
+    #expect(perFrame[redone].large <= 16, "the redo frame: \(perFrame[redone].large) large requests, \(perFrame)")
+    #expect(perFrame[redone + 1].large <= 15, "the frame after the redo: \(perFrame[redone + 1].large)")
+    #expect(perFrame.enumerated().allSatisfy { $0.offset == redone || $0.offset == redone + 1 || $0.element.large <= 7 }, "a quiet streamed frame: \(perFrame)")
+    #endif
+}
+
 /// **G51-B** The streamed frame costs the same however many rows lie above the window: rows realised, prepaints and paints are the
 /// window's, and so are the bytes (a record, a scope or a dictionary that scaled with the transcript would show here).
 @Test(.enabled(if: !rsVerifying, g51Verifying)) @MainActor
@@ -74,6 +98,11 @@ func aLongerTranscriptCostsTheSameStreamedFrame() async throws {
 // 7.08 requests of 128 KiB or more (6.85 MB) a frame; on the tree before record 420 (bytes and large requests, measured by the probe
 // at 20 and 100 rows) 39 and 44 MB, 28 and 30 large requests. The ceilings sit about 2.5 % over.
 private let g51ByteCeiling = 20_650_000.0
-private let g51LargeCeiling = 7.4
+// 7.4 plus 0.5 (record 417 on #434): the frame after the profile's one redo translates the six moved rows' paint records again, `Frame.movedOps`,
+// six requests of 239 392 bytes in 12 frames. Master's redo ran its layout over the attempt's own scroll writes, so its rows were already where
+// the anchor put them and the next frame moved nothing; the rollback makes the redo a fresh frame, which applies the anchor's adjustment one
+// frame later, as every non-redo wrap frame does. The copy is the translation's own (a record's ops are rebuilt at the new offset), not storage the
+// abandoned attempt dropped: the redo frame itself costs the 16 master's does (`aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid`).
+private let g51LargeCeiling = 7.9
 private let g51LargeByteCeiling = 7_050_000.0
 private let g51AllocationCeiling = 176_500.0
