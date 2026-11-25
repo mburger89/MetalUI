@@ -1042,6 +1042,7 @@ extension Frame {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
+            if memos.recordsAttempt { memos.attemptRecorded.append(phase.entry) }   // `GL-K`
             RetainedTestingHooks.beforeRecordClear?()
             phase.entry.flags.clearObservedChange(ifChangesEqual: phase.changesAtStart)   // `MO-F`
         }

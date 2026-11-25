@@ -234,6 +234,12 @@ extension Window {
     /// The `@State` entries with their versions and liveness, sorted: compared across two windows by the graft's
     /// sweep differential (`RK-F`).
     package var testingStateEntries: [String] { stateTable.entryDigest }
+    /// The glyph atlas's slot map and packer (`GL-K`).
+    package var testingAtlasSlots: [String] { glyphAtlas.slotDigest }
+    /// Keys the last atlas attempt held when it closed, and the doublings inside attempts that were rolled back.
+    package var testingAtlasAttempt: (loggedKeys: Int, growthsInAbandoned: Int) {
+        (glyphAtlas.lastAttemptLoggedKeys, glyphAtlas.growthsInAbandonedAttempts)
+    }
     /// What the last attempt held when it closed (`RK-AI`): entries logged, in-place stores registered, whether it was rolled back.
     package var testingLastAttempt: (closed: Int, loggedEntries: Int, registeredStores: Int, rolledBack: Bool) {
         let tally = stateTable.lastAttempt

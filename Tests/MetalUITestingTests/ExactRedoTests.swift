@@ -26,17 +26,27 @@ struct XRRow: Component, @MainActor Equatable {
 
 /// The containers a rollback owes an exact undo: the transcript's lazy stack, a variable-height `List` and a lazy grid, each in a
 /// scroller anchored to its end, with a streaming last element and a replayed card under an opacity that changes (`RK-C`).
-enum XRArm: String, CaseIterable { case transcript, variableList, grid }
+/// `zoom` is `aZoomedNodeIsHitWhereItIsDrawn`'s shape (ten `.equatable()` nodes under `scaleEffect`, `RZ-`) under the same trigger: every
+/// zoom step asks the atlas for glyphs at a scale it has not packed.
+enum XRArm: String, CaseIterable { case transcript, variableList, grid, zoom }
+
+/// A streaming word of letters no earlier word used (Latin Extended-A), so every step asks the atlas for a glyph it has not packed.
+func xrStreaming(_ step: Int) -> String {
+    "streaming" + (0..<step).map { " w" + String(Character(Unicode.Scalar(0x100 + $0 % 120)!)) }.joined()
+}
 
 struct XRRoot: Component {
     let side: RPSide
     let arm: XRArm
     var content: some ElementGroup {
         let dimmed = side.model.n % 2 == 1
-        let blocks = g49Blocks + [G49Block(id: 999, kind: 1, text: g49Streaming(Int(side.inputs.offset)))]
+        let blocks = g49Blocks + [G49Block(id: 999, kind: 1, text: xrStreaming(Int(side.inputs.offset)))]
         VStack(spacing: 0) {
             // The redo's trigger: a replayed card under an ancestor whose opacity changes (`RK-C`).
             ZStack { RPCard(title: "A", shade: 1, log: side.log).equatable() }.opacity(dimmed ? 0.5 : 1)
+            if arm == .zoom {
+                ZoomRoot(side: side)
+            } else {
             ScrollViewReader { _ in
                 ScrollView {
                     switch arm {
@@ -46,6 +56,8 @@ struct XRRoot: Component {
                         }.padding(g49Inset)
                     case .variableList:
                         List(blocks, estimatedRowHeight: Pixels(60)) { b in VStack(spacing: 0) { XRRow(block: b) } }
+                    case .zoom:
+                        Box()
                     case .grid:
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Pixels(8)) {
                             ForEach(blocks, id: \.id) { b in XRRow(block: b) }
@@ -54,6 +66,7 @@ struct XRRoot: Component {
                 }
                 .defaultScrollAnchor(.bottom).contentMargins(.bottom, Pixels(40), for: .scrollContent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             }
         }
     }
@@ -64,14 +77,23 @@ struct XRRoot: Component {
 }
 
 /// One streamed word and one opacity change on both sides, settled, one frame each.
-@MainActor func xrStep(_ pair: RPPair<some Element>) async {
-    pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
+@MainActor func xrStep(_ pair: RPPair<some Element>, zoom: Bool = false) async {
     pair.onSide.model.n += 1; pair.offSide.model.n += 1
+    for side in [pair.onSide, pair.offSide] { side.inputs.offset = zoom ? 1 + 0.02 * Float(side.model.n) : side.inputs.offset + 1 }
     await rsSettle()
     pair.redraw()
 }
 
 /// The ids whose registered element bounds differ between the two windows, with both values.
+/// The glyph records of the window's last scene whose atlas rectangle the atlas holds no key for: a record that outlived a rollback of the glyph it
+/// names (it would draw an empty slot).
+@MainActor func xrDanglingGlyphs(_ window: TestWindow) -> Int {
+    window.scene.glyphs.filter { glyph in
+        glyph.atlasBounds.size.width > 0 && window.window.glyphAtlas.key(forAtlasX: glyph.atlasBounds.origin.x, y: glyph.atlasBounds.origin.y,
+                                                                         width: glyph.atlasBounds.size.width, height: glyph.atlasBounds.size.height) == nil
+    }.count
+}
+
 @MainActor func xrBoundsDifferences(_ pair: RPPair<some Element>) -> [String] {
     let a = pair.on.window.testingElementBounds, b = pair.off.window.testingElementBounds
     var out: [String] = []
@@ -114,16 +136,21 @@ func theRedoFrameRegistersTheElementBoundsAFreshFrameDoes() async throws {
 func aRolledBackAttemptLeavesEveryStoreAsItFoundIt(arm: XRArm) async throws {
     let pair = try xrPair(arm)
     pair.on.window.testingRollbackDigests = []
-    for _ in 0..<30 { await xrStep(pair) }
+    for _ in 0..<30 { await xrStep(pair, zoom: arm == .zoom) }
     let rolled = try #require(pair.on.window.testingRollbackDigests)
     try #require(rolled.count >= 2, "\(arm.rawValue): redos \(rolled.count)")
-    var wrote = 0
+    var wrote = 0, wroteAtlas = 0
     for (index, digests) in rolled.enumerated() {
         let differing = Set(digests.before).symmetricDifference(Set(digests.after)).sorted().prefix(3)
         #expect(digests.before == digests.after, "\(arm.rawValue) redo \(index): \(differing)")
         if digests.during != digests.before { wrote += 1 }
+        // The atlas's lines (`GL-K`): the glyph map, the slot map and the packer line; the attempt packed glyphs the rollback had to forget.
+        let atlasBefore = Set(digests.before.filter { $0.hasPrefix("packer ") || $0.hasPrefix("slot ") })
+        if Set(digests.during.filter { $0.hasPrefix("packer ") || $0.hasPrefix("slot ") }) != atlasBefore { wroteAtlas += 1 }
     }
     #expect(wrote >= 1, "\(arm.rawValue): no attempt wrote anything the rollback had to undo")
+    #expect(wroteAtlas >= 1, "\(arm.rawValue): no attempt packed a glyph the rollback had to forget")
+    #expect(pair.on.window.testingAtlasAttempt.growthsInAbandoned == 0, "\(arm.rawValue): the atlas doubled inside an abandoned attempt")
 }
 
 /// A redone frame equals a fresh frame in every channel the rollback covers (`RK-AI`): the scene, hitboxes, tallies, Tab order and element
@@ -135,13 +162,16 @@ func aRedoneFrameEqualsAFreshFrameInEveryChannel(arm: XRArm) async throws {
     pair.frames = []
     var redone = 0
     for step in 0..<30 {
-        await xrStep(pair)
+        await xrStep(pair, zoom: arm == .zoom)
         let redo = pair.frames.last?.retainedRedos ?? 0
         redone += redo
         try pair.compare("\(arm.rawValue) step \(step)")
         let differences = xrBoundsDifferences(pair)
         #expect(differences.isEmpty, "\(arm.rawValue) step \(step) (redos \(redo)): \(differences.prefix(4))")
         #expect(pair.on.window.testingStateEntries == pair.off.window.testingStateEntries, "\(arm.rawValue) step \(step): live state entries")
+        #expect(xrDanglingGlyphs(pair.on) == 0, "\(arm.rawValue) step \(step) (redos \(redo)): glyph records naming a slot the atlas forgot")
+        let slotsOn = Set(pair.on.window.testingAtlasSlots), slotsOff = Set(pair.off.window.testingAtlasSlots)
+        #expect(slotsOn == slotsOff, "\(arm.rawValue) step \(step) (redos \(redo)): atlas slots and packer: only on \(slotsOn.subtracting(slotsOff).map { $0.prefix(40) + "…" + $0.suffix(60) }.sorted().prefix(3)), only off \(slotsOff.subtracting(slotsOn).map { $0.prefix(40) + "…" + $0.suffix(60) }.sorted().prefix(3))")
         if redo > 0 {
             for after in 1...3 {
                 pair.redraw()
@@ -151,6 +181,7 @@ func aRedoneFrameEqualsAFreshFrameInEveryChannel(arm: XRArm) async throws {
         }
     }
     #expect(redone >= 2, "\(arm.rawValue): redos \(redone)")
+    #expect(pair.on.window.testingAtlasAttempt.growthsInAbandoned == 0, "\(arm.rawValue): the atlas doubled inside an abandoned attempt")
 }
 
 /// The steady-frame cost (`RK-AI`): an unchanged frame in an armed window logs nothing. The rollback arms the build whenever it could
@@ -169,6 +200,7 @@ func aQuietFrameWithAnArmedRollbackLogsNothing() async throws {
     #expect(tally.closed == before.closed + 4, "each quiet frame ran armed: \(before.closed) to \(tally.closed)")
     #expect(tally.loggedEntries == 0 && !tally.rolledBack, "a quiet frame logged \(tally.loggedEntries) entries")
     #expect(tally.registeredStores <= 1, "one lazy container's index: \(tally.registeredStores)")
+    #expect(pair.on.window.testingAtlasAttempt.loggedKeys == 0, "a quiet frame packed \(pair.on.window.testingAtlasAttempt.loggedKeys) glyphs")
 }
 
 /// A streaming frame logs one entry per state it writes (`RK-AI`), never one per row: the log's size is the frame's writes. Measured: 1 (the
@@ -176,6 +208,7 @@ func aQuietFrameWithAnArmedRollbackLogsNothing() async throws {
 @Test(.enabled(if: !rsVerifying, xrVerifyingNote)) @MainActor
 func aStreamingFrameLogsOneEntryPerWrittenState() async throws {
     let pair = try xrPair()
+    var atlasKeys: [Int] = []
     for _ in 0..<14 { pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1; await rsSettle(); pair.redraw() }
     var logged: [Int] = []
     for _ in 0..<6 {
@@ -185,12 +218,132 @@ func aStreamingFrameLogsOneEntryPerWrittenState() async throws {
         pair.redraw()
         let tally = pair.on.window.testingLastAttempt
         logged.append(tally.loggedEntries)
+        atlasKeys.append(pair.on.window.testingAtlasAttempt.loggedKeys)
         #expect(tally.loggedEntries <= max(1, pair.on.window.testingStatePlainWriteCount - writesBefore),
                 "logged \(tally.loggedEntries), plain writes \(pair.on.window.testingStatePlainWriteCount - writesBefore)")
     }
     // The scroller's own state (its anchor memory and clamp) is the one entry a streaming frame writes; the lazy container's origin is a
     // compared write that finds its value unchanged, and the index journals inside the class, not in the log.
     #expect(logged.allSatisfy { $0 <= 1 } && logged.contains(1), "the log is the frame's writes, not the table: \(logged)")
+    // The atlas logs one key per glyph the frame packs for the first time (`GL-K`): the new letter of the streamed word, never a visible glyph.
+    #expect(atlasKeys.allSatisfy { $0 <= 2 } && atlasKeys.contains { $0 > 0 }, "atlas keys logged a frame: \(atlasKeys)")
+}
+
+// MARK: the atlas (`GL-K`)
+
+@MainActor private func zoomCentre(_ window: TestWindow, _ label: String) throws -> Point<Pixels> {
+    let element = try window.element(label: label)
+    let frame = try #require(try window.accessibilityTree.geometry[element.id]?.frame)
+    return Point(x: Pixels(frame.origin.x.value + frame.size.width.value / 2), y: Pixels(frame.origin.y.value + frame.size.height.value / 2))
+}
+
+/// `aZoomedNodeIsHitWhereItIsDrawn`'s shape forced through redos (`GL-K`, record 418; it went red under a scoped redo in record 416 because the
+/// abandoned attempt's glyphs were left packed): zoom steps under a replayed card whose opacity changes, a click at the drawn centre of a node
+/// after each step. The retaining window equals the plain one at every step, the redo frames included, and it was redone.
+@Test(.enabled(if: !rsVerifying, xrVerifyingNote)) @MainActor
+func aZoomedNodeIsHitWhereItIsDrawnThroughARedo() async throws {
+    let pair = try RPPair(size: sz(1500, 700), scale: 2, warm: 6, accessibility: true) { side in VStack(spacing: 0) { XRRoot(side: side, arm: .zoom) } }
+    var redone = 0
+    for step in 0..<24 {
+        await xrStep(pair, zoom: true)
+        redone += pair.frames.last?.retainedRedos ?? 0
+        let drawn = try zoomCentre(pair.on, "z3")
+        for w in [pair.on, pair.off] { w.click(at: drawn) }
+        try pair.compare("clicks after zoom step \(step)")
+        #expect(pair.onSide.log.entries.contains("z3"), "step \(step): the node is hit where it is drawn")
+        #expect(pair.on.window.testingAtlasSlots == pair.off.window.testingAtlasSlots, "step \(step): atlas slots")
+        #expect(xrDanglingGlyphs(pair.on) == 0, "step \(step): glyph records naming a slot the atlas forgot")
+    }
+    #expect(redone >= 2, "the opacity ancestor redid the zoom frame \(redone) times")
+    #expect(pair.on.window.testingAtlasAttempt.growthsInAbandoned == 0)
+}
+
+private func atlasKey(_ i: Int) -> GlyphKey {
+    GlyphKey(font: FontKey(resolvedPostScriptName: "Exact-Redo-Test", size: 13, variations: [],
+                           matrix: .init(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0)),
+             glyph: UInt16(i), size: 13, subpixelVariant: 0, scaleFactor: 1)
+}
+
+/// An abandoned attempt's glyphs are packed once (`GL-K`): an attempt that packs A, B and an empty glyph and is rolled back leaves the atlas
+/// as it found it (map, slot map, shelf cursor, frame counter, area, pixels, dirty regions, stamps); the redo packing B and C finds B
+/// at the shelf's origin, so the abandoned A leaves no hole, and `rasterize` runs once per key per pack. An attempt that was accepted
+/// keeps everything. Growth inside an attempt is not undone and is counted. Mutations: the key log off (the glyph map keeps A and B), the
+/// packer fields not restored (B lands after A's hole), the stamps not restored (the live area of a re-stamped glyph is lost), the
+/// pixels not zeroed (the digest's pixel hash), `currentGeneration` not restored.
+@Test @MainActor func anAbandonedAttemptsGlyphsArePackedOnce() throws {
+    func image(_ w: Int, _ h: Int, _ fill: UInt8) -> GlyphImage { GlyphImage(width: w, height: h, bytes: [UInt8](repeating: fill, count: w * h)) }
+    let atlas = GlyphAtlas(width: 64, height: 64, maximumExtent: 256)
+    atlas.beginFrame()
+    _ = try #require(atlas.slot(for: atlasKey(1), rasterize: { image(20, 10, 7) }))
+    atlas.endFrame()
+    atlas.clearDirtyRect()
+    let before = atlas.attemptDigest, slotsBefore = atlas.slotDigest
+    // The attempt: a frame that re-stamps glyph 1, packs A (2), B (3) and an empty glyph (4).
+    atlas.beginAttempt()
+    atlas.beginFrame()
+    _ = try #require(atlas.slot(for: atlasKey(1), rasterize: { image(1, 1, 0) }))
+    let a = try #require(atlas.slot(for: atlasKey(2), rasterize: { image(30, 12, 9) }))
+    _ = try #require(atlas.slot(for: atlasKey(3), rasterize: { image(10, 8, 5) }))
+    _ = atlas.packed(for: atlasKey(4), rasterize: { GlyphImage(width: 0, height: 0, bytes: []) })
+    atlas.endFrame()
+    #expect(atlas.attemptLoggedKeys == 3 && atlas.attemptDigest != before)
+    atlas.rollbackAttempt()
+    #expect(atlas.attemptDigest == before && atlas.slotDigest == slotsBefore && !atlas.isAttemptOpen, "rolled back")
+    // The redo: B and C. B takes the slot A took.
+    var rasterized = 0
+    atlas.beginFrame()
+    let b = try #require(atlas.slot(for: atlasKey(3), rasterize: { rasterized += 1; return image(30, 12, 5) }))
+    _ = try #require(atlas.slot(for: atlasKey(5), rasterize: { rasterized += 1; return image(10, 8, 6) }))
+    atlas.endFrame()
+    #expect(b == a && rasterized == 2, "the abandoned glyph left no hole: \(b) against \(a)")
+    // Accepted: nothing is undone; a doubling inside an attempt is counted and kept.
+    let accepted = GlyphAtlas(width: 16, height: 16, maximumExtent: 64)
+    accepted.beginAttempt()
+    accepted.beginFrame()
+    _ = try #require(accepted.slot(for: atlasKey(9), rasterize: { image(30, 30, 1) }))
+    accepted.endFrame()
+    let kept = accepted.attemptDigest
+    accepted.acceptAttempt()
+    #expect(accepted.attemptDigest == kept && accepted.growthsInAbandonedAttempts == 0 && accepted.attemptLoggedKeys == 0)
+    let grown = GlyphAtlas(width: 16, height: 16, maximumExtent: 64)
+    grown.beginAttempt()
+    grown.beginFrame()
+    _ = try #require(grown.slot(for: atlasKey(9), rasterize: { image(30, 30, 1) }))
+    grown.endFrame()
+    grown.rollbackAttempt()
+    #expect(grown.growthsInAbandonedAttempts == 1 && grown.width == 32 && grown.slotDigest.count == 1, "growth stays and is counted")
+}
+
+/// The redo is the frame's one aging step for the text caches (`GL-K`): every abandoned attempt ends its text bracket with `abandonFrame()` (not
+/// `endFrame()`, whose sweep and epoch advance a redo would count twice), the redo's own bracket ends with `endFrame()`, and the brackets balance.
+/// Resolves the plan's question about `ShapingCache.beginFrame`: yes, a redo advanced the generation twice (`ShapingCache.beginFrame` is
+/// `currentGeneration += 1` and the abandoned frame's `endFrame()` swept), so an entry last used the frame before aged one frame early.
+/// Mutation: the abandon path calling `endFrame()` (abandons 0, ends one higher).
+@Test(.enabled(if: !rsVerifying, xrVerifyingNote)) @MainActor
+func aRedoAdvancesTheTextCachesEpochOnce() async throws {
+    let counting = CountingTextSystem(harnessTextSystem())
+    let side = RPSide()
+    let options = HeadlessPlatformWindow.Options(appearance: .light, scaleFactor: 2, accessibilityClientActive: false)
+    let window = try TestWindow(size: sz(420, 600), colorScheme: .light, scaleFactor: 2, options: options, textSystem: { counting }) {
+        VStack(spacing: 0) { XRRoot(side: side, arm: .transcript) }
+    }
+    window.window.testingTimelineClockOffset = 0
+    for _ in 0..<8 { window.window.setNeedsRedraw(); window.tick() }
+    window.window.focus(nil)
+    for _ in 0..<2 { window.window.setNeedsRedraw(); window.tick() }
+    counting.begins = 0; counting.ends = 0; counting.abandons = 0
+    var redos = 0, frames = 0
+    for _ in 0..<30 {
+        side.model.n += 1; side.inputs.offset += 1
+        await rsSettle()
+        window.window.setNeedsRedraw(); window.tick()
+        redos += window.lastFrameWork.retainedRedos
+        frames += 1
+    }
+    #expect(redos >= 2, "redos \(redos)")
+    #expect(counting.abandons == redos, "abandoned brackets \(counting.abandons) for \(redos) redos")
+    #expect(counting.begins == counting.ends + counting.abandons, "the brackets balance: \(counting.begins) begins, \(counting.ends) ends, \(counting.abandons) abandons")
+    #expect(counting.ends >= frames, "each drawn frame ended its bracket once")
 }
 
 // MARK: the index's journal on its own

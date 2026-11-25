@@ -4659,7 +4659,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
             // before anything after the root's paint runs (`RK-M`), and the window builds it again. Verify mode
             // abandons a frame that replayed a prepaint the same way, to compare it with the rebuild (`RK-N`).
             glyphAtlas.endFrame()
-            textSystem.endFrame()
+            textSystem.abandonFrame()   // `GL-K`: the redo is the frame's one aging step
             stateTable.contentMemos.pendingGrafts = []   // the frame is built again (`RK-AG`)
             isRendering = false
             return

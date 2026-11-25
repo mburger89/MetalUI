@@ -35,8 +35,10 @@ import Testing
     }
     func decorationMetrics(_ f: FontKey) -> TextDecorationMetrics { base.decorationMetrics(f) }
     func rasterize(_ k: GlyphKey) -> GlyphImage { rasters += 1; return base.rasterize(k) }
-    func beginFrame() { base.beginFrame() }
-    func endFrame() { base.endFrame() }
+    var begins = 0, ends = 0, abandons = 0
+    func beginFrame() { begins += 1; base.beginFrame() }
+    func endFrame() { ends += 1; base.endFrame() }
+    func abandonFrame() { abandons += 1; base.abandonFrame() }
 }
 
 @MainActor final class CameraModel { var phase: Float = 0 }

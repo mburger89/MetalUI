@@ -833,6 +833,8 @@ final class StateTable {
         attemptRestorables.removeAll(keepingCapacity: true)
         attemptUndo.removeAll(keepingCapacity: true)
         attemptMarked = marked
+        contentMemos.attemptRecorded.removeAll(keepingCapacity: true)
+        contentMemos.recordsAttempt = true
         attemptReadCount = readJournal.count
         attemptMarkCount = markJournal.count
         attemptArmed = true
@@ -859,6 +861,8 @@ final class StateTable {
         if readJournal.count > attemptReadCount { readJournal.removeSubrange(attemptReadCount...) }
         if markJournal.count > attemptMarkCount { markJournal.removeSubrange(attemptMarkCount...) }
         for restorable in attemptRestorables { restorable.rollbackAttempt() }
+        // A paint record the attempt made holds the atlas slots of glyphs the rollback forgets (`GL-K`): the redo paints those occurrences again.
+        for entry in contentMemos.attemptRecorded { entry.record = nil }
         closeAttempt(rolledBack: true)
         return created
     }
@@ -880,6 +884,8 @@ final class StateTable {
             attemptUndo.removeAll(keepingCapacity: true)
         }
         attemptMarked = []
+        contentMemos.recordsAttempt = false
+        contentMemos.attemptRecorded.removeAll(keepingCapacity: true)
         attemptArmed = false
     }
 

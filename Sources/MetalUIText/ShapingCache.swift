@@ -488,6 +488,15 @@ public final class ShapingCache {
         sweep(&styledStorage)
     }
 
+    /// Ends a frame that is built again (`GL-K`): closes the bracket and gives the generation back, with no sweep and no trace line. An entry the
+    /// abandoned frame touched keeps its stamp, which the redo's own generation equals, so it is kept as long as the redo's touches keep it.
+    /// Without this a redo advanced the epoch twice, and an entry last used the frame before could be swept one frame early.
+    public func abandonFrame() {
+        precondition(isBuildingFrame, "abandonFrame called without a matching beginFrame")
+        isBuildingFrame = false
+        currentGeneration -= 1
+    }
+
     /// Drops every entry untouched for ``staleAfterGenerations``, but only
     /// once `dict` is over ``sweepThreshold`` — see ``sweepThreshold``'s own
     /// doc comment for why that makes this a trigger rather than a target
