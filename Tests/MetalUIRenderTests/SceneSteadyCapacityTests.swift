@@ -45,13 +45,18 @@ private func finalized(glyphs: Int, rects: Int = 0) -> Scene {
     #expect(steadyCapacity(40_960) == 40_960 && steadyCapacity(40_961) == 45_056, "classes are four-Ki steps there")
 }
 
-/// Mutation: `finalize` reserving the permuted arrays at the exact count again (the capacities then differ by whole pages).
+/// Both scenes reserve the class that holds the larger, so each array is at least that class. The capacity is what malloc
+/// returned, which can be a larger cached block, so the test bounds it from below rather than comparing the two (CI saw them
+/// differ). Mutation: `finalize` reserving the permuted arrays at the exact count again (40 000 glyphs then sit under the class).
 @Test func aSceneAFewHundredGlyphsLargerFinalizesIntoTheSameCapacities() {
     let a = finalized(glyphs: 40_000, rects: 3_000)
     let b = finalized(glyphs: 40_700, rects: 3_050)
     #expect(a.glyphs.count != b.glyphs.count)
-    #expect(a.glyphs.capacity == b.glyphs.capacity, "glyphs \(a.glyphs.capacity) against \(b.glyphs.capacity)")
-    #expect(a.rects.capacity == b.rects.capacity, "rects \(a.rects.capacity) against \(b.rects.capacity)")
+    #expect(steadyCapacity(40_000) == steadyCapacity(40_700) && steadyCapacity(3_000) == steadyCapacity(3_050), "one class")
+    for scene in [a, b] {
+        #expect(scene.glyphs.capacity >= steadyCapacity(40_700), "glyphs \(scene.glyphs.capacity)")
+        #expect(scene.rects.capacity >= steadyCapacity(3_050), "rects \(scene.rects.capacity)")
+    }
 }
 
 /// Mutation: `reserveCapacity(rects:glyphs:)` at the exact count.
@@ -59,8 +64,10 @@ private func finalized(glyphs: Int, rects: Int = 0) -> Scene {
     var a = Scene(), b = Scene()
     a.reserveCapacity(rects: 3_000, glyphs: 40_000)
     b.reserveCapacity(rects: 3_050, glyphs: 40_700)
-    #expect(a.glyphs.capacity == b.glyphs.capacity, "glyphs \(a.glyphs.capacity) against \(b.glyphs.capacity)")
-    #expect(a.rects.capacity == b.rects.capacity, "rects \(a.rects.capacity) against \(b.rects.capacity)")
+    for scene in [a, b] {   // at least the class, as above (malloc may hand back a larger cached block)
+        #expect(scene.glyphs.capacity >= steadyCapacity(40_700), "glyphs \(scene.glyphs.capacity)")
+        #expect(scene.rects.capacity >= steadyCapacity(3_050), "rects \(scene.rects.capacity)")
+    }
     #expect(a.glyphs.isEmpty && a.rects.isEmpty, "reserve only")
 }
 
