@@ -43,20 +43,28 @@ private func font(_ size: Double) -> ResolvedFont { FontResolver.resolve(family:
     #expect(lines[2].contains("\"hello world\"(") && lines[2].contains(" 15 var=1 w=100)") || lines[2].contains(" 15 w=100)"), "\(lines[2])")
 }
 
-/// **2** `caretOffsets` shapes without the cache: the frame's line lists it under `uncached:` and counts it in neither
-/// hits nor misses. **Mutation:** `traceBypass` not called in `CoreTextTextSystem.caretOffsets`.
-@MainActor @Test func aCaretOffsetsCallIsReportedAsUncached() {
+/// **2** `caretOffsets` goes through the cache (`TS-F`): the first read is a miss listed by its `(caretOffsets …)` key, the
+/// second, in the next frame, a hit, and nothing is listed as `uncached:`. **Mutations:** the miss not traced in
+/// `ShapingCache.caretOffsets`; `CoreTextTextSystem.caretOffsets` going back to `Shaper.caretOffsets` (the second frame
+/// misses again).
+@MainActor @Test func aCaretOffsetsCallIsACachedLookupTheTraceCanSee() {
     let cache = ShapingCache()
     let system = CoreTextTextSystem(cache: cache)
     let key = system.resolveFont(FontDescriptor(family: nil, size: 13))
     let lines = traced {
-        cache.beginFrame()
-        _ = system.measure("typed text", font: key, wrappingAt: nil, options: TextLayoutOptions())
-        _ = system.caretOffsets("typed text", font: key)
-        cache.endFrame()
+        for _ in 0..<2 {
+            cache.beginFrame()
+            _ = system.measure("typed text", font: key, wrappingAt: nil, options: TextLayoutOptions())
+            _ = system.caretOffsets("typed text", font: key)
+            _ = system.caretOffsets("", font: key)
+            cache.endFrame()
+        }
     }
-    #expect(lines.count == 1 && lines[0].contains("hits 0 misses 1 [coretext]")
-            && lines[0].contains(" uncached: \"typed text\"(caretOffsets "), "\(lines)")
+    #expect(lines.count == 2, "\(lines)")
+    guard lines.count == 2 else { return }
+    #expect(lines[0].contains("hits 0 misses 2 [coretext]") && lines[0].contains("\"typed text\"(caretOffsets ")
+            && !lines[0].contains("uncached"), "\(lines[0])")
+    #expect(lines[1].contains("hits 2 misses 0 [coretext]") && !lines[1].contains("uncached"), "\(lines[1])")
 }
 
 /// **3** Off, the cache describes nothing and writes nothing. **Mutation:** the `ShapingTrace.active` guard dropped around

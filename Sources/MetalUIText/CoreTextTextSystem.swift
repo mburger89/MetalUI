@@ -48,8 +48,7 @@ public final class CoreTextTextSystem: TextSystem {
     /// The caret's x offset before each character and after the last, from
     /// CoreText (`TI-E`).
     public func caretOffsets(_ string: String, font: FontKey) -> [Double] {
-        cache.traceBypass(ShapingTrace.quoted(string) + "(caretOffsets " + ShapingTrace.describe(font) + ")")
-        return Shaper.caretOffsets(string, font: registered(font))
+        cache.caretOffsets(string, font: registered(font))   // cached by `(string, font)` (`TS-F`)
     }
 
     /// Each display line's character range when `string` is wrapped at `width`.
