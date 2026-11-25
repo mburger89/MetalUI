@@ -165,6 +165,9 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
     /// Wraps each realised unit before it joins the layout (a content `List`'s row chrome, `OG-J`); `nil` for a plain lazy
     /// stack. Called with the container's units so the wrapper can ask a unit's id and tag.
     var unitWrapper: (@MainActor (LazyUnitBox, LazyUnitWrapContext, inout LayoutPass) -> LazyUnitBox)?
+    /// Whether unit `unit` is built with `backgroundProminence` `.increased` (a content `List`'s selected rows, `OG-Q`); asked
+    /// before the unit is realised, `nil` for a plain lazy stack.
+    var unitIncreased: (@MainActor (LazyUnitTable, Int) -> Bool)?
     /// Whether the content's tree is flattened behind the content-form cache (a content `List`, `OG-O`).
     var cachesFlatten = false
     /// Whether an expansion or collapse slides the rows after it (a content `List`, `OG-P`).
@@ -211,7 +214,12 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
                 // `LZ-G`: duplicate ids dedupe within the realised window only, first wins.
                 guard seen.insert(table.key(unit)).inserted else { continue }
                 if unit < plan.anchorLine { anchorSlot += 1 }
-                var box = table.realize(unit, parent: id, pass: &pass)
+                var box: LazyUnitBox
+                if let increased = unitIncreased, increased(table, unit) {
+                    box = pass.frame.withIncreasedProminence { table.realize(unit, parent: id, pass: &pass) }
+                } else {
+                    box = table.realize(unit, parent: id, pass: &pass)
+                }
                 if let wrap = unitWrapper {
                     box = wrap(box, LazyUnitWrapContext(table: table, bounded: plan.mode == .bounded), &pass)
                 }

@@ -99,7 +99,10 @@ the window's top layer — a portal for modals, popovers and tooltips
 - **`@State`**, **`Binding`** (SwiftUI's surface, `@MainActor` — 78),
   **`ForEach`** (identity by the id's Hashable value, as SwiftUI; the `List` residue is 255), **`@Environment`**/`EnvironmentValues`/
   `.environment`/`.transformEnvironment`/`.disabled`; `displayScale`,
-  `pixelLength`, `controlActiveState`, `controlSize` (76), `dynamicTypeSize`
+  `pixelLength`, `controlActiveState`, `controlSize` (76), `backgroundProminence` (`BackgroundProminence`:
+  `.standard`, or `.increased` in the content of each selected `List` and `Table` row, and only those; the
+  hierarchical styles do not adapt, a selected row's own direct child and an unfocused selection read
+  `.increased` too, 244; `OG-Q`), `dynamicTypeSize`
   (inert as on macOS), `accessibilityReduceMotion`, `accessibilityReduceTransparency` (SwiftUI's
   key, read-only outside; stamped from the platform; while true every `Material` draws an opaque
   grey with no blur, divergence 315; C27, `MT-D`, `MT-F`); `colorSchemeContrast`,
