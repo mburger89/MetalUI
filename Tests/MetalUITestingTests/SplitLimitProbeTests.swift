@@ -8,7 +8,7 @@ import Testing
 
 // G48 (ruling `HS-M`, record 413): the Alloy chat-pane shape, MetalUI-only. An `HSplitView` of three framed panes whose
 // middle one holds a scroller over a lazy stack of rows, the last row a paragraph that grows by a word each frame. Every
-// width the paragraph is shaped at in a frame is read from `ShapingTrace`'s lines.
+// width the paragraph is shaped at in a frame is read at the text-system seam.
 
 @Observable @MainActor private final class Stream { var words = 20 }
 
@@ -65,41 +65,61 @@ private struct StreamingPane: Component {
     }
 }
 
-/// The widths the growing paragraph was shaped at in each of `frames` streamed frames (its misses, as `METALUI_TRACE_SHAPING`
-/// lists them), one sorted list per frame, after a first frame that has settled the window. `wrapped` is the control;
-/// `store` holds the user's sizes.
+/// A text system that notes every width the growing paragraph is measured or placed at, forwarding to a real one. Each distinct
+/// width of a string that changes every frame is one shape (`METALUI_TRACE_SHAPING` calls it a miss): this counts them at the text-system
+/// seam, as `CountingTextSystem` does, with no process-wide switch to hold (`ShapingTrace`'s is global, and a parallel run shares it).
+@MainActor private final class WidthRecordingTextSystem: TextSystem {
+    let base: any TextSystem
+    var widths: Set<Double> = []
+    init(_ base: any TextSystem) { self.base = base }
+    private func note(_ s: String, _ w: Double?) { if s.hasPrefix("streaming") { widths.insert(w ?? -1) } }
+    func resolveFont(_ d: FontDescriptor) -> FontKey { base.resolveFont(d) }
+    func fontMetrics(_ f: FontKey) -> TextFontMetrics { base.fontMetrics(f) }
+    func measure(_ s: String, font: FontKey, wrappingAt w: Double?, options: TextLayoutOptions) -> TextMeasurement {
+        note(s, w); return base.measure(s, font: font, wrappingAt: w, options: options)
+    }
+    func placeGlyphs(_ s: String, font: FontKey, wrappingAt w: Double?, options: TextLayoutOptions,
+                     origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
+        note(s, w); return base.placeGlyphs(s, font: font, wrappingAt: w, options: options, origin: origin, scaleFactor: scaleFactor)
+    }
+    func caretOffsets(_ s: String, font: FontKey) -> [Double] { base.caretOffsets(s, font: font) }
+    func lineRanges(_ s: String, font: FontKey, wrappingAt w: Double?, options: TextLayoutOptions) -> [Range<Int>] {
+        base.lineRanges(s, font: font, wrappingAt: w, options: options)
+    }
+    func measure(_ t: StyledText, wrappingAt w: Double?, options: TextLayoutOptions) -> StyledTextMeasurement {
+        base.measure(t, wrappingAt: w, options: options)
+    }
+    func layOut(_ t: StyledText, wrappingAt w: Double?, options: TextLayoutOptions,
+                origin: (x: Double, y: Double), scaleFactor: Float) -> StyledTextLayout {
+        base.layOut(t, wrappingAt: w, options: options, origin: origin, scaleFactor: scaleFactor)
+    }
+    func decorationMetrics(_ f: FontKey) -> TextDecorationMetrics { base.decorationMetrics(f) }
+    func rasterize(_ k: GlyphKey) -> GlyphImage { base.rasterize(k) }
+    func beginFrame() { base.beginFrame() }
+    func endFrame() { base.endFrame() }
+}
+
+/// The widths the growing paragraph was shaped at in each of `frames` streamed steps (each a state write, then the window settled),
+/// one sorted list per step, after a first draw that has settled the window. `wrapped` is the control; `saved` holds the user's sizes.
 @MainActor private func streamedWidths(frames: Int, saved: [Double]? = nil, wrapped: Bool = false) async throws -> [[Double]] {
-    let lines = LineBox()
     let stream = Stream()
     let store = saved.map { sizes -> MemoryStore in
         let store = MemoryStore()
         store.saved["g48"] = sizes
         return store
     }
-    let w = try harnessWindow(size: sz(1100, 700)) { splitFixture(stream, store: store, wrapped: wrapped) }
+    let recording = WidthRecordingTextSystem(harnessTextSystem())
+    let w = try TestWindow(size: sz(1100, 700), textSystem: { recording }) { splitFixture(stream, store: store, wrapped: wrapped) }
     try await w.runUntilIdle()
-    // The trace is on only from here, with no suspension point left: the switch and the sink are process-wide, and a test that
-    // suspended while holding them would read (and write) another main-actor test's frames in a parallel run.
-    ShapingTrace.sink = { lines.lines.append($0) }
-    ShapingTrace.active = true
-    defer { ShapingTrace.active = false; ShapingTrace.sink = nil }
     var perFrame: [[Double]] = []
     for _ in 0..<frames {
-        lines.lines.removeAll()
+        recording.widths = []
         stream.words += 8
-        w.tick()
-        let widths = lines.lines.flatMap { line -> [Double] in
-            // `"streaming assistant reply words keep arr…"(NotoSans-Regular 13 w=284)`: only the paragraph's misses.
-            line.components(separatedBy: "\"streaming").dropFirst().compactMap { entry -> Double? in
-                guard let range = entry.range(of: " w="), let end = entry[range.upperBound...].firstIndex(of: ")") else { return nil }
-                return Double(entry[range.upperBound..<end])
-            }
-        }
-        perFrame.append(widths.sorted())
+        try await w.runUntilIdle()
+        perFrame.append(recording.widths.sorted())
     }
     return perFrame
 }
-@MainActor private final class LineBox { var lines: [String] = [] }
 
 /// **1 (G48)** The chat pane's three probes, as they were: the control (the pane behind a wrapper that is not a frame) shapes the
 /// growing paragraph at five widths a frame, and 284 (`320 - 4 - 2 * 16`, the pane's minimum through the stripe and the padding) is
