@@ -34,7 +34,9 @@ private func demoWindow(_ system: CoreTextTextSystem) throws -> Window {
 ///
 /// Recorded 2026-10-08 with `METALUI_RT_119_MEASURE=1` on `4a47f27` (its
 /// `Sources/` byte-identical to `70ed000`'s), three runs alike: first frame
-/// 1020 misses, 1544 lookups; warm frame 0 misses, 110 lookups.
+/// 1020 misses, 1544 lookups; warm frame 0 misses, 110 lookups. **`HS-M` (record 413) moved the cold frame to 1018 / 1538, a win
+/// and not a regression:** a stack's flexibility probe of a frame that no child can change, and a split view's limits of one,
+/// no longer measure (so no longer shape) its subtree: two misses and six lookups the demo's panes asked for nothing.
 @MainActor
 @Test func theDemoDoesTheSameTextWorkAsBefore() throws {
     let system = CoreTextTextSystem()
@@ -49,12 +51,12 @@ private func demoWindow(_ system: CoreTextTextSystem) throws -> Window {
     if ProcessInfo.processInfo.environment["METALUI_RT_119_MEASURE"] == "1" {
         print("RT 1.19 first misses=\(firstMisses) lookups=\(firstLookups) warm misses=\(warmMisses) lookups=\(warmLookups)")
     }
-    #expect(firstMisses == 1020, "first frame misses")
-    #expect(firstLookups == 1544, "first frame lookups")
+    #expect(firstMisses == 1018, "first frame misses")
+    #expect(firstLookups == 1538, "first frame lookups")
     #expect(warmMisses == 0, "warm frame misses")
     // C14 lane 1 (`IV-E`) moved this one pin 110 -> 58, a win and not a regression:
     // the layout memo answers 52 of the warm frame's seam measures whole. The cold
-    // frame's 1020 / 1544 above are the recorded literals, unmoved (a cold memo does
+    // frame's 1018 / 1538 above were the recorded 1020 / 1544 until `HS-M` (a cold memo does
     // the old work), and warm misses stay 0.
     if ProcessInfo.processInfo.environment["METALUI_VERIFY_LAYOUT_MEMO"] != "1" {   // verify mode re-measures
         #expect(warmLookups == 58, "warm frame lookups")
