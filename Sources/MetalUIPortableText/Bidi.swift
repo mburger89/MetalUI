@@ -8,7 +8,8 @@ import CSheenBidi
 final class BidiParagraph {
     /// The paragraph's text, owned here: SheenBidi reads it in place.
     private let storage: UnsafeMutableBufferPointer<UInt16>
-    private let algorithm: SBAlgorithmRef
+    /// `nil` for an empty text: SheenBidi refuses a zero-length sequence (it answers NULL).
+    private let algorithm: SBAlgorithmRef?
     /// The paragraphs, in order, covering the text.
     private let paragraphs: [(range: Range<Int>, paragraph: SBParagraphRef)]
     /// Each UTF-16 unit's resolved embedding level; odd is right to left.
@@ -25,11 +26,13 @@ final class BidiParagraph {
         var sequence = SBCodepointSequence(stringEncoding: SBStringEncoding(SBStringEncodingUTF16),
                                            stringBuffer: UnsafeRawPointer(base),
                                            stringLength: SBUInteger(units.count))
-        algorithm = SBAlgorithmCreate(&sequence)
+        let created: SBAlgorithmRef? = units.isEmpty ? nil : SBAlgorithmCreate(&sequence)
+        if !units.isEmpty && created == nil { preconditionFailure("SheenBidi could not allocate its algorithm (out of memory)") }
+        algorithm = created
         var paragraphs: [(range: Range<Int>, paragraph: SBParagraphRef)] = []
         var levels = [UInt8](repeating: 0, count: units.count)
         var offset = 0
-        while offset < units.count {
+        while offset < units.count, let algorithm = created {
             // SheenBidi answers NULL only when it cannot allocate (the range is inside the text).
             guard let paragraph = SBAlgorithmCreateParagraph(algorithm, SBUInteger(offset),
                                                              SBUInteger(units.count - offset),
@@ -46,6 +49,10 @@ final class BidiParagraph {
         self.levels = levels
 
         var scripts = [UInt8](repeating: 0, count: units.count)
+        guard !units.isEmpty else {
+            self.scripts = scripts
+            return
+        }
         guard let locator = SBScriptLocatorCreate() else { preconditionFailure("SheenBidi could not allocate a script locator") }
         SBScriptLocatorLoadCodepoints(locator, &sequence)
         while SBScriptLocatorMoveNext(locator) != 0 {
@@ -60,7 +67,7 @@ final class BidiParagraph {
 
     deinit {
         for (_, paragraph) in paragraphs { SBParagraphRelease(paragraph) }
-        SBAlgorithmRelease(algorithm)
+        if let algorithm { SBAlgorithmRelease(algorithm) }
         storage.deallocate()
     }
 
