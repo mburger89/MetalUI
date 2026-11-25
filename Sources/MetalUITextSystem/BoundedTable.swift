@@ -1,4 +1,4 @@
-// The bounded, generation-stamped dictionary both text systems keep their shapes in (`TS-F`, record 411).
+// The bounded, generation-stamped tables both text systems keep their shapes in, and the one budget they share (`TS-F`, record 411).
 
 /// A cached value stamped with the generation it was last touched in, and the `cost` it weighs toward the shared budget.
 package struct StampedEntry<Value> {
