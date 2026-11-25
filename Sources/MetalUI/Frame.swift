@@ -4667,6 +4667,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         } else if retainedVerifiesFromEnvironment, memos.redoInProgress {
             verifySnapshot = captureRetainedVerifySnapshot()
         }
+        if redoEntries.isEmpty, !memos.redoScopes.isEmpty, let entry = memos.testingEscalationEntry { redoEntries = [entry] }
         if !redoEntries.isEmpty || verifyAbandoned {
             // A replayed prepaint met a paint-time ambient that differed (`RK-C`): this frame is abandoned
             // before anything after the root's paint runs (`RK-M`), and the window builds it again. Verify mode

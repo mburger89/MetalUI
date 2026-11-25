@@ -2458,10 +2458,10 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             memos.redoInProgress = true
             if scoped {
                 memos.redoScopes = ids
+                memos.testingEscalationEntry = testingRedoFault == .secondAttemptAsksAgain ? firstEntries.first : nil
                 stateTable.beginAttempt(); glyphAtlas.beginAttempt()   // attempt 2 is armed too: it may ask again
             }
             frame = buildFrame()
-            if testingRedoFault == .secondAttemptAsksAgain, scoped, frame.redoEntries.isEmpty { frame.redoEntries = firstEntries }
             if scoped, !frame.redoEntries.isEmpty {
                 // Attempt 2 asked for a redo: the third build has every replay off, and the window backs off (`RK-AM`).
                 memos.noteRedo(frame.redoEntries)

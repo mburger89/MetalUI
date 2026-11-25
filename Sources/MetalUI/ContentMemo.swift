@@ -240,6 +240,8 @@ package final class ContentMemoStore {
         var until: Int
     }
     var quarantinedScopes: [QuarantinedScope] = []
+    /// Test hook (`Window.testingRedoFault`): the entry attempt 2 asks to redo, as an attempt 2 that met another ambient would, inside the frame's own abandon decision.
+    var testingEscalationEntry: Entry?
     /// The most scopes kept; the soonest to expire goes first.
     static let quarantinedScopeLimit = 64
 
