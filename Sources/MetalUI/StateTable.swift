@@ -1386,3 +1386,93 @@ extension StateTable {
         }.sorted() + ["marked:\(marked.map { sbPath($0) }.sorted())|reads:\(readJournal.count)|marks:\(markJournal.count)"]
     }
 }
+
+// MARK: - The census of references held in state (`RK-AJ`, record 419)
+
+/// What a class held in a state entry is, for the rollback: it journals its own writes (`restorable`: conforms to `AttemptRestorable`), it is a cache
+/// whose answers are a pure function of an exact key (`cache`), or nothing mutates it after it is stored (`immutable`).
+enum ReferenceKind: String {
+    case restorable, cache, immutable
+}
+
+extension StateTable {
+    /// The classes held in state entries, by name (generic arguments dropped), and one entry path each. Walks each value's stored properties to a depth of 6 and 16
+    /// elements a collection; a class is not entered (its contents are its own contract). A test and verify mode read it.
+    func referenceClasses() -> [String: String] {
+        var found: [String: String] = [:]
+        for (id, entry) in storage { Self.collectReferences(in: entry.value, path: sbPath(id), into: &found, depth: 0) }
+        return found
+    }
+
+    private static func collectReferences(in value: Any, path: String, into found: inout [String: String], depth: Int) {
+        let mirror = Mirror(reflecting: value)
+        if mirror.displayStyle == .class {
+            if found[referenceName(of: value)] == nil { found[referenceName(of: value)] = "\(referenceModule(of: value))|\(path)" }
+            return
+        }
+        guard depth < 6 else { return }
+        for child in mirror.children.prefix(16) { collectReferences(in: child.value, path: path, into: &found, depth: depth + 1) }
+    }
+
+    static func referenceName(of value: Any) -> String {
+        let name = String(describing: type(of: value))
+        return String(name.prefix { $0 != "<" })
+    }
+
+    /// The module a value's type is declared in.
+    static func referenceModule(of value: Any) -> String {
+        String(String(reflecting: type(of: value)).prefix { $0 != "." })
+    }
+
+    /// Whether a class is the framework's (or the standard library's) to classify; an app's own model class held in `@State` is the app's contract: written by
+    /// its actions, and a build must not write it (the doc contract of `RK-AJ`).
+    static func isFrameworkReference(_ value: Any) -> Bool { frameworkModules.contains(referenceModule(of: value)) }
+
+    /// The classification of a class held in an entry, `nil` for one nobody has classified.
+    static func kind(ofReference value: Any, named name: String) -> ReferenceKind? {
+        if value is AttemptRestorable { return .restorable }
+        return classifiedReferences[name]
+    }
+
+    static let frameworkModules: Set<String> = ["MetalUI", "MetalUICore", "MetalUILayout", "MetalUIScene", "MetalUIText", "MetalUITextSystem", "MetalUIPortableText", "Swift"]
+
+    /// The classes held in state entries that are neither `AttemptRestorable` nor classified, among `modules`' (the framework's by default): the rollback cannot digest
+    /// what such a class holds, so an in-place write to it would go unseen (`RK-AJ`).
+    func unclassifiedReferences(inModules modules: Set<String> = StateTable.frameworkModules) -> [String] {
+        var samples: [String: Any] = [:]
+        for (_, entry) in storage { Self.collectSamples(in: entry.value, into: &samples, depth: 0) }
+        return samples.filter { modules.contains(Self.referenceModule(of: $0.value)) && Self.kind(ofReference: $0.value, named: $0.key) == nil }.keys.sorted()
+    }
+
+    /// Verify mode traps on a framework class held in state that is neither `AttemptRestorable` nor classified.
+    func verifyReferencesAreClassified() {
+        if let name = unclassifiedReferences().first {
+            preconditionFailure("METALUI_VERIFY_RETAINED: rollback: a class held in state is neither AttemptRestorable nor classified: \(name)")
+        }
+    }
+
+    private static func collectSamples(in value: Any, into samples: inout [String: Any], depth: Int) {
+        let mirror = Mirror(reflecting: value)
+        if mirror.displayStyle == .class {
+            let name = referenceName(of: value)
+            if samples[name] == nil { samples[name] = value }
+            return
+        }
+        guard depth < 6 else { return }
+        for child in mirror.children.prefix(16) { collectSamples(in: child.value, into: &samples, depth: depth + 1) }
+    }
+
+    /// Classes known to be held in state entries that are not `AttemptRestorable`. A new one owes a row here, and the census test names it.
+    static let classifiedReferences: [String: ReferenceKind] = [
+        // Copy-on-write: `AXNode.declarations`' setter copies, the stored box is never written.
+        "AXDeclarationsBox": .immutable,
+        // Swift's key paths are immutable objects.
+        "KeyPath": .immutable, "WritableKeyPath": .immutable, "ReferenceWritableKeyPath": .immutable, "PartialKeyPath": .immutable,
+        // A memo whose answer is a pure function of its argument (asking twice answers the same, so a retained double build is safe).
+        "MarkdownSourceMemo": .cache,
+        // A hint of row positions that every reader verifies with one read (`TBL-N`).
+        "TableRowPositionCache": .cache,
+        // The divider drag in progress: written by the drag gesture (input), never by a build (`TBL-S`).
+        "TableResizeDragBox": .immutable,
+    ]
+}

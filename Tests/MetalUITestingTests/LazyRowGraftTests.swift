@@ -139,7 +139,7 @@ private struct G49LazyRow: Component, @MainActor Equatable {
     }
 }
 
-private struct G49MirroredRoot: Component {
+struct G49MirroredRoot: Component {
     let side: RPSide
     let twoAxis: Bool
     var content: some ElementGroup {

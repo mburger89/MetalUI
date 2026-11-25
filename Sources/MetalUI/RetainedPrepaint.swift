@@ -576,7 +576,7 @@ extension ContentMemoStore {
     /// work was thrown away; `redos` counts the redo).
     func noteRedo(_ entries: [Entry]) {
         let serial = buildSerial
-        prepaintSuspendedUntil = serial + 9
+        if redoBackoff { prepaintSuspendedUntil = serial + 9 }
         var seen = Set<ObjectIdentifier>()
         for entry in entries where seen.insert(ObjectIdentifier(entry)).inserted {
             entry.quarantineUntil = serial + 1 + (8 << entry.redoExponent)

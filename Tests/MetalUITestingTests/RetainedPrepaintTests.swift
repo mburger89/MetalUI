@@ -204,6 +204,9 @@ struct RPCard: Component, @MainActor Equatable {
     static func == (l: RPCard, r: RPCard) -> Bool { l.title == r.title && l.shade == r.shade && l.log === r.log }
 }
 
+/// Whether a pair's retaining window backs off after a redo (`Window.testingRedoBackoff`); a test that reads what the backoff hid sets it false and restores it (record 419).
+nonisolated(unsafe) var rpRedoBackoff = true
+
 /// Two windows over one builder: `on` retains with prepaint replay, `off` retains nothing.
 @MainActor final class RPPair<Root: Element> {
     let on: TestWindow, off: TestWindow
@@ -229,6 +232,7 @@ struct RPCard: Component, @MainActor Equatable {
         // non-zero tick, a few ms apart, and a second boundary between the two anchors draws two different dates (`RK-AD`).
         on.window.testingTimelineClockOffset = 0; off.window.testingTimelineClockOffset = 0
         off.window.testingRetainedSubtrees = false
+        on.window.testingRedoBackoff = rpRedoBackoff
         on.window.testingRetainedGraft = graft   // lane 1's pins count a build that runs; lane 2's tests grafts (`RK-B`)
         for _ in 0..<warm { redraw() }
         // FC-E: the first draw seats the first `.focusable()` and a focused element makes its first `.equatable()` subtree

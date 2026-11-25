@@ -230,7 +230,8 @@ public struct LayoutPass {
     /// it is an input a consumer (`List`) must design against, and this is the
     /// doc a reader of THIS property will actually open.
     public var scrollContext: ScrollContext? {
-        frame.activeScrollContext
+        frame.noteScrollContextRead()   // `GL-K`'s find (record 419): a graft stands only while what was read here is what is read now
+        return frame.activeScrollContext
     }
 
     /// The ambient animation transaction for this build, or `nil` — spec §3's

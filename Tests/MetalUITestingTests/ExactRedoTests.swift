@@ -1,5 +1,6 @@
 import Foundation
 @testable import MetalUI
+import MetalUIDemoContent
 import MetalUIScene
 import MetalUITesting
 import Testing
@@ -28,7 +29,9 @@ struct XRRow: Component, @MainActor Equatable {
 /// scroller anchored to its end, with a streaming last element and a replayed card under an opacity that changes (`RK-C`).
 /// `zoom` is `aZoomedNodeIsHitWhereItIsDrawn`'s shape (ten `.equatable()` nodes under `scaleEffect`, `RZ-`) under the same trigger: every
 /// zoom step asks the atlas for glyphs at a scale it has not packed.
-enum XRArm: String, CaseIterable { case transcript, variableList, grid, zoom }
+/// `mirrored` is a lazy row in a right-to-left horizontal scroller (`aMirroredScrollersGrowing...`'s shape: the content extent reaches `LazyOrigin`); the
+/// pin scrolls it each step so the attempt writes the scroller's state.
+enum XRArm: String, CaseIterable { case transcript, variableList, grid, zoom, mirrored }
 
 /// A streaming word of letters no earlier word used (Latin Extended-A), so every step asks the atlas for a glyph it has not packed.
 func xrStreaming(_ step: Int) -> String {
@@ -38,13 +41,34 @@ func xrStreaming(_ step: Int) -> String {
 struct XRRoot: Component {
     let side: RPSide
     let arm: XRArm
+    /// A `TimelineView` and an element with `onAppear` and `onDisappear` that comes and goes, above the container: the timeline cursors and the
+    /// lifecycle events a redo must deliver once (`RK-U`).
+    var extras = false
     var content: some ElementGroup {
         let dimmed = side.model.n % 2 == 1
         let blocks = g49Blocks + [G49Block(id: 999, kind: 1, text: xrStreaming(Int(side.inputs.offset)))]
         VStack(spacing: 0) {
             // The redo's trigger: a replayed card under an ancestor whose opacity changes (`RK-C`).
             ZStack { RPCard(title: "A", shade: 1, log: side.log).equatable() }.opacity(dimmed ? 0.5 : 1)
-            if arm == .zoom {
+            if extras {
+                TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 1)) { context in
+                    Text("tick \(context.date.timeIntervalSinceReferenceDate)").frame(width: Pixels(160), height: Pixels(14))
+                }
+                ZStack {
+                    if side.model.n % 3 != 0 {
+                        Text("shown").onAppear { side.log.add("appear \(side.model.n)") }.onDisappear { side.log.add("disappear") }
+                    }
+                }.frame(width: Pixels(60), height: Pixels(14))
+            }
+            if arm == .mirrored {
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: Pixels(0)) {
+                        ForEach(0..<200, id: \.self) { i in Text("c\(i)").frame(width: Pixels(40), height: Pixels(20)) }
+                    }
+                }
+                .environment(\.layoutDirection, LayoutDirection.rightToLeft)
+                .frame(width: Pixels(300), height: Pixels(100))
+            } else if arm == .zoom {
                 ZoomRoot(side: side)
             } else {
             ScrollViewReader { _ in
@@ -56,7 +80,7 @@ struct XRRoot: Component {
                         }.padding(g49Inset)
                     case .variableList:
                         List(blocks, estimatedRowHeight: Pixels(60)) { b in VStack(spacing: 0) { XRRow(block: b) } }
-                    case .zoom:
+                    case .zoom, .mirrored:
                         Box()
                     case .grid:
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Pixels(8)) {
@@ -72,13 +96,14 @@ struct XRRoot: Component {
     }
 }
 
-@MainActor func xrPair(_ arm: XRArm = .transcript) throws -> RPPair<some Element> {
-    try RPPair(size: sz(420, 600), scale: 2, warm: 8, accessibility: false) { side in VStack(spacing: 0) { XRRoot(side: side, arm: arm) } }
+@MainActor func xrPair(_ arm: XRArm = .transcript, extras: Bool = false) throws -> RPPair<some Element> {
+    try RPPair(size: sz(420, 600), scale: 2, warm: 8, accessibility: false) { side in VStack(spacing: 0) { XRRoot(side: side, arm: arm, extras: extras) } }
 }
 
 /// One streamed word and one opacity change on both sides, settled, one frame each.
-@MainActor func xrStep(_ pair: RPPair<some Element>, zoom: Bool = false) async {
+@MainActor func xrStep(_ pair: RPPair<some Element>, zoom: Bool = false, scrolls: Bool = false) async {
     pair.onSide.model.n += 1; pair.offSide.model.n += 1
+    if scrolls { for w in [pair.on, pair.off] { w.scroll(at: pt(150, 100), byDeltaX: 40, deltaY: 0) } }
     for side in [pair.onSide, pair.offSide] { side.inputs.offset = zoom ? 1 + 0.02 * Float(side.model.n) : side.inputs.offset + 1 }
     await rsSettle()
     pair.redraw()
@@ -92,6 +117,13 @@ struct XRRoot: Component {
         glyph.atlasBounds.size.width > 0 && window.window.glyphAtlas.key(forAtlasX: glyph.atlasBounds.origin.x, y: glyph.atlasBounds.origin.y,
                                                                          width: glyph.atlasBounds.size.width, height: glyph.atlasBounds.size.height) == nil
     }.count
+}
+
+/// The redos the retaining window made since the last call (a scroll or a clock step may draw more than one frame).
+@MainActor func xrRedos(_ pair: RPPair<some Element>) -> Int {
+    let redos = pair.on.frameWork.map(\.retainedRedos).reduce(0, +)
+    pair.on.resetFrameWork()
+    return redos
 }
 
 @MainActor func xrBoundsDifferences(_ pair: RPPair<some Element>) -> [String] {
@@ -136,7 +168,7 @@ func theRedoFrameRegistersTheElementBoundsAFreshFrameDoes() async throws {
 func aRolledBackAttemptLeavesEveryStoreAsItFoundIt(arm: XRArm) async throws {
     let pair = try xrPair(arm)
     pair.on.window.testingRollbackDigests = []
-    for _ in 0..<30 { await xrStep(pair, zoom: arm == .zoom) }
+    for _ in 0..<30 { await xrStep(pair, zoom: arm == .zoom, scrolls: arm == .mirrored) }
     let rolled = try #require(pair.on.window.testingRollbackDigests)
     try #require(rolled.count >= 2, "\(arm.rawValue): redos \(rolled.count)")
     var wrote = 0, wroteAtlas = 0
@@ -149,7 +181,7 @@ func aRolledBackAttemptLeavesEveryStoreAsItFoundIt(arm: XRArm) async throws {
         if Set(digests.during.filter { $0.hasPrefix("packer ") || $0.hasPrefix("slot ") }) != atlasBefore { wroteAtlas += 1 }
     }
     #expect(wrote >= 1, "\(arm.rawValue): no attempt wrote anything the rollback had to undo")
-    #expect(wroteAtlas >= 1, "\(arm.rawValue): no attempt packed a glyph the rollback had to forget")
+    if arm != .mirrored { #expect(wroteAtlas >= 1, "\(arm.rawValue): no attempt packed a glyph the rollback had to forget") }
     #expect(pair.on.window.testingAtlasAttempt.growthsInAbandoned == 0, "\(arm.rawValue): the atlas doubled inside an abandoned attempt")
 }
 
@@ -162,8 +194,8 @@ func aRedoneFrameEqualsAFreshFrameInEveryChannel(arm: XRArm) async throws {
     pair.frames = []
     var redone = 0
     for step in 0..<30 {
-        await xrStep(pair, zoom: arm == .zoom)
-        let redo = pair.frames.last?.retainedRedos ?? 0
+        await xrStep(pair, zoom: arm == .zoom, scrolls: arm == .mirrored)
+        let redo = xrRedos(pair)
         redone += redo
         try pair.compare("\(arm.rawValue) step \(step)")
         let differences = xrBoundsDifferences(pair)
@@ -456,4 +488,168 @@ func aRedoAdvancesTheTextCachesEpochOnce() async throws {
     #expect(table.attemptLogCount == StateTable.attemptLogRetainedEntries + 5)
     table.acceptAttempt()
     #expect(table.attemptLogCount == 0 && table.lastAttempt.loggedEntries == StateTable.attemptLogRetainedEntries + 5)
+}
+
+// MARK: delivered events, timeline cursors, and what the backoff hid (record 419)
+
+/// A redo delivers each lifecycle event once and leaves the timeline's cursors where a fresh frame has them (`RK-U`, `RK-AD`): a `TimelineView` and an
+/// element that appears and disappears every few frames beside the container, thirty steps under the opacity trigger; the logs (the
+/// delivered `onAppear` and `onDisappear` events, in order), the scene (the timeline's drawn date), the pending wake and the Tab order equal the
+/// plain window's after every step, with the clock advanced between some of them.
+@Test(.enabled(if: !rsVerifying, xrVerifyingNote)) @MainActor
+func aRedoneFrameDeliversEachEventOnceAndKeepsTheTimelineCursors() async throws {
+    let pair = try xrPair(.transcript, extras: true)
+    pair.frames = []
+    var redone = 0
+    for step in 0..<30 {
+        await xrStep(pair)
+        if step % 4 == 3 { for w in [pair.on, pair.off] { w.advance(by: 0.7) } }
+        redone += pair.frames.last?.retainedRedos ?? 0
+        try pair.compare("step \(step)")
+        #expect(pair.on.window.testingTimelineWakeDate == pair.off.window.testingTimelineWakeDate, "step \(step): the pending timeline wake")
+    }
+    #expect(redone >= 2, "redos \(redone)")
+    #expect(pair.onSide.log.entries.contains { $0.hasPrefix("appear") } && pair.onSide.log.entries.contains("disappear"), "events were delivered: \(pair.onSide.log.entries.count)")
+}
+
+/// What the window-wide backoff used to hide (`Window.testingRedoBackoff = false`, record 419): with it off a redo is followed by replay at once, so the frame after
+/// a redo is the replay of a frame that was built after a rollback. The fixtures that went red under a scoped redo in record 416 and the transcript fixtures
+/// equal the plain window at every step, every arm, redos as often as the opacity changes. Mutations: the rollback off (`rollBackAttempt` doing nothing).
+@Test(.enabled(if: !rsVerifying, xrVerifyingNote), arguments: XRArm.allCases) @MainActor
+func theFixturesHoldWithTheRedoBackoffOff(arm: XRArm) async throws {
+    rpRedoBackoff = false
+    defer { rpRedoBackoff = true }
+    let pair = try xrPair(arm, extras: arm == .transcript)
+    pair.frames = []
+    var redone = 0, backedOff = 0
+    for step in 0..<30 {
+        await xrStep(pair, zoom: arm == .zoom, scrolls: arm == .mirrored)
+        backedOff += pair.on.frameWork.map(\.retainedBackoffFrames).reduce(0, +)
+        redone += xrRedos(pair)
+        try pair.compare("\(arm.rawValue) step \(step)")
+        #expect(xrBoundsDifferences(pair).isEmpty, "\(arm.rawValue) step \(step): element bounds")
+        #expect(xrDanglingGlyphs(pair.on) == 0, "\(arm.rawValue) step \(step): dangling glyph records")
+        #expect(pair.on.window.testingAtlasSlots == pair.off.window.testingAtlasSlots, "\(arm.rawValue) step \(step): atlas")
+    }
+    #expect(redone >= 2, "\(arm.rawValue): redos \(redone) of 30 (the entry's own quarantine still spaces them, doubling)")
+    #expect(backedOff == 0, "\(arm.rawValue): the switch is off, so no build is suspended: \(backedOff)")
+}
+
+/// The three tests record 416 found red under a scoped redo run again with the backoff off.
+@Test(.enabled(if: !rsVerifying, xrVerifyingNote)) @MainActor
+func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
+    rpRedoBackoff = false
+    defer { rpRedoBackoff = true }
+    try await aMirroredScrollersGrowingExtentLeavesTheLazyWindowWhereAFreshFrameWouldPutIt(twoAxis: false)
+    try await aMirroredScrollersGrowingExtentLeavesTheLazyWindowWhereAFreshFrameWouldPutIt(twoAxis: true)
+    try await aZoomedNodeIsHitWhereItIsDrawn()
+}
+
+// MARK: the census of references held in state (`RK-AJ`, record 419)
+
+/// One demo window's class types held in state, after it is idle and one wheel step has passed over its middle.
+@MainActor private func xrCensus(_ content: @escaping @MainActor () -> some Element) async throws -> [String: String] {
+    let w = try harnessWindow(size: sz(1100, 700)) { content() }
+    try await w.runUntilIdle()
+    w.scroll(at: pt(550, 350), byDeltaX: 0, deltaY: -40)
+    try await w.runUntilIdle()
+    w.window.setNeedsRedraw(); w.tick()
+    return w.window.testingStateReferenceClasses
+}
+
+/// Every class type held in a state entry, across the demo windows, is `AttemptRestorable` (it journals its own writes) or classified as a cache
+/// or immutable (`RK-AJ`). A class the census finds that is neither fails here by name and entry path; verify mode traps on it
+/// (`StateTable.verifyReferencesAreClassified`). Adding a class to an entry owes a conformance or a row in `StateTable.classifiedReferences`.
+@Test @MainActor func everyReferenceHeldInStateIsClassified() async throws {
+    let demos: [(String, () async throws -> [String: String])] = [
+        ("demo", { try await xrCensus { demoContent() } }), ("textInput", { try await xrCensus { textInputDemoContent() } }),
+        ("controls", { try await xrCensus { controlsDemoContent() } }), ("table", { try await xrCensus { tableDemoContent() } }),
+        ("lazy", { try await xrCensus { lazyContainersDemoContent() } }), ("variableList", { try await xrCensus { variableListDemoContent() } }),
+        ("outline", { try await xrCensus { outlineDemoContent() } }), ("codeView", { try await xrCensus { codeViewDemoContent() } }),
+        ("markdown", { try await xrCensus { markdownDemoContent() } }), ("richText", { try await xrCensus { richTextDemoContent() } }),
+        ("selection", { if #available(macOS 15, *) { return try await xrCensus { selectionDemoContent() } } else { return [:] } }), ("textSelection", { if #available(macOS 15, *) { return try await xrCensus { textSelectionDemoContent() } } else { return [:] } }),
+        ("menus", { try await xrCensus { menusDemoContent() } }), ("overlays", { try await xrCensus { overlaysDemoContent() } }),
+        ("appShell", { try await xrCensus { appShellDemoContent() } }), ("chrome", { try await xrCensus { chromeDemoContent() } }),
+        ("looks", { try await xrCensus { looksDemoContent() } }), ("glass", { try await xrCensus { liquidGlassDemoContent() } }),
+        ("canvas", { try await xrCensus { canvasDemoContent() } }), ("dragAndDrop", { try await xrCensus { dragAndDropDemoContent() } }),
+        ("invalidation", { try await xrCensus { invalidationDemoContent() } }), ("retained", { try await xrCensus { retainedSubtreeDemoContent() } }),
+        ("keyFocus", { try await xrCensus { keyFocusDemoContent() } }), ("services", { try await xrCensus { servicesDemoContent() } }),
+        ("clipboard", { try await xrCensus { clipboardDemoContent() } }), ("tabs", { try await xrCensus { tabStripDemoContent() } }),
+        ("accessibility", { try await xrCensus { accessibilityDisplayDemoContent() } }),
+    ]
+    var found: [String: String] = [:]
+    for (name, run) in demos {
+        for (type, path) in try await run() where found[type] == nil { found[type] = "\(name): \(path.suffix(60))" }
+    }
+    print("CENSUS \(found.sorted { $0.key < $1.key }.map { "\($0.key) <- \($0.value.prefix(80))" })")
+    #expect(found["RowExtentIndex"] != nil, "the census reaches a lazy container's index: \(found.keys.sorted())")
+    var unclassified: [String] = []
+    let framework = StateTable.frameworkModules
+    for type in found.keys.sorted() {
+        let module = String((found[type] ?? "").prefix { $0 != "|" })
+        // `RowExtentIndex` is `AttemptRestorable`; the rest are in `StateTable.classifiedReferences`; an app's own class (the demos' models) is the app's contract.
+        if framework.contains(module), type != "RowExtentIndex", StateTable.classifiedReferences[type] == nil {
+            unclassified.append("\(type) (\(found[type] ?? ""))")
+        }
+    }
+    // The classification table names no class nobody holds in any demo (it cannot rot), except Swift's key path subclasses.
+    let stale = StateTable.classifiedReferences.keys.filter { found[$0] == nil && !$0.hasSuffix("KeyPath") }.sorted()
+    #expect(stale.isEmpty, "classified but held by no demo window: \(stale)")
+    #expect(unclassified.isEmpty, "classes held in state with no classification: \(unclassified)")
+}
+
+private final class XRUnclassifiedBox { var count = 0 }
+private final class XRJournalledBox: AttemptRestorable {
+    func beginAttempt() {}
+    func rollbackAttempt() {}
+    func endAttempt() {}
+    var attemptContents: String { "" }
+}
+
+/// Verify mode's census (`RK-AJ`): a class held in a state entry, at any depth of its value, that is neither `AttemptRestorable` nor classified is named
+/// (and verify mode traps on it); a restorable one and a classified one are not. Mutation: `kind(ofReference:)` answering for every class.
+@Test @MainActor func aClassHeldInStateNeitherRestorableNorClassifiedIsNamed() {
+    let table = StateTable()
+    let id = GlobalElementID.child(of: nil, at: 0, name: ElementID("held"))
+    struct Holder { var inner: [Int?]; var box: XRUnclassifiedBox?; var journalled: XRJournalledBox }
+    table.write(id, Holder(inner: [nil, 1], box: XRUnclassifiedBox(), journalled: XRJournalledBox()))
+    let module = StateTable.referenceModule(of: XRUnclassifiedBox())
+    #expect(table.unclassifiedReferences(inModules: [module]) == ["XRUnclassifiedBox"])
+    #expect(table.unclassifiedReferences().isEmpty, "a class of another module is its owner's contract")
+}
+
+struct XRLtrRoot: Component {
+    let side: RPSide
+    let rtl: Bool
+    var content: some ElementGroup {
+        let width = 50 + 90 * Int(side.inputs.offset)
+        ScrollView(.horizontal) { HStack(spacing: Pixels(0)) { G49Sibling2(width: width).equatable(); G49LazyRow2().equatable() } }
+            .environment(\.layoutDirection, rtl ? LayoutDirection.rightToLeft : LayoutDirection.leftToRight)
+            .frame(width: Pixels(300), height: Pixels(100))
+    }
+}
+private struct G49Sibling2: Component, @MainActor Equatable {
+    let width: Int
+    var content: some ElementGroup { Color(red: 0.3, green: 0.5, blue: 0.8).frame(width: Pixels(Float(width)), height: Pixels(20)) }
+}
+private struct G49LazyRow2: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        LazyHStack(spacing: Pixels(0)) { ForEach(0..<200, id: \.self) { i in Text("c\(i)").frame(width: Pixels(40), height: Pixels(20)) } }
+    }
+}
+/// A scroll step rebuilds a lazy container inside an `.equatable()` occurrence (record 419; found by running record 416's fixtures with the redo backoff off, where the
+/// nine-build backoff had been hiding it): the occurrence grafted across the scroll step, so the lazy window stayed where it was (20 glyphs against 36). The build read
+/// the scroller's offset through `LayoutPass.scrollContext` and nothing keyed it; the read is now journalled, and a graft stands only while the context in effect where the
+/// occurrence sits equals the one the build read. Both directions, both layout directions, with the backoff **on** and no redo before the scroll (a long warm-up), so the
+/// finding does not depend on the new switch. Mutation: the `scrollContextRead` check in `graftDependenciesHold` removed (20 against 36).
+@Test(arguments: [true, false]) @MainActor func aScrollStepRebuildsALazyContainerInsideAnEquatableOccurrence(rtl: Bool) async throws {
+    let pair = try RPPair(size: sz(300, 100), scale: 2, warm: 16, accessibility: false) { side in VStack(spacing: 0) { XRLtrRoot(side: side, rtl: rtl) } }
+    pair.redraw()
+    if !rsVerifying { #expect(pair.frames.last?.retainedGrafts ?? 0 > 0, "the lazy occurrence grafts before the scroll: a run that grafts nothing proves nothing") }
+    for delta in [Float(-900), 900, -300, 300] {
+        for w in [pair.on, pair.off] { w.scroll(at: pt(150, 50), byDeltaX: delta, deltaY: 0) }
+        try pair.compare("after a scroll of \(delta)")
+        pair.redraw()
+        try pair.compare("a frame after a scroll of \(delta)")
+    }
 }

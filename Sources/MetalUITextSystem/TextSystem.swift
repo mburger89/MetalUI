@@ -90,8 +90,13 @@ public protocol TextSystem: AnyObject, Sendable {
     func beginFrame()
     func endFrame()
     /// Ends a frame ``beginFrame()`` opened that is built again (`RK-C`'s redo, `GL-K`): the epoch goes back to what it was before
-    /// ``beginFrame()`` and nothing is swept, so the redo is the frame's one aging step, not a second. The default is ``endFrame()``,
-    /// for a system whose caches do not age by frame.
+    /// ``beginFrame()`` and nothing is swept, so the redo is the frame's one aging step, not a second. A system that ages its caches by
+    /// frame implements this.
+    ///
+    /// **The default is ``endFrame()``, not a no-op** (record 419). A conformer that checks its bracket (`ShapingCache` traps a
+    /// `beginFrame()` while one is open) needs every `beginFrame()` closed, and a no-op default would leave the bracket open and trap at
+    /// the redo's `beginFrame()`; calling `endFrame()` closes it, at the price the system had before this requirement: it ages once for the
+    /// abandoned attempt and once for the redo. That is a cache residency cost (an entry may be dropped a frame early), never a wrong frame.
     func abandonFrame()
 }
 
