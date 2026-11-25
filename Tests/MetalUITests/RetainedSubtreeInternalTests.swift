@@ -200,6 +200,9 @@ private let stateTableChannels: [String: Channel] = [
     "departedOverlay": .buildOnly, "focusStates": .buildOnly, "departedRoots": .buildOnly, "prepaintLog": .frameLocal,
     "doomedKeys": .buildOnly, "resetFocusSlots": .buildOnly, "isDirty": .ledger, "onWrite": .frameLocal, "writer": .frameLocal,
     "writeCount": .ledger,
+    // The attempt's undo log (`RK-AI`): armed by the window for a build that may be abandoned, closed by the sweep or the rollback.
+    "attemptArmed": .frameLocal, "attemptUndo": .frameLocal, "attemptMarked": .frameLocal, "attemptReadCount": .frameLocal,
+    "attemptMarkCount": .frameLocal, "attemptRestorables": .frameLocal, "lastAttempt": .frameLocal,
 ]
 
 private let animationStoreChannels: [String: Channel] = [

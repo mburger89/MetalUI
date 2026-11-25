@@ -199,7 +199,7 @@ struct LazyStackEngine<Content: ProposalElementGroup> {
         let stored = pass.frame.stateTable.peek(id, as: LazyOrigin.self)
         let plan = LazyLinePlanner.plan(lineCount: table.count, key: table.key, stored: stored,
                                         origin: stored?.offset ?? 0, context: pass.scrollContext,
-                                        axis: scrollAxis)
+                                        axis: scrollAxis, stateTable: pass.frame.stateTable)
         table.begin(parent: id, pass: &pass)
         var boxes: [LazyUnitBox] = []
         boxes.reserveCapacity(plan.window.count)

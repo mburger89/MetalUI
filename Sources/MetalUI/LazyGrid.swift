@@ -266,7 +266,8 @@ struct LazyGridEngine<Content: ProposalElementGroup> {
         let unitCount = perLine > 0 ? table.count : 0
         let lineCount = perLine > 0 ? (unitCount + perLine - 1) / perLine : 0
         let plan = LazyLinePlanner.plan(lineCount: lineCount, key: { table.key($0 * perLine) }, stored: stored,
-                                        origin: stored?.offset ?? 0, context: pass.scrollContext, axis: scrollAxis)
+                                        origin: stored?.offset ?? 0, context: pass.scrollContext, axis: scrollAxis,
+                                        stateTable: pass.frame.stateTable)
         table.begin(parent: id, pass: &pass)
         let cells = (plan.window.lowerBound * perLine)..<Swift.min(plan.window.upperBound * perLine, unitCount)
         var boxes: [LazyUnitBox] = []

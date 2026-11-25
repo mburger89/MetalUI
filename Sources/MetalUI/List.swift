@@ -513,7 +513,7 @@ where Data.Element: Identifiable {
             arrangement = .uniform
         case .variable(let estimate):
             let plan = variableWindow(count: count, stored: stored, origin: origin,
-                                      context: context, estimate: estimate)
+                                      context: context, estimate: estimate, stateTable: pass.frame.stateTable)
             window = plan.window
             arrangement = plan.arrangement
             layoutExtents = plan.index
@@ -882,10 +882,11 @@ extension List {
     /// item 3, `VL-O`). The window is `VL-F`'s: the anchor − 2 ..< the row
     /// holding the viewport's bottom + 1 + 2, clamped.
     fileprivate func variableWindow(count: Int, stored: ListOrigin?, origin: Double,
-                                    context: ScrollContext?, estimate: Pixels?)
+                                    context: ScrollContext?, estimate: Pixels?, stateTable: StateTable)
         -> (window: Range<Int>, arrangement: ListRowArrangement,
             index: RowExtentIndex<Data.Element.ID>?, anchor: (index: Int, y: Double)?) {
         let storedIndex = stored?.extents as? RowExtentIndex<Data.Element.ID>
+        if let storedIndex { stateTable.restorable(storedIndex) }   // `RK-AJ`: this plan may rebuild it, and an attempt may be abandoned
         guard let context, context.axis == .vertical, context.viewportExtent > 0 else {
             if let storedIndex, storedIndex.count != count { storedIndex.rebuild(ids: data.lazy.map(\.id)) }
             return (0..<count, .variable(anchorSlot: 0, anchorY: 0, trailingExtent: 0), storedIndex, nil)
@@ -998,6 +999,7 @@ extension List {
                 }
             }
             if let extents = held {
+                pass.frame.stateTable.restorable(extents)   // `RK-AJ`: the records below mutate it in place
                 if extents.count != count { extents.rebuild(ids: data.lazy.map(\.id)) }
                 let width = Double(bounds.size.width.value)
                 if extents.width != width { extents.forgetMeasurements(width: width) }
