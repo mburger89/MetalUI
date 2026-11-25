@@ -116,7 +116,7 @@ private final class Log: @unchecked Sendable { var widths: [Double?] = [] }
     }
     let root = tree.newNativeLinearStack(children: [
         tree.newNativeFrame(child: fixedLeaf(tree, 1), width: 4),
-        tree.newNativeFrame(child: probed, maxWidth: .infinity),
+        tree.newNativeFrame(child: probed, maxWidth: .infinity)
     ], axis: .horizontal)
     tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 50), in: LayoutRect(x: 0, y: 0, width: 100, height: 50))
     #expect(Set(log.widths.compactMap { $0 }) == [0, 96], "\(log.widths)")
@@ -200,7 +200,7 @@ private func stack(_ tree: LayoutTree, axis: ProposalStackAxis, specs: [Bounds1]
         ("max inf only", Bounds1(maximum: inf),
          [(10, false), (10, false), (100, false), (500, false), (900, false), (inf, true)]),
         ("fixed 150", Bounds1(width: 150),
-         [(150, true), (150, true), (150, true), (150, true), (150, true), (150, true)]),
+         [(150, true), (150, true), (150, true), (150, true), (150, true), (150, true)])
     ]
     for row in rows {
         for (proposal, expected) in zip(proposals, row.answers) {

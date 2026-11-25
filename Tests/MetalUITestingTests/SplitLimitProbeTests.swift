@@ -173,7 +173,7 @@ private struct PaneSpec: CustomStringConvertible {
 private let paneSpecs: [PaneSpec] = [
     PaneSpec(minimum: 50, ideal: 100, maximum: 200), PaneSpec(minimum: 40, maximum: 160), PaneSpec(maximum: 150),
     PaneSpec(minimum: 80), PaneSpec(ideal: 130), PaneSpec(minimum: 30, ideal: 60), PaneSpec(minimum: 100, maximum: .infinity),
-    PaneSpec(), PaneSpec(minimum: 90, ideal: 90, maximum: 90),
+    PaneSpec(), PaneSpec(minimum: 90, ideal: 90, maximum: 90)
 ]
 
 @MainActor @ProposalContentBuilder
