@@ -104,5 +104,7 @@ private let g51ByteCeiling = 20_650_000.0
 // frame later, as every non-redo wrap frame does. The copy is the translation's own (a record's ops are rebuilt at the new offset), not storage the
 // abandoned attempt dropped: the redo frame itself costs the 16 master's does (`aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid`).
 private let g51LargeCeiling = 7.9
-private let g51LargeByteCeiling = 7_050_000.0
+// Record 422 (`HP-N`): the scene's arrays reserve a size class, up to an eighth over, so the large bytes read 7.07 MB (the bytes are
+// not the lever there, the sizes are: `G52StreamingCapacityTests`).
+private let g51LargeByteCeiling = 7_250_000.0
 private let g51AllocationCeiling = 176_500.0

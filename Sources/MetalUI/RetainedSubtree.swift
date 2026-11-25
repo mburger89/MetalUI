@@ -982,7 +982,7 @@ extension Frame {
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
         // `PA-H`: loops, not closures through stdlib generics (a dynamic isolation check each), into reserved arrays.
-        record.scene.reserveCapacity(ops.count)
+        record.scene.reserveCapacity(steadyCapacity(ops.count))   // `G52`
         for op in ops where op.boundary == recorder.entryHeight { record.scene.append(op) }
         // The final stream is valid only when every outer scope is a plain effect: a pure map of the leaf
         // by parameters the key holds. A shadow, blur, composite, capture or barrier outside needs the
@@ -995,7 +995,7 @@ extension Frame {
             record.finalIsScene = true
         } else if allEffects {
             var final: [RetainLog.SceneOp] = []
-            final.reserveCapacity(ops.count)
+            final.reserveCapacity(steadyCapacity(ops.count))   // `G52`
             for op in ops where op.boundary == 0 { final.append(op) }
             record.finalScene = final
         }

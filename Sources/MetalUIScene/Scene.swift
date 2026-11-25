@@ -203,10 +203,12 @@ public struct Scene: Sendable {
     /// that inserts about as many as the last one grows no array on the way (`HP-L`). Reserve only: the scene stays empty.
     package mutating func reserveCapacity(rects rectCount: Int, glyphs glyphCount: Int) {
         if rectCount > 0 {
-            rects.reserveCapacity(rectCount); rectSequence.reserveCapacity(rectCount); rectLayer.reserveCapacity(rectCount)
+            let n = steadyCapacity(rectCount)
+            rects.reserveCapacity(n); rectSequence.reserveCapacity(n); rectLayer.reserveCapacity(n)
         }
         if glyphCount > 0 {
-            glyphs.reserveCapacity(glyphCount); glyphSequence.reserveCapacity(glyphCount); glyphLayer.reserveCapacity(glyphCount)
+            let n = steadyCapacity(glyphCount)
+            glyphs.reserveCapacity(n); glyphSequence.reserveCapacity(n); glyphLayer.reserveCapacity(n)
         }
     }
 
@@ -599,7 +601,7 @@ public struct Scene: Sendable {
 
         // (layer, order, sequence, kind, indexWithinKind)
         var merged: [(Int, MUIUInt, Int, PrimitiveKind, Int)] = []
-        merged.reserveCapacity(rectCount + glyphCount + imageCount + surfaceCount + backdropCount + groupCount)
+        merged.reserveCapacity(steadyCapacity(rectCount + glyphCount + imageCount + surfaceCount + backdropCount + groupCount))
         // `while` loops and indexed `last`: a `for` over a range or an array, and `.last`, allocate once per
         // element in a debug build, and this runs once per primitive per frame (`CV-R`).
         var i = 0
@@ -632,7 +634,16 @@ public struct Scene: Sendable {
             merged.append((groupLayer[i], groups[i].order, groupSequence[i], .group, i))
             i += 1
         }
-        merged.sort { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }
+        // Emission order is nearly always the draw order already; the sort's scratch buffer is a block as long as half the
+        // scene and its size moves with it every frame (`G52`), so it is paid only for a scene that needs it.
+        var ordered = true
+        var next = 1
+        while next < merged.count {
+            let a = merged[next - 1], b = merged[next]
+            if (b.0, b.1, b.2) < (a.0, a.1, a.2) { ordered = false; break }
+            next += 1
+        }
+        if !ordered { merged.sort { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) } }
 
         // One walk over `merged` fills every permuted array and the draw list.
         // Written into locals and assigned once at the end, so no stored array
@@ -663,21 +674,21 @@ public struct Scene: Sendable {
         // computed against the pre-permutation array.
         var runBoxes: [(minX: Int, minY: Int, maxX: Int, maxY: Int)] = []
         var runs: [DrawRun] = []
-        sortedBackdrops.reserveCapacity(backdropCount)
-        sortedBackdropSequence.reserveCapacity(backdropCount)
-        sortedBackdropLayer.reserveCapacity(backdropCount)
-        sortedRects.reserveCapacity(rectCount)
-        sortedRectSequence.reserveCapacity(rectCount)
-        sortedRectLayer.reserveCapacity(rectCount)
-        sortedGlyphs.reserveCapacity(glyphCount)
-        sortedGlyphSequence.reserveCapacity(glyphCount)
-        sortedGlyphLayer.reserveCapacity(glyphCount)
-        sortedImages.reserveCapacity(imageCount)
-        sortedImageSequence.reserveCapacity(imageCount)
-        sortedImageLayer.reserveCapacity(imageCount)
-        sortedSurfaces.reserveCapacity(surfaceCount)
-        sortedSurfaceSequence.reserveCapacity(surfaceCount)
-        sortedSurfaceLayer.reserveCapacity(surfaceCount)
+        sortedBackdrops.reserveCapacity(steadyCapacity(backdropCount))
+        sortedBackdropSequence.reserveCapacity(steadyCapacity(backdropCount))
+        sortedBackdropLayer.reserveCapacity(steadyCapacity(backdropCount))
+        sortedRects.reserveCapacity(steadyCapacity(rectCount))
+        sortedRectSequence.reserveCapacity(steadyCapacity(rectCount))
+        sortedRectLayer.reserveCapacity(steadyCapacity(rectCount))
+        sortedGlyphs.reserveCapacity(steadyCapacity(glyphCount))
+        sortedGlyphSequence.reserveCapacity(steadyCapacity(glyphCount))
+        sortedGlyphLayer.reserveCapacity(steadyCapacity(glyphCount))
+        sortedImages.reserveCapacity(steadyCapacity(imageCount))
+        sortedImageSequence.reserveCapacity(steadyCapacity(imageCount))
+        sortedImageLayer.reserveCapacity(steadyCapacity(imageCount))
+        sortedSurfaces.reserveCapacity(steadyCapacity(surfaceCount))
+        sortedSurfaceSequence.reserveCapacity(steadyCapacity(surfaceCount))
+        sortedSurfaceLayer.reserveCapacity(steadyCapacity(surfaceCount))
 
         var entryIndex = 0
         while entryIndex < merged.count {
@@ -779,6 +790,16 @@ public struct Scene: Sendable {
         groupLayer = sortedGroupLayer
         drawList = runs
     }
+}
+
+/// `count` rounded up to a step of an eighth of its power of two (`G52`): a count that grows by a few elements a frame
+/// (a streaming reply) maps to one capacity for many frames, so the array a frame allocates is the size the last frame
+/// freed and malloc's large-block cache serves it again instead of a fresh region each frame. Under 1024 it is `count`:
+/// those arrays are small blocks malloc already reuses. Never below `count`, at most an eighth above it.
+package func steadyCapacity(_ count: Int) -> Int {
+    guard count >= 1024 else { return count }
+    let step = (1 << (Int.bitWidth - 1 - count.leadingZeroBitCount)) >> 3
+    return (count + step - 1) / step * step
 }
 
 extension MUITransform {
