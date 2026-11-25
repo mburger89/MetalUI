@@ -23,7 +23,7 @@ struct CTRow: Component, @MainActor Equatable {
         VStack(alignment: .leading, spacing: 6) {
             CTParagraph(text: text).equatable()
             CTParagraph(text: "second paragraph \(id)").equatable()
-            if id % 3 == 0 { Button("Allow") {} }
+            if id.isMultiple(of: 3) { Button("Allow") {} }
         }
         .padding(Edges(all: Pixels(8)))
         .frame(maxWidth: .infinity, alignment: .leading)
