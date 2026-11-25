@@ -2286,7 +2286,8 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             let after = stateTable.attemptDigest + glyphAtlas.attemptDigest
             // Verify mode's `rollback` channel (`RK-AI`): the table and the atlas after the rollback are the ones before the attempt.
             if retainedVerifiesFromEnvironment, before != after {
-                let differing = Set(before).symmetricDifference(Set(after)).sorted().first ?? "a count"
+                let lines = Set(before).symmetricDifference(Set(after)).sorted()
+                let differing = lines.first { !$0.hasPrefix("marked:") } ?? lines.first ?? "a count"
                 preconditionFailure("METALUI_VERIFY_RETAINED: rollback: the rolled-back attempt left \(differing.prefix(240))")
             }
             if let during { testingRollbackDigests?.append((before: before, during: during, after: after)) }
