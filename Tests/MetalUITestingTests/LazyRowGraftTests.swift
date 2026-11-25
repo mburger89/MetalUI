@@ -121,3 +121,65 @@ func aStreamingRowKeepsTheRowsAboveOnTheReplayPath(shape: G49Shape) async throws
     }
     try pair.compare("quiet")
 }
+
+// MARK: a mirrored scroller's content extent reaches `LazyOrigin` (record 414, review of #429)
+
+/// A sibling whose width is its value: the occurrence that grows the content extent.
+private struct G49Sibling: Component, @MainActor Equatable {
+    let width: Int
+    var content: some ElementGroup { Color(red: 0.3, green: 0.5, blue: 0.8).frame(width: Pixels(Float(width)), height: Pixels(20)) }
+}
+
+/// A lazy row that never changes: 200 cells of 40 points, its value constant.
+private struct G49LazyRow: Component, @MainActor Equatable {
+    var content: some ElementGroup {
+        LazyHStack(spacing: Pixels(0)) {
+            ForEach(0..<200, id: \.self) { i in Text("c\(i)").frame(width: Pixels(40), height: Pixels(20)) }
+        }
+    }
+}
+
+private struct G49MirroredRoot: Component {
+    let side: RPSide
+    let twoAxis: Bool
+    var content: some ElementGroup {
+        let width = 50 + 90 * Int(side.inputs.offset)
+        if twoAxis {
+            ScrollView([.horizontal, .vertical]) { HStack(spacing: Pixels(0)) { G49Sibling(width: width).equatable(); G49LazyRow().equatable() } }
+                .environment(\.layoutDirection, LayoutDirection.rightToLeft)
+                .frame(width: Pixels(300), height: Pixels(100))
+        } else {
+            ScrollView(.horizontal) { HStack(spacing: Pixels(0)) { G49Sibling(width: width).equatable(); G49LazyRow().equatable() } }
+                .environment(\.layoutDirection, LayoutDirection.rightToLeft)
+                .frame(width: Pixels(300), height: Pixels(100))
+        }
+    }
+}
+
+/// `LazyCore.prepaint` writes `LazyOrigin.offset = scroller.logicalStart(of: bounds)` through a compared `withState`; in a mirrored
+/// horizontal scroller that reads the content extent. A sibling growing the extent each frame while the lazy occurrence is unchanged
+/// must leave the lazy window where a fresh frame puts it: scene, hitboxes, bounds and the realised cells equal a non-retaining
+/// window's at every frame, in a one-axis scroller and a two-axis one whose cross slot is the mirrored one. A replayed lazy prepaint
+/// that kept a stale `LazyOrigin` shows as a different realised window (glyph counts). In these layouts a mirrored scroller's content
+/// origin and the occurrence's rect move with the extent, so the key differs for those reasons too and the test passes with the
+/// extent unkeyed as well; it is the pin that the replay path stays exact here, red when a replay is taken against a changed key
+/// (mutation: `retainedPrepaintDecisionInner` replaying whenever a ledger exists: glyph counts 20 against 36 at every step).
+@Test(.enabled(if: !rsVerifying, g49VerifyingNote), arguments: [false, true]) @MainActor
+func aMirroredScrollersGrowingExtentLeavesTheLazyWindowWhereAFreshFrameWouldPutIt(twoAxis: Bool) async throws {
+    let pair = try RPPair(size: sz(300, 100), scale: 2, warm: 6, accessibility: false) { side in
+        VStack(spacing: 0) { G49MirroredRoot(side: side, twoAxis: twoAxis) }
+    }
+    for w in [pair.on, pair.off] { w.scroll(at: pt(150, 50), byDeltaX: 900, deltaY: 0) }
+    pair.redraw(); pair.redraw()
+    try pair.compare("scrolled")
+    pair.frames = []
+    var replayed = 0
+    for step in 1...18 {   // the extent holds for 3 frames (a ledger forms) and then grows
+        pair.onSide.inputs.offset = Float(step / 3); pair.offSide.inputs.offset = Float(step / 3)
+        await rsSettle()
+        pair.redraw()
+        if (pair.frames.last?.retainedHits ?? 0) + (pair.frames.last?.retainedPrepaintHits ?? 0) > 0 { replayed += 1 }
+        try pair.compare("step \(step)")
+    }
+    #expect(replayed > 0, "an occurrence replayed in some frame: a run that replays nothing proves nothing")
+}
