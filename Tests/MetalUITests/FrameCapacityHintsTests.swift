@@ -45,3 +45,17 @@ import MetalUIPlatform
     #expect(frame.startCapacities.hitboxes == 0 && frame.startCapacities.tree.leafKeys == 0)
     #expect(frame.startCapacities.sceneGlyphs == 0 && frame.startCapacities.sceneRects == 0)
 }
+
+/// G51 (record 420): the n-th composite or mask scope of a frame opens with the room the n-th of the last frame filled, so a scope that
+/// collects a viewport of glyphs is not grown by doubling. Mutation: no `scopeCaptureHints = capacityHints.scopeCaptures` in `Frame.init`.
+@Test @MainActor func theSecondFrameReservesWhatTheFirstFramesScopeCollected() throws {
+    let (window, _) = try controlWindow(size: 800) {
+        VStack { ForEach(0..<40, id: \.self) { i in Text("row \(i) with some words so that it has glyphs to collect") } }
+            .compositingGroup().opacity(0.9)
+    }
+    let held = window.frameCapacityHints
+    #expect((held.scopeCaptures.first ?? 0) > 500, "the group's collected primitives: \(held.scopeCaptures)")
+    controlRedraw(window)
+    #expect(window.lastFrameStartCapacities.scopeCaptures == held.scopeCaptures, "\(window.lastFrameStartCapacities.scopeCaptures)")
+    #expect(held.scopeCaptures.count <= FrameCapacityHints.maxScopeHints)
+}

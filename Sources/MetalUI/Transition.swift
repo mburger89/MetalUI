@@ -574,19 +574,19 @@ struct CapturedPrimitive {
         /// contents.
         case surface(MUIImage, target: SurfaceTarget)
         /// A path, still a vector (`GX-B`): rasterized at `insertIntoScene`.
-        case path(PathPaint)
+        indirect case path(PathPaint)
         /// One leaf's shadow (`GX-J`): rasterized at `insertIntoScene`, drawn
         /// just before its leaf.
-        case shadow(ShadowPaint)
+        indirect case shadow(ShadowPaint)
         /// A gradient, still a vector (`LK-J` item 4): rasterized at
         /// `insertIntoScene`.
-        case gradient(GradientPaint)
+        indirect case gradient(GradientPaint)
         /// One leaf blurred (`LK-K`): rasterized in colour at
         /// `insertIntoScene`, in its leaf's place.
-        case blur(BlurPaint)
+        indirect case blur(BlurPaint)
         /// A material's backdrop record (`BB-A`, `BB-G`): a ghost or a drag
         /// preview replays it and blurs the live backdrop at its place.
-        case backdrop(MUIBackdrop)
+        indirect case backdrop(MUIBackdrop)
 
         /// The kind with a backdrop read as its flat tint rect: what the CPU
         /// leaf rasterizers (shadow, blur, the raster keys) see (`BB-H`).

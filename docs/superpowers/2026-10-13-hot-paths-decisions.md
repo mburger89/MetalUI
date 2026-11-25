@@ -1,6 +1,6 @@
 # Hot paths - decisions
 
-Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-M`.**
+Rulings for item P1 (user request 2026-10-02; **not a plan task**). Prefix `HP-`. **Next unused: `HP-N`.**
 Spec: [`specs/2026-10-13-hot-paths-design.md`](specs/2026-10-13-hot-paths-design.md). Record:
 `../record/111-hot-paths.md`. Branch `perf/hot-paths` from `fb9a7e42`. Divergence labels
 reserved 415-424: none taken (none yet).
@@ -153,3 +153,7 @@ named spaces, AX press-only) are left alone. A window that shrinks reserves the 
 ## HP-L - The scene's rect and glyph arrays reserve the previous frame's count (G47, record 412)
 
 **Question.** A frame's `Scene` starts empty, so its glyph array (about 200 B a glyph) doubled its way up each frame: twelve growth copies a frame in Alloy's probe, 2 MB. **Ruling.** `FrameCapacityHints` (`HP-K`) carries `sceneRects` and `sceneGlyphs`, the counts the adopted frame's scene held; `Frame.init` reserves them plus an eighth through `Scene.reserveCapacity(rects:glyphs:)` (`package`; the rect, glyph, sequence and layer arrays), reserve only. A window that shrinks reserves the large count for one frame. The test target's `countAllocatedBytes` (`MetalUITestSupport`) reads the bytes a pin on a copy's size needs. **Evidence.** Record 412. **Cost if wrong.** A wasted allocation, never a wrong frame.
+
+## HP-M - A paint scope's capture arrays, a group's scene and a layout call's dictionaries start at the last count; a captured primitive carries no rare kind inline (G51, record 420)
+
+**Question.** A streamed frame of a long transcript inside a paint scope grew, by doubling from empty, the text draw's leaf group, every composite and mask scope's `captures`, every offscreen group's scene, the layout run's measurement cache and the memo's generations, and a `CapturedPrimitive` was 424 bytes for an 88-byte glyph. **Ruling.** `Frame.beginLeafGroup(reserving:)` takes the draw's glyph count; `FrameCapacityHints.scopeCaptures` (`HP-K`'s struct, 64 entries at most) is the count each composite or mask scope collected, by opening order, and the next frame reserves it (`reserveCaptures(of:)`); `collectingIntoFreshScene(reserving:)` reserves the group's own rects and glyphs (counted with a `while`); a closed scope's captures are taken, not copied; `NativeLayoutRun` reserves the last call's count per entry point and `LayoutMemo.endFrame` makes each generation at the count of the one before; `CapturedPrimitive.Kind`'s path, shadow, gradient, blur and backdrop cases are `indirect` (424 to 272 bytes). Every size is a count carried one frame, never a buffer, and follows the count down. **A new array that a paint scope or a text draw fills per primitive owes a reserve from a known count; a new `CapturedPrimitive.Kind` case with a payload over 130 bytes is `indirect`.** **Evidence.** `G51ChurnTests`, `LayoutCacheHintTests`, `theSecondFrameReservesWhatTheFirstFramesScopeCollected`; record 420. **Cost if wrong.** A reserve of last frame's size that this frame does not fill, once; never a wrong frame.

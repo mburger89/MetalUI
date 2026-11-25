@@ -107,7 +107,7 @@ package enum ShapingTrace {
             if missed.count < ShapingTrace.maxListed { missed.append(entry) } else { missedExtra += 1 }
         }
 
-        /// A shape that no cache answers (`caretOffsets`, a styled layout the system does not cache).
+        /// A shape that no cache answers (the portable system's styled layout; `caretOffsets` is cached since `TS-F`).
         package mutating func bypass(_ entry: String) {
             if uncached.count < ShapingTrace.maxListed { uncached.append(entry) } else { uncachedExtra += 1 }
         }

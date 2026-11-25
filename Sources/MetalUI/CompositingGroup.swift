@@ -73,11 +73,15 @@ extension Frame {
         scope.leafEffect = readers.leafEffect
         scope.groupsOpacity = groupsOpacity
         scope.entryOpacity = activeOpacity
+        let ordinal = reserveCaptures(of: scope)
         paintScopes.append(scope)
         if groupsOpacity { withOpacityBase(body) } else { body() }
         paintScopes.removeLast()
+        noteCaptured(scope.captures.count, ordinal: ordinal)
         guard !scope.captures.isEmpty else { return }
+        // Taken, not copied: the scope is spent, and a second owner would make the first write below copy every primitive (`G51`).
         var captures = scope.captures
+        scope.captures = []
         if groupsOpacity {
             if captures.contains(where: { if case .backdrop = $0.kind { true } else { false } }) {
                 // A material or glass keeps its live backdrop (divergence 222): the opacity multiplies each primitive.
