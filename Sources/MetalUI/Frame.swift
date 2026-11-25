@@ -711,9 +711,23 @@ public final class Frame {
     /// left-to-right and a `Frame` has not yet registered anything.)
     private(set) var environmentTop: EnvironmentValues {
         didSet {
+            topFingerprint = nil
             let rightToLeft = environmentTop.layoutDirection == .rightToLeft
             if tree.registersRightToLeft != rightToLeft { tree.registersRightToLeft = rightToLeft }
         }
+    }
+
+    /// The fingerprint of `environmentTop`, once per top (`G47`): `nil` after any write to the top, put back by the scope that
+    /// restores a top it saved. Never read outside `sharedEnvironmentFingerprint()`.
+    private var topFingerprint: SharedFingerprint?
+
+    /// The retained fingerprint of the current environment top, shared: the same box for every occurrence under one top, and,
+    /// through the memo store's bounded slots, for the equal tops of the frames that follow.
+    func sharedEnvironmentFingerprint() -> SharedFingerprint {
+        if let cached = topFingerprint { return cached }
+        let shared = stateTable.contentMemos.canonicalFingerprint(environmentTop.retainedFingerprint)
+        topFingerprint = shared
+        return shared
     }
 
     /// The readings of the `@Environment` properties a component binds, collected by `StateBinder.bind`
@@ -962,8 +976,9 @@ public final class Frame {
     func withEnvironment<R>(_ values: EnvironmentValues, _ body: () -> R) -> R {
         environmentPushCount += 1
         let saved = environmentTop
+        let savedFingerprint = topFingerprint
         environmentTop = values
-        defer { environmentTop = saved }
+        defer { environmentTop = saved; topFingerprint = savedFingerprint }
         return body()
     }
 

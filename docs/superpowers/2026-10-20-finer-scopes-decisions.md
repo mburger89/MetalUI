@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-U`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-V`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -365,3 +365,22 @@ pixels replay and `aShiftThatAlsoResizesTheOccurrenceMisses` reddens (3 issues).
 hitbox below the ambient clip depth, so the guard has no pin; it stays as the conservative answer for a legacy `clipped(to:offsetBy:)` inside an occurrence.
 
 The 100k list test (`METALUI_RUN_100K_LIST_TEST=1`) is not owed: row naming is untouched.
+
+## FS-U - The translate path allocates nothing per cell: a shared fingerprint, a ledger rebased in place (G47, record 409)
+
+**Ruling.** A translated (scrolled or shifted) `.equatable()` occurrence pays no allocation for its keys or its ledger. (1) The environment
+fingerprint of a key is a `SharedFingerprint`, one immutable box per environment top: `Frame` caches it per top (cleared by every write to
+`environmentTop`, put back by the scope that restores one), and the window's `ContentMemoStore` keeps at most **8** boxes (`fingerprintSlotLimit`,
+most recent first) so the equal tops of the frames that follow find the box the records already hold; `AmbientKey` and `BuildKey` keep
+`environment` as a computed accessor, so no reader changes. The same box is equal by identity, distinct boxes compare by value as before (a
+fingerprint that equals nothing is never kept in a slot). (2) `AmbientKey.equalsIgnoringOffset(_:)` replaces the copy-set-offset-compare of
+`ReplayKey.shift(from:)` and `PrepaintKey.shift(to:)` (a field-by-field test of every field but the offset; `everyAmbientFieldButTheOffsetSeparates`).
+(3) A prepaint hit that moves its ledger rebases it **in place** (`PrepaintLedger.rebase(to:_:)`, `key` now `var`): the record's ledger is the record's
+alone, the next frame finds the same object at the new key. The combined effect-and-layout arm (`EL-B`) still makes a copy. (4) The layout shift is
+computed once, not twice, in the decision.
+**What is not changed.** Which occurrences hit or miss; the moved paint record (`movedPaintRecord`, 10 percent of the frame and real work); the interning of
+`GlobalElementID` (rejected, memory).
+**Evidence.** Record 409: `scrollcells eq nest` 9.46 to 8.30 ms (paired delta median -1.14, 7 pairs all negative), `phys_footprint` 54-55 to 51-52 MB mid-run,
+live blocks 72283 to 69976; a steady frame allocates 3 fewer blocks (`aNonAnimatableComponentAllocatesWhatItDid` 397 to 394).
+**Pins.** `aTranslatedFrameConstructsNoLedgerAndNoFingerprintBox`, `theFingerprintSlotsAreBoundedAndExact`, `aSharedFingerprintEqualsExactlyWhatTheFingerprintEquals`,
+`everyAmbientFieldButTheOffsetSeparates`; each mutation reddens (record 409).

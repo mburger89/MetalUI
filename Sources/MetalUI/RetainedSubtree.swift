@@ -234,13 +234,43 @@ struct AmbientKey: Equatable {
     var layerOpacityScale: [Float]
     var depths: [Int]
     var scopes: [[Double]]
-    var environment: EnvironmentFingerprint
+    /// The environment, shared by reference between the keys of one frame and of the frames that follow it (`G47`).
+    var shared: SharedFingerprint
     var snappingTransaction: Bool
     var disablesAnimations: Bool
     /// `GlyphAtlas.layoutGeneration` the frame paints against (`GL-D`): a record holds glyph sprites by atlas
     /// rect, and a rebuilt atlas names other glyphs at those rects. Part of `==` and of nothing else - no
     /// relation (`effectRelation`, translation) normalises it away.
     var atlasGeneration = 0
+
+    init(clip: [Float], offset: [Float], layerOpacityScale: [Float], depths: [Int], scopes: [[Double]],
+         shared: SharedFingerprint, snappingTransaction: Bool, disablesAnimations: Bool, atlasGeneration: Int = 0) {
+        self.clip = clip; self.offset = offset; self.layerOpacityScale = layerOpacityScale; self.depths = depths
+        self.scopes = scopes; self.shared = shared; self.snappingTransaction = snappingTransaction
+        self.disablesAnimations = disablesAnimations; self.atlasGeneration = atlasGeneration
+    }
+
+    init(clip: [Float], offset: [Float], layerOpacityScale: [Float], depths: [Int], scopes: [[Double]],
+         environment: EnvironmentFingerprint, snappingTransaction: Bool, disablesAnimations: Bool, atlasGeneration: Int = 0) {
+        self.init(clip: clip, offset: offset, layerOpacityScale: layerOpacityScale, depths: depths, scopes: scopes,
+                  shared: SharedFingerprint(environment), snappingTransaction: snappingTransaction,
+                  disablesAnimations: disablesAnimations, atlasGeneration: atlasGeneration)
+    }
+
+    /// The environment fingerprint by value (a write makes a new box).
+    var environment: EnvironmentFingerprint {
+        get { shared.value }
+        set { shared = SharedFingerprint(newValue) }
+    }
+
+    /// `self == other` with `offset` set aside, with no copy of the key: the test `ReplayKey.shift(from:)` and
+    /// `PrepaintKey.shift(to:)` made by copying, replacing the offset and comparing (`G47`). **Every stored field but `offset` is
+    /// here** (`everyAmbientFieldButTheOffsetSeparates`).
+    func equalsIgnoringOffset(_ other: AmbientKey) -> Bool {
+        snappingTransaction == other.snappingTransaction && disablesAnimations == other.disablesAnimations
+            && atlasGeneration == other.atlasGeneration && clip == other.clip && layerOpacityScale == other.layerOpacityScale
+            && depths == other.depths && scopes == other.scopes && shared == other.shared
+    }
 }
 
 extension AmbientKey {
@@ -656,7 +686,7 @@ extension Frame {
                                 contentSize.width.value, contentSize.height.value],
             depths: [clipDepth, clipBase, flatteningClipBase ?? -1, paintScopes.count],
             scopes: scopeVectors,
-            environment: environmentTop.retainedFingerprint,
+            shared: sharedEnvironmentFingerprint(),
             snappingTransaction: transactionTop.animation == nil,
             disablesAnimations: transactionTop.disablesAnimations,
             atlasGeneration: glyphAtlas.layoutGeneration)

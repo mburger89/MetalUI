@@ -84,7 +84,8 @@ final class GraftRecorder {
 /// build keys its records by. **Optimistic by design:** what the build cannot see (the occurrence's absolute
 /// rects, the paint-only ambient) is checked at prepaint and paint, and a mismatch there is the redo.
 struct BuildKey: Equatable {
-    var environment: EnvironmentFingerprint
+    /// Shared by reference with the prepaint and paint keys of the frame (`G47`).
+    var shared: SharedFingerprint
     var scale: Float
     var contentSize: Size<Pixels>
     var snapping: Bool
@@ -96,6 +97,25 @@ struct BuildKey: Equatable {
     /// prepaint key (which carries the generation) will refuse after a rebuild: a graft the prepaint then refuses is
     /// a redo of the whole frame (`RK-C`), so it is refused here, one decision earlier and at no cost.
     var atlasGeneration = 0
+
+    init(shared: SharedFingerprint, scale: Float, contentSize: Size<Pixels>, snapping: Bool, disablesAnimations: Bool,
+         stackAxis: ProposalStackAxis?, collectsAccessibility: Bool, depths: [Int], atlasGeneration: Int = 0) {
+        self.shared = shared; self.scale = scale; self.contentSize = contentSize; self.snapping = snapping
+        self.disablesAnimations = disablesAnimations; self.stackAxis = stackAxis
+        self.collectsAccessibility = collectsAccessibility; self.depths = depths; self.atlasGeneration = atlasGeneration
+    }
+
+    init(environment: EnvironmentFingerprint, scale: Float, contentSize: Size<Pixels>, snapping: Bool, disablesAnimations: Bool,
+         stackAxis: ProposalStackAxis?, collectsAccessibility: Bool, depths: [Int], atlasGeneration: Int = 0) {
+        self.init(shared: SharedFingerprint(environment), scale: scale, contentSize: contentSize, snapping: snapping,
+                  disablesAnimations: disablesAnimations, stackAxis: stackAxis, collectsAccessibility: collectsAccessibility,
+                  depths: depths, atlasGeneration: atlasGeneration)
+    }
+
+    var environment: EnvironmentFingerprint {
+        get { shared.value }
+        set { shared = SharedFingerprint(newValue) }
+    }
 }
 
 /// The counts of the channels a build can write that the journal does not replay (`RK-F`): any that moves between
@@ -206,7 +226,7 @@ final class GraftRecord {
 
 extension Frame {
     func graftBuildKey() -> BuildKey {
-        BuildKey(environment: environmentTop.retainedFingerprint, scale: scaleFactor, contentSize: contentSize,
+        BuildKey(shared: sharedEnvironmentFingerprint(), scale: scaleFactor, contentSize: contentSize,
                  snapping: transactionTop.animation == nil, disablesAnimations: transactionTop.disablesAnimations,
                  stackAxis: stackAxis, collectsAccessibility: collectsAccessibility,
                  depths: [lifecycleDepth, presentationDepth, transactionDepth, animationStore.keyframeDepth,
