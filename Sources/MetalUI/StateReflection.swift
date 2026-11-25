@@ -161,9 +161,10 @@ enum StateBinder {
             } else if let bindable = child.value as? BindableEnvironment {
                 shape.ordinals.append(index)
                 shape.hasEnvironment = true
-                if snapshot == nil { snapshot = frame.environmentSnapshot() }
-                bindable.bind(snapshot!, id: id, generation: frame.stateTable.generation)
-                if frame.environmentReadings != nil { frame.environmentReadings!.append(bindable.reading(in: snapshot!)) }
+                let environment = snapshot ?? frame.environmentSnapshot()
+                snapshot = environment
+                bindable.bind(environment, id: id, generation: frame.stateTable.generation)
+                frame.environmentReadings?.append(bindable.reading(in: environment))
             }
         }
         shapes[key] = shape
@@ -218,7 +219,7 @@ enum StateBinder {
                 // snapshot per occurrence (ruling ID-F).
                 bindable.bind(environment, id: id, generation: table.generation)
                 // The readings a memoized component compares, collected in this one pass (`EE-A`).
-                if frame.environmentReadings != nil { frame.environmentReadings!.append(bindable.reading(in: environment)) }
+                frame.environmentReadings?.append(bindable.reading(in: environment))
             }
             next += 1
             if next == ordinals.endIndex { break }

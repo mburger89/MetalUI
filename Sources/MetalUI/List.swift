@@ -338,8 +338,8 @@ where Data.Element: Identifiable {
         var storage: Box<ListRows<Row>>.Layout?
 
         var inner: Box<ListRows<Row>>.Layout {
-            get { storage! }
-            _modify { yield &storage! }
+            get { storage.required }
+            _modify { yield &storage.required }
         }
     }
 

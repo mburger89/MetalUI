@@ -235,7 +235,7 @@ final class SpliceStore {
             guard shift == 0 || shift == delta else { return nil }   // something else changed the rows: not a splice
             kept[row.key] = Kept(unit: row.unit, oldUnit: before.unit, shift: shift, from: before.y, to: row.y)
             if shift == 0 { lastUnmoved = Swift.max(lastUnmoved, row.unit) }
-            else if firstShifted == nil || before.unit < firstShifted!.oldUnit {
+            else if firstShifted.map({ before.unit < $0.oldUnit }) ?? true {
                 firstShifted = kept[row.key]
             }
         }

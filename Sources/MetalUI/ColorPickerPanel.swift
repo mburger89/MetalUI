@@ -300,7 +300,7 @@ struct ColorPlane: Element, StyledElement {
         { action in
             // The key is `AccessibilityAdjustment`'s, so the cast holds by
             // construction (`Box.onAction`'s reasoning).
-            adjust((action as! AccessibilityAdjustment).direction == .increment)
+            adjust((trapCast(action) as AccessibilityAdjustment).direction == .increment)
         }
     }
 

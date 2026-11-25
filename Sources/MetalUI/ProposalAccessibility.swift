@@ -122,7 +122,7 @@ extension Handlers {
     mutating func declareAccessibilityValue(_ value: String) { axNode.value = value }
     mutating func declareAdjustableAction(_ handler: @escaping @MainActor (AccessibilityAdjustmentDirection) -> Void) {
         actions[ObjectIdentifier(AccessibilityAdjustment.self)] = { action in
-            handler((action as! AccessibilityAdjustment).direction)
+            handler((trapCast(action) as AccessibilityAdjustment).direction)
         }
     }
     mutating func declareDefaultAction(_ handler: @escaping @MainActor () -> Void) {

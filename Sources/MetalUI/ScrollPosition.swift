@@ -263,7 +263,7 @@ extension ScrollPositionBinding {
         let registry = pass.frame.scrollRequestQueue.positions
         let current = read()
         let known = registry.knownValue(of: id)
-        if known == nil || known! != current {
+        if known.map({ $0 != current }) ?? true {
             if let current {
                 pass.frame.injectScrollRequest(
                     ScrollRequest(scope: id, key: current, anchor: anchor ?? .topLeading,

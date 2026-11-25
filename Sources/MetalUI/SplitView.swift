@@ -69,7 +69,7 @@ enum SplitSolver {
         guard !panes.isEmpty else { return [] }
         let usePreferred = preferred?.count == panes.count
         var sizes = panes.indices.map { index -> Double in
-            let want = usePreferred ? preferred![index] : panes[index].ideal
+            let want = usePreferred ? (preferred?[index] ?? panes[index].ideal) : panes[index].ideal
             return Swift.min(Swift.max(want, panes[index].minimum), panes[index].maximum)
         }
         var delta = available - sizes.reduce(0, +)
@@ -406,7 +406,7 @@ struct SplitEngine<Content: ProposalElementGroup> {
         dividers = ArrayGroup((0..<Swift.max(0, paneNodes.count - 1)).map { index in
             SplitDivider(axis: axis, style: style,
                          accessibility: { action in
-                             Self.accessibility(action as! SplitterAccessibility, index: index, axis: axis, report: report,
+                             Self.accessibility(trapCast(action) as SplitterAccessibility, index: index, axis: axis, report: report,
                                                 name: name, store: store, model: model)
                          },
                          identifier: prefix.map { "\($0).\(index)" },

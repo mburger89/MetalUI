@@ -35,10 +35,11 @@ public final class FreeTypeFont {
         let initError = FT_Init_FreeType(&library)
         guard initError == 0, let library else { throw FreeTypeError(operation: "FT_Init_FreeType", code: initError) }
 
-        let storage = UnsafeMutableRawBufferPointer.allocate(byteCount: max(data.count, 1), alignment: 16)
+        let base = UnsafeMutableRawPointer.allocate(byteCount: max(data.count, 1), alignment: 16)
+        let storage = UnsafeMutableRawBufferPointer(start: base, count: max(data.count, 1))
         data.withUnsafeBytes { storage.copyMemory(from: $0) }
         var face: FT_Face?
-        let faceError = FT_New_Memory_Face(library, storage.baseAddress!.assumingMemoryBound(to: FT_Byte.self),
+        let faceError = FT_New_Memory_Face(library, base.assumingMemoryBound(to: FT_Byte.self),
                                            FT_Long(data.count), FT_Long(faceIndex), &face)
         guard faceError == 0, let face else {
             FT_Done_FreeType(library)
@@ -191,7 +192,7 @@ public final class FreeTypeFont {
             default:
                 continue
             }
-            if best == nil || rank < best!.rank { best = (rank, value) }
+            if best.map({ rank < $0.rank }) ?? true { best = (rank, value) }
         }
         return best?.value ?? ""
     }

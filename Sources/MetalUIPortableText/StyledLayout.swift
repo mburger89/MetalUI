@@ -50,7 +50,7 @@ extension PortableText {
                 lineRuns = (line.kept.allSatisfy(\.isEmpty) ? [] : lineRuns) + [token]
             }
             let metrics = StyledTextLines.lineMetrics(runs: lineRuns, styles: styles) { key in
-                let face = metricsByKey[key]!
+                guard let face = metricsByKey[key] else { preconditionFailure("every style's font was measured above") }
                 return TextFontMetrics(ascent: face.ascent, descent: face.descent, leading: face.leading,
                                        lineHeight: face.lineHeight)
             }

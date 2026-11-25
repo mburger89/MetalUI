@@ -478,7 +478,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                      tracksPosition: position != nil, mirrored: chrome.mirrored,
                                      cross: chrome.crossAxis ? chrome.crossFrame(offset: crossOffset, bounds: bounds, contentSize: pass.bounds(of: layout.contentNode).size) : nil,
                                      inset: chrome.contentInset)
-        var result: Content.GroupPrepaint!
+        var result: Content.GroupPrepaint?
         let noteMark = pass.frame.scrollTargetNoteCount
         pass.clipped(to: bounds, offsetBy: chrome.translation(offset: offset, cross: crossOffset),
                     cornerRadii: Corners(all: cornerRadius)) {
@@ -487,7 +487,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
             }
         }
         position?.finishPrepaint(id, scroller: scroller, since: noteMark, pass: pass)   // `SP-C`
-        return result
+        return scopeResult(result)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

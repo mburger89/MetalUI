@@ -312,7 +312,7 @@ struct FaceTraits: Equatable {
             // class 500 and CoreText's 0).
             weight = 0
         } else if weightClass > 0 {
-            weight = Self.classWeights.min { abs($0.0 - weightClass) < abs($1.0 - weightClass) }!.1
+            weight = Self.classWeights.min { abs($0.0 - weightClass) < abs($1.0 - weightClass) }?.1 ?? 0   // the table is never empty
         } else {
             weight = 0
         }

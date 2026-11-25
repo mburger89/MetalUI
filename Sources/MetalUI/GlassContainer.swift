@@ -106,7 +106,7 @@ extension Frame {
         }
         var blobs: [(members: [Int], blendK: Float)] = []
         for r in order {
-            let set = sets[r]!
+            let set = sets[required: r]
             for chunk in GlassReference.chunks(ofMemberCount: set.count) {
                 let indices = Array(set[chunk])
                 var k = spacing

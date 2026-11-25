@@ -203,7 +203,7 @@ private struct Merge {
     }
 
     var snapshot: TerminalSnapshot {
-        let damaged = rows.keys.sorted().map { TerminalDamagedRow(index: $0, row: rows[$0]!) }
+        let damaged = rows.sorted { $0.key < $1.key }.map { TerminalDamagedRow(index: $0.key, row: $0.value) }
         return TerminalSnapshot(version: latest.version, size: latest.size, viewportOffset: latest.viewportOffset,
                                 damagedRows: damaged, isFullFrame: full, cursor: latest.cursor, modes: latest.modes,
                                 selection: latest.selection, links: latest.links,

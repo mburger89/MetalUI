@@ -18,21 +18,26 @@ final class BidiParagraph {
     let scripts: [UInt8]
 
     init(_ units: [UInt16]) {
-        storage = UnsafeMutableBufferPointer<UInt16>.allocate(capacity: max(units.count, 1))
+        // One more than needed when empty, so the pointer is never nil (a zero-capacity buffer has no base address).
+        let base = UnsafeMutablePointer<UInt16>.allocate(capacity: max(units.count, 1))
+        storage = UnsafeMutableBufferPointer(start: base, count: max(units.count, 1))
         _ = storage.initialize(from: units)
         var sequence = SBCodepointSequence(stringEncoding: SBStringEncoding(SBStringEncodingUTF16),
-                                           stringBuffer: UnsafeRawPointer(storage.baseAddress!),
+                                           stringBuffer: UnsafeRawPointer(base),
                                            stringLength: SBUInteger(units.count))
         algorithm = SBAlgorithmCreate(&sequence)
         var paragraphs: [(range: Range<Int>, paragraph: SBParagraphRef)] = []
         var levels = [UInt8](repeating: 0, count: units.count)
         var offset = 0
         while offset < units.count {
-            let paragraph = SBAlgorithmCreateParagraph(algorithm, SBUInteger(offset),
-                                                       SBUInteger(units.count - offset),
-                                                       SBLevel(SBLevelDefaultLTR))!
+            // SheenBidi answers NULL only when it cannot allocate (the range is inside the text).
+            guard let paragraph = SBAlgorithmCreateParagraph(algorithm, SBUInteger(offset),
+                                                             SBUInteger(units.count - offset),
+                                                             SBLevel(SBLevelDefaultLTR)),
+                  let paragraphLevels = SBParagraphGetLevelsPtr(paragraph) else {
+                preconditionFailure("SheenBidi could not resolve a paragraph's levels (out of memory)")
+            }
             let length = Int(SBParagraphGetLength(paragraph))
-            let paragraphLevels = SBParagraphGetLevelsPtr(paragraph)!
             for unit in 0..<length { levels[offset + unit] = UInt8(paragraphLevels[unit]) }
             paragraphs.append((offset..<offset + length, paragraph))
             offset += max(length, 1)
@@ -41,10 +46,12 @@ final class BidiParagraph {
         self.levels = levels
 
         var scripts = [UInt8](repeating: 0, count: units.count)
-        let locator = SBScriptLocatorCreate()!
+        guard let locator = SBScriptLocatorCreate() else { preconditionFailure("SheenBidi could not allocate a script locator") }
         SBScriptLocatorLoadCodepoints(locator, &sequence)
         while SBScriptLocatorMoveNext(locator) != 0 {
-            let agent = SBScriptLocatorGetAgent(locator)!.pointee
+            // `MoveNext` answered true, so the locator has a current run.
+            guard let agentPointer = SBScriptLocatorGetAgent(locator) else { break }
+            let agent = agentPointer.pointee
             for unit in Int(agent.offset)..<Int(agent.offset + agent.length) { scripts[unit] = UInt8(agent.script) }
         }
         SBScriptLocatorRelease(locator)
@@ -72,12 +79,13 @@ final class BidiParagraph {
     /// (reversal).
     func visualRuns(_ range: Range<Int>) -> [(range: Range<Int>, level: UInt8)] {
         guard !range.isEmpty,
-              let paragraph = paragraphs.first(where: { $0.range.contains(range.lowerBound) })?.paragraph else { return [] }
-        let paragraphEnd = paragraphs.first(where: { $0.range.contains(range.lowerBound) })!.range.upperBound
-        let length = min(range.upperBound, paragraphEnd) - range.lowerBound
-        let line = SBParagraphCreateLine(paragraph, SBUInteger(range.lowerBound), SBUInteger(length))!
+              let holder = paragraphs.first(where: { $0.range.contains(range.lowerBound) }) else { return [] }
+        let paragraph = holder.paragraph
+        let length = min(range.upperBound, holder.range.upperBound) - range.lowerBound
+        // NULL when SheenBidi cannot allocate the line: no runs, nothing drawn, rather than a trap.
+        guard let line = SBParagraphCreateLine(paragraph, SBUInteger(range.lowerBound), SBUInteger(length)) else { return [] }
         defer { SBLineRelease(line) }
-        let runs = SBLineGetRunsPtr(line)!
+        guard let runs = SBLineGetRunsPtr(line) else { return [] }
         return (0..<Int(SBLineGetRunCount(line))).map {
             let run = runs[$0]
             return (Int(run.offset)..<Int(run.offset + run.length), UInt8(run.level))

@@ -219,7 +219,7 @@ extension Element {
         // it inside its decoration instead, above its own fill (`paintDecoration`).
         if pass.frame.hasGhostAnchors, !(self is any StyledElement) { pass.frame.paintAnchoredGhosts(at: layout.id) }
         paint(layout.id, bounds: pass.bounds(of: layout.node),
-              layout: &layout.state, prepaint: &prepaint!, pass: &pass)
+              layout: &layout.state, prepaint: &prepaint.required, pass: &pass)
     }
 }
 

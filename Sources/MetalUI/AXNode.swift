@@ -144,7 +144,7 @@ public struct AXNode: Equatable {
             if newValue == AXDeclarations() {
                 declarationsBox = nil
             } else if declarationsBox != nil, isKnownUniquelyReferenced(&declarationsBox) {
-                declarationsBox!.value = newValue
+                declarationsBox.required.value = newValue
             } else {
                 declarationsBox = AXDeclarationsBox(newValue)
             }

@@ -184,8 +184,8 @@ enum PortableSymbolMetrics {
 
     /// The stroke of `weight` (CoreText's trait) relative to regular: a width of 2 at regular scales by 1.
     static func strokeFactor(weight: Double) -> Double {
-        let nearest = weightWidths.min { abs($0.weight - weight) < abs($1.weight - weight) }!
-        return nearest.width / 2
+        let nearest = weightWidths.min { abs($0.weight - weight) < abs($1.weight - weight) }
+        return (nearest?.width ?? 2) / 2   // the table is never empty; 2 is regular
     }
 }
 

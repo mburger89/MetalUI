@@ -4027,7 +4027,7 @@ public final class Frame {
         // Inside a text draw (`beginLeafGroup`), the glyphs wait for the
         // group's end, so a shadow scope sees the whole text as one leaf.
         if leafGroup != nil {
-            leafGroup!.append(primitive)
+            leafGroup.required.append(primitive)
             return
         }
         insertThroughScopes(leaf: [primitive])

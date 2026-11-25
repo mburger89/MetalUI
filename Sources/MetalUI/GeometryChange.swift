@@ -197,7 +197,7 @@ public struct GeometryChangeScope<Content: ElementGroup>: ElementGroup {
             let live = pass.frame.elidedNodes.isEmpty ? layout.nodes : layout.nodes.filter { !pass.frame.isElided($0) }
             if !live.isEmpty { pass.frame.noteGeometry(watch, key: key, owner: owner, nodes: live) }
         }
-        return content.prepaintGroup(layout: &layout.content!, pass: &pass)
+        return content.prepaintGroup(layout: &layout.content.required, pass: &pass)
     }
 
     /// Paints the content unchanged; a decorated scope's layer paints around it.
@@ -211,7 +211,7 @@ public struct GeometryChangeScope<Content: ElementGroup>: ElementGroup {
             prepaint = wrapped.flatMap { $0 }
             return
         }
-        content.paintGroup(layout: &layout.content!, prepaint: &prepaint!, pass: &pass)
+        content.paintGroup(layout: &layout.content.required, prepaint: &prepaint.required, pass: &pass)
     }
 }
 
@@ -273,10 +273,10 @@ extension GeometryChangeScope: Element where Content: Element {
             let inner = withLayer { $0.prepaint(id, bounds: bounds, layout: &layered, pass: &pass) }
             return ScopeLayerState(plain: nil, layered: inner)
         }
-        if let key = layout.plain!.key, let owner = layout.plain!.owner {
-            pass.frame.noteGeometry(watch, key: key, owner: owner, nodes: layout.plain!.nodes)
+        if let key = layout.plain.required.key, let owner = layout.plain.required.owner {
+            pass.frame.noteGeometry(watch, key: key, owner: owner, nodes: layout.plain.required.nodes)
         }
-        let state = content.prepaint(id, bounds: bounds, layout: &layout.plain!.content!, pass: &pass)
+        let state = content.prepaint(id, bounds: bounds, layout: &layout.plain.required.content.required, pass: &pass)
         return ScopeLayerState(plain: state, layered: nil)
     }
 
@@ -289,7 +289,7 @@ extension GeometryChangeScope: Element where Content: Element {
             withLayer { $0.paint(id, bounds: bounds, layout: &layered, prepaint: &inner, pass: &pass) }
             return
         }
-        content.paint(id, bounds: bounds, layout: &layout.plain!.content!, prepaint: &prepaint.plain!, pass: &pass)
+        content.paint(id, bounds: bounds, layout: &layout.plain.required.content.required, prepaint: &prepaint.plain.required, pass: &pass)
     }
 }
 

@@ -1734,14 +1734,13 @@ public final class LayoutTree {
     /// largest remainder below one (probe B2: 25 + 19 = 44 first, 29 + 5 = 34
     /// last). 0 with no children.
     private func baselineCrossExtent(_ answers: [LayoutMeasurement], _ baseline: ProposalTextBaseline) -> Double {
-        guard !answers.isEmpty else { return 0 }
-        let above = answers.map { baselineGuide($0, baseline) }.max()!
+        guard let above = answers.map({ baselineGuide($0, baseline) }).max() else { return 0 }
         // An infinitely tall child whose guide is its height leaves ∞ − ∞: it
         // has no remainder below its guide (TE-X item 6).
         let below = answers.map { answer -> Double in
             let remainder = answer.size.height - baselineGuide(answer, baseline)
             return remainder.isNaN ? 0 : remainder
-        }.max()!
+        }.max() ?? 0
         return above + below
     }
 

@@ -484,7 +484,7 @@ extension Frame {
 
     func openPrepaintWindow() -> PrepaintRecorder {
         if prepaintLog == nil { prepaintLog = PrepaintLog() }
-        let log = prepaintLog!
+        guard let log = prepaintLog else { preconditionFailure("the log was made above when absent") }
         let recorder = PrepaintRecorder()
         recorder.from = log.current
         recorder.hitboxLow = hitboxCount
@@ -499,7 +499,7 @@ extension Frame {
 
     /// Closes the recorder's window and returns the ledger it made, or `nil` (counted ineligible, by name).
     func closePrepaintWindow(_ recorder: PrepaintRecorder, phase: RetainedPhase) -> PrepaintLedger? {
-        let log = prepaintLog!
+        guard let log = prepaintLog else { preconditionFailure("a prepaint window closed with none open") }
         log.recorders.removeAll { $0 === recorder }
         let to = log.current
         defer {

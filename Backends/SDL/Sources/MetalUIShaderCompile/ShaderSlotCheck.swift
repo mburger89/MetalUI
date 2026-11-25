@@ -104,8 +104,14 @@ package enum ShaderSlotCheck {
         return String(out)
     }
 
-    private static let registerPattern = try! NSRegularExpression(
-        pattern: #"(?:(\w+)\s*:\s*)?register\s*\(\s*([bstu])(\d+)\s*(?:,\s*space(\d+)\s*)?\)"#)
+    private static let registerPattern: NSRegularExpression = {
+        do {
+            return try NSRegularExpression(
+                pattern: #"(?:(\w+)\s*:\s*)?register\s*\(\s*([bstu])(\d+)\s*(?:,\s*space(\d+)\s*)?\)"#)
+        } catch {
+            preconditionFailure("the register pattern is a valid regular expression: \(error)")
+        }
+    }()
 
     /// Every `register(<b|t|s|u>N[, spaceM])` in `source` outside comments, in source order.
     package static func declarations(in source: String) -> [Declaration] {

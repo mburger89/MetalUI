@@ -144,12 +144,18 @@ final class AccessKitAdapter: @unchecked Sendable {
         return Self.treeUpdate(current)
     }
 
+    /// The adapter AccessKit hands back: the pointer this adapter registered for itself, never nil.
+    private static func adapter(_ userdata: UnsafeMutableRawPointer?) -> AccessKitAdapter {
+        guard let userdata else { preconditionFailure("AccessKit called back without the adapter it was given") }
+        return Unmanaged<AccessKitAdapter>.fromOpaque(userdata).takeUnretainedValue()
+    }
+
     private static let factory: accesskit_tree_update_factory = { userdata in
-        Unmanaged<AccessKitAdapter>.fromOpaque(userdata!).takeUnretainedValue().currentUpdate()
+        adapter(userdata).currentUpdate()
     }
 
     private static let activation: accesskit_activation_handler_callback = { userdata in
-        let me = Unmanaged<AccessKitAdapter>.fromOpaque(userdata!).takeUnretainedValue()
+        let me = adapter(userdata)
         me.enqueue(.activate)
         return me.currentUpdate()
     }
@@ -157,7 +163,7 @@ final class AccessKitAdapter: @unchecked Sendable {
     private static let action: accesskit_action_handler_callback = { request, userdata in
         guard let request else { return }
         defer { accesskit_action_request_free(request) }
-        let me = Unmanaged<AccessKitAdapter>.fromOpaque(userdata!).takeUnretainedValue()
+        let me = adapter(userdata)
         guard let queued = queued(from: request.pointee) else { return }
         me.enqueue(queued)
     }
@@ -195,7 +201,9 @@ final class AccessKitAdapter: @unchecked Sendable {
     /// A full `accesskit_tree_update` for `snapshot`; ownership passes to
     /// AccessKit.
     static func treeUpdate(_ snapshot: AccessKitSnapshot) -> OpaquePointer {
-        let update = accesskit_tree_update_with_capacity_and_focus(snapshot.nodes.count, snapshot.focus)!
+        guard let update = accesskit_tree_update_with_capacity_and_focus(snapshot.nodes.count, snapshot.focus) else {
+            preconditionFailure("AccessKit could not allocate a tree update")
+        }
         accesskit_tree_update_set_tree_info(update, accesskit_tree_info_new(AccessKitSnapshot.rootID))
         for node in snapshot.nodes {
             accesskit_tree_update_push_node(update, node.id, cNode(node))
@@ -206,7 +214,7 @@ final class AccessKitAdapter: @unchecked Sendable {
     /// One snapshot node as an `accesskit_node`; ownership passes to the
     /// caller (the update, or a test that frees it).
     static func cNode(_ node: AccessKitSnapshot.Node) -> OpaquePointer {
-        let out = accesskit_node_new(role(node.role))!
+        guard let out = accesskit_node_new(role(node.role)) else { preconditionFailure("AccessKit could not allocate a node") }
         if let label = node.label { accesskit_node_set_label(out, label) }
         if let value = node.value { accesskit_node_set_value(out, value) }
         if let (x0, y0, x1, y1) = node.bounds {
@@ -253,7 +261,9 @@ final class AccessKitAdapter: @unchecked Sendable {
             accesskit_node_set_has_popup(out, accesskit_has_popup(UInt8(ACCESSKIT_HAS_POPUP_MENU.rawValue)))
         }
         for (index, name) in node.customActions.enumerated() {
-            let action = accesskit_custom_action_new(Int32(index))!
+            guard let action = accesskit_custom_action_new(Int32(index)) else {
+                preconditionFailure("AccessKit could not allocate a custom action")
+            }
             accesskit_custom_action_set_description(action, name)
             accesskit_node_push_custom_action(out, action)   // takes ownership
         }

@@ -112,7 +112,7 @@ struct AnchoredPresentation<Content: Element>: Element {
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout LayoutState,
                            pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        var result: Content.GroupPrepaint!
+        var result: Content.GroupPrepaint?
         pass.deferred {
             let frame = pass.frame
             _ = frame.insertHitbox(bounds, id: id, opaque: true)   // `MN-Z`
@@ -131,7 +131,7 @@ struct AnchoredPresentation<Content: Element>: Element {
             }
             result = content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
-        return result
+        return scopeResult(result)
     }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout LayoutState,

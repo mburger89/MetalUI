@@ -121,7 +121,7 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
                                   pass: inout PrepaintPass) -> Prepaint {
         // The table's empty space takes the menu's `[]` form (`OG-P`, `P-M2`); rows are above it and take their own.
         if let menu { pass.registerHandlers(Self.emptySpaceHandlers(menu), at: bounds, id: id) }
-        var scrolled = inner!
+        var scrolled = inner.required
         let result = scrolled.prepaintGroup(layout: &layout.inner, pass: &pass)
         inner = scrolled
         return Prepaint(inner: result)
@@ -129,7 +129,7 @@ where Rows.TableRowValue == Value, Columns.TableRowValue == Value {
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                prepaint: inout Prepaint, pass: inout PaintPass) {
-        var scrolled = inner!
+        var scrolled = inner.required
         scrolled.paintGroup(layout: &layout.inner, prepaint: &prepaint.inner, pass: &pass)
         inner = scrolled
     }

@@ -517,10 +517,10 @@ public struct ExclusiveGesture<First: Gesture, Second: Gesture>: Gesture, Primit
         let state = CompositeState<Value, Value>()
         var f = recognizerNode(of: first)
         var s = recognizerNode(of: second)
-        f.tap(changed: { state.latest = .first($0 as! First.Value); state.dirty = true },
-              ended: { state.end = .first($0 as! First.Value) })
-        s.tap(changed: { state.latest = .second($0 as! Second.Value); state.dirty = true },
-              ended: { state.end = .second($0 as! Second.Value) })
+        f.tap(changed: { state.latest = .first(trapCast($0) as First.Value); state.dirty = true },
+              ended: { state.end = .first(trapCast($0) as First.Value) })
+        s.tap(changed: { state.latest = .second(trapCast($0) as Second.Value); state.dirty = true },
+              ended: { state.end = .second(trapCast($0) as Second.Value) })
         hooks.flush = {
             guard state.dirty, let value = state.latest else { return }
             state.dirty = false
@@ -621,19 +621,19 @@ public struct SequenceGesture<First: Gesture, Second: Gesture>: Gesture, Primiti
         let memory = SequenceMemory<First.Value, Second.Value>()
         var f = recognizerNode(of: first)
         var s = recognizerNode(of: second)
-        f.tap(changed: { state.latest = .first($0 as! First.Value); state.dirty = true },
+        f.tap(changed: { state.latest = .first(trapCast($0) as First.Value); state.dirty = true },
               ended: {
-                  let value = $0 as! First.Value
+                  let value = trapCast($0) as First.Value
                   memory.firstFinal = value
                   state.latest = .second(value, nil)
                   state.dirty = true
               })
         s.tap(changed: {
-                  let value = $0 as! Second.Value
+                  let value = trapCast($0) as Second.Value
                   memory.secondLast = value
                   if let held = memory.firstFinal { state.latest = .second(held, value); state.dirty = true }
               },
-              ended: { memory.secondEnd = ($0 as! Second.Value) })
+              ended: { memory.secondEnd = (trapCast($0) as Second.Value) })
         hooks.flush = {
             guard state.dirty, let value = state.latest else { return }
             state.dirty = false
@@ -707,7 +707,7 @@ public struct _ChangedGesture<Base: Gesture>: Gesture, PrimitiveGesture {
     func _recognizers() -> _GestureRecognizers {
         var node = recognizerNode(of: base)
         let action = action
-        node.tap(changed: { action($0 as! Base.Value) }, ended: nil)
+        node.tap(changed: { action(trapCast($0) as Base.Value) }, ended: nil)
         return _GestureRecognizers(node)
     }
 }
@@ -724,7 +724,7 @@ public struct _EndedGesture<Base: Gesture>: Gesture, PrimitiveGesture {
     func _recognizers() -> _GestureRecognizers {
         var node = recognizerNode(of: base)
         let action = action
-        node.tap(changed: nil, ended: { action($0 as! Base.Value) })
+        node.tap(changed: nil, ended: { action(trapCast($0) as Base.Value) })
         return _GestureRecognizers(node)
     }
 }
@@ -742,7 +742,7 @@ public struct GestureStateGesture<Base: Gesture, State>: Gesture, PrimitiveGestu
     func _recognizers() -> _GestureRecognizers {
         var node = recognizerNode(of: base)
         let update = update
-        node.tap(changed: { update.run($0 as! Base.Value) }, ended: nil)
+        node.tap(changed: { update.run(trapCast($0) as Base.Value) }, ended: nil)
         node.addFinish(update.finish)
         return _GestureRecognizers(node)
     }

@@ -252,7 +252,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
         guard case .options(var optionsLayout) = layout.inner else {
             guard case .menu(let state) = layout.inner else { preconditionFailure() }
             state.box.handlers = handlers
-            let prepaint = state.box.prepaint(id, bounds: bounds, layout: &state.layout!, pass: &pass)
+            let prepaint = state.box.prepaint(id, bounds: bounds, layout: &state.layout.required, pass: &pass)
             return PrepaintState(inner: .menu(prepaint))
         }
         let scope = self.scope
@@ -286,7 +286,7 @@ public struct Picker<SelectionValue: Hashable, Content: ElementGroup>: Element, 
             prepaint.inner = .options(innerPrepaint)
         case (.menu(let state), .menu(var innerPrepaint)):
             // The button is a `Button`: it paints its own disabled look.
-            state.box.paint(id, bounds: bounds, layout: &state.layout!, prepaint: &innerPrepaint, pass: &pass)
+            state.box.paint(id, bounds: bounds, layout: &state.layout.required, prepaint: &innerPrepaint, pass: &pass)
             prepaint.inner = .menu(innerPrepaint)
         default:
             preconditionFailure("Picker: the phase states disagree about the style")

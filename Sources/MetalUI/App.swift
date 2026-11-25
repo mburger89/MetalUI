@@ -290,7 +290,8 @@ private final class BackgroundPipelines<Value>: @unchecked Sendable {
 
     func join() throws -> Value {
         group.wait()
-        return try result!.get()
+        guard let result else { preconditionFailure("join() ran before the work finished") }
+        return try result.get()
     }
 }
 #endif

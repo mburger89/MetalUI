@@ -133,7 +133,7 @@ public struct KeyframeAnimator<Value, Content: ElementGroup, K: Keyframes>: Elem
                 next.start = now
                 next.running = true
             }
-            let timeline = next.timeline!
+            guard let timeline = next.timeline else { preconditionFailure("the timeline was made above when absent") }
             guard timeline.duration > 0 else {
                 return (timeline.value(time: 0), next, false)
             }

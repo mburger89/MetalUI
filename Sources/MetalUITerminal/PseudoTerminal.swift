@@ -201,7 +201,8 @@ public final class PseudoTerminal: @unchecked Sendable {
     private func drainWrites() {
         while let first = pending.first {
             let n = first.withUnsafeBytes { raw in
-                sysWrite(master, raw.baseAddress! + pendingHead, raw.count - pendingHead)
+                guard let base = raw.baseAddress else { return 0 }   // `write` queues no empty array
+                return sysWrite(master, base + pendingHead, raw.count - pendingHead)
             }
             if n < 0 {
                 if errno == EINTR { continue }

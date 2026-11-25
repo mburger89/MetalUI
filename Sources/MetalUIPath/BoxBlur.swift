@@ -63,8 +63,10 @@ package enum BoxBlur {
                 b.withUnsafeMutableBufferPointer { pb in
                     columnSums.withUnsafeMutableBufferPointer { sums in
                         out.withUnsafeMutableBufferPointer { dst in
-                            var x0 = pa.baseAddress!, x1 = pb.baseAddress!
-                            let s = src.baseAddress!
+                            // Every buffer holds `w * h` or `mw * mh` > 0 pixels, so each has a base address; an
+                            // inconsistent mask (a rect with no pixels) blurs to nothing instead of trapping.
+                            guard var x0 = pa.baseAddress, var x1 = pb.baseAddress, let s = src.baseAddress,
+                                  let sumsBase = sums.baseAddress, let d = dst.baseAddress else { return }
                             for y in 0..<mh {
                                 let row = x0 + (y + pad) * w + pad, from = s + y * mw
                                 for x in 0..<mw { row[x] = Int32(from[x]) }
@@ -74,10 +76,9 @@ package enum BoxBlur {
                                 swap(&x0, &x1)
                             }
                             for width in widths {
-                                verticalPass(x0, into: x1, sums: sums.baseAddress!, w: w, h: h, width: Int32(width))
+                                verticalPass(x0, into: x1, sums: sumsBase, w: w, h: h, width: Int32(width))
                                 swap(&x0, &x1)
                             }
-                            let d = dst.baseAddress!
                             for i in 0..<(w * h) {
                                 let v = x0[i]
                                 d[i] = v >= 255 ? 255 : (v <= 0 ? 0 : UInt8(truncatingIfNeeded: v))
@@ -169,10 +170,11 @@ package enum AlphaCompositor {
                                 let src = p + (y - m.rect.y) * m.rect.width, dst = row + (m.rect.x - rect.x)
                                 for x in 0..<m.rect.width { dst[x] = src[x] }
                             }
-                            let ra = ra.baseAddress!, rb = rb.baseAddress!, o = po.baseAddress!
+                            guard let ra = ra.baseAddress, let rb = rb.baseAddress, let o = po.baseAddress,
+                                  let sourceA = pa.baseAddress, let sourceB = pb.baseAddress else { return }
                             for y in rect.y..<rect.maxY {
-                                fill(ra, a, pa.baseAddress!, y)
-                                fill(rb, b, pb.baseAddress!, y)
+                                fill(ra, a, sourceA, y)
+                                fill(rb, b, sourceB, y)
                                 let row = o + (y - rect.y) * w
                                 for x in 0..<w {
                                     let p = Int(ra[x]), q = Int(rb[x])

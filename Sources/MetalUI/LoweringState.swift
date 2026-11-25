@@ -111,9 +111,9 @@ struct LoweringState {
     /// Marks `node`'s record consumed and returns it — `nil` for a node no legacy
     /// site recorded (a proposal element's).
     mutating func consume(_ node: LayoutNodeID) -> LoweredItem? {
-        guard items[node] != nil else { return nil }
-        items[node]!.consumed = true
-        return items[node]
+        guard let index = items.index(forKey: node) else { return nil }
+        items.values[index].consumed = true
+        return items.values[index]
     }
 
     /// Moves `content`'s record to `layer`, the `layoutPriority` node wrapped

@@ -327,7 +327,7 @@ func buildCodeLine(bytes: ArraySlice<UInt8>, windowStart: Int, windowX: Double, 
                 var consumed = 0
                 var runStart = 0
                 func closeRun() {
-                    let style = lastFace == 0 || faces == nil ? runStyle : TextRunStyle(font: faces!.font(lastFace))
+                    let style = lastFace == 0 ? runStyle : faces.map { TextRunStyle(font: $0.font(lastFace)) } ?? runStyle
                     runs.append(StyledTextRun(length: units, style: style))
                     runParts.append(lastPart)
                     runFaces.append(lastFace)

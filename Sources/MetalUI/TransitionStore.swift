@@ -252,7 +252,7 @@ final class TransitionStore {
     /// the lifecycle after `paintGhosts`, so a landed ghost is already gone
     /// (ruling `LC-H`).
     var liveGhosts: [(key: GlobalElementID, position: GlobalElementID, exempt: [GlobalElementID])] {
-        ghosts.map { ($0.key, $0.key.parent!, $0.ghost.exempt) }
+        ghosts.map { ($0.key, $0.key.parent ?? $0.key, $0.ghost.exempt) }
     }
 
     /// Whether any insertion is in flight, annotated or default: the gate of `beginFade`'s dictionary read.

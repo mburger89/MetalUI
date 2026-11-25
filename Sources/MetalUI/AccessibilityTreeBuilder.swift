@@ -84,7 +84,7 @@ enum AccessibilityTreeBuilder {
         var roots: [GlobalElementID] = []
         var children: [GlobalElementID: [GlobalElementID]] = [:]
         for id in order {
-            let record = records[id]!
+            let record = records[required: id]
             let portal = record.portal
             // A record made inside a content list's row (`OG-F`) is parented by an ancestor that recorded inside the
             // SAME row, else by the row itself: a unit's content ids do not hang under the row's id.
@@ -106,8 +106,8 @@ enum AccessibilityTreeBuilder {
         // is the only root, and everything outside its subtree is dropped.
         var result = AccessibilityBuild(tree: .empty)
         let modal = order.enumerated()
-            .filter { records[$0.element]!.declared.declarations.traits.contains(.isModal) }
-            .max { (records[$0.element]!.geometry.layer, $0.offset) < (records[$1.element]!.geometry.layer, $1.offset) }?
+            .filter { records[required: $0.element].declared.declarations.traits.contains(.isModal) }
+            .max { (records[required: $0.element].geometry.layer, $0.offset) < (records[required: $1.element].geometry.layer, $1.offset) }?
             .element
         if let modal {
             result.isolatedOut = true
@@ -143,7 +143,7 @@ enum AccessibilityTreeBuilder {
         var state: [GlobalElementID: Resolving] = [:]
         state.reserveCapacity(order.count)
         for (position, id) in order.enumerated() {
-            let record = records[id]!
+            let record = records[required: id]
             let declarations = record.declared.declarations
             var actions: AccessibilityActions = []
             if pressable.contains(id) || focusRegistry.actionHandler(for: id, type: defaultAction) != nil {
@@ -217,7 +217,7 @@ enum AccessibilityTreeBuilder {
         var activeCells: [GlobalElementID: GlobalElementID] = [:]
         var pending = publishedRoots
         while let id = pending.popLast() {
-            let node = state[id]!
+            let node = state[required: id]
             let ordered = Self.tableOrdered(placed[id] ?? [], records: records)
             var kids = ordered.map(AccessibilityNodeID.init)
             pending.append(contentsOf: placed[id] ?? [])
@@ -488,18 +488,18 @@ enum AccessibilityTreeBuilder {
         var result: [GlobalElementID] = []
         result.reserveCapacity(ids.count)
         for id in ids {
-            if let label = inherited.label { state[id]!.label = label }
-            if let value = inherited.value { state[id]!.value = value }
-            if let hint = inherited.hint { state[id]!.hint = hint }
-            if let identifier = inherited.identifier { state[id]!.identifier = identifier }
-            state[id]!.inheritedTraits.formUnion(inherited.traits)
+            if let label = inherited.label { state[required: id].label = label }
+            if let value = inherited.value { state[required: id].value = value }
+            if let hint = inherited.hint { state[required: id].hint = hint }
+            if let identifier = inherited.identifier { state[required: id].identifier = identifier }
+            state[required: id].inheritedTraits.formUnion(inherited.traits)
             if let action = inherited.action {
-                state[id]!.actions.insert(.press)
-                state[id]!.hasDeclaredAction = true
+                state[required: id].actions.insert(.press)
+                state[required: id].hasDeclaredAction = true
                 redirects[id] = [action]
             }
-            let kids = state[id]!.declarations.childBehavior == .ignore ? [] : (children[id] ?? [])
-            let node = state[id]!
+            let kids = state[required: id].declarations.childBehavior == .ignore ? [] : (children[id] ?? [])
+            let node = state[required: id]
             if node.distributes(hasChildren: !kids.isEmpty) {
                 let handed = Inherited(label: node.label, value: node.value, hint: node.hint,
                                        identifier: node.identifier,
@@ -542,13 +542,13 @@ enum AccessibilityTreeBuilder {
                                 state: inout [GlobalElementID: Resolving]) {
         for id in ids {
             let kids = placed[id] ?? []
-            switch role(of: state[id]!) {
+            switch role(of: state[required: id]) {
             case .button, .checkBox, .radioButton, .columnHeader:
                 var descendants: [GlobalElementID] = []
                 var stack = Array(kids.reversed())
                 var foldable = true
                 while let next = stack.popLast() {
-                    guard !state[next]!.isInteractive else { foldable = false; break }
+                    guard !state[required: next].isInteractive else { foldable = false; break }
                     descendants.append(next)
                     stack.append(contentsOf: (placed[next] ?? []).reversed())
                 }
@@ -556,8 +556,8 @@ enum AccessibilityTreeBuilder {
                     takeLabelAndValue(from: descendants, into: id, state: &state)
                     // A radio button (a `Picker` option) takes the first identifier
                     // its content declared when it has none (`SE-A`).
-                    if role(of: state[id]!) == .radioButton, state[id]!.identifier == nil {
-                        state[id]!.identifier = descendants.compactMap { state[$0]!.identifier }.first
+                    if role(of: state[required: id]) == .radioButton, state[required: id].identifier == nil {
+                        state[required: id].identifier = descendants.compactMap { state[required: $0].identifier }.first
                     }
                     placed[id] = []
                     continue
@@ -572,7 +572,7 @@ enum AccessibilityTreeBuilder {
                 var folded: [GlobalElementID] = []
                 var stack = Array(kids.reversed())
                 while let next = stack.popLast() {
-                    let node = state[next]!
+                    let node = state[required: next]
                     let isControl = node.isInteractive || (role(of: node) != .staticText && role(of: node) != .group)
                     if isControl {
                         kept.append(next)
@@ -599,10 +599,10 @@ enum AccessibilityTreeBuilder {
     /// partial fold takes no value: an incrementor's value is its own number.
     private static func takeLabelAndValue(from descendants: [GlobalElementID], into id: GlobalElementID,
                                           state: inout [GlobalElementID: Resolving], value: Bool = true) {
-        let labels = descendants.compactMap { state[$0]!.label ?? state[$0]!.value }
-        let values = descendants.compactMap { state[$0]!.label == nil ? nil : state[$0]!.value }
-        if state[id]!.label == nil, !labels.isEmpty { state[id]!.label = labels.joined(separator: ", ") }
-        if value, state[id]!.value == nil, !values.isEmpty { state[id]!.value = values.joined(separator: ", ") }
+        let labels = descendants.compactMap { state[required: $0].label ?? state[required: $0].value }
+        let values = descendants.compactMap { state[required: $0].label == nil ? nil : state[required: $0].value }
+        if state[required: id].label == nil, !labels.isEmpty { state[required: id].label = labels.joined(separator: ", ") }
+        if value, state[required: id].value == nil, !values.isEmpty { state[required: id].value = values.joined(separator: ", ") }
     }
 
     /// `.combine` (`IX-V` item 2, `IX-AI`; SwiftUI E3, E6–E8, E10, E11,
@@ -622,7 +622,7 @@ enum AccessibilityTreeBuilder {
         for child in placed[id] ?? [] {
             combineElements(under: child, placed: &placed, state: &state, build: &build)
         }
-        guard state[id]!.declarations.childBehavior == .combine else { return }
+        guard state[required: id].declarations.childBehavior == .combine else { return }
         // Tree order: a non-interactive descendant's text, or the slot of an
         // interactive one (not walked into), whose label is decided after.
         enum Entry { case text(String), control(GlobalElementID) }
@@ -631,7 +631,7 @@ enum AccessibilityTreeBuilder {
         var interactive: [GlobalElementID] = []
         var stack = Array((placed[id] ?? []).reversed())
         while let next = stack.popLast() {
-            let node = state[next]!
+            let node = state[required: next]
             if node.isInteractive {
                 entries.append(.control(next))
                 interactive.append(next)
@@ -651,45 +651,45 @@ enum AccessibilityTreeBuilder {
         // increment and decrement, and an adjustment reaches it (`Window`);
         // only a child that presses is a custom action. `redirects` lists the
         // lead first, so a press reaches it.
-        let pressing = interactive.filter { state[$0]!.actions.contains(.press) }
-        let adjustable = interactive.filter { isAdjustable(state[$0]!) }
-        let leadID = pressing.first ?? interactive.first(where: { !isAdjustable(state[$0]!) }) ?? interactive.first
+        let pressing = interactive.filter { state[required: $0].actions.contains(.press) }
+        let adjustable = interactive.filter { isAdjustable(state[required: $0]) }
+        let leadID = pressing.first ?? interactive.first(where: { !isAdjustable(state[required: $0]) }) ?? interactive.first
         let texts = entries.compactMap { entry -> String? in
             switch entry {
             case .text(let text): return text
             case .control(let child):
-                guard child == leadID, state[child]!.value == nil else { return nil }
-                return state[child]!.label
+                guard child == leadID, state[required: child].value == nil else { return nil }
+                return state[required: child].label
             }
         }
-        let joined = state[id]!.label ?? (texts.isEmpty ? nil : texts.joined(separator: ", "))
+        let joined = state[required: id].label ?? (texts.isEmpty ? nil : texts.joined(separator: ", "))
         if let leadID {
-            let lead = state[leadID]!
-            let roles = interactive.map { publishedRole(of: state[$0]!) }
+            let lead = state[required: leadID]
+            let roles = interactive.map { publishedRole(of: state[required: $0]) }
             var combinedRole = roles[0]
             for role in roles.dropFirst() where combinedRoleRank(role) > combinedRoleRank(combinedRole) {
                 combinedRole = role
             }
-            state[id]!.combinedRole = combinedRole
-            state[id]!.actions.formUnion(lead.actions)
+            state[required: id].combinedRole = combinedRole
+            state[required: id].actions.formUnion(lead.actions)
             for child in adjustable {
-                state[id]!.actions.formUnion(state[child]!.actions.intersection([.increment, .decrement]))
+                state[required: id].actions.formUnion(state[required: child].actions.intersection([.increment, .decrement]))
             }
-            state[id]!.label = joined
-            state[id]!.value = state[id]!.value
-                ?? interactive.last(where: { state[$0]!.value != nil }).flatMap { state[$0]!.value }
-            state[id]!.customActions += pressing.map { state[$0]!.label ?? state[$0]!.value ?? "" }
-            state[id]!.customTargets += pressing.map { .press($0) }
+            state[required: id].label = joined
+            state[required: id].value = state[required: id].value
+                ?? interactive.last(where: { state[required: $0].value != nil }).flatMap { state[required: $0].value }
+            state[required: id].customActions += pressing.map { state[required: $0].label ?? state[required: $0].value ?? "" }
+            state[required: id].customTargets += pressing.map { .press($0) }
             build.redirects[id] = [leadID] + interactive.filter { $0 != leadID }
         } else {
-            state[id]!.combinedRole = .staticText
-            let value = state[id]!.value ?? (values.isEmpty ? nil : values.joined(separator: ", "))
+            state[required: id].combinedRole = .staticText
+            let value = state[required: id].value ?? (values.isEmpty ? nil : values.joined(separator: ", "))
             if let value {
-                state[id]!.label = joined
-                state[id]!.value = value
+                state[required: id].label = joined
+                state[required: id].value = value
             } else {
-                state[id]!.label = nil
-                state[id]!.value = joined
+                state[required: id].label = nil
+                state[required: id].value = joined
             }
         }
         placed[id] = []

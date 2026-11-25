@@ -162,7 +162,7 @@ public struct ComponentLayout<C: Component> {
     /// traps by name** (`RK-B`): its prepaint and paint can only be replays.
     func withPayload<R>(_ body: (inout Payload) -> R) -> R {
         guard storage.payload != nil else { Self.trapGrafted() }
-        return body(&storage.payload!)
+        return body(&storage.payload.required)
     }
 
     private static func trapGrafted() -> Never {
@@ -215,7 +215,7 @@ public struct ComponentPrepaint<C: Component> {
         guard storage.prepaint != nil else {
             preconditionFailure("an element phase reached a Component whose prepaint was replayed (RK-B): a replayed prepaint paints only from a record")
         }
-        return body(&storage.prepaint!)
+        return body(&storage.prepaint.required)
     }
 }
 

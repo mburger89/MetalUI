@@ -435,9 +435,9 @@ public final class GlyphAtlas {
         let copyHeight = min(height, newHeight)
         next.withUnsafeMutableBufferPointer { destination in
             pixels.withUnsafeBufferPointer { source in
+                guard let target = destination.baseAddress, let origin = source.baseAddress else { return }
                 for row in 0..<copyHeight {
-                    (destination.baseAddress! + row * newWidth)
-                        .update(from: source.baseAddress! + row * width, count: copyWidth)
+                    (target + row * newWidth).update(from: origin + row * width, count: copyWidth)
                 }
             }
         }

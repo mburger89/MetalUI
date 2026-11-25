@@ -73,11 +73,11 @@ struct TableCellBox<Content: ElementGroup>: Element, ProposalElement {
         guard Self.overflows(bounds, nodes: layout.contentNodes, of: { pass.bounds(of: $0) }) else {
             return content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
-        var result: LegacyContent<Content>.GroupPrepaint!
+        var result: LegacyContent<Content>.GroupPrepaint?
         pass.clipped(to: bounds, offsetBy: zeroPoint) {
             result = content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
-        return result
+        return scopeResult(result)
     }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,

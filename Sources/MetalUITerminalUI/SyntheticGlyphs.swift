@@ -148,6 +148,8 @@ package enum SyntheticGlyphs {
         let wV = max(wU, wD), wH = max(wL, wR)
         let hasV = wV > 0, hasH = wH > 0
         let vs = spans(wV, cw), hs = spans(wH, ch)    // widest vertical (x spans) and horizontal (y spans)
+        // Read only under `hasV` / `hasH`, where `spans` answers one or two strokes (weights are 0...3).
+        let vFirst = vs.first ?? (0, 0), vLast = vs.last ?? (0, 0), hFirst = hs.first ?? (0, 0), hLast = hs.last ?? (0, 0)
         var out: [CellRect] = []
 
         // Horizontal arms: where each stroke stops short of (or runs into) the vertical.
@@ -155,11 +157,11 @@ package enum SyntheticGlyphs {
             var end = cw / 2
             if hasV {
                 if wL == 3, wV == 3 {
-                    if wU > 0, wD > 0 { end = vs.first!.1 }
-                    else if wU > 0 { end = k == 0 ? vs.first!.1 : vs.last!.1 }
-                    else { end = k == 0 ? vs.last!.1 : vs.first!.1 }
-                } else if wV == 3 { end = wR > 0 ? vs.last!.1 : vs.first!.1 }
-                else { end = vs.first!.1 }
+                    if wU > 0, wD > 0 { end = vFirst.1 }
+                    else if wU > 0 { end = k == 0 ? vFirst.1 : vLast.1 }
+                    else { end = k == 0 ? vLast.1 : vFirst.1 }
+                } else if wV == 3 { end = wR > 0 ? vLast.1 : vFirst.1 }
+                else { end = vFirst.1 }
             }
             out.append(CellRect(0, y0, end, y1))
         }
@@ -167,11 +169,11 @@ package enum SyntheticGlyphs {
             var start = cw / 2
             if hasV {
                 if wR == 3, wV == 3 {
-                    if wU > 0, wD > 0 { start = vs.last!.0 }
-                    else if wU > 0 { start = k == 0 ? vs.last!.0 : vs.first!.0 }
-                    else { start = k == 0 ? vs.first!.0 : vs.last!.0 }
-                } else if wV == 3 { start = wL > 0 ? vs.first!.0 : vs.last!.0 }
-                else { start = vs.first!.0 }
+                    if wU > 0, wD > 0 { start = vLast.0 }
+                    else if wU > 0 { start = k == 0 ? vLast.0 : vFirst.0 }
+                    else { start = k == 0 ? vFirst.0 : vLast.0 }
+                } else if wV == 3 { start = wL > 0 ? vFirst.0 : vLast.0 }
+                else { start = vFirst.0 }
             }
             out.append(CellRect(start, y0, cw, y1))
         }
@@ -180,11 +182,11 @@ package enum SyntheticGlyphs {
             var end = ch / 2
             if hasH {
                 if wU == 3, wH == 3 {
-                    if wL > 0, wR > 0 { end = wD > 0 ? hs.first!.1 : hs.last!.1 }
-                    else if wL > 0 { end = k == 0 ? hs.first!.1 : hs.last!.1 }
-                    else { end = k == 0 ? hs.last!.1 : hs.first!.1 }
-                } else if wH == 3 { end = wD > 0 ? hs.last!.1 : hs.first!.1 }
-                else { end = hs.first!.1 }
+                    if wL > 0, wR > 0 { end = wD > 0 ? hFirst.1 : hLast.1 }
+                    else if wL > 0 { end = k == 0 ? hFirst.1 : hLast.1 }
+                    else { end = k == 0 ? hLast.1 : hFirst.1 }
+                } else if wH == 3 { end = wD > 0 ? hLast.1 : hFirst.1 }
+                else { end = hFirst.1 }
             }
             out.append(CellRect(x0, 0, x1, end))
         }
@@ -192,11 +194,11 @@ package enum SyntheticGlyphs {
             var start = ch / 2
             if hasH {
                 if wD == 3, wH == 3 {
-                    if wL > 0, wR > 0 { start = wU > 0 ? hs.last!.0 : hs.first!.0 }
-                    else if wL > 0 { start = k == 0 ? hs.last!.0 : hs.first!.0 }
-                    else { start = k == 0 ? hs.first!.0 : hs.last!.0 }
-                } else if wH == 3 { start = wU > 0 ? hs.first!.0 : hs.last!.0 }
-                else { start = hs.last!.0 }
+                    if wL > 0, wR > 0 { start = wU > 0 ? hLast.0 : hFirst.0 }
+                    else if wL > 0 { start = k == 0 ? hLast.0 : hFirst.0 }
+                    else { start = k == 0 ? hFirst.0 : hLast.0 }
+                } else if wH == 3 { start = wU > 0 ? hFirst.0 : hLast.0 }
+                else { start = hLast.0 }
             }
             out.append(CellRect(x0, start, x1, ch))
         }
