@@ -32,7 +32,7 @@ enum XRArm: String, CaseIterable { case transcript, variableList, grid, zoom }
 
 /// A streaming word of letters no earlier word used (Latin Extended-A), so every step asks the atlas for a glyph it has not packed.
 func xrStreaming(_ step: Int) -> String {
-    "streaming" + (0..<step).map { " w" + String(Character(Unicode.Scalar(0x100 + $0 % 120)!)) }.joined()
+    "streaming" + (0..<step).map { " w" + (Unicode.Scalar(0x100 + $0 % 120).map(Character.init) ?? "x").description }.joined()
 }
 
 struct XRRoot: Component {

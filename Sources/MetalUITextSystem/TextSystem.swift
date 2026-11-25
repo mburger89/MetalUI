@@ -96,6 +96,7 @@ public protocol TextSystem: AnyObject, Sendable {
 }
 
 extension TextSystem {
+    /// The default: ends the bracket as ``endFrame()`` does.
     public func abandonFrame() { endFrame() }
 }
 

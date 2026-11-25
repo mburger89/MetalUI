@@ -374,6 +374,21 @@ enum EffectRelation: Equatable {
 /// One occurrence's paint products (`SB-B`), replayed in the order a fresh paint makes them.
 @MainActor
 final class RetainedRecord {
+    /// Whether every glyph the record replays names a slot `isPacked` knows (`GL-K`): a record made in an attempt that packed a glyph
+    /// the rollback forgot would draw an empty sprite.
+    func glyphSlotsAre(packed isPacked: (MUIBounds) -> Bool) -> Bool {
+        for ops in [scene, finalScene ?? []] {
+            for op in ops {
+                for (primitives, _) in op.leaves {
+                    for primitive in primitives {
+                        if case .glyph(let glyph) = primitive.kind, glyph.atlasBounds.size.width > 0, !isPacked(glyph.atlasBounds) { return false }
+                    }
+                }
+            }
+        }
+        return true
+    }
+
     var key: ReplayKey
     /// `ContentMemoStore.Entry.serial` of the getter evaluation the record was made under.
     var contentSerial = 0
