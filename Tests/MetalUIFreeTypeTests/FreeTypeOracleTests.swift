@@ -66,7 +66,7 @@ let glyphRasterAdjustedSizes: Set<SizeKey> = [
     SizeKey(file: notoSans, size: 17, scale: 1),
     SizeKey(file: sourceSans, size: 11, scale: 1),
     SizeKey(file: sourceSans, size: 13, scale: 1),
-    SizeKey(file: sourceSans, size: 17, scale: 1),
+    SizeKey(file: sourceSans, size: 17, scale: 1)
 ]
 
 // MARK: - The glyph set
@@ -212,7 +212,7 @@ struct FreeTypeOracleTests {
     static let expectedCaseCount = sizes.count * characters.count * scales.count * GlyphImage.subpixelVariants
 
     @Test("each font file carries the outline format it is here to exercise", arguments: [
-        (notoSans, "glyf"), (sourceSans, "CFF "),
+        (notoSans, "glyf"), (sourceSans, "CFF ")
     ])
     func outlineFormat(file: String, table: String) throws {
         let font = try OracleFont(file)

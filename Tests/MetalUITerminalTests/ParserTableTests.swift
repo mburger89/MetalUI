@@ -38,7 +38,7 @@ import Testing
         Row(input: "\(ESC)[1\u{18}H", expect: ["exec 24", "print H"]),
         Row(input: "\(ESC)[1\u{1A}H", expect: ["exec 26", "print H"]),
         // DEL is ignored.
-        Row(input: "\(ESC)[1\u{7F}2H", expect: ["csi H v=[12] sub=[0] prefix=0 i=[]"]),
+        Row(input: "\(ESC)[1\u{7F}2H", expect: ["csi H v=[12] sub=[0] prefix=0 i=[]"])
     ]
 
     @Test(arguments: csiRows) func csi(_ row: Row) { #expect(parse(row.input) == row.expect) }
@@ -58,7 +58,7 @@ import Testing
         Row(input: "\(ESC)=\(ESC)>", expect: ["esc = i=[]", "esc > i=[]"]),
         Row(input: "\(ESC)\n7", expect: ["exec 10", "esc 7 i=[]"]),
         Row(input: "\(ESC)(\u{18}A", expect: ["exec 24", "print A"]),
-        Row(input: "\(ESC)\(ESC)M", expect: ["esc M i=[]"]),
+        Row(input: "\(ESC)\(ESC)M", expect: ["esc M i=[]"])
     ]
 
     @Test(arguments: escRows) func escape(_ row: Row) { #expect(parse(row.input) == row.expect) }
@@ -81,7 +81,7 @@ import Testing
         // ESC inside a string ends it as ST does and starts a new sequence.
         Row(input: "\(ESC)]0;t\(ESC)[2H", expect: ["osc 0;t", "csi H v=[2] sub=[0] prefix=0 i=[]"]),
         // A DCS with a private marker after digits is ignored to its terminator.
-        Row(input: "\(ESC)P1?2qZZ\(ST)W", expect: ["esc \\ i=[]", "print W"]),
+        Row(input: "\(ESC)P1?2qZZ\(ST)W", expect: ["esc \\ i=[]", "print W"])
     ]
 
     @Test(arguments: stringRows) func strings(_ row: Row) { #expect(parse(row.input) == row.expect) }

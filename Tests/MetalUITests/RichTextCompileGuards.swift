@@ -49,7 +49,7 @@ func theTextModifiersComposeAsSwiftUIs() throws {
         ("a + over a lineLimit scope", """
             @available(*, deprecated, message: "the guard's own use of the deprecated +")
             @MainActor public func probe() -> Text { Text("a").lineLimit(1) + Text("b") }
-            """, "'EnvironmentScope<Text>' to expected argument type 'Text'"),
+            """, "'EnvironmentScope<Text>' to expected argument type 'Text'")
     ]
     for (name, source, mention) in refusals {
         let result = try typecheckFile(source, importing: "MetalUI")

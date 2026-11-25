@@ -12,7 +12,7 @@ private typealias Entry = ClipboardItemPack.Entry
     let items: [[Entry]] = [
         [Entry(identifier: "com.acme.graph", bytes: [1, 2, 3]), Entry(identifier: "public.utf8-plain-text", bytes: Array("hi".utf8))],
         [],
-        [Entry(identifier: "Com.Acme/%00 \u{1F600}", bytes: []), Entry(identifier: "x", bytes: [255, 0, 7])],
+        [Entry(identifier: "Com.Acme/%00 \u{1F600}", bytes: []), Entry(identifier: "x", bytes: [255, 0, 7])]
     ]
     let bytes = try #require(ClipboardItemPack.encode(items))
     let decoded = try #require(ClipboardItemPack.decode(bytes))

@@ -22,7 +22,7 @@ import Testing
 let bracketFilletPress = Point(x: Pixels(20), y: Pixels(400))
 
 @MainActor func bracketDragFrames(arm: BracketArm, steps: Int, retained: Bool = true, prepaint: Bool = true,
-                                       graft: Bool = false) throws
+                                  graft: Bool = false) throws
     -> (frames: [FrameWork], counting: CountingTextSystem, window: TestWindow, model: BracketModel) {
     let counting = CountingTextSystem(harnessTextSystem())
     let (window, model) = try bracketWindow(arm: arm, textSystem: { counting })
@@ -48,7 +48,7 @@ private let baselineArms = [
     BaselineArm(arm: .value, evaluations: 3, skips: 29, refusals: 0, nodeBodies: 20),
     // C14-c (`EE-J`) re-count: refused at 6273e3a4 (2 / 19 / 11, 231 node bodies), memoized by its reading now.
     BaselineArm(arm: .environment, evaluations: 3, skips: 29, refusals: 0, nodeBodies: 20),
-    BaselineArm(arm: .panels, evaluations: 3, skips: 32, refusals: 0, nodeBodies: 20),
+    BaselineArm(arm: .panels, evaluations: 3, skips: 32, refusals: 0, nodeBodies: 20)
 ]
 
 @Test(arguments: [BracketArm.value, BracketArm.environment, BracketArm.panels]) @MainActor
@@ -109,4 +109,3 @@ func theBracketNodeDragRebuildsTheWholeWindow(arm: BracketArm) throws {
     #expect(r.model.nodes[BracketModel.filletIndex].x == 720)
     #expect(r.model.visibleNodes.count == 11)
 }
-

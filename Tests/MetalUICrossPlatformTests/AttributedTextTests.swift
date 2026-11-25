@@ -37,7 +37,7 @@ import MetalUITextSystem
         segments(Text("k").kerning(2))[0],
         segments(Text("t").tracking(3))[0],
         segments(Text("o").baselineOffset(4))[0],
-        TextRunRequest(string: "l", link: "https://x.org"),
+        TextRunRequest(string: "l", link: "https://x.org")
     ]
     #expect(segments(Text(s)) == expected, "\(Text(s).content)")
     #expect(ProposalText(s).content == .runs(expected), "ProposalText reads the same runs")

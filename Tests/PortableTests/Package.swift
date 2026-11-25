@@ -16,14 +16,14 @@ let package = Package(
     targets: [
         .testTarget(name: "FreeTypeDeterminismTests", dependencies: [
             .product(name: "MetalUIFreeType", package: "MetalUI"),
-            .product(name: "MetalUIScene", package: "MetalUI"),
+            .product(name: "MetalUIScene", package: "MetalUI")
         ]),
         // SH-I. MetalUIFreeType is here for the one end-to-end case: shape,
         // then rasterize every glyph the shaper returned.
         .testTarget(name: "HarfBuzzDeterminismTests", dependencies: [
             .product(name: "MetalUIHarfBuzz", package: "MetalUI"),
             .product(name: "MetalUIFreeType", package: "MetalUI"),
-            .product(name: "MetalUIScene", package: "MetalUI"),
+            .product(name: "MetalUIScene", package: "MetalUI")
         ]),
         // PT-H. The whole portable text pipeline: string -> MUIGlyphs + atlas.
         // TE-C: MetalUITextSystem for the layout options the truncation pins
@@ -31,7 +31,7 @@ let package = Package(
         .testTarget(name: "PortableTextDeterminismTests", dependencies: [
             .product(name: "MetalUIPortableText", package: "MetalUI"),
             .product(name: "MetalUIScene", package: "MetalUI"),
-            .product(name: "MetalUITextSystem", package: "MetalUI"),
-        ]),
+            .product(name: "MetalUITextSystem", package: "MetalUI")
+        ])
     ]
 )

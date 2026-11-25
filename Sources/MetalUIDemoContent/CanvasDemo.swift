@@ -60,7 +60,7 @@ let canvasDemoNodes: [CanvasDemoNode] = [
     CanvasDemoNode(name: "Revolve", x: 400, y: 90, width: 120, height: 56),
     CanvasDemoNode(name: "Fillet", x: 80, y: 220, width: 120, height: 56),
     CanvasDemoNode(name: "Mirror", x: 280, y: 250, width: 120, height: 56),
-    CanvasDemoNode(name: "Export", x: 470, y: 300, width: 120, height: 56),
+    CanvasDemoNode(name: "Export", x: 470, y: 300, width: 120, height: 56)
 ]
 
 /// The node that carries the `RotateGesture` ("Revolve").
@@ -374,7 +374,7 @@ let canvasDemoStyles: [(String, PointerStyle)] = [
     ("link", .link), ("zoomIn", .zoomIn), ("zoomOut", .zoomOut),
     ("column", .columnResize), ("row", .rowResize),
     ("top", .frameResize(position: .top)), ("trailing in", .frameResize(position: .trailing, directions: .inward)),
-    ("corner", .frameResize(position: .bottomTrailing)),
+    ("corner", .frameResize(position: .bottomTrailing))
 ]
 
 /// One swatch per pointer style, in two rows of seven (human checks Y5, Y6).

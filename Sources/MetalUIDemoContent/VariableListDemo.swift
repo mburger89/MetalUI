@@ -43,7 +43,7 @@ private let variableListDemoTexts = [
     "A medium row whose text runs long enough to wrap onto a second line in a window of ordinary width.",
     "A long row. Its text is a whole paragraph, so it wraps onto several lines and makes this row "
         + "several times the height of a short one; resizing the window re-wraps it and re-measures "
-        + "the row at the list's new width, while the row on top of the viewport keeps its place.",
+        + "the row at the list's new width, while the row on top of the viewport keeps its place."
 ]
 
 /// The demo's 300 rows (row `i` has text `i % 3`).

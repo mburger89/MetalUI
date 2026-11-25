@@ -43,8 +43,8 @@ private struct Item: Identifiable { let id: Int }
 /// (Took a layout authority from stage 4's lane 4, `LR-BU`, until stage 9, which
 /// deleted the legacy one.)
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
-                                           width: Float = 300, height: Float = 300,
-                                           collects: Bool = true)
+                                            width: Float = 300, height: Float = 300,
+                                            collects: Bool = true)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,

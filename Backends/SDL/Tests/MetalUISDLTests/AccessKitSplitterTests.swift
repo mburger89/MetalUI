@@ -49,7 +49,7 @@ private func snapshot(_ tree: AccessibilityTree, ids: AccessKitIDs) -> [UInt64: 
     let expected: [(String, UInt8, Double, Double)] = [
         ("outer", UInt8(ACCESSKIT_ORIENTATION_VERTICAL.rawValue), 320, 639),
         ("inner", UInt8(ACCESSKIT_ORIENTATION_HORIZONTAL.rawValue), 150, 479),
-        ("innermost", UInt8(ACCESSKIT_ORIENTATION_VERTICAL.rawValue), 100.5, 300),
+        ("innermost", UInt8(ACCESSKIT_ORIENTATION_VERTICAL.rawValue), 100.5, 300)
     ]
     for (name, orientation, value, max) in expected {
         let node = try #require(nodes[n(name)])

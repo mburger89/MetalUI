@@ -69,7 +69,7 @@ private func appKitFingerprint(_ element: AppKitAccessibilityElement) -> String 
         "selected=\(element.isAccessibilitySelected())",
         "children=\((element.accessibilityChildren() ?? []).count)",
         "selectors=\(allowed)",
-        "custom=\(custom)",
+        "custom=\(custom)"
     ].joined(separator: " ")
 }
 

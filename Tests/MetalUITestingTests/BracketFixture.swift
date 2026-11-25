@@ -43,7 +43,7 @@ struct BracketNodeData: Equatable, Identifiable, Sendable {
         ("Extrude", 4, 1), ("Extrude", 4, 1), ("Extrude", 4, 1),
         ("Grid Points", 6, 1), ("Plane", 2, 1), ("Boolean", 3, 1), ("Boolean", 3, 1),
         ("Edges By Direction", 3, 1), ("Edge Filter", 4, 1), ("Edge Set Op", 3, 1),
-        ("Edges By Tag", 1, 1), ("Fillet", 2, 1), ("Chamfer", 2, 1), ("Output", 1, 1),
+        ("Edges By Tag", 1, 1), ("Fillet", 2, 1), ("Chamfer", 2, 1), ("Output", 1, 1)
     ]
     static let filletIndex = 17
     var nodes: [BracketNodeData]
@@ -77,7 +77,7 @@ struct BracketNodeData: Equatable, Identifiable, Sendable {
     }
 
     func drag(_ id: Int, translation: Size<Pixels>) {
-        
+
         if dragging != id { dragging = id; dragStartX = nodes[id].x; dragStartY = nodes[id].y; selected = id }
         nodes[id].x = dragStartX + translation.width.value
         nodes[id].y = dragStartY + translation.height.value

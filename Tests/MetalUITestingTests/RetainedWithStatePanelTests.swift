@@ -239,7 +239,7 @@ func aFocusedFieldInsideARetainedPanelMissesAndTypingWorks() throws {
 // MARK: Test 8 — a selection change inside a retained list
 
 @Observable @MainActor final class RWSelectionModel {
-    var selection: Int? = nil
+    var selection: Int?
     var multi: Set<Int> = []
 }
 
@@ -420,7 +420,7 @@ func aScriptedSessionOnThePanelsArmEqualsAFreshWindowEveryFrame() throws {
         // scroll fade and the caret's blink epoch in paint (`CV-AC`), and an autoscroll's offsets are computed from input's state (`CV-AD`), written nowhere in a phase.
         // The fold gutter's hover (`CV-BN`): its input side reads `gutterHovered` and writes it plain, only when it differs.
         // The text hover (`CV-AS`): its input side writes the hover track plain (one site) and reads it; the prepaint's timers go through `CodeView`'s compared write.
-        "Code/CodeEditSession.swift": (1, 0, 1, 0), "Code/CodeTextHover.swift": (1, 0, 1, 0), "Code/CodeView.swift": (2, 1, 2, 0), "Code/CodeViewPlan.swift": (0, 0, 2, 0), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 2, 3, 0), "Window.swift": (7, 0, 0, 0),
+        "Code/CodeEditSession.swift": (1, 0, 1, 0), "Code/CodeTextHover.swift": (1, 0, 1, 0), "Code/CodeView.swift": (2, 1, 2, 0), "Code/CodeViewPlan.swift": (0, 0, 2, 0), "TextEditor.swift": (1, 1, 2, 0), "TextField.swift": (1, 2, 3, 0), "Window.swift": (7, 0, 0, 0)
     ]
     let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Sources/MetalUI")

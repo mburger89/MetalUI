@@ -293,10 +293,10 @@ import MetalUITesting
     let decorations = CodeDecorations(buffer: buffer)
     decorations.setLineDecorations([
         CodeLineDecoration(lines: 10..<20, gutterBar: .red, background: nil, tag: 7),
-        CodeLineDecoration(lines: 25..<28, background: .green, tag: 8),
+        CodeLineDecoration(lines: 25..<28, background: .green, tag: 8)
     ], asOf: buffer.version)
     decorations.setVirtualRows([
-        CodeVirtualRow(anchor: .before(line: 5), lines: ["removed one", "removed two"], gutterBar: .blue, tag: 9),
+        CodeVirtualRow(anchor: .before(line: 5), lines: ["removed one", "removed two"], gutterBar: .blue, tag: 9)
     ], asOf: buffer.version)
     let window = try harnessWindow(size: sz(400, 600)) {
         CodeView(buffer: buffer, decorations: decorations).font(size: 12).codeCaretBlink(.off)

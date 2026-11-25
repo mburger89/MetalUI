@@ -144,7 +144,7 @@ final class ControlModel {
 @Test @MainActor func aButtonReadsControlSizeForItsChromeAndItsLabelsDefaultFont() throws {
     let table: [(ControlSize, Float, Float, Double)] = [
         (.mini, 8, 13, 9), (.small, 10, 20, 11), (.regular, 12, 24, 13), (.large, 14, 28, 13),
-        (.extraLarge, 18, 36, 13),
+        (.extraLarge, 18, 36, 13)
     ]
     var labelWidths: [Float] = []
     for (size, padding, height, points) in table {

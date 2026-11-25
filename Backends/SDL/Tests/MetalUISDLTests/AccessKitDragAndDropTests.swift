@@ -27,7 +27,7 @@ private func dragAndDropTree() -> AccessibilityTree {
         nid("chip"): AccessibilityNode(role: .staticText, value: "Chip"),
         nid("go"): AccessibilityNode(role: .button, label: "Go", isFocusable: true, actions: [.press]),
         nid("well"): AccessibilityNode(role: .group, label: "Well"),
-        nid("drop"): AccessibilityNode(role: .staticText, value: "Drop here"),
+        nid("drop"): AccessibilityNode(role: .staticText, value: "Drop here")
     ]
     return AccessibilityTree(roots: names.map(nid), nodes: nodes, geometry: [:], focused: nil)
 }
@@ -60,7 +60,7 @@ private func dragAndDropTree() -> AccessibilityTree {
         Row(name: "well", role: .genericContainer, accessKitRole: UInt32(ACCESSKIT_ROLE_GENERIC_CONTAINER.rawValue),
             label: "Well", actions: []),
         Row(name: "drop", role: .label, accessKitRole: UInt32(ACCESSKIT_ROLE_LABEL.rawValue), value: "Drop here",
-            actions: []),
+            actions: [])
     ]
     for row in rows {
         let node = try #require(byNumber[ids.number(for: nid(row.name))], "\(row.name) translated")

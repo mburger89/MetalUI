@@ -49,7 +49,6 @@ private final class ShiftSDLPlatform: Platform {
     }
 }
 
-
 @MainActor
 private final class Seen {
     var runs = 0

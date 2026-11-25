@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - the window and its frame pipeline are one unit
 import Foundation
 import Observation
 import MetalUICore
@@ -11,7 +12,7 @@ import MetalUITextSystem
 /// One window: its element tree, focus, input dispatch and frame loop, drawn
 /// through a `PlatformWindow`. Every member is main-actor isolated.
 @MainActor
-public final class Window {
+public final class Window { // swiftlint:disable:this type_body_length - the window owns the whole frame pipeline state
     let platformWindow: any PlatformWindow   // internal: the app shell reads it (WindowShell.swift)
 
     /// Builds and walks the root element for one frame.
@@ -1075,6 +1076,7 @@ public final class Window {
         return Size(width: size.width, height: Pixels(max(size.height.value, 0) + drawnChromeHeightValue))
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length - the window initialiser wires every subsystem in dependency order
     init<Root: Element>(platformWindow: any PlatformWindow,
                         startsDisplayLink: Bool = true,
                         textSystem: (any TextSystem)? = nil,

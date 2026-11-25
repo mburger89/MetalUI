@@ -92,9 +92,9 @@ private func controlsDemoTree() -> AccessibilityTree {
         var label: String?
         var value: String?
         var actions: Set<AccessKitSnapshot.Action>
-        var toggled: Bool? = nil
-        var numeric: Double? = nil
-        var selected: Bool? = nil
+        var toggled: Bool?
+        var numeric: Double?
+        var selected: Bool?
     }
     let pressFocus: Set<AccessKitSnapshot.Action> = [.click, .focus]
     let adjustFocus: Set<AccessKitSnapshot.Action> = [.increment, .decrement, .focus]
@@ -123,7 +123,7 @@ private func controlsDemoTree() -> AccessibilityTree {
         Row(name: "table", role: .table, accessKitRole: UInt32(ACCESSKIT_ROLE_TABLE.rawValue), actions: [.focus]),
         Row(name: "row2", role: .row, accessKitRole: UInt32(ACCESSKIT_ROLE_ROW.rawValue), actions: [.click], selected: true),
         Row(name: "row3", role: .row, accessKitRole: UInt32(ACCESSKIT_ROLE_ROW.rawValue), actions: [.click], selected: false),
-        Row(name: "text3", role: .label, accessKitRole: UInt32(ACCESSKIT_ROLE_LABEL.rawValue), value: "Row 3", actions: []),
+        Row(name: "text3", role: .label, accessKitRole: UInt32(ACCESSKIT_ROLE_LABEL.rawValue), value: "Row 3", actions: [])
     ]
     for row in table {
         let translated = try node(row.name)

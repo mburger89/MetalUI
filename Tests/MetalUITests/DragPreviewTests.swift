@@ -329,7 +329,7 @@ private struct Named: Identifiable, Hashable {
             }.frame(width: px(200), height: px(100))) }),
         ("proposal Rectangle", { AnyElement(HStack {
                 Rectangle().fill(.accent).frame(width: px(100), height: px(100)).draggable("s")
-            }) }),
+            }) })
     ]
     for (name, source) in arms {
         let (window, platform) = try previewWindow { Row { source() } }

@@ -31,7 +31,7 @@ private struct EEWork: Equatable, CustomStringConvertible {
 
 /// The three configurations the arms are compared in: retention off, paint and prepaint replay, and the graft too.
 private let eeConfigurations: [(name: String, retained: Bool, prepaint: Bool, graft: Bool)] = [
-    ("retention off", false, false, false), ("replay", true, true, false), ("graft", true, true, true),
+    ("retention off", false, false, false), ("replay", true, true, false), ("graft", true, true, true)
 ]
 
 /// B1 — in every configuration the `.environment` arm's mid-drag frame counts what the `.value` arm's does: no

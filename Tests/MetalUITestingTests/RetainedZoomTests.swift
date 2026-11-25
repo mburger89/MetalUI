@@ -122,26 +122,37 @@ enum ZRefusalArm: CaseIterable, CustomStringConvertible, Sendable {
     case flattensChanged, outerClipChanged, namedSpaceNote, anchor, contextMenu, gateWithZoom
     var description: String {
         switch self {
-        case .flattensChanged: "flattensChanged"; case .outerClipChanged: "outerClipChanged"
-        case .namedSpaceNote: "namedSpaceNote"; case .anchor: "anchor"; case .contextMenu: "contextMenu"
+        case .flattensChanged: "flattensChanged"
+        case .outerClipChanged: "outerClipChanged"
+        case .namedSpaceNote: "namedSpaceNote"
+        case .anchor: "anchor"
+        case .contextMenu: "contextMenu"
         case .gateWithZoom: "gateWithZoom"
         }
     }
     var extra: ZExtra {
         switch self {
-        case .flattensChanged: .nonUniform; case .outerClipChanged: .outerClip
-        case .gateWithZoom: .gateWithZoom; default: .none
+        case .flattensChanged: .nonUniform
+        case .outerClipChanged: .outerClip
+        case .gateWithZoom: .gateWithZoom
+        default: .none
         }
     }
     var kind: ZKind {
         switch self {
-        case .namedSpaceNote: .namedSpace; case .anchor: .popover; case .contextMenu: .menu; default: .plain
+        case .namedSpaceNote: .namedSpace
+        case .anchor: .popover
+        case .contextMenu: .menu
+        default: .plain
         }
     }
     var reason: String {
         switch self {
-        case .flattensChanged: "effectFlatteningChanged"; case .outerClipChanged: "effectClipChanged"
-        case .namedSpaceNote: "geometryNamedSpace"; case .anchor: "presentationAnchor"; case .contextMenu: "contextMenus"
+        case .flattensChanged: "effectFlatteningChanged"
+        case .outerClipChanged: "effectClipChanged"
+        case .namedSpaceNote: "geometryNamedSpace"
+        case .anchor: "presentationAnchor"
+        case .contextMenu: "contextMenus"
         case .gateWithZoom: "prepaintContextChanged"
         }
     }

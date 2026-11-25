@@ -481,7 +481,7 @@ struct CombinedMixed { let role: AccessibilityRole; let label: String?; let valu
         ("G4", { try accessibilityBuild(controlRoot {
             Box().frame(width: 40, height: 40).accessibilityLabel("Tap").gesture(DragGesture())
         }).1 }),
-        ("G7", { try accessibilityBuild(controlRoot { Text("Tap").onTapGesture(count: 2) {} }).1 }),
+        ("G7", { try accessibilityBuild(controlRoot { Text("Tap").onTapGesture(count: 2) {} }).1 })
     ]
     for (arm, make) in legacy {
         let build = try make()
@@ -495,7 +495,7 @@ struct CombinedMixed { let role: AccessibilityRole; let label: String?; let valu
             Rectangle().frame(width: 40, height: 40).accessibilityLabel("Tap").gesture(DragGesture())
         }).1 }),
         ("G7", { try accessibilityBuild(HStack { ProposalText("Tap").onTapGesture(count: 2) {} }).1 }),
-        ("onTap", { try accessibilityBuild(HStack { ProposalText("Tap").onTap {} }).1 }),
+        ("onTap", { try accessibilityBuild(HStack { ProposalText("Tap").onTap {} }).1 })
     ]
     for (arm, make) in proposal {
         let build = try make()

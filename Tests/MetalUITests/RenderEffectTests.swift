@@ -633,7 +633,7 @@ private func lfaVisible(_ image: MUIImage) -> String {
 @Test @MainActor func aClippedGradientInsideAnOffsetIsCutByTheClipOutsideIt() throws {
     for (name, gradient) in [
         ("strip", LinearGradient(colors: [lkRed, lkBlue], startPoint: .top, endPoint: .bottom)),
-        ("full", LinearGradient(colors: [lkRed, lkBlue], startPoint: .topLeading, endPoint: .bottomTrailing)),
+        ("full", LinearGradient(colors: [lkRed, lkBlue], startPoint: .topLeading, endPoint: .bottomTrailing))
     ] {
         let scene = effectFrame(lfaStage(Rectangle().fill(gradient).frame(width: px(40), height: px(40))
             .clipped().offset(x: px(0), y: px(-60)))).finalizedScene()
@@ -693,7 +693,7 @@ private func lfaVisible(_ image: MUIImage) -> String {
 /// `.offset(pan)`; each node carries its own **inner** flattening `.offset`.
 /// So the outer map is x' = 20 + zoom(x − 20) + pan.x, y' = 60 + zoom(y − 60) + pan.y.
 @MainActor private func lfbCanvas<N: ProposalElementGroup>(zoom: Double, pan: (Float, Float),
-                                                         @ProposalContentBuilder _ nodes: () -> N) -> some Element {
+                                                           @ProposalContentBuilder _ nodes: () -> N) -> some Element {
     VStack(alignment: .leading, spacing: px(0)) {
         Color.clear.frame(width: px(360), height: px(40))
         ZStack(alignment: .topLeading) {

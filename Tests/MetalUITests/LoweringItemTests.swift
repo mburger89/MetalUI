@@ -1452,7 +1452,7 @@ private final class ItemAnimationModel {
 /// authority, in turn, until stage 9.)
 @MainActor
 private func animatedWidths<C: ElementGroup>(ids: [GlobalElementID],
-                                              @ElementBuilder _ make: @escaping @MainActor (Bool) -> C) throws -> [[Float]] {
+                                             @ElementBuilder _ make: @escaping @MainActor (Bool) -> C) throws -> [[Float]] {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let model = ItemAnimationModel()
     let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true) {

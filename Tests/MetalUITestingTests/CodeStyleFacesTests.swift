@@ -51,7 +51,7 @@ private let blue = Color(red: 0, green: 0, blue: 1)
     let got = decorations.paintedRuns(in: 0..<30).map { ($0.range, $0.style.foreground, $0.style.italic, $0.style.weight) }
     let want: [(Range<Int>, Color?, Bool?, Font.Weight?)] = [
         (0..<8, red, true, .bold), (8..<10, red, nil, .bold), (10..<12, red, nil, .light), (12..<14, red, true, .light),
-        (14..<16, red, true, .bold), (16..<20, blue, true, .bold), (20..<24, blue, nil, nil),
+        (14..<16, red, true, .bold), (16..<20, blue, true, .bold), (20..<24, blue, nil, nil)
     ]
     #expect(got.count == want.count && zip(got, want).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 && $0.2 == $1.2 && $0.3 == $1.3 },
             "\(got)")
@@ -237,7 +237,7 @@ private let sentence = "go The quick brown fox jumps over tail"
     let cases: [(system: @MainActor @Sendable () -> any TextSystem, style: CodeStyle)] = [
         ({ facesTextSystem(bold: true, italic: false) }, CodeStyle(italic: true)),
         ({ facesTextSystem(bold: false, italic: true) }, CodeStyle(weight: .bold)),
-        ({ harnessTextSystem() }, CodeStyle(italic: true, weight: .heavy)),
+        ({ harnessTextSystem() }, CodeStyle(italic: true, weight: .heavy))
     ]
     for (system, style) in cases {
         let plain = try faced(sentence, system: system)

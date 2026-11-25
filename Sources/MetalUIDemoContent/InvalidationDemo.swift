@@ -104,11 +104,12 @@ private struct InvalidationBranch: Component, @MainActor Equatable {
     }
 }
 
-/// A branch's three children, in a row at odd levels and a column at even.
+/// A branch's three children, in a row at odd levels and a column at even. Capitalised on purpose:
+/// it reads as a view at its call site, like the elements around it.
 @MainActor @ElementBuilder
-private func InvalidationRow(level: Int, first: Int, memo: Bool) -> some ElementGroup {
+private func InvalidationRow(level: Int, first: Int, memo: Bool) -> some ElementGroup { // swiftlint:disable:this identifier_name
     let span = [27, 9, 3, 1][min(3, level)]
-    if level % 2 == 0 {
+    if level.isMultiple(of: 2) {
         HStack(spacing: 2) {
             ForEach(Array(0..<3), id: \.self) { i in invalidationChild(level: level, first: first + i * span, memo: memo) }
         }

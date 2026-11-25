@@ -337,7 +337,6 @@ private struct AnchorHost: Component, @MainActor Equatable {
 
 @Observable @MainActor private final class Tick { var value = 0 }
 
-
 // MARK: chained presentations (`CV-BC`, `CV-BD`, record 332, Alloy code-intel #4)
 
 private let sugLabel = "SUG"

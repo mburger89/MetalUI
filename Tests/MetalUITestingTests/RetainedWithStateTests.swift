@@ -33,7 +33,7 @@ private let orbitBefore: [OrbitFrame] = [
     // `Picker`/`Menu` anchors, at prepaint). It is no longer asserted (`RW-` conversions moved it, see the after test below);
     // the retention-off conservation law still reads 798.
     OrbitFrame(arm: .panels, requests: 115, skipped: 683, prepaints: 117, paints: 110, hits: 34, misses: 0,
-               ineligible: 1, prepaintIneligible: 2, graftIneligible: 1, reasons: ["stateWrite": 3, "presentationAnchor": 1]),
+               ineligible: 1, prepaintIneligible: 2, graftIneligible: 1, reasons: ["stateWrite": 3, "presentationAnchor": 1])
 ]
 
 /// **Test 1, before arm** (green at `f557d339`, `RW-A`): the counts the item improves, taken with retention, prepaint replay and the
@@ -185,7 +185,7 @@ private let rwCases: [(RWMode, RWPhase, Bool)] = [
     (.readOnly, .layout, true), (.readOnly, .prepaint, true), (.readOnly, .paint, true), (.readOnly, .all, true),
     (.compared, .all, true),
     // The graft off: the paint record's own versions are the only guard of a build-window read (`RW-R` item 4).
-    (.readOnly, .layout, false),
+    (.readOnly, .layout, false)
 ]
 private func rwLabel(_ c: (RWMode, RWPhase, Bool)) -> String { "\(c.0.rawValue)/\(c.1.rawValue)/graft \(c.2)" }
 
@@ -373,7 +373,7 @@ private let rwExpected: [RWChannel: RWChannelCost] = [
     .continuousSurface: RWChannelCost(hits: 1, paint: 1, prepaint: 0, graft: 0, reasons: ["activeAnimation": 1]),
     .popover: RWChannelCost(hits: 1, paint: 1, prepaint: 1, graft: 1, reasons: ["popover": 1, "presentation": 1, "portal": 1]),
     .alert: RWChannelCost(hits: 2, paint: 0, prepaint: 0, graft: 1, reasons: ["presentation": 1]),
-    .stateWrite: RWChannelCost(hits: 1, paint: 1, prepaint: 1, graft: 1, reasons: ["stateWrite": 3]),
+    .stateWrite: RWChannelCost(hits: 1, paint: 1, prepaint: 1, graft: 1, reasons: ["stateWrite": 3])
 ]
 
 /// **Test 9** — one arm per channel an occurrence cannot replay: the occurrence is ineligible, a plain neighbour replays (so

@@ -17,6 +17,7 @@ import MetalUIPlatform
     }
     let held = window.frameCapacityHints
     #expect(held.tree.nodes > 500 && held.tree.nativeNodes > 500 && held.tree.leafKeys > 100, "\(held)")
+    #expect(held.sceneRects > 50 && held.sceneGlyphs > 300, "the scene's counts (`HP-L`): \(held)")
     #expect(held.hitboxes >= 200 && held.focus.focusable >= 100 && held.loweringItems > 100 && held.elementBounds > 100, "\(held)")
 
     controlRedraw(window)
@@ -32,6 +33,8 @@ import MetalUIPlatform
     #expect(start.hitboxes >= held.hitboxes)
     #expect(start.loweringItems >= held.loweringItems)
     #expect(start.elementBounds >= held.elementBounds)
+    // `HP-L`: the scene's rect and glyph arrays start at the last frame's count. Mutation: no `scene.reserveCapacity` in `Frame.init`.
+    #expect(start.sceneRects >= held.sceneRects && start.sceneGlyphs >= held.sceneGlyphs, "\(start)")
     // Behaviour is unchanged: the same frame has the same counts.
     #expect(window.frameCapacityHints == held)
 }
@@ -40,4 +43,5 @@ import MetalUIPlatform
 @Test @MainActor func aFrameWithNoHintStartsEmpty() {
     let frame = Frame(contentSize: Size(width: controlPx(100), height: controlPx(100)), scaleFactor: 1)
     #expect(frame.startCapacities.hitboxes == 0 && frame.startCapacities.tree.leafKeys == 0)
+    #expect(frame.startCapacities.sceneGlyphs == 0 && frame.startCapacities.sceneRects == 0)
 }

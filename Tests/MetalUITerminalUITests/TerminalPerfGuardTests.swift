@@ -65,7 +65,7 @@ import Testing
     let atlas = GlyphAtlas(width: 2048, height: 2048)
     var screen = ""
     for r in 0..<60 {
-        screen += (r % 5 == 0 ? "\u{1B}[31;44m" : "\u{1B}[0m")
+        screen += (r.isMultiple(of: 5) ? "\u{1B}[31;44m" : "\u{1B}[0m")
             + String((0..<200).map { c in Character(UnicodeScalar(UInt8(33 + (r * 7 + c) % 90))) }) + "\r\n"
     }
     let emulator = TerminalEmulator(cols: 200, rows: 60)

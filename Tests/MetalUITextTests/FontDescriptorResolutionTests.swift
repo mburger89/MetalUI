@@ -23,11 +23,11 @@ import Testing
 private let nineWeights: [(label: String, value: Double, ns: NSFont.Weight)] = [
     ("ultraLight", -0.8, .ultraLight), ("thin", -0.6, .thin), ("light", -0.4, .light), ("regular", 0, .regular),
     ("medium", 0.23, .medium), ("semibold", 0.3, .semibold), ("bold", 0.4, .bold), ("heavy", 0.56, .heavy),
-    ("black", 0.62, .black),
+    ("black", 0.62, .black)
 ]
 
 private let threeDesigns: [(design: FontDesign, ns: NSFontDescriptor.SystemDesign)] = [
-    (.serif, .serif), (.rounded, .rounded), (.monospaced, .monospaced),
+    (.serif, .serif), (.rounded, .rounded), (.monospaced, .monospaced)
 ]
 
 /// **1.3.** The system descriptor is `NSFont.systemFont(ofSize:weight:)` at all
@@ -89,7 +89,7 @@ private let threeDesigns: [(design: FontDesign, ns: NSFontDescriptor.SystemDesig
     let helveticaNeue = [
         "HelveticaNeue-UltraLight", "HelveticaNeue-Thin", "HelveticaNeue-Light", "HelveticaNeue",
         "HelveticaNeue-Medium", "HelveticaNeue-Medium", "HelveticaNeue-Bold", "HelveticaNeue-Bold",
-        "HelveticaNeue-CondensedBlack",
+        "HelveticaNeue-CondensedBlack"
     ]
     for (weight, expected) in zip(nineWeights, helveticaNeue) {
         let descriptor = FontDescriptor(family: "Helvetica Neue", size: 15, weight: weight.value)
@@ -107,7 +107,7 @@ private let threeDesigns: [(design: FontDesign, ns: NSFontDescriptor.SystemDesig
         (FontDescriptor(family: "Avenir Next", size: 15, weight: -0.4), "AvenirNext-Regular"),
         (FontDescriptor(family: "Avenir Next", size: 15, weight: -0.4, italic: true), "AvenirNext-UltraLightItalic"),
         (FontDescriptor(family: "American Typewriter", size: 15, italic: true), "AmericanTypewriter"),
-        (FontDescriptor(family: "American Typewriter", size: 15, weight: 0.4, italic: true), "AmericanTypewriter-Bold"),
+        (FontDescriptor(family: "American Typewriter", size: 15, weight: 0.4, italic: true), "AmericanTypewriter-Bold")
     ]
     for (descriptor, expected) in rows {
         #expect(FontResolver.resolve(descriptor).key.postScriptName == expected, "\(descriptor)")

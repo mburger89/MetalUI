@@ -103,6 +103,8 @@ public struct AtlasSlot: Hashable, Sendable {
     /// The slot's height.
     public let height: Int
 
+    // The explicit init is the synthesized one; it stays because its doc comment records why it is internal.
+    // swiftlint:disable unneeded_synthesized_initializer
     /// Internal on purpose, for ``ShapedLine``'s reason: only ``GlyphAtlas``
     /// can make a slot's rectangle agree with the pixels actually written
     /// there, and a forged slot is a wrong-glyph bug that nothing in this repo
@@ -114,6 +116,7 @@ public struct AtlasSlot: Hashable, Sendable {
         self.width = width
         self.height = height
     }
+    // swiftlint:enable unneeded_synthesized_initializer
 }
 
 /// A glyph's whole placement: where its bitmap sits in the atlas, and how that

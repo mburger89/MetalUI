@@ -8,7 +8,7 @@ import MetalUICore
 private final class Calls: @unchecked Sendable { var isEmpty: Bool { count < 1 }; var count = 0 }
 
 private func keyed(_ tree: LayoutTree, _ key: String, width: Double = 20, height: Double = 10,
-                              calls: Calls = Calls()) -> LayoutNodeID {
+                   calls: Calls = Calls()) -> LayoutNodeID {
     tree.newNativeLeaf(key: key) { proposal in
         calls.count += 1
         return LayoutMeasurement(size: SizeD(width: Swift.min(width, proposal.width ?? width), height: height))

@@ -74,7 +74,7 @@ struct CodeSnippetTests {
         Row(name: "digitsThenLetter", template: "$1a", text: "a", stops: [[1, 0, 0], [0, 1, 1]]),
         Row(name: "indexOverflow", template: "$99999999999999999999", text: "$99999999999999999999",
             stops: [[0, 21, 21]]),
-        Row(name: "unicode", template: "é${1:ü}😀$2", text: "éü😀", stops: [[1, 2, 4], [2, 8, 8], [0, 8, 8]]),
+        Row(name: "unicode", template: "é${1:ü}😀$2", text: "éü😀", stops: [[1, 2, 4], [2, 8, 8], [0, 8, 8]])
     ]
 
     @Test(arguments: rows)

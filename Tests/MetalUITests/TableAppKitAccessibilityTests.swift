@@ -85,7 +85,6 @@ private struct RowSource: RandomAccessCollection {
     }.tableRowHeight(Pixels(24))
 }
 
-
 /// **E3-1** A million-by-200 table reads as an `AXTable` with its LOGICAL counts, an `AXHeader`, and one `AXColumnHeaderUIElements`
 /// entry per realised column; its rows are `AXRow`/`AXTableRow` (the header row is not one of them), a cell reports its row and column
 /// ranges, and the header cell of the sorted column is an `AXSortButton` reading ascending, the others unknown. Mutations: a data table

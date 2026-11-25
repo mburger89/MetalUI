@@ -1,3 +1,5 @@
+// The ternaries below build `AnyElement` values (the subject of this test), not Void calls.
+// swiftlint:disable void_function_in_ternary
 #if canImport(Darwin)
 import Testing
 import Observation
@@ -566,3 +568,5 @@ private struct ERPaddedStyle: ButtonStyle {
     }
 }
 #endif
+
+// swiftlint:enable void_function_in_ternary

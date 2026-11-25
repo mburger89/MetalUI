@@ -193,7 +193,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
         resized.values.append("\(appKit.titleBarInsets.top.value)")
     }
     _ = appKit.setToolbar(PlatformToolbar(items: [
-        PlatformToolbarItem(id: "a", placement: .automatic, control: .button(title: "A", image: nil)),
+        PlatformToolbarItem(id: "a", placement: .automatic, control: .button(title: "A", image: nil))
     ]))
     #expect(appKit.titleBarInsets.top.value > before.value,
             "the band grew with the toolbar: \(before) → \(appKit.titleBarInsets.top)")
@@ -664,8 +664,8 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
     var wrong: [String] = []
     for step in 0..<40 {
         // Wider and narrower, taller and shorter, so the sizes cross the ones AppKit lays the bar out for.
-        frame.size.width += step % 3 == 0 ? -23 : 17
-        frame.size.height += step % 4 == 0 ? 11 : -6
+        frame.size.width += step.isMultiple(of: 3) ? -23 : 17
+        frame.size.height += step.isMultiple(of: 4) ? 11 : -6
         nsWindow.setFrame(frame, display: true)
         for (type, x) in zip(TitleBarPlacement.buttons, settled) {
             let place = try buttonPlace(type, in: nsWindow)

@@ -193,7 +193,7 @@ private func describe(_ scene: Scene, _ landing: Landing) -> String { "\(landed(
         ("Text.foregroundStyle(.primary)", .glyph, scene(Text("Hi").foregroundStyle(.primary))),
         ("ProposalText.foregroundStyle(.primary)", .glyph, scene(ProposalText("Hi").foregroundStyle(.primary))),
         ("background(.primary)", .fill, scene(leaf().background(.primary))),
-        ("Box.background(.primary)", .fill, scene(Box().cssWidth(px(40)).cssHeight(px(40)).background(.primary))),
+        ("Box.background(.primary)", .fill, scene(Box().cssWidth(px(40)).cssHeight(px(40)).background(.primary)))
     ]
     for (site, landing, s) in primary {
         #expect(has(s, landing, redLight, alpha: 1), "\(site): wanted the red parent at 1, got \(describe(s, landing))")
@@ -204,7 +204,7 @@ private func describe(_ scene: Scene, _ landing: Landing) -> String { "\(landed(
         ("Text.foregroundStyle(.secondary)", .glyph, scene(Text("Hi").foregroundStyle(.secondary))),
         ("ProposalText.foregroundStyle(.secondary)", .glyph, scene(ProposalText("Hi").foregroundStyle(.secondary))),
         ("background(.secondary)", .fill, scene(leaf().background(.secondary))),
-        ("Box.background(.secondary)", .fill, scene(Box().cssWidth(px(40)).cssHeight(px(40)).background(.secondary))),
+        ("Box.background(.secondary)", .fill, scene(Box().cssWidth(px(40)).cssHeight(px(40)).background(.secondary)))
     ]
     for (site, landing, s) in secondary {
         #expect(has(s, landing, redLight, alpha: 0.5), "\(site): wanted the red parent at .5, got \(describe(s, landing))")

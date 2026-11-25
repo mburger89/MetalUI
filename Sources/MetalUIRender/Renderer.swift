@@ -215,7 +215,7 @@ public final class Renderer {
 
         // Unit quad as a triangle strip: 4 vertices, no index buffer.
         var unitVertices: [SIMD2<Float>] = [
-            SIMD2(0, 0), SIMD2(1, 0), SIMD2(0, 1), SIMD2(1, 1),
+            SIMD2(0, 0), SIMD2(1, 0), SIMD2(0, 1), SIMD2(1, 1)
         ]
         guard let buffer = device.makeBuffer(
             bytes: &unitVertices,

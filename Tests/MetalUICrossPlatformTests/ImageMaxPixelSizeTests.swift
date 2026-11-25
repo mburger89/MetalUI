@@ -56,7 +56,7 @@ private func texels(_ bitmap: ImageBitmap) -> [UInt8] { bitmap.texture.pixels }
         (1000, 60, 10, (10, 1)),   // 0.6 -> 1
         (1000, 300, 10, (10, 3)),  // 3
         (1000, 150, 10, (10, 2)),  // 1.5 rounds away from zero -> 2
-        (1, 1000, 10, (1, 10)),
+        (1, 1000, 10, (1, 10))
     ]
     for c in cases {
         let data = rgbaPNG(c.w, c.h) { _, _ in [1, 2, 3, 255] }

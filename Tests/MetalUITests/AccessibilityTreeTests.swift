@@ -38,8 +38,8 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// (Took a layout authority from stage 4's lane 4 until stage 9, which deleted
 /// the legacy one.)
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
-                                           width: Float = 300, height: Float = 300,
-                                           focusedElement: GlobalElementID? = nil)
+                                            width: Float = 300, height: Float = 300,
+                                            focusedElement: GlobalElementID? = nil)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
@@ -756,7 +756,7 @@ func aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient() throws {
         { let (f, t) = collect(Row { target().frame(width: px(40), height: px(40)).hidden().padding(px(4)) })
           return ("frame(width:height:).hidden().padding(4)", f, t) }(),
         { let (f, t) = collect(Row { target().frame(minWidth: px(40), maxWidth: px(80)).hidden().padding(px(4)) })
-          return ("frame(minWidth:maxWidth:).hidden().padding(4)", f, t) }(),
+          return ("frame(minWidth:maxWidth:).hidden().padding(4)", f, t) }()
     ]
     for arm in arms {
         #expect(arm.frame.axNodes.values.contains { $0.label == "in" },

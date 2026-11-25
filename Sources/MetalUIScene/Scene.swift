@@ -199,6 +199,17 @@ public struct Scene: Sendable {
         rects.isEmpty && glyphs.isEmpty && images.isEmpty && surfaces.isEmpty && backdrops.isEmpty && groups.isEmpty
     }
 
+    /// Reserves room for `rects` rectangles and `glyphs` glyphs, and the sequence and layer arrays that run beside them, so a frame
+    /// that inserts about as many as the last one grows no array on the way (`HP-L`). Reserve only: the scene stays empty.
+    package mutating func reserveCapacity(rects rectCount: Int, glyphs glyphCount: Int) {
+        if rectCount > 0 {
+            rects.reserveCapacity(rectCount); rectSequence.reserveCapacity(rectCount); rectLayer.reserveCapacity(rectCount)
+        }
+        if glyphCount > 0 {
+            glyphs.reserveCapacity(glyphCount); glyphSequence.reserveCapacity(glyphCount); glyphLayer.reserveCapacity(glyphCount)
+        }
+    }
+
     /// Adds a rectangle on `layer`, under `transform` when given (ruling
     /// GX-F): its `bounds` and `contentMask` are then local, mapped by the
     /// record; `nil` draws it exactly as before transforms existed. **The

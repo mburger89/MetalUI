@@ -115,7 +115,7 @@ private let seamCorpus = [
     kernedString,
     "مرحبا بالعالم",
     "Ready\nSet\nGo",
-    "a 😀 b",
+    "a 😀 b"
 ]
 private let seamWidths: [Double?] = [nil, 40, 0.5]
 private let seamOptions = [
@@ -123,7 +123,7 @@ private let seamOptions = [
     TextLayoutOptions(maxLines: 2, truncation: .tail),
     TextLayoutOptions(maxLines: 2, truncation: .head),
     TextLayoutOptions(maxLines: 2, truncation: .middle),
-    TextLayoutOptions(alignment: .center),
+    TextLayoutOptions(alignment: .center)
 ]
 
 /// **1.1** (`RT-F` item 3, `RT-O` item 7). A one-run styled text measures as
@@ -540,7 +540,7 @@ private func ellipsis(in layout: StyledTextLayout, system: any TextSystem, fonts
         Arm(label: "of|fice tracked", pieces: [("of", 0, 0), ("fice", 0, 1)], arabic: false),
         Arm(label: "Arabic kerned", pieces: [("بالعالم", 1, 0)], arabic: true),
         Arm(label: "Arabic tracked", pieces: [("بالعالم", 0, 1)], arabic: true),
-        Arm(label: "Arabic half tracked", pieces: [("بال", 0, 0), ("عالم", 0, 1)], arabic: true),
+        Arm(label: "Arabic half tracked", pieces: [("بال", 0, 0), ("عالم", 0, 1)], arabic: true)
     ]
     var answers: [String: [(width: Double, glyphs: [TextGlyph], plain: Double)]] = [:]
     var tatweel: UInt16?

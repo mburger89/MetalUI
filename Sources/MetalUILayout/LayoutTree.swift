@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - the layout tree and its passes are one unit
 import MetalUICore
 
 /// A handle to one node in one `LayoutTree`.
@@ -19,11 +20,6 @@ public struct LayoutNodeID: Hashable, Sendable {
     public let generation: UInt64
     /// The node's slot in the tree that issued it.
     public let index: Int
-
-    init(generation: UInt64, index: Int) {
-        self.generation = generation
-        self.index = index
-    }
 }
 
 /// Structure-of-arrays node storage, reset per layout pass.
@@ -49,7 +45,7 @@ public struct LayoutNodeID: Hashable, Sendable {
 /// `@MainActor` monotonic counter, so no two live trees share a generation —
 /// verify with `grep -rn "LayoutTree(" Sources/`. Tests that never exchange ids
 /// between trees pass `0` and lose nothing by it.
-public final class LayoutTree {
+public final class LayoutTree { // swiftlint:disable:this type_body_length - structure-of-arrays storage plus every layout pass over it
     private var childLists: [[LayoutNodeID]] = []
     private var layouts: [LayoutRect] = []
     private var measuredWidths: [Double] = []
@@ -539,7 +535,7 @@ public final class LayoutTree {
     /// presenting its **first** child's spacing edges (`SP1`, `SP2`). Spacers below it are not marked by an
     /// enclosing stack.
     package func newNativeFirstFitting(children: [LayoutNodeID], horizontal: Bool,
-                                      vertical: Bool) -> LayoutNodeID {
+                                       vertical: Bool) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = appendNode(children: children)
         recordParent(id, of: children)
@@ -1564,7 +1560,6 @@ public final class LayoutTree {
         }
     }
 
-
     /// The children whose edges a union reads along `axis`: a spacer across its stack's axis
     /// (a standard edge alone, K3h), and a zero-by-zero fixed frame (a plain button's strut), add nothing beside another child (probe `DS9b`: `{text; Spacer()}`
     /// reads exactly as a text, `{rect; Spacer(); text}` as `{rect; text}`), so it is left out unless
@@ -1966,7 +1961,7 @@ public final class LayoutTree {
 
     /// One axis of `newNativeFrame`'s validation (ruling SA-J); `axis` and
     /// `Axis` spell the parameter names the messages carry.
-    private static func validateFrameAxis(_ axis: String, _ Axis: String, fixed: Double?,
+    private static func validateFrameAxis(_ axis: String, _ Axis: String, fixed: Double?, // swiftlint:disable:this identifier_name
                                           min: Double?, ideal: Double?, max: Double?) {
         if let fixed {
             precondition(fixed >= 0 && fixed.isFinite,
@@ -2527,7 +2522,7 @@ extension LayoutTree {
     /// contextual marks and its children's signatures in order. `nil` (unmatchable)
     /// for an unkeyed leaf, a non-`Hashable` custom layout, or any node with such
     /// a child. A node id never enters.
-    private func nodeSignature(_ index: Int, _ signatures: [LayoutSignature?]) -> LayoutSignature? {
+    private func nodeSignature(_ index: Int, _ signatures: [LayoutSignature?]) -> LayoutSignature? { // swiftlint:disable:this cyclomatic_complexity - one switch over every layout kind
         var h = SignatureBuilder()
         let children = childLists[index]
         guard let node = nativeNodes[index] else { return nil }

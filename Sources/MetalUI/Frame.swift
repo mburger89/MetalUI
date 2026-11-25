@@ -1,3 +1,4 @@
+// swiftlint:disable file_length - the frame builder and its paint primitives are one unit
 import Foundation
 import MetalUICore
 import MetalUILayout
@@ -29,7 +30,7 @@ import MetalUIPlatform
 /// that half is a convention, and `codeOutsideTheFrameworkCannotFabricateAPaintPass`
 /// pins the half that is enforced.
 @MainActor
-public final class Frame {
+public final class Frame { // swiftlint:disable:this type_body_length - the frame builder: every paint primitive shares one buffer set
     /// The space offered to the root element, in logical points.
     public let contentSize: Size<Pixels>
 
@@ -3069,6 +3070,9 @@ public final class Frame {
         }
         if recordsElementBounds, capacityHints.elementBounds > 0 { elementBounds.reserveCapacity(capacityHints.elementBounds) }
         if collectsAccessibility, capacityHints.axNodes > 0 { axNodes.reserveCapacity(capacityHints.axNodes) }
+        // `HP-L`: the scene's rect and glyph arrays, an eighth over for a frame that draws a little more.
+        scene.reserveCapacity(rects: capacityHints.sceneRects + capacityHints.sceneRects / 8,
+                              glyphs: capacityHints.sceneGlyphs + capacityHints.sceneGlyphs / 8)
         self.startCapacities = currentCapacities()
     }
 
@@ -3079,14 +3083,15 @@ public final class Frame {
     func capacityHints() -> FrameCapacityHints {
         FrameCapacityHints(tree: tree.capacityHint, focus: focusRegistry.countHint, hitboxes: hitboxes.count,
                            selectableRegions: selectableTextRegions.count, loweringItems: lowering.items.count, elementBounds: elementBounds.count,
-                           axNodes: axNodes.count)
+                           axNodes: axNodes.count, sceneRects: scene.rects.count, sceneGlyphs: scene.glyphs.count)
     }
 
     /// The capacities the hot stores have now (not their counts).
     private func currentCapacities() -> FrameCapacityHints {
         FrameCapacityHints(tree: tree.capacities, focus: focusRegistry.capacityHint, hitboxes: hitboxes.capacity,
                            selectableRegions: selectableTextRegions.capacity, loweringItems: min(lowering.items.capacity, lowering.order.capacity),
-                           elementBounds: elementBounds.capacity, axNodes: axNodes.capacity)
+                           elementBounds: elementBounds.capacity, axNodes: axNodes.capacity,
+                           sceneRects: scene.rects.capacity, sceneGlyphs: scene.glyphs.capacity)
     }
 
     // MARK: - Lowering diagnostics (plan task 7, rulings LR-C, LR-D)
@@ -4926,6 +4931,14 @@ extension Frame {
     private func flatAffine(_ a: Homography2D) -> [Double] { [a.a, a.b, a.c, a.d, a.tx, a.ty] }
 
     /// The prepaint-visible context at this point of prepaint.
+    ///
+    /// **A scroller's content extent is keyed only where something replayable reads it** (`G49-A`). It has three readers: `scrollTo`
+    /// resolution and `scrollPosition` target notes, both refused before a ledger is recorded (`prepaintRefusal`, the
+    /// `scrollRequest` and `scrollTarget` audit channels), and `ScrollerFrame.logicalStart(of:)`, which reads it only for a mirrored
+    /// horizontal scroller (`LD-E`), where `LazyCore.prepaint` stores the result in `LazyOrigin` through a compared `withState`
+    /// (a ledger replays that as a read, so a changed origin would be missed). Index 8 holds the extent when the scroller is
+    /// mirrored and 0 otherwise, index 11 when the cross slot is mirrored. Unkeyed everywhere, a stream at the end of a
+    /// bottom-anchored transcript grew the extent every frame and missed the ledger of every row above it.
     func prepaintExtras() -> PrepaintExtras {
         var effects: [[Double]] = []
         effects.reserveCapacity(prepaintEffects.count)
@@ -4950,8 +4963,8 @@ extension Frame {
             values = [s.axis == .vertical ? 1 : 0, Double(s.contentOrigin.x.value), Double(s.contentOrigin.y.value),
                       Double(s.viewport.origin.x.value), Double(s.viewport.origin.y.value),
                       Double(s.viewport.size.width.value), Double(s.viewport.size.height.value), s.offset,
-                      s.contentExtent, s.mirrored ? 1 : 0,   // `LD-E`: appended, so the indices above stand
-                      s.cross?.offset ?? 0, s.cross?.contentExtent ?? 0]   // `XS-L`: indices 10 and 11, a two-axis scroller's horizontal slot
+                      s.mirrored ? s.contentExtent : 0, s.mirrored ? 1 : 0,   // index 8, the content extent: keyed only when mirrored (`G49-A`); `LD-E`: appended, so the indices above stand
+                      s.cross?.offset ?? 0, s.cross?.mirrored == true ? s.cross?.contentExtent ?? 0 : 0]   // `XS-L`: indices 10 and 11, a two-axis scroller's horizontal slot; 11, its extent, keyed only when that slot is mirrored
         }
         return PrepaintExtras(effects: effects, hitTestingDisabled: hitTestingDisabledDepth,
                               keyboardHidden: keyboardHiddenDepth,
@@ -5176,6 +5189,8 @@ struct FrameCapacityHints: Equatable {
     var loweringItems = 0
     var elementBounds = 0
     var axNodes = 0
+    var sceneRects = 0
+    var sceneGlyphs = 0
 }
 
 // MARK: - Restoring scopes (`KF-AM`, `MN-AS`)
