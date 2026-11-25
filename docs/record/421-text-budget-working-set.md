@@ -33,7 +33,7 @@ is not caret lookups newly counted as misses (the composer alone is unchanged, b
   `evict(olderThan:andUpTo:)`); `PortableTextSystem` lost its budget and its `entryLimit`/`costLimit` init: its two-frame
   lifetime is the working set and leaves nothing stale to bound.
 - `package` access for `ShapingCache(entryLimit:costLimit:)`, `hits`, `misses`, `caretMisses`, and `evictionCount` (new).
-  `MetalUITestingTests` depends on `MetalUIText` on macOS.
+  The combined-window test lives in `MetalUITests`, which already depends on `MetalUIText` (the root package has no `MetalUIText` sources off macOS).
 
 ## Memory under the new rule
 
