@@ -52,8 +52,8 @@ private struct NodeRow: Component {
     @Bindable var node: PNode
     @State private var serial = Bodies.mint()
     @ElementBuilder var content: some ElementGroup {
-        let _ = Bodies.count += 1
-        let _ = Bodies.seen[node.id] = serial
+        let _: Void = Bodies.count += 1
+        let _: Void = Bodies.seen[node.id] = serial
         if node.isFolder {
             DisclosureGroup(isExpanded: $node.isExpanded) {
                 ForEach(node.children) { NodeRow(node: $0) }
@@ -71,7 +71,7 @@ private struct NodeRow: Component {
     let window = try harnessWindow(size: sz(300, height)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = model.proxy = proxy
+                let _: Void = model.proxy = proxy
                 ProposalScrollView {
                     List(selection: selection) { ForEach(model.roots) { NodeRow(node: $0) } }
                 }

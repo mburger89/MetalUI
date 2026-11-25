@@ -24,6 +24,7 @@ private enum IntKeyFS: EnvironmentKey { static let defaultValue = 0 }
     #expect(key != buildKey(closure), "an uncomparable reading equals itself in no rebuilt key")
     var int = EnvironmentValues()
     int[IntKeyFS.self] = 3
-    #expect(buildKey(int) == buildKey(int), "an equatable reading equals its rebuilt copy")
+    let builtKey = buildKey(int), builtKeyAgain = buildKey(int)
+    #expect(builtKey == builtKeyAgain, "an equatable reading equals its rebuilt copy")
     #expect(buildKey(int) != buildKey(EnvironmentValues()), "and differs from the default environment")
 }

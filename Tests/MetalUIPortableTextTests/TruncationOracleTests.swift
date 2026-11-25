@@ -208,7 +208,7 @@ func measureTruncationDifferences() throws {
 /// "ي" alone (9.568 pt), the longest suffix that fits by the share rule.
 @MainActor
 @Test func aRightToLeftHeadTruncationKeepsOneClusterLessThanCoreText() throws {
-    let arabic = try truncationFonts().first { $0.0.name == notoSansArabic }!.0
+    let arabic = try #require(try truncationFonts().first { $0.0.name == notoSansArabic }).0
     let options = TextLayoutOptions(maxLines: 1, truncation: .head)
     let text = truncationArabic[1]
     let apple = appleTruncatedLayout(text, font: try arabic.apple(13), width: 26, options: options)
@@ -235,7 +235,7 @@ func measureTruncationDifferences() throws {
         #expect(glyphs.contains { $0.key.glyph == ellipsis }, "\(mode) draws the token")
         #expect(glyphs.count < 15, "\(mode) drops text")
     }
-    let arabic = try truncationFonts().first { $0.0.name == notoSansArabic }!.0
+    let arabic = try #require(try truncationFonts().first { $0.0.name == notoSansArabic }).0
     let placed = Shaper.shape(truncationArabic[0], font: try arabic.apple(13), wrappingAt: 40,
                               options: TextLayoutOptions(maxLines: 1))
         .placedGlyphs(at: (0, 0), font: try arabic.apple(13), scaleFactor: 1)

@@ -49,8 +49,8 @@ private let threeDesigns: [(design: FontDesign, ns: NSFontDescriptor.SystemDesig
             #expect(system.resolveFont(descriptor) == expected, "\(weight.label) \(size), through the seam")
             names.insert(expected.postScriptName)
             for design in threeDesigns {
-                let ns = NSFont.systemFont(ofSize: size, weight: weight.ns).fontDescriptor.withDesign(design.ns)!
-                let designed = FontKey(resolved: NSFont(descriptor: ns, size: size)! as CTFont)
+                let ns = try #require(NSFont.systemFont(ofSize: size, weight: weight.ns).fontDescriptor.withDesign(design.ns))
+                let designed = FontKey(resolved: try #require(NSFont(descriptor: ns, size: size)) as CTFont)
                 let request = FontDescriptor(size: size, weight: weight.value, design: design.design)
                 #expect(FontResolver.resolve(request).key == designed, "\(weight.label) \(design.design) \(size)")
                 #expect(system.resolveFont(request) == designed, "\(weight.label) \(design.design) \(size), seam")
@@ -58,8 +58,8 @@ private let threeDesigns: [(design: FontDesign, ns: NSFontDescriptor.SystemDesig
             }
         }
         for design in threeDesigns {
-            let ns = NSFont.systemFont(ofSize: size).fontDescriptor.withDesign(design.ns)!
-            let designed = FontKey(resolved: NSFont(descriptor: ns, size: size)! as CTFont)
+            let ns = try #require(NSFont.systemFont(ofSize: size).fontDescriptor.withDesign(design.ns))
+            let designed = FontKey(resolved: try #require(NSFont(descriptor: ns, size: size)) as CTFont)
             #expect(FontResolver.resolve(FontDescriptor(size: size, design: design.design)).key == designed)
             #expect(system.resolveFont(FontDescriptor(size: size, design: design.design)) == designed)
         }

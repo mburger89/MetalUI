@@ -767,8 +767,11 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer) {}
     func pixels() -> [UInt8] {
         var out = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
-        out.withUnsafeMutableBytes { texture.getBytes($0.baseAddress!, bytesPerRow: texture.width * 4,
-                                                      from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0) }
+        out.withUnsafeMutableBytes {
+            guard let base = $0.baseAddress else { preconditionFailure("the readback buffer is not empty") }
+            texture.getBytes(base, bytesPerRow: texture.width * 4,
+                             from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+        }
         return out
     }
 }
@@ -800,7 +803,7 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     func frame(_ window: MetalWindowRenderer, _ scene: Scene, _ atlas: GlyphAtlas) throws {
         try #require(window.beginFrame() != nil)
         try #require(window.finishFrame(scene: scene, atlas: atlas, surfaces: []))
-        let barrier = shared.commandQueue.makeCommandBuffer()!
+        let barrier = try #require(shared.commandQueue.makeCommandBuffer())
         barrier.commit(); barrier.waitUntilCompleted()   // in-order queue: the frame has finished
     }
 
@@ -818,8 +821,11 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     let textureB = try #require(windowB.atlasState.texture)
     #expect(textureA !== textureB)
     var bytesA = [UInt8](repeating: 0, count: atlasA.width * atlasA.height)
-    bytesA.withUnsafeMutableBytes { textureA.getBytes($0.baseAddress!, bytesPerRow: atlasA.width,
-                                                      from: MTLRegionMake2D(0, 0, atlasA.width, atlasA.height), mipmapLevel: 0) }
+    bytesA.withUnsafeMutableBytes {
+        guard let base = $0.baseAddress else { preconditionFailure("the readback buffer is not empty") }
+        textureA.getBytes(base, bytesPerRow: atlasA.width,
+                          from: MTLRegionMake2D(0, 0, atlasA.width, atlasA.height), mipmapLevel: 0)
+    }
     #expect(bytesA == atlasA.pixels, "window A's texture holds window A's atlas")
 }
 

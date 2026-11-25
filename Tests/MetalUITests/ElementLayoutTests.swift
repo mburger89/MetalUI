@@ -211,7 +211,7 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
 /// literals hold on both authorities.
 @MainActor
-@Test func anExplicitAnyElementIsStillAcceptedAsAChild() {
+@Test func anExplicitAnyElementIsStillAcceptedAsAChild() throws {
     let log = ElementLog()
     let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var row = Row {
@@ -238,10 +238,12 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     // `roundLayout`'s half-away-from-zero rule. That is engine-internal and
     // deterministic — not the WebKit 1/64 hazard the practices doc warns about,
     // which is a disagreement between two engines and has no counterpart here.
-    #expect(rect(log.bounds["erased"]!) == (0, 28, 40, 25))
+    let logErasedBounds = try #require(log.bounds["erased"])
+    #expect(rect(logErasedBounds) == (0, 28, 40, 25))
     // The boxed child still contributes its node in source order: the plain
     // sibling begins where it ends. That is the `x`, and EP-8 does not touch it.
-    #expect(rect(log.bounds["plain"]!) == (40, 33, 60, 15))
+    let logPlainBounds = try #require(log.bounds["plain"])
+    #expect(rect(logPlainBounds) == (40, 33, 60, 15))
 }
 
 // MARK: - The plumbing
@@ -257,7 +259,7 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
 /// literals hold on both authorities.
 @MainActor
-@Test func childrenAreRegisteredAndLaidOutInSourceOrder() {
+@Test func childrenAreRegisteredAndLaidOutInSourceOrder() throws {
     let log = ElementLog()
     let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var row = Row {
@@ -279,9 +281,12 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     //   third:  (40 - 30) / 2 =  5
     // All integral; no rounding step involved. The `x`s are unchanged, and they
     // are what "source order" means.
-    #expect(rect(log.bounds["first"]!) == (0, 15, 30, 10))
-    #expect(rect(log.bounds["second"]!) == (30, 10, 50, 20))
-    #expect(rect(log.bounds["third"]!) == (80, 5, 70, 30))
+    let logFirstBounds = try #require(log.bounds["first"])
+    #expect(rect(logFirstBounds) == (0, 15, 30, 10))
+    let logSecondBounds = try #require(log.bounds["second"])
+    #expect(rect(logSecondBounds) == (30, 10, 50, 20))
+    let logThirdBounds = try #require(log.bounds["third"])
+    #expect(rect(logThirdBounds) == (80, 5, 70, 30))
 }
 
 /// A `Column` stacks vertically and a `Row` horizontally — the one thing the two
@@ -296,7 +301,7 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
 /// literals hold on both authorities.
 @MainActor
-@Test func columnStacksOnTheAxisRowDoesNot() {
+@Test func columnStacksOnTheAxisRowDoesNot() throws {
     let rowLog = ElementLog()
     let rowFrame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var row = Row {
@@ -322,8 +327,10 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     //   row (cross = vertical, extent 80):   y = (80 - 15) / 2 = 32.5
     //                                            → `roundLayout` → 33
     //   column (cross = horizontal, extent 200): x = (200 - 60) / 2 = 70
-    #expect(rect(rowLog.bounds["two"]!) == (40, 33, 60, 15))
-    #expect(rect(columnLog.bounds["two"]!) == (70, 25, 60, 15))
+    let rowLogTwoBounds = try #require(rowLog.bounds["two"])
+    #expect(rect(rowLogTwoBounds) == (40, 33, 60, 15))
+    let columnLogTwoBounds = try #require(columnLog.bounds["two"])
+    #expect(rect(columnLogTwoBounds) == (70, 25, 60, 15))
 }
 
 // MARK: - The cross-axis default (ruling EP-8)
@@ -380,7 +387,7 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
 /// literals hold on both authorities.
 @MainActor
-@Test func aStackCentresOnTheCrossAxisWhereABoxStretches() {
+@Test func aStackCentresOnTheCrossAxisWhereABoxStretches() throws {
     let stackLog = ElementLog()
     let stackFrame = Frame(contentSize: Size(width: px(200), height: px(90)), scaleFactor: 1)
     var column = Column {
@@ -397,10 +404,12 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
     boxFrame.render(&box)
 
     // (200 - 60) / 2 = 70, integral, so `roundLayout` is a no-op.
-    #expect(rect(stackLog.bounds["stacked"]!) == (70, 0, 60, 20))
+    let stackLogStackedBounds = try #require(stackLog.bounds["stacked"])
+    #expect(rect(stackLogStackedBounds) == (70, 0, 60, 20))
     // `Box` is untouched by EP-8: CSS's `stretch`, which leaves a child that
     // declared its cross size sitting at the leading edge.
-    #expect(rect(boxLog.bounds["boxed"]!) == (0, 0, 60, 20))
+    let boxLogBoxedBounds = try #require(boxLog.bounds["boxed"])
+    #expect(rect(boxLogBoxedBounds) == (0, 0, 60, 20))
 
     // `Row` takes the same default, asserted here rather than left to the seven
     // row tests that read it incidentally — none of them is named for it.
@@ -411,7 +420,8 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
         Probe("rowed", log: rowLog).cssWidth(px(60)).cssHeight(px(20))
     }.cssWidth(px(200)).cssHeight(px(90))
     rowFrame.render(&row)
-    #expect(rect(rowLog.bounds["rowed"]!) == (0, 35, 60, 20))
+    let rowLogRowedBounds = try #require(rowLog.bounds["rowed"])
+    #expect(rect(rowLogRowedBounds) == (0, 35, 60, 20))
 }
 
 // MARK: - Identity (§4.3)
@@ -426,7 +436,8 @@ private func pathID(_ names: String...) -> GlobalElementID {
     for name in names {
         current = GlobalElementID.child(of: current, at: 0, name: ElementID(name))
     }
-    return current!
+    guard let current else { preconditionFailure("pathID needs at least one name") }
+    return current
 }
 
 /// A container builds its children's paths from its own, so identity is a path
@@ -551,7 +562,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// two auto axes — what `CS-I` gave the legacy root, now spelled — so the
 /// literals hold on both authorities.
 @MainActor
-@Test func gapIsPerAxisAndTheRowReadsTheHorizontalOne() {
+@Test func gapIsPerAxisAndTheRowReadsTheHorizontalOne() throws {
     let log = ElementLog()
     let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
     var row = Row {
@@ -568,7 +579,8 @@ private func pathID(_ names: String...) -> GlobalElementID {
     // (60 - 20) / 2 = **20**, and it is worth asserting rather than dropping,
     // because a row that read the vertical gap (5) on the cross axis would
     // have to put it somewhere and this is where it would show.
-    #expect(rect(log.bounds["second"]!) == (50, 20, 50, 20))
+    let logSecondBounds = try #require(log.bounds["second"])
+    #expect(rect(logSecondBounds) == (50, 20, 50, 20))
 }
 
 // MARK: - Ruling C-3
@@ -585,7 +597,7 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// The indices are asserted equal first: that is what makes the generation
 /// load-bearing rather than decorative.
 @MainActor
-@Test func aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree() {
+@Test func aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree() throws {
     let firstLog = ElementLog()
     let first = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var firstTree = Row { Probe("x", log: firstLog).cssWidth(px(20)).cssHeight(px(10)) }
@@ -599,8 +611,8 @@ private func pathID(_ names: String...) -> GlobalElementID {
     // Real ids, issued by `LayoutPass.requestNode` in each frame — not
     // fabricated, so the test cannot pass against a `LayoutNodeID` the
     // production path would never mint.
-    let stale = firstLog.nodes["x"]!
-    let live = secondLog.nodes["y"]!
+    let stale = try #require(firstLog.nodes["x"])
+    let live = try #require(secondLog.nodes["y"])
 
     #expect(stale.index == live.index)
     #expect(first.tree.generation != second.tree.generation)

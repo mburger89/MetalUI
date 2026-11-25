@@ -121,8 +121,11 @@ enum GuideDocs {
                 if let current = open {
                     throw ParseError(description: "\(file):\(offset + 1): the region of \(current.guide) #\(current.number) (line \(current.line)) is not closed")
                 }
-                let name = String(line[Range(match.range(at: 1), in: line)!])
-                let number = Int(line[Range(match.range(at: 2), in: line)!])!
+                guard let nameRange = Range(match.range(at: 1), in: line), let numberRange = Range(match.range(at: 2), in: line),
+                      let number = Int(line[numberRange]) else {
+                    throw ParseError(description: "\(file):\(offset + 1): the guide header has no name or number")
+                }
+                let name = String(line[nameRange])
                 open = (name, number, [], offset + 1)
             } else if var current = open {
                 current.lines.append(line)
@@ -169,7 +172,7 @@ enum GuideDocs {
         let list = #"(?:\d+(?:\s*[–-]\s*\d+)?)(?:\s*(?:,|and|, and)\s*\d+(?:\s*[–-]\s*\d+)?)*"#
         for group in captures(#"[Dd]ivergences?\s+("# + list + ")", in: text) {
             for item in captures(#"(\d+)(?:\s*[–-]\s*(\d+))?"#, in: group[0]) {
-                let low = Int(item[0])!
+                guard let low = Int(item[0]) else { preconditionFailure("`\\d+` captured a number that is not an Int: \(item[0])") }
                 if item.count > 1, let high = Int(item[1]), high >= low, high - low <= 50 {
                     labels.append(contentsOf: low...high)
                 } else {

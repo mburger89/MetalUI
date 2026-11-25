@@ -268,7 +268,7 @@ private func direction(_ rtl: Bool) -> LayoutDirection { rtl ? .rightToLeft : .l
         let box = ProxyBox()
         let window = try arm(rtl: rtl) {
             ScrollViewReader { proxy in
-                let _ = { box.proxy = proxy }()
+                let _: Void = { box.proxy = proxy }()
                 ProposalScrollView(.horizontal) {
                     HStack(spacing: Pixels(0)) {
                         Color.blue.frame(width: Pixels(200), height: Pixels(20))
@@ -309,7 +309,8 @@ private func direction(_ rtl: Bool) -> LayoutDirection { rtl ? .rightToLeft : .l
         return (window.lastFrameWork.lazyUnitsRealized, items)
     }
     let open = try (ltr: realized(rtl: false, delta: 0), rtl: realized(rtl: true, delta: 0))
-    #expect(open.ltr.count > 0 && open.ltr.count == open.rtl.count)
+    let ltrCount = open.ltr.count, rtlCount = open.rtl.count
+    #expect(ltrCount > 0 && ltrCount == rtlCount)
     #expect(open.ltr.items == open.rtl.items)
     #expect(open.rtl.items.contains("i0"))
     let far = try (ltr: realized(rtl: false, delta: -1000), rtl: realized(rtl: true, delta: 1000))

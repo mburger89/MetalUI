@@ -37,7 +37,7 @@ private final class Captured {
 private func taskColumn(_ tasks: Tasks, _ captured: Captured) -> some Element {
     Column {
         ForEach(tasks.binding) { $task in
-            let _ = captured.bindings[task.id] = $task
+            let _: Void = captured.bindings[task.id] = $task
             Box().cssWidth(controlPx(40)).cssHeight(controlPx(20))
                 .onClick { $task.wrappedValue.done.toggle() }
         }

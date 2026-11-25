@@ -136,8 +136,9 @@ func glyphFixture(projection: [Float] = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
 
 func marked(_ mask: [Bool], width: Int) -> (x: ClosedRange<Int>, y: ClosedRange<Int>)? {
     let points = mask.indices.filter { mask[$0] }.map { ($0 % width, $0 / width) }
-    guard let first = points.first else { return nil }
-    return (points.map(\.0).min()!...points.map(\.0).max()!, first.1...points.map(\.1).max()!)
+    guard let first = points.first, let minX = points.map(\.0).min(), let maxX = points.map(\.0).max(),
+          let maxY = points.map(\.1).max() else { return nil }
+    return (minX...maxX, first.1...maxY)
 }
 
 @Test func glyphBoundsReadTheRecordsFirstFourFloats() throws {

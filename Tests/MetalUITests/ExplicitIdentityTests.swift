@@ -573,5 +573,6 @@ private func resetWork<Root: Element, Step>(_ steps: [Step], table: StateTable,
     }
     try #require(c.count == 2)
     #expect(c[1].work <= 1000, "C, 1000 conditionals gone absent: one pass: \(c)")
-    #expect(c[1].count == 0, "C: every absent subtree was reset: \(c)")
+    let resets = c[1].count
+    #expect(resets == 0, "C: every absent subtree was reset: \(c)")
 }

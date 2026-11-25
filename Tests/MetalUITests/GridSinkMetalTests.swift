@@ -71,7 +71,9 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, side: Int) -> [Int] {
         for y in 0..<Self.side { for x in 0..<Self.side where x == 0 || y == 0 || x == Self.side - 1 || y == Self.side - 1 {
             bytes[y * Self.side + x] = 255
         } }
-        let packed = sink.atlas.packed(for: key, rasterize: { GlyphImage(width: Self.side, height: Self.side, bytes: bytes) })!
+        guard let packed = sink.atlas.packed(for: key, rasterize: { GlyphImage(width: Self.side, height: Self.side, bytes: bytes) }) else {
+            preconditionFailure("the atlas has room for a 6 x 6 test glyph")
+        }
         let size = Float(Self.side)
         return MUIGlyph(bounds: box(origin.0, origin.1, size, size),
                         atlasBounds: box(Float(packed.slot.x), Float(packed.slot.y), size, size),

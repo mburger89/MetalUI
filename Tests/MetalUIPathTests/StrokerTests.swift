@@ -103,9 +103,9 @@ func runs(_ m: AlphaMask, y: Int, from: Int, to: Int) -> String {
     #expect(runs(stroke(l, StrokeParameters(width: 4, dash: [10, 10], dashPhase: 5)), y: 50, from: 0, to: 99)
             == "[0…4] [15…24] [35…44] [55…64] [75…84] [95…99]")
     let swiftUI = [(0, 9), (15, 17), (22, 31), (37, 39), (44, 53), (59, 61), (66, 75), (81, 83), (88, 97)]
-    let drawn = runs(stroke(l, StrokeParameters(width: 4, dash: [10, 5, 2, 5])), y: 50, from: 0, to: 99)
+    let drawn = try runs(stroke(l, StrokeParameters(width: 4, dash: [10, 5, 2, 5])), y: 50, from: 0, to: 99)
         .split(separator: " ").map { run -> (Int, Int) in
-            let bounds = run.dropFirst().dropLast().split(separator: "…").map { Int($0)! }
+            let bounds = try run.dropFirst().dropLast().split(separator: "…").map { try #require(Int($0)) }
             return (bounds[0], bounds[1])
         }
     try #require(drawn.count == swiftUI.count, "runs \(drawn)")

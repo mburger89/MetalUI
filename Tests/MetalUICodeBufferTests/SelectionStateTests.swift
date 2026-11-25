@@ -19,7 +19,8 @@ struct SelectionStateTests {
         #expect(buffer.primarySelection == CodeSelection(anchor: 7, head: 9))
         #expect(buffer.revealSerial == buffer.selectionState.revealSerial)
         #expect(buffer.revealSerial == 1)
-        #expect(buffer.selectionState === buffer.selectionState)
+        let firstRead = buffer.selectionState, secondRead = buffer.selectionState
+        #expect(firstRead === secondRead)
         #expect(buffer.selectionState.buffer === buffer)
     }
 

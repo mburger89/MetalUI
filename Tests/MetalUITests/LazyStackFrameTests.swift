@@ -293,7 +293,10 @@ private func rowHundredOnTop() throws -> (StateTable, RowLog, [Int]) {
             frame.render(&root)
         }
         _ = log
-        return (Dictionary(uniqueKeysWithValues: boundsLog.byName.map { (Int($0.key)!, $0.value) }), frame.lazyWork)
+        return (Dictionary(uniqueKeysWithValues: boundsLog.byName.map { entry -> (Int, Bounds<Pixels>) in
+            guard let index = Int(entry.key) else { preconditionFailure("bounds name \(entry.key) is not a row index") }
+            return (index, entry.value)
+        }), frame.lazyWork)
     }
     let (lazy, work) = placements(lazy: true)
     let (eager, _) = placements(lazy: false)

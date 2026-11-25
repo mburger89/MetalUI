@@ -425,7 +425,7 @@ private func ellipsis(in layout: StyledTextLayout, system: any TextSystem, fonts
     try #require(apple.count == 15 && portable.count == 15)
     var index = 0
     for family in ["Noto Sans", "Noto Sans Arabic", "Source Sans 3"] {
-        let url = rtFontsDirectory.appendingPathComponent(rtFaceFiles[["Noto Sans", "Noto Sans Arabic", "Source Sans 3"].firstIndex(of: family)!])
+        let url = rtFontsDirectory.appendingPathComponent(rtFaceFiles[try #require(["Noto Sans", "Noto Sans Arabic", "Source Sans 3"].firstIndex(of: family))])
         let descriptor = try #require((CTFontManagerCreateFontDescriptorsFromData(try Data(contentsOf: url) as CFData)
             as? [CTFontDescriptor])?.first)
         for size in [9.0, 13, 17, 26, 31.5] {

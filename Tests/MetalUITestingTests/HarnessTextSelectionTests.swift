@@ -77,7 +77,7 @@ func offsets(_ selection: TextSelection?, in text: String) -> Range<Int>? {
 @available(macOS 15, *)
 @MainActor func fieldWindow(_ model: SelModel) throws -> TestWindow {
     let window = try harnessWindow { model.field().id("field") }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     return window
 }
 
@@ -130,7 +130,7 @@ func midY(_ b: Bounds<Pixels>) -> Float { b.origin.y.value + b.size.height.value
     let note = "one"
     let model = SelModel(note, selection: caret(3, in: note))
     let window = try harnessWindow { model.editor().id("note") }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     try focusField(window, "Note")
     window.typeText("!")
     #expect(model.text == "one!")
@@ -139,7 +139,7 @@ func midY(_ b: Bounds<Pixels>) -> Float { b.origin.y.value + b.size.height.value
     let lines = "one\ntwo\n"
     let second = SelModel(lines, selection: caret(8, in: lines))
     let other = try harnessWindow { second.editor().id("note") }
-    second.redraw = { [unowned other] in other.window.setNeedsRedraw() }
+    second.redraw = { [weak other] in other?.window.setNeedsRedraw() }
     try focusField(other, "Note")
     other.typeText("x")
     #expect(second.text == "one\ntwo\nx", "the caret was on the empty last line")
@@ -162,7 +162,7 @@ func midY(_ b: Bounds<Pixels>) -> Float { b.origin.y.value + b.size.height.value
             Button("Move") { model.selection = caret(2, in: model.text) }
         }
     }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     try focusField(window)
     try window.click(window.element(label: "Move"))
     window.typeText("X")
@@ -172,7 +172,7 @@ func midY(_ b: Bounds<Pixels>) -> Float { b.origin.y.value + b.size.height.value
     // W3: a write, then a key with no frame between, sees the old caret.
     let late = SelModel("hello")
     let second = try harnessWindow { late.field() }
-    late.redraw = { [unowned second] in second.window.setNeedsRedraw() }
+    late.redraw = { [weak second] in second?.window.setNeedsRedraw() }
     try focusField(second)
     late.selection = caret(2, in: late.text)
     _ = second.send(.textInput("X"))
@@ -241,7 +241,7 @@ enum SelectionArm: String, CaseIterable, Sendable, CustomTestStringConvertible {
             model.field("Second")
         }
     }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     window.typeKey(.tab)
     #expect(model.published.isEmpty, "the first field took the focus")
     window.typeKey(.tab)
@@ -435,7 +435,7 @@ enum SelectionArm: String, CaseIterable, Sendable, CustomTestStringConvertible {
             }
         }
     }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     try focusField(window)
     window.typeText("!")                  // an edit, so the field remembers the text it last made
     try window.click(window.element(label: "Rename"))
@@ -451,7 +451,7 @@ enum SelectionArm: String, CaseIterable, Sendable, CustomTestStringConvertible {
 @Test @MainActor func aTextEditorPublishesAcrossLinesAndRevealsAWrittenCaret() throws {
     let model = SelModel("line1\nline2\nline3")
     let window = try harnessWindow { model.editor().id("note") }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     try focusField(window, "Note")
     window.typeKey(.downArrow)
     #expect(model.read == 6..<6, "the start of the second line")
@@ -461,7 +461,7 @@ enum SelectionArm: String, CaseIterable, Sendable, CustomTestStringConvertible {
     let tall = try harnessWindow {
         big.editor().frame(height: Pixels(100)).id("note")
     }
-    big.redraw = { [unowned tall] in tall.window.setNeedsRedraw() }
+    big.redraw = { [weak tall] in tall?.window.setNeedsRedraw() }
     try focusField(tall, "Note")
     let field = try tall.frame(ofID: "note")
     big.selection = caret(long.count, in: long)

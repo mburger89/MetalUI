@@ -229,7 +229,7 @@ private func coreTextGlyphIDs(_ string: String, truncatedAt width: Double? = nil
         drawn = try #require(CTLineCreateTruncatedLine(drawn, width, mode, line("\u{2026}")))
     }
     var ids: [CGGlyph] = []
-    for run in CTLineGetGlyphRuns(drawn) as! [CTRun] {
+    for run in try #require(CTLineGetGlyphRuns(drawn) as? [CTRun]) {
         var glyphs = [CGGlyph](repeating: 0, count: CTRunGetGlyphCount(run))
         CTRunGetGlyphs(run, CFRange(), &glyphs)
         ids += glyphs

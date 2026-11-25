@@ -258,7 +258,7 @@ private struct HKFieldInRegion: Component {
     @FocusState var focused: Bool
     let m: HKLog
     var content: some ElementGroup {
-        let _ = m.flags.append(focused)
+        let _: Void = m.flags.append(focused)
         Box {
             TextField("t", text: m.text) { m.text = $0 }.focused($focused).frame(width: px(100), height: px(24))
         }

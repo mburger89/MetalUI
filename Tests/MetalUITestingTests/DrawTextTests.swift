@@ -21,7 +21,7 @@ private struct Capturing: Component {
     let text: Text
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        let _ = box.value = measurer.resolve(text)
+        let _: Void = box.value = measurer.resolve(text)
         Box().frame(width: 1, height: 1)
     }
 }
@@ -203,12 +203,12 @@ private func colour(_ g: MUIGlyph) -> [Float] { [g.color.h, g.color.s, g.color.l
 /// **6** (`DT-F`). The headless renderer records a surface request and never runs its draw: no text is
 /// recorded and `lastSurfaceRequests` is the one request. Mutation: run the draw in `finishFrame`.
 @Test @MainActor func aHeadlessRendererRecordsButNeverRunsASurfaceDraw() throws {
-    final class Ran { var count = 0 }
+    final class Ran { var isEmpty: Bool { count < 1 }; var count = 0 }
     let ran = Ran()
     let window = try harnessWindow {
         GPUSurface(redraw: .continuous) { _ in ran.count += 1 }.frame(width: Pixels(40), height: Pixels(20))
     }
     window.tick()
-    #expect(ran.count == 0, "a headless frame never runs the app's draw")
+    #expect(ran.isEmpty, "a headless frame never runs the app's draw")
     #expect(window.platformWindow.headlessRenderer.lastSurfaceRequests.count == 1, "but it records the request")
 }

@@ -155,11 +155,14 @@ private final class Counter {
 /// **14** (`IC-E` 3, `IC-O`). The ninth image evicts the least recently used cursor and never the one
 /// SDL shows: a current one is parked and destroyed at its next replacement. Ungated.
 /// Mutations: no bound; evict the current.
-@MainActor @Test func theNinthImageEvictsTheLeastRecentlyUsedAndNeverTheCurrent() {
+@MainActor @Test func theNinthImageEvictsTheLeastRecentlyUsedAndNeverTheCurrent() throws {
     let counter = Counter()
     var table = counter.table()
     var handles: [Int] = []
-    for key in 1...8 { handles.append(table.handle(for: key, current: nil)!) }
+    for key in 1...8 {
+        let handle = table.handle(for: key, current: nil)
+        handles.append(try #require(handle))
+    }
     _ = table.handle(for: 9, current: nil)
     #expect(counter.destroyed == [handles[0]], "the least recently used (key 1)")
     #expect(table.count == 8)
@@ -181,11 +184,14 @@ private final class Counter {
 @MainActor @Test func removingEveryCursorDestroysTheParkedOnesToo() throws {
     let counter = Counter()
     var table = counter.table(capacity: 2)
-    let first = table.handle(for: 1, current: nil)!
+    let firstHandle = table.handle(for: 1, current: nil)
+    let first = try #require(firstHandle)
     _ = table.handle(for: 2, current: nil)
     _ = table.handle(for: 3, current: first)   // evicts 1, which is shown: parked
     try #require(table.parkedCount == 1, "premise: one parked")
     table.removeAll()
     #expect(counter.destroyed.sorted() == counter.created.sorted(), "\(counter.destroyed) vs \(counter.created)")
-    #expect(table.count == 0 && table.parkedCount == 0)
+    #expect(table.isEmpty && table.parkedCount == 0)
 }
+
+extension SDLImageCursorTable { fileprivate var isEmpty: Bool { count < 1 } }

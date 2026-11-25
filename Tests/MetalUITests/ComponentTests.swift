@@ -149,7 +149,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled —
 /// so the literals hold on both authorities.
 @MainActor
-@Test func aComponentsContentFlattensIntoItsParent() {
+@Test func aComponentsContentFlattensIntoItsParent() throws {
     let componentLog = ComponentLog()
     let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var withComponent = Row { TwoLeaves(log: componentLog) }.frame(width: px(300), height: px(40), alignment: .leading)
@@ -167,13 +167,15 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     #expect(componentLog.registered == inlineLog.registered)
     // The differential IS the assertion: a wrapped component and the inline
     // spelling must be geometrically indistinguishable.
-    #expect(rect(componentLog.bounds["a"]!) == rect(inlineLog.bounds["a"]!))
-    #expect(rect(componentLog.bounds["b"]!) == rect(inlineLog.bounds["b"]!))
+    let componentA = try #require(componentLog.bounds["a"]), componentB = try #require(componentLog.bounds["b"])
+    let inlineA = try #require(inlineLog.bounds["a"]), inlineB = try #require(inlineLog.bounds["b"])
+    #expect(rect(componentA) == rect(inlineA))
+    #expect(rect(componentB) == rect(inlineB))
     // Literal numbers alongside, because two runs of a broken engine agree with
     // each other. A 40-tall row centres each leaf INDEPENDENTLY on the cross
     // axis (ruling EP-8): the 10-tall `a` at y = 15, the 30-tall `b` at y = 5.
-    #expect(rect(componentLog.bounds["a"]!) == (0, 15, 30, 10))
-    #expect(rect(componentLog.bounds["b"]!) == (30, 5, 50, 30))
+    #expect(rect(componentA) == (0, 15, 30, 10))
+    #expect(rect(componentB) == (30, 5, 50, 30))
 }
 
 /// Spec §2. The node count for a tree holding a component equals the count for
@@ -205,7 +207,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// extent on its two auto axes — what `CS-I` gave the legacy root, now spelled —
 /// so the literals hold on both authorities.
 @MainActor
-@Test func aComponentInsideAComponentFlattensThroughBothLevels() {
+@Test func aComponentInsideAComponentFlattensThroughBothLevels() throws {
     struct Outer: Component {
         let log: ComponentLog
         var elementID: ElementID?
@@ -218,8 +220,9 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     frame.render(&root)
 
     #expect(log.registered == ["a", "b"])
-    #expect(rect(log.bounds["a"]!) == (0, 15, 30, 10))
-    #expect(rect(log.bounds["b"]!) == (30, 5, 50, 30))
+    let boundsA = try #require(log.bounds["a"]), boundsB = try #require(log.bounds["b"])
+    #expect(rect(boundsA) == (0, 15, 30, 10))
+    #expect(rect(boundsB) == (30, 5, 50, 30))
 }
 
 /// Spec §4.3. `EmptyGroup` is an `ElementGroup`, so a component with an empty

@@ -236,7 +236,8 @@ struct FreeTypeOracleTests {
         for character in characters {
             let glyph = try ctGlyph(ct, character)
             #expect(glyph != 0, "'\(character)' is .notdef in \(file)")
-            #expect(ft.glyph(for: character.unicodeScalars.first!) == glyph, "'\(character)' in \(file)")
+            let scalar = try #require(character.unicodeScalars.first)
+            #expect(ft.glyph(for: scalar) == glyph, "'\(character)' in \(file)")
         }
     }
 
@@ -325,6 +326,8 @@ struct FreeTypeOracleTests {
         }.count
         print("MEASURE \(file): geometry agrees in \(agree)/\(cases.count) cases")
         let inked = cases.filter { !$0.coreText.isEmpty && $0.coreText.bytes.count == $0.freeType.bytes.count }
+        func hi<T: Comparable>(_ values: [T]) throws -> T { try #require(values.max()) }
+        func lo<T: Comparable>(_ values: [T]) throws -> T { try #require(values.min()) }
         for size in sizes { for scale in scales {
             let key = SizeKey(file: file, size: size, scale: scale)
             let group = inked.filter { $0.key == key }
@@ -333,11 +336,11 @@ struct FreeTypeOracleTests {
             let shifts = group.map { inkCentroidY($0.coreText) - inkCentroidY($0.freeType) }
             let inkRatio = group.map { Double($0.coreText.bytes.reduce(0) { $0 + Int($1) })
                 / Double($0.freeType.bytes.reduce(0) { $0 + Int($1) }) }
-            print(String(format: "MEASURE   %@ %4.0fpt x%.0f  vsGlyphRaster max %3d worstMean %6.3f | vsOutline max %3d worstMean %6.3f | ctInkUp %+.2f..%+.2f px | ctInk/ftInk %.2f..%.2f",
+            try print(String(format: "MEASURE   %@ %4.0fpt x%.0f  vsGlyphRaster max %3d worstMean %6.3f | vsOutline max %3d worstMean %6.3f | ctInkUp %+.2f..%+.2f px | ctInk/ftInk %.2f..%.2f",
                          file, size, Double(scale),
-                         vsCT.map(\.max).max()!, vsCT.map(\.mean).max()!,
-                         vsPath.map(\.max).max()!, vsPath.map(\.mean).max()!,
-                         shifts.min()!, shifts.max()!, inkRatio.min()!, inkRatio.max()!))
+                         hi(vsCT.map(\.max)), hi(vsCT.map(\.mean)),
+                         hi(vsPath.map(\.max)), hi(vsPath.map(\.mean)),
+                         lo(shifts), hi(shifts), lo(inkRatio), hi(inkRatio)))
         } }
     }
 }

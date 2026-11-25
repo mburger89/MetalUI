@@ -240,7 +240,7 @@ func aBindingWrittenFromADispatchedHandlerReachesItsOwnOccurrence() throws {
     // Each occurrence is where the two hitboxes' ancestor chains first part.
     func chain(_ id: GlobalElementID) -> [GlobalElementID] {
         var out = [id]
-        while let p = out.last!.parent { out.append(p) }
+        while let last = out.last, let p = last.parent { out.append(p) }
         return out.reversed()
     }
     let chains = hits.map { chain($0.id) }

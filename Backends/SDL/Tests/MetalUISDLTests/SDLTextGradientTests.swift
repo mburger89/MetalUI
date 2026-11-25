@@ -105,12 +105,13 @@ private func checkGradientText(turned: Bool) throws {
     for y in 0..<height {
         for x in 0..<width {
             let p = rgb(pixels, x, y), c = rgb(oracle, x, y)[1]
+            let peak = try #require(p.max())
             if c > 0 { inked += 1 }
             // Coverage is the solid text's: no channel exceeds it, nothing is drawn where the solid text is clear, and
             // a fully covered pixel carries the gradient's colour (a mid-sweep colour has green, so no channel is pinned).
-            if p.max()! > c + 3 { over += 1 }
-            if c == 0 && p.max()! > 1 { outside += 1 }
-            if c >= 250 { if p.max()! < 100 { blackInside += 1 }; if leftMost == nil { leftMost = p }; rightMost = p }
+            if peak > c + 3 { over += 1 }
+            if c == 0 && peak > 1 { outside += 1 }
+            if c >= 250 { if peak < 100 { blackInside += 1 }; if leftMost == nil { leftMost = p }; rightMost = p }
         }
     }
     #expect(inked > 200, "set up: the text drew ink (\(inked))")
