@@ -45,8 +45,8 @@ private let bounds = LayoutRect(x: 0, y: 0, width: 200, height: 200)
     #expect(tree.structuralSignature(of: left) != nil)
     #expect(tree.structuralSignature(of: right) == nil)
     #expect(tree.structuralSignature(of: root) == nil)
-    #expect(a.count == 0, "the keyed left subtree is answered by the memo")
-    #expect(d.count > 0, "the unkeyed leaf is measured again")
+    #expect(a.isEmpty, "the keyed left subtree is answered by the memo")
+    #expect(!d.isEmpty, "the unkeyed leaf is measured again")
     #expect(tree.lastNativeLayoutWork.memoHits >= 1)
 }
 

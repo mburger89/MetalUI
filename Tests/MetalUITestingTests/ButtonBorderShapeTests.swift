@@ -246,7 +246,7 @@ private struct SegmentedSecondTree: Component {
     #expect(pill[0].bounds.size.height == 23 && pill[0].cornerRadii.topLeft == 11.5, "inset 4, half height: \(pill[0].bounds) \(pill[0].cornerRadii.topLeft)")
     let cell = flat.first { $0.bounds.size.height == 31 }
     #expect(pill[0].bounds.origin.x == (cell?.bounds.origin.x ?? -1) + 3, "inset 3 at the sides")
-    #expect(capsule.scene.rects.filter { $0.bounds.size.width == 1 && $0.bounds.size.height == 31 }.isEmpty, "no tab hairlines")
+    #expect(!capsule.scene.rects.contains { $0.bounds.size.width == 1 && $0.bounds.size.height == 31 }, "no tab hairlines")
     #expect(plain.scene.rects.contains { $0.bounds.size.width == 1 && $0.bounds.size.height == 31 }, "the default has them")
     let rounded = try window { VStack(spacing: Pixels(0)) { TabStrip(selection: .constant("a"), tabs: tabs()).selectedTabShape(.roundedRectangle(radius: 6)) } }
     #expect(fills(rounded).contains { $0.cornerRadii.topLeft == 6 }, "a 6-point rounded fill")

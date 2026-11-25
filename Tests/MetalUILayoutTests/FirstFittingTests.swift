@@ -261,7 +261,7 @@ private func lay(_ tree: LayoutTree, _ root: LayoutNodeID, _ proposal: ProposedS
 // MARK: - The memo carries the choice (`VF-H`)
 
 private func keyedFixed(_ tree: LayoutTree, _ key: String, _ width: Double) -> LayoutNodeID {
-    tree.newNativeLeaf(key: key) { proposal in
+    tree.newNativeLeaf(key: key) { _ in
         LayoutMeasurement(size: SizeD(width: width, height: 20))
     }
 }

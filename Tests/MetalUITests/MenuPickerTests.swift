@@ -438,7 +438,7 @@ private final class CountingTextSystem: TextSystem, @unchecked Sendable {
     #expect(system.count == 299, "the first frame measures every title but the selected: \(system.count)")
     system.count = 0
     controlRedraw(window)
-    #expect(system.count == 0, "a warm frame measures none: \(system.count)")
+    #expect(system.isEmpty, "a warm frame measures none: \(system.count)")
     source.titles[5] = "Option five"
     system.watched.insert("Option five")
     system.count = 0

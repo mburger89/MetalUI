@@ -154,8 +154,8 @@ private struct KMFocusPane: Component {
     let model: KMLog
 
     var content: some ProposalElementGroup {
-        let _ = model.flags.append(flag)
-        let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        _ = model.flags.append(flag)
+        _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         Rectangle(width: Pixels(40), height: Pixels(40))
             .focused($flag)
             .focusable()

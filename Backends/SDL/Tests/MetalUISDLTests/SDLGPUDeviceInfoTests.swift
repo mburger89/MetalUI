@@ -6,7 +6,6 @@ import MetalUIScene
 import MetalUIShaderTypes
 import MetalUISDLGPU
 @testable import MetalUISDL
-@testable import MetalUISDLGPU
 import ReplayFixture
 
 // Adapter name, software flag, limits and the off-main-thread device

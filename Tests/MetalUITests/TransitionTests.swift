@@ -585,7 +585,7 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
     let h = TransitionHarness()
     let data = (0..<12).map { TransitionRow(id: "row\($0)") }
     var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
-        List(data, rowHeight: Pixels(20)) { item in
+        List(data, rowHeight: Pixels(20)) { _ in
             Box { if true { tile(10, 10).transition(.opacity) } }
         }
     }
@@ -751,7 +751,7 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
     let l = TransitionHarness()
     let data = (0..<12).map { TransitionRow(id: "row\($0)") }
     var list = ScrollView(.vertical, elementID: ElementID("scroller")) {
-        List(data, rowHeight: Pixels(20)) { item in
+        List(data, rowHeight: Pixels(20)) { _ in
             Box { if true { tile(10, 10).transition(.opacity) } }
         }
         .transaction { $0.animation = linear1 }

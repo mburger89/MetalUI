@@ -1028,7 +1028,7 @@ private struct NativeProposalProbe: ProposalElement {
     let center = Point(x: Pixels(50), y: Pixels(50))
     platformWindow.simulateInput(.mouseDown(MouseEvent(position: center)))
     platformWindow.simulateInput(.mouseUp(MouseEvent(position: center)))
-    #expect(probe.count == 0,
+    #expect(probe.isEmpty,
             "the gesture receives neither half of a click while hit testing is disabled")
 }
 

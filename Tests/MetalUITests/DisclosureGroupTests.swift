@@ -169,7 +169,7 @@ import MetalUIScene
     func tree(_ open: Bool) -> some Element {
         stageTree {
             DisclosureGroup(isExpanded: .constant(open)) {
-                let _ = counter.calls += 1
+                _ = counter.calls += 1
                 bar(75)
             } label: { Text("Section") }
         }

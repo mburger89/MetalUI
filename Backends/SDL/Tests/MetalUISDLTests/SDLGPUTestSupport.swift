@@ -1,10 +1,6 @@
 import Foundation
 import Testing
 import MetalUISDLGPU
-@testable import MetalUISDLGPU
-
-/// Shared by the `SDLGPU*` tests (ruling `GA-F`, spec §4): where the checked-in
-/// app shaders are, and whether this machine has a GPU at all.
 enum GPUTestSupport {
     /// `Backends/SDL/Tests/AppShaders/compiled`: the append kernel's blobs, built by
     /// `MetalUICompileShaders` (`swift package compile-shaders`), verified by hash and never regenerated

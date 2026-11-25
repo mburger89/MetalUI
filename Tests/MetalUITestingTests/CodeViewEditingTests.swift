@@ -478,7 +478,7 @@ let codeWord: EventModifiers = .control
     #expect(buffer.primarySelection.anchor == pressed.head && head(buffer).row == 5, "shift-click extends: \(buffer.primarySelection)")
     // Stage .mouseDragged.
     window.drag(from: pt(60, top + 2 * pitch + 2), to: pt(140, top + 4 * pitch + 2))
-    #expect(buffer.primarySelection.range.count > 0 && head(buffer).row == 4, "drag: \(buffer.primarySelection)")
+    #expect(!buffer.primarySelection.range.isEmpty && head(buffer).row == 4, "drag: \(buffer.primarySelection)")
     // Stage .textInput through dispatchTypedKeyPress: "q" is offered and swallowed, "w" is typed.
     caret(buffer, 3, 0)
     let version = buffer.version

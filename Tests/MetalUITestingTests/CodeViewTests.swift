@@ -218,7 +218,7 @@ let codePrimary: EventModifiers = .control
     let back = totalWork(window)
     _ = back
     window.scroll(at: pt(200, 100), byDeltaX: 0, deltaY: 100_000)
-    #expect(window.scene.glyphs.count > 0, "scrolled back to the top")
+    #expect(!window.scene.glyphs.isEmpty, "scrolled back to the top")
 }
 
 /// 3.4 — lines inserted above the viewport do not move what the reader is looking at: the scroll anchor is a

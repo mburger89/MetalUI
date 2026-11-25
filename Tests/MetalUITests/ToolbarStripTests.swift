@@ -157,7 +157,7 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     m.showsToolbar = false
     window.drawFrameIfNeeded()
     #expect(window.lastDrawBuildCount == 1, "the strip leaving costs no extra build")
-    #expect(window.lastElementBounds.keys.filter(isUnderStrip).isEmpty, "no strip once the toolbar left")
+    #expect(!window.lastElementBounds.keys.contains(where: isUnderStrip), "no strip once the toolbar left")
     let full = try #require(window.lastElementBounds[rootID])
     #expect(abs(full.origin.y.value - (400 - full.size.height.value) / 2) <= 0.5,
             "the root back in the whole window in the same presented frame: \(full)")
@@ -218,7 +218,7 @@ private func centre(_ b: Bounds<Pixels>) -> Point<Pixels> {
     window.drawFrameIfNeeded()
     #expect(platform.toolbars.isEmpty, "no setToolbar call")
     #expect(window.lastDrawBuildCount == 1, "one build")
-    #expect(window.lastElementBounds.keys.filter(isUnderStrip).isEmpty, "no strip")
+    #expect(!window.lastElementBounds.keys.contains(where: isUnderStrip), "no strip")
     let rects = window.lastScene.rects.map {
         [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height]
     }

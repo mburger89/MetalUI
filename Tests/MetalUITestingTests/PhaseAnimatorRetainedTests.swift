@@ -16,7 +16,7 @@ private struct PulseHost: Component, @MainActor Equatable {
     var content: some ElementGroup {
         Box().frame(width: Pixels(40), height: Pixels(10)).background(.accent)
             .phaseAnimator([0, 1, 2]) { content, p in
-                let _ = seen.phases.append(p)
+                _ = seen.phases.append(p)
                 content.opacity(p == 1 ? 0.5 : 1)
             } animation: { _ in .linear(duration: 0.4) }
     }

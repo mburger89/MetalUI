@@ -146,7 +146,8 @@ func theBracketNodeDragIsCountedAfterPrepaintReplay(arm: BracketArm) throws {
         if counts != other.counts { out.append("counts \(counts) vs \(other.counts)") }
         if tree != other.tree { out.append("accessibility tree") }
         if hitboxes != other.hitboxes {
-            let first = zip(hitboxes, other.hitboxes).enumerated().first { $0.element.0 != $0.element.1 }
+            let pairs = Array(zip(hitboxes, other.hitboxes))
+            let first = pairs.firstIndex { $0.0 != $0.1 }.map { (offset: $0, element: pairs[$0]) }
             out.append("hitboxes (\(hitboxes.count) vs \(other.hitboxes.count)) first difference \(String(describing: first))")
         }
         if tallies != other.tallies { out.append("tallies \(tallies) vs \(other.tallies)") }

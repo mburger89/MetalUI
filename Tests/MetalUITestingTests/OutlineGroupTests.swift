@@ -394,7 +394,7 @@ private struct StatefulLeaf: Component {
     }
 
     var content: some ElementGroup {
-        let _ = serials.seen[name] = serial
+        _ = serials.seen[name] = serial
         ProposalText(name).frame(height: Pixels(20))
     }
 }

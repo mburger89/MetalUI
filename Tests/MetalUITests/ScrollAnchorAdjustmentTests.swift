@@ -91,7 +91,7 @@ private func probeWindow(_ script: ProbeScript) throws -> Window {
     let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: sized(width: 100, height: 100, column: true)) {
             ScrollViewReader { proxy in
-                let _ = script.keep(proxy)
+                _ = script.keep(proxy)
                 ScrollView {
                     Box(style: sized(width: 100, column: true)) {
                         Box(style: sized(width: 100, height: 200))

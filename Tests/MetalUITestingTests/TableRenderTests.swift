@@ -239,7 +239,7 @@ private struct CountingCell: Component {
     let log: StateLog
     @State var taps = 0
     var content: some ElementGroup {
-        let _ = log.seen[label] = taps
+        _ = log.seen[label] = taps
         Text("\(label)").id("cell-\(label)").onClick { taps += 1 }
     }
 }

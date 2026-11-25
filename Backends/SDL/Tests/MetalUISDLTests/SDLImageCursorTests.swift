@@ -187,5 +187,5 @@ private final class Counter {
     try #require(table.parkedCount == 1, "premise: one parked")
     table.removeAll()
     #expect(counter.destroyed.sorted() == counter.created.sorted(), "\(counter.destroyed) vs \(counter.created)")
-    #expect(table.count == 0 && table.parkedCount == 0)
+    #expect(table.isEmpty && table.parkedCount == 0)
 }

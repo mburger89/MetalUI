@@ -2,16 +2,6 @@ import MetalUI
 import MetalUIPlatform
 import MetalUITesting
 import Testing
-@testable import MetalUI
-
-// Presentation extras, lane 2: `PointerStyle.shape(_:eoFill:size:hotSpot:fill:outline:)` (rulings `BG-K`...`BG-M`,
-// divergence 735; spec `docs/superpowers/specs/2026-10-22-presentation-extras-design.md` tests 27-36). The shape is
-// rasterized on the CPU through `MetalUIPath` at the window's integer display scale and reaches the platform as the
-// image cursor it already serves (`IC-`), so every read is at the seam: the `PlatformCursorImage` the headless window
-// recorded. Geometry as in `ImageCursorTests`: a 50 x 50 box centred at (175, 150) in the 400 x 300 window.
-// Red before: `PointerStyle.shape` does not exist, so the file does not compile.
-
-/// The cursor image the window last sent, or `nil` when the last style is not an image.
 @MainActor private func sentShape(_ window: TestWindow) -> PlatformCursorImage? {
     guard case .image(let cursor)? = window.pointerStyle else { return nil }
     return cursor

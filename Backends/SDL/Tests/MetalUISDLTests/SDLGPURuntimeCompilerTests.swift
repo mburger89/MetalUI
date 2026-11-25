@@ -2,15 +2,6 @@ import Foundation
 import Testing
 import MetalUISDLGPU
 import MetalUIShaderRuntime
-@testable import MetalUISDLGPU
-
-// Run-time HLSL compute compile (item XP-G25, rulings RC-B..RC-S; spec 5 tests 13-17). These
-// run everywhere: no library, and (except 15) no GPU. The gated tests 18-27 are the same suite
-// in `SDLGPURuntimeCompilerGatedTests.swift`: **one serialized suite**, because the process
-// cache is global and a test that swaps it must not overlap one that reads it.
-
-/// Attempts naming files that do not exist, plus one bare loader name no machine has, so a
-/// real `load(candidates:)` runs the whole path with no library on the loader path.
 func missingLibraryAttempts() -> [SDLGPUShaderCompiler.LibraryAttempt] {
     var attempts = SDLGPUShaderCompiler.libraryAttempts(
         explicit: nil, environment: ["METALUI_SHADERCROSS": "/nonexistent/tool/bin/shadercross"],

@@ -150,9 +150,9 @@ private struct WidthBox: Component {
     @State var width: Float = 20
     @State var show = false
     var content: some ElementGroup {
-        let _ = holder.binding = $width
-        let _ = holder.show = $show
-        let _ = builds?.times.append(FrameTiming.now())
+        _ = holder.binding = $width
+        _ = holder.show = $show
+        _ = builds?.times.append(FrameTiming.now())
         Box().frame(width: Pixels(width), height: Pixels(10)).background(.accent)
         if show {
             Box().frame(width: Pixels(5), height: Pixels(5)).onAppear { if onAppearWrite { width = 40 } }

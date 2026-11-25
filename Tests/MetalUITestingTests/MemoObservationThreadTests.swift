@@ -57,7 +57,7 @@ private struct MOReader: Component {
     let budget: MOBudget
     var content: some ElementGroup {
         let v = model.value
-        let _ = {
+        _ = {
             if budget.writes > 0 { budget.writes -= 1; model.value += 1 }
         }()
         moCard("v\(v)", value: v)

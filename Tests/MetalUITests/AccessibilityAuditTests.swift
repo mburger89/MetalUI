@@ -291,8 +291,8 @@ private struct AuditFocusForm: Component {
     let model: AuditFocusModel
 
     var content: some ElementGroup {
-        let _ = model.field.append(field)
-        let _ = model.setField = { [field = $field] in field.wrappedValue = $0 }
+        _ = model.field.append(field)
+        _ = model.setField = { [field = $field] in field.wrappedValue = $0 }
         Box().frame(width: Pixels(20), height: Pixels(20)).focusable().focused($field, equals: .a)
             .accessibilityLabel("A")
         Box().frame(width: Pixels(20), height: Pixels(20)).focusable().focused($field, equals: .b)

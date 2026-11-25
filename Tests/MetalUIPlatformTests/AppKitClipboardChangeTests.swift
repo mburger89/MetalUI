@@ -46,7 +46,7 @@ private func keyDown() -> InputEvent {
     func becomeKey() { window.notificationCenter.post(name: NSWindow.didBecomeKeyNotification, object: nsWindow) }
 
     becomeKey()
-    #expect(counter.count == 0, "nothing changed since the handler was installed")
+    #expect(counter.isEmpty, "nothing changed since the handler was installed")
     foreignWrite(pasteboard, "one")
     becomeKey()
     #expect(counter.count == 1, "becoming key sees the foreign write")

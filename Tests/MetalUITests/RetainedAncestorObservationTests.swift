@@ -43,7 +43,7 @@ private struct OuterGate: Component, @MainActor Equatable {
     let gate: GateModel
     let model: ToneModel
     var content: some ElementGroup {
-        let _ = gate.count
+        _ = gate.count
         VStack(spacing: 0) { InnerTone(model: model).equatable() }
     }
     static func == (l: OuterGate, r: OuterGate) -> Bool { l.gate === r.gate && l.model === r.model }

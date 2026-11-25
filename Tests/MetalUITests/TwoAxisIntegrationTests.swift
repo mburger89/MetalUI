@@ -184,7 +184,7 @@ private func gridWindow(_ holder: Proxy) throws -> Window {
     let (window, _) = try makeFakeWindowOnDefaultDevice(size: 100) {
         Box(style: columnStyle(width: 100)) {
             ScrollViewReader { proxy in
-                let _ = { holder.proxy = proxy }()
+                _ = { holder.proxy = proxy }()
                 ScrollView(both) {
                     Column {
                         for r in 0..<10 {

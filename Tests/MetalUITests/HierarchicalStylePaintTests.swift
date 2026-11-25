@@ -245,4 +245,4 @@ private func describe(_ scene: Scene, _ landing: Landing) -> String { "\(landed(
 }
 
 /// A value the optimiser cannot fold, so a ternary keeps both arms in the type checker's view.
-private enum ProcessInfoFlag { static var yes: Bool { CommandLine.arguments.count >= 0 } }
+private enum ProcessInfoFlag { static var yes: Bool { CommandLine.arguments.isEmpty } }

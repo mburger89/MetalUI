@@ -4,16 +4,6 @@ import MetalUIPlatform
 import MetalUIScene
 import MetalUITesting
 import Testing
-@testable import MetalUI
-
-// `textSelection(_:)` on `Text` (rulings `TXS-A`…`TXS-H`, decisions `docs/superpowers/2026-11-23-text-selectability-decisions.md`,
-// record 399). The harness drives real pointer events and the real ⌘C / ⌘A keystroke. Probe
-// `docs/probes/swiftui-text-selection-enabled.swift`. PLAIN harness text (Noto Sans), `Modifiers.primary` (⌘ on Apple, Ctrl
-// elsewhere), `runUntilIdle()` then `tick()` and summed `frameWork`, so Linux and Windows run every arm that is not
-// Darwin-only (the allocation counter). Builders are kept narrow (PE-K: Windows' 1 MB debug test thread).
-
-// MARK: Fixtures
-
 private let alpha = "alpha beta gamma delta"
 
 @MainActor private final class TextModel {

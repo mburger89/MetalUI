@@ -21,7 +21,7 @@ import Testing
         .tableRowHeight(Pixels(24))
         .tableFrozenColumns(frozen)
         return table.contextMenu(forSelectionType: Int.self, menu: { (ids: Set<Int>) in
-            let _ = menu?(ids)
+            _ = menu?(ids)
             Button("Act") {}
         }, primaryAction: primary)
     }
@@ -211,7 +211,7 @@ import Testing
     try harnessWindow(size: sz(800, 600)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = holder.proxy = proxy
+                _ = holder.proxy = proxy
                 if lookup {
                     Table(data, selection: model.multiBinding()) { selectableColumns() }.tableRowHeight(Pixels(24)).tableRowIndex { $0 }
                 } else {

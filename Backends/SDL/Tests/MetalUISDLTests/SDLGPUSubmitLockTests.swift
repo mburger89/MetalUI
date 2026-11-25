@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import MetalUISDLGPU
-@testable import MetalUISDLGPU
 @testable import MetalUISDL
 
 // XP-G37 (rulings GA-S, GA-E): SDL's Vulkan submit may defragment device memory

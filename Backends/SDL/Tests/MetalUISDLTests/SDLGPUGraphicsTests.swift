@@ -6,7 +6,6 @@ import MetalUIScene
 import MetalUIShaderTypes
 import MetalUISDLGPU
 @testable import MetalUISDL
-@testable import MetalUISDLGPU
 import ReplayFixture
 
 // Graphics into a texture and into a GPUSurface (rulings GA-H, GA-M; spec §6

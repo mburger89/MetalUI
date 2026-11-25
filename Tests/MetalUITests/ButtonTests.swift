@@ -267,17 +267,17 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
     }
     let id = controlID([0, 0])
     controlClick(platform, at: controlCentre(try controlBounds(window.lastFrameBounds(), id)))
-    #expect(model.keys == ["caller"] && model.count == 0, "a click runs the caller's handler, not the action")
+    #expect(model.keys == ["caller"] && model.isEmpty, "a click runs the caller's handler, not the action")
     controlRedraw(window)
     window.focus(id)
     window.drawFrameIfNeeded()
     try #require(window.focusedElement == id)
     platform.simulateInput(controlKey(" "))
-    #expect(model.keys == ["caller", "caller"] && model.count == 0, "Space runs what the click runs")
+    #expect(model.keys == ["caller", "caller"] && model.isEmpty, "Space runs what the click runs")
     let tree = try controlTree(window, platform)
     let button = try #require(tree.nodes.first { $0.value.role == .button }, "no button published")
     #expect(platform.simulateAccessibilityRequest(.press(button.key)))
-    #expect(model.keys == ["caller", "caller", "caller"] && model.count == 0,
+    #expect(model.keys == ["caller", "caller", "caller"] && model.isEmpty,
             "a press runs the caller's handler: \(model.keys), action ran \(model.count)")
 }
 
@@ -314,7 +314,7 @@ private func buttonWindow(_ model: ControlModel, disabled: Bool = false,
     let tree = try controlTree(window, platform)
     let button = try #require(tree.nodes.first { $0.value.role == .button })
     platform.simulateAccessibilityRequest(.press(button.key))
-    #expect(model.count == 0, "nothing ran while disabled")
+    #expect(model.isEmpty, "nothing ran while disabled")
     #expect(window.focusedElement == nil, "a disabled button takes no focus")
     #expect(button.value.isEnabled == false, "published disabled")
 }

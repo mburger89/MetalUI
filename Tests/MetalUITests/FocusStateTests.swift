@@ -49,10 +49,10 @@ private struct Form: Component {
     let model: FormModel
 
     var content: some ElementGroup {
-        let _ = model.flag.append(flag)
-        let _ = model.field.append(field)
-        let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
-        let _ = model.setField = { [field = $field] in field.wrappedValue = $0 }
+        _ = model.flag.append(flag)
+        _ = model.field.append(field)
+        _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        _ = model.setField = { [field = $field] in field.wrappedValue = $0 }
         square().focusable().focused($flag)
         square().focusable().focused($field, equals: .a)
         if model.showB { square().focusable().focused($field, equals: .b) }
@@ -198,8 +198,8 @@ private struct Unfocusable: Component {
     @FocusState var flag: Bool
     let model: FormModel
     var content: some ElementGroup {
-        let _ = model.flag.append(flag)
-        let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        _ = model.flag.append(flag)
+        _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         square().focused($flag).id("n")
     }
 }
@@ -359,8 +359,8 @@ private struct Unfocusable2: Component {
     @FocusState var flag: Bool
     let model: FormModel
     var content: some ElementGroup {
-        let _ = model.flag.append(flag)
-        let _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
+        _ = model.flag.append(flag)
+        _ = model.setFlag = { [flag = $flag] in flag.wrappedValue = $0 }
         square().focusable().focused($flag)
     }
 }

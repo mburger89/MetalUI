@@ -18,9 +18,9 @@ private struct TMReader: Component, @MainActor Equatable {
     let log: TMLog
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        let _ = log.n += 1
+        _ = log.n += 1
         let width = measurer.resolve(Text("12.5 mm")).measure(in: tmUnbounded).width
-        let _ = log.width = width.value
+        _ = log.width = width.value
         Text("w\(Int(width.value))").frame(width: Pixels(120), height: Pixels(16))
     }
     static func == (l: TMReader, r: TMReader) -> Bool { l.log === r.log }
@@ -72,7 +72,7 @@ private struct TMReader: Component, @MainActor Equatable {
 /// argument): that field removed from what the reading resolves.
 private enum TMField: String, CaseIterable { case font, fontWeight, italic, controlSize, lineLimit, truncation, alignment, foreground }
 
-@Test(arguments: TMField.allCases) @MainActor fileprivate func aMeasurerReadingChangesWithEachTextStyleField(field: TMField) {
+@Test(arguments: TMField.allCases) @MainActor private func aMeasurerReadingChangesWithEachTextStyleField(field: TMField) {
     let box = TextSystemBox(harnessTextSystem())
     var base = EnvironmentValues()
     base.textSystemBox = box

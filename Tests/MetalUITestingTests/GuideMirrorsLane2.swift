@@ -12,9 +12,6 @@ import Testing
 // as prefix (`DG-K`: one module, both lanes). Mutations: delete the modifier a test names.
 
 // guide: presentations-and-app-shell #1
-import MetalUI
-
-/// A button whose popover opens beside it.
 struct ShellPopoverDemo: Component {
     @State var shown = false
 
@@ -240,9 +237,6 @@ func shellGuardClose(_ window: Window, document: ShellDocument) {
 }
 
 // guide: drawing-and-gpu #1
-import MetalUI
-
-/// A diamond: four lines and a close.
 struct DrawingDiamond: Shape {
     func path(in rect: Bounds<Pixels>) -> Path {
         Path { path in
@@ -463,9 +457,6 @@ func drawingTintOpacity(of material: Material, in scheme: ColorScheme) -> Float 
 }
 
 // guide: cross-platform #1
-import MetalUI
-
-/// A document type the file dialogs can filter by extension off Apple.
 let crossAcceptedTypes: [ContentType] = [
     ContentType("com.example.notes", conformingTo: [.json], filenameExtensions: ["notes", "json"])
 ]

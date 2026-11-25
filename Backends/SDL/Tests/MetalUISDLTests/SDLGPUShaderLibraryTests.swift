@@ -1,11 +1,6 @@
 import Foundation
 import Testing
 import MetalUISDLGPU
-@testable import MetalUISDLGPU
-
-// The app shader path (ruling GA-F; spec §6 C5-C7). Portable and GPU-free: no
-// SDL call, no device, so these run on every machine.
-
 private func scratchDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("metalui-app-shaders-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

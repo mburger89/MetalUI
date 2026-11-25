@@ -19,7 +19,7 @@ import MetalUILayout
 struct SplitCounter: Component {
     var x: Double
     var content: some ElementGroup {
-        let _ = acNote("split", x)
+        _ = acNote("split", x)
         Box().frame(width: Pixels(Float(100 + x)), height: Pixels(20)).background(.accent)
     }
 }

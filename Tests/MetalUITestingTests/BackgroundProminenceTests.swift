@@ -26,7 +26,7 @@ private struct PLabel: Component, @MainActor Equatable {
     @Environment(\.backgroundProminence) var prominence
     static func == (a: PLabel, b: PLabel) -> Bool { a.name == b.name }
     var content: some ElementGroup {
-        let _ = log.note(name, prominence)
+        _ = log.note(name, prominence)
         Text(name)
     }
 }
@@ -275,7 +275,7 @@ private struct PaintLabel: Component, @MainActor Equatable {
                 ForEach((0..<6).map { "f\($0)" }, id: \.self) { folder in
                     DisclosureGroup(isExpanded: .constant(true)) {
                         ForEach(["x", "y", "z"].map { "\(folder)/\($0)" }, id: \.self) { leaf in
-                            let _ = { calls.count += 1 }()
+                            _ = { calls.count += 1 }()
                             PlainLabel(name: leaf).equatable()
                         }
                     } label: { PlainLabel(name: folder).equatable() }
@@ -333,7 +333,7 @@ private struct PaintLabel: Component, @MainActor Equatable {
         ProposalScrollView {
             List(selection: model.textBinding()) {
                 ForEach((0..<60).map { "r\($0)" }, id: \.self) { id in
-                    let _ = { calls.count += 1 }()
+                    _ = { calls.count += 1 }()
                     Column { PlainLabel(name: id).equatable() }.tag("t-" + id)
                 }
             }

@@ -283,11 +283,11 @@ private struct TwoMembers: Component {
     click(control.platform, at: pt(5, 20))
     click(after.platform, at: pt(5, 20))
     #expect(control.counter.count == 1, "the edge point hits the control")
-    #expect(after.counter.count == 0, "and misses the inset frame layer")
+    #expect(after.counter.isEmpty, "and misses the inset frame layer")
     click(after.platform, at: pt(30, 20))
     #expect(after.counter.count == 1, "while the centre still hits it")
     click(before.platform, at: pt(22, 20))
-    #expect(before.counter.count == 0, "inside the frame but outside the child's inset box: a miss")
+    #expect(before.counter.isEmpty, "inside the frame but outside the child's inset box: a miss")
     click(before.platform, at: pt(30, 20))
     #expect(before.counter.count == 1, "the child's centre hits")
 }

@@ -189,11 +189,11 @@ import MetalUITesting
 @Test @MainActor func typingRestartsTheBlinkAndOffIsSolidAndFree() throws {
     let (window, _) = try blinkingWindow()
     window.advance(by: 0.5)
-    #expect(caretBars(window).count == 0, "in the off half")
+    #expect(caretBars(window).isEmpty, "in the off half")
     window.typeText("a")
     #expect(caretBars(window).count == 1, "a keystroke shows the caret")
     window.advance(by: 0.5)
-    #expect(caretBars(window).count == 0)
+    #expect(caretBars(window).isEmpty)
     let (steady, _) = try blinkingWindow(.off)
     let frames = steady.framesDrawn
     for _ in 0..<8 {
@@ -359,7 +359,7 @@ import MetalUITesting
     #expect(buffer.snapshot().text(in: buffer.primarySelection.range) == buffer.snapshot().line(3) + "\n", "line select: \(buffer.primarySelection)")
     window.click(at: pt(x, 29.5 * pitch))
     #expect(clicks.value.count == count, "a tint without a bar is not a hit")
-    #expect(buffer.primarySelection.range.count > 0 && buffer.snapshot().point(at: buffer.primarySelection.head).row >= 25)
+    #expect(!buffer.primarySelection.range.isEmpty && buffer.snapshot().point(at: buffer.primarySelection.head).row >= 25)
 }
 
 /// 14.2 — a secondary press on a bar opens the menu the app built for its hit, on the real menu path, and an item

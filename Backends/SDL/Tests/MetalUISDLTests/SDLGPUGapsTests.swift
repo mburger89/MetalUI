@@ -1,15 +1,6 @@
 import Foundation
 import Testing
 import MetalUISDLGPU
-@testable import MetalUISDLGPU
-
-// The graphics gaps MetalCreator's xp-3 3D viewport asked for (rulings GB-B to
-// GB-E, GB-I, GB-J; spec tests V1-V4, W1-W2, F1-F3, A1-A2): viewport and scissor
-// on a render pass, a colour write mask, `r32Float` and sampler anisotropy.
-// Every draw test renders into an app-made texture on an owned device and reads
-// it back. The red-first state of each is a compile failure (the API is absent);
-// the mutation each pin must redden is on its doc comment.
-
 private let side = 32
 private let blue: [UInt8] = [0, 0, 255, 255]
 private let red: [UInt8] = [255, 0, 0, 255]

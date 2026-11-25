@@ -6,7 +6,6 @@ import MetalUIScene
 import MetalUIShaderTypes
 import MetalUISDLGPU
 @testable import MetalUISDL
-@testable import MetalUISDLGPU
 import ReplayFixture
 
 // The debug contract check of a surface draw (rulings GA-I, GA-M; spec §6 D1-D4).

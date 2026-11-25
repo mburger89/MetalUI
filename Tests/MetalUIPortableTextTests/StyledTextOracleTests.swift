@@ -82,7 +82,8 @@ private func close(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 1e-3 }
 private func differences(_ apple: StyledTextLayout, _ portable: StyledTextLayout) -> [String] {
     var found: [String] = []
     if apple.glyphs != portable.glyphs {
-        let first = zip(apple.glyphs, portable.glyphs).enumerated().first { $0.element.0 != $0.element.1 }
+        let pairs = Array(zip(apple.glyphs, portable.glyphs))
+        let first = pairs.firstIndex { $0.0 != $0.1 }.map { (offset: $0, element: pairs[$0]) }
         found.append("glyphs \(apple.glyphs.count) vs \(portable.glyphs.count), first difference at "
                      + "\(first.map { "\($0.offset): \($0.element.0) vs \($0.element.1)" } ?? "the end")")
     }

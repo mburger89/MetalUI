@@ -330,7 +330,7 @@ private let verifyNote: Comment =
     let window = try harnessWindow(size: sz(200, 200)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = box.keep(proxy)
+                _ = box.keep(proxy)
                 ProposalScrollView {
                     LazyVStack(spacing: Pixels(0)) {
                         ForEach(0..<model.count, id: \.self) { ProposalText("row \($0)").frame(height: Pixels(20)) }

@@ -15,9 +15,6 @@ import Testing
 // `.onCancelled`, `.hoverKeyRegion()`).
 
 // guide: layout #1
-import MetalUI
-
-/// A profile card: a title over a row whose spacer pushes two labels apart.
 @MainActor
 func layoutProfileCard() -> some Element {
     VStack(alignment: .leading, spacing: Pixels(8)) {
@@ -110,10 +107,6 @@ func layoutGrid() -> some Element {
 // end guide
 
 // guide: state-and-identity #1
-import MetalUI
-
-/// `@State` lives as long as the component keeps its place in the tree;
-/// `$name` is a `Binding` to it.
 struct StateGreeting: Component {
     @State var name = "Ada"
     @State var greetings = 0
@@ -133,9 +126,6 @@ func stateGreetingRoot() -> some Element {
 // end guide
 
 // guide: state-and-identity #2
-import Observation
-
-/// A shared model: an `@Observable` class, provided once and read by type.
 @Observable @MainActor
 final class StateTodoStore {
     var items = ["Write", "Test", "Ship"]
@@ -220,9 +210,6 @@ struct StateRowPicker: Component {
 // end guide
 
 // guide: input #1
-import MetalUI
-
-/// A button and a toggle over `@State`.
 struct InputControls: Component {
     @State var count = 0
     @State var notifications = true

@@ -205,7 +205,7 @@ import Testing
     let hits = w.allRects.filter { $0.bounds.origin.x == 200 && $0.bounds.origin.y == 28 + 3 * 24 && $0.bounds.size.width == 100
         && $0.bounds.size.height == 24 }
     #expect(hits.count == 1, "one box-sized fill: \(hits.count)")
-    #expect(w.allRects.filter { $0.bounds.size.width == 88 }.isEmpty, "no inset rectangle")
+    #expect(!w.allRects.contains { $0.bounds.size.width == 88 }, "no inset rectangle")
 }
 
 /// **I2** `fill` runs once per realised cell per build and never in paint or while idle: after a scroll step it was called exactly
@@ -272,7 +272,7 @@ import Testing
     try harnessWindow(size: sz(800, 600)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = holder.proxy = proxy
+                _ = holder.proxy = proxy
                 cellTableValue(data: data, columns: columns, model: model, selection: selection, lookup: lookup)
             }
         }

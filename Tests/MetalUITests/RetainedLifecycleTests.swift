@@ -432,7 +432,7 @@ private struct RLBypassCard: Component, @MainActor Equatable {
 /// Built inside the card's graft window (the card's own getter runs before it opens).
 private struct RLBypassInner: Component {
     var content: some ElementGroup {
-        let _ = RLBypass.store?.testingBypassJournal()
+        _ = RLBypass.store?.testingBypassJournal()
         Box().frame(width: Pixels(40), height: Pixels(20)).background(.accent)
     }
 }

@@ -163,7 +163,7 @@ struct MeasurePerformanceTests {
                     "\(name) frame: \(frame.unlowerableFields)")
         }
         #expect(cache.lookups > lookupsBefore)
-        #expect(warm.count == 0)
+        #expect(warm.isEmpty)
         #expect(cold.count == 1)
     }
 

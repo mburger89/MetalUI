@@ -356,7 +356,7 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
     }
     do { // G23
         let log = BoundsLog()
-        let showsMiddle = log.bounds.count > 0
+        let showsMiddle = !log.bounds.isEmpty
         render(HStack {
             fixed("a", 20, 20, log)
             if showsMiddle { fixed("m", 20, 20, log) }
@@ -930,7 +930,7 @@ private struct RootPlacementRecorder: ProposalLayout {
 @MainActor
 @Test func anEmptyOverlayOrBackgroundLeavesThePrimaryAlone() {
     let log = Lane4Log()
-    let shows = log.bounds.count > 0
+    let shows = !log.bounds.isEmpty
     do { // A11
         let frame = render(pFixed("p", 60, 40, log).overlay { if shows { pFixed("o", 20, 20, log) } }, 60, 40)
         #expect(log.bounds["o"] == nil, "A11 the conditional is empty")

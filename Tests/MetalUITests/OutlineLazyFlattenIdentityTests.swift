@@ -39,7 +39,7 @@ private struct LeafRow: Component {
     }
 
     var content: some ProposalElementGroup {
-        let _ = serials.seen[name] = serial
+        _ = serials.seen[name] = serial
         Color.gray.frame(height: Pixels(20))
     }
 }

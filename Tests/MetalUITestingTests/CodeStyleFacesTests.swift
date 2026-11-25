@@ -4,7 +4,6 @@ import MetalUI
 import MetalUIScene
 import MetalUIPortableText
 import MetalUITesting
-@testable import MetalUI
 #if canImport(Darwin)
 import MetalUITestSupport
 #endif
@@ -209,7 +208,7 @@ private let sentence = "go The quick brown fox jumps over tail"
                                   in: 0..<buffer.utf8Count, layer: .syntax, asOf: buffer.version)
     })
     let a = plain.glyphs(row: 0), b = slanted.glyphs(row: 0)
-    #expect(a.count == b.count && Set(a.map(\.y)).count > 0)
+    #expect(a.count == b.count && !Set(a.map(\.y)).isEmpty)
     #expect(zip(a, b).filter { $0.width != $1.width }.count > 5, "the run really is another face")
     #expect(zip(a, b).allSatisfy { abs($0.y + 0 - $1.y) <= 1 || $0.width != $1.width }, "glyphs of the same size are at the same height")
     // Noto's faces share one ascent, so also drive the shift directly: a face whose line starts lower than the view font's.

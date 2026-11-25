@@ -244,7 +244,7 @@ private func text(_ claims: [ClaimedShortcut], _ platform: KeyboardShortcut.Plat
     let (app, platform) = try claimsApp(native: true)
     var runs = 0
     app.commands {
-        let _ = { runs += 1 }()
+        _ = { runs += 1 }()
         CommandMenu("Tools") { Button("Run") {}.keyboardShortcut("r") }
     }
     runs = 0

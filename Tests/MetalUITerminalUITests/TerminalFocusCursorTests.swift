@@ -78,7 +78,7 @@ import Testing
     let probe: PaneProbe
     let source: TerminalSnapshotSource
     var content: some ElementGroup {
-        let _ = probe.reads.append(focused)
+        _ = probe.reads.append(focused)
         VStack(spacing: 0) {
             TerminalView(snapshotSource: source, theme: .xterm, onInput: { _ in }, onResize: { _ in }, onLink: { _ in nil })
         }.focused($focused)

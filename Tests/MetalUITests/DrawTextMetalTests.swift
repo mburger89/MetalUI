@@ -25,7 +25,7 @@ private struct Reading: Component {
     let text: Text
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        let _ = holder.value = measurer.resolve(text)
+        _ = holder.value = measurer.resolve(text)
         Box().frame(width: 1, height: 1)
     }
 }

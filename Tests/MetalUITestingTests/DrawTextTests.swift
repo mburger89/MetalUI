@@ -21,7 +21,7 @@ private struct Capturing: Component {
     let text: Text
     @Environment(\.textMeasurer) var measurer
     var content: some ElementGroup {
-        let _ = box.value = measurer.resolve(text)
+        _ = box.value = measurer.resolve(text)
         Box().frame(width: 1, height: 1)
     }
 }
@@ -209,6 +209,6 @@ private func colour(_ g: MUIGlyph) -> [Float] { [g.color.h, g.color.s, g.color.l
         GPUSurface(redraw: .continuous) { _ in ran.count += 1 }.frame(width: Pixels(40), height: Pixels(20))
     }
     window.tick()
-    #expect(ran.count == 0, "a headless frame never runs the app's draw")
+    #expect(ran.isEmpty, "a headless frame never runs the app's draw")
     #expect(window.platformWindow.headlessRenderer.lastSurfaceRequests.count == 1, "but it records the request")
 }

@@ -46,7 +46,7 @@ import Testing
     try harnessWindow(size: sz(200, 200)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = box?.keep(proxy)
+                _ = box?.keep(proxy)
                 if legacy {
                     ScrollView {
                         LazyVStack(spacing: Pixels(0)) {
@@ -227,7 +227,7 @@ import Testing
 private struct CountedRows: Component, @MainActor Equatable {
     let log: BuildLog
     var content: some ElementGroup {
-        let _ = bump()
+        _ = bump()
         return VStack(spacing: Pixels(0)) {
             ForEach(0..<30, id: \.self) { ProposalText("row \($0)").frame(height: Pixels(20)) }
         }

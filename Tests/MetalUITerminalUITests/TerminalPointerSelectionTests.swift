@@ -120,7 +120,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     func cell(_ c: Int) -> TerminalPosition { TerminalPosition(row: top, col: c) }
     let text = "see http://a.test/x here"
     #expect(rig.log.links == [TerminalLinkQuery(cell: cell(6), rowText: text, phase: .hover)], "\(rig.log.links)")
-    var nudged = rig.point(0, 6); nudged.x = nudged.x + Pixels(1)
+    var nudged = rig.point(0, 6); nudged.x += Pixels(1)
     rig.window.hover(at: nudged)
     #expect(rig.log.links.count == 1, "within the cell: no query")
     rig.window.hover(at: rig.point(0, 8))
@@ -186,7 +186,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
         let frames = rig.window.framesDrawn, draws = rig.window.surfaceDrawCount
         for c in 0..<20 { rig.window.hover(at: geometry.point(0, c)); await rig.pump() }
         var p = geometry.point(1, 3)
-        for _ in 0..<5 { p.x = p.x + Pixels(0.5); rig.window.hover(at: p) }
+        for _ in 0..<5 { p.x += Pixels(0.5); rig.window.hover(at: p) }
         await rig.pump()
         return (rig.window.framesDrawn - frames, sum(rig, \.builds), rig.window.surfaceDrawCount - draws)
     }

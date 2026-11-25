@@ -68,9 +68,9 @@ private func item(_ n: Int) -> ClipboardItem {
         ClipboardPayload(type: graphType, bytes: .later { calls.count += 1; calls.mainThread.append(Thread.isMainThread); return [4, 5, 6] }),
         ClipboardPayload(type: textType, bytes: .now(Array("t".utf8)))])
     #expect(window.writeClipboard(items: [lazyItem]))
-    #expect(calls.count == 0, "nothing exported at write")
+    #expect(calls.isEmpty, "nothing exported at write")
     #expect(window.clipboardItems().first?.contains("com.example.metalui.graph") == true, "listed without exporting")
-    #expect(calls.count == 0)
+    #expect(calls.isEmpty)
     #expect(window.readClipboard(item: 0, identifier: "com.example.metalui.graph") == [4, 5, 6])
     #expect(calls.count == 1 && calls.mainThread == [true], "exported once by the main-thread read")
 

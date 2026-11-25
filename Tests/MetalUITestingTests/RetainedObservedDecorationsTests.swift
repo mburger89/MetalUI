@@ -17,7 +17,7 @@ private struct OuterGroup: Component, @MainActor Equatable {
     let decorations: CodeDecorations
     let gate: GateModel
     var content: some ElementGroup {
-        let _ = gate.count
+        _ = gate.count
         VStack(spacing: 0) {
             InnerPanel(buffer: buffer, decorations: decorations).equatable()
         }
