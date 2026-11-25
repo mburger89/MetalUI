@@ -2404,6 +2404,7 @@ public final class Window {
         // abandons every replayed frame, so it is always armed).
         let rollbackBefore = testingRollbackDigests == nil ? nil : stateTable.attemptDigest
         if checkpoint != nil || retainedVerifiesFromEnvironment { stateTable.beginAttempt() }
+        let comparedWritesBefore = stateTable.comparedWriteIDs.count   // verify mode: where the replayed build's compared writes start
         var frame = buildFrame()
         if !frame.redoEntries.isEmpty {
             // What the abandoned attempt consumed and the redo must see again (`RK-D`, `RK-M`): the parked
@@ -2452,8 +2453,10 @@ public final class Window {
             for id in stateTable.lastReadJournal where !replayedReads.contains(id) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: unrecordedRead \(sbPath(id)): a fresh run read an entry the replayed frame's records do not name")
             }
-            // The replayed frame's own writes are stored, so the rebuild finds them unchanged; an entry it created is rebuilt, and written again.
-            if stateTable.comparedWriteIDs[replayedWriteIDs...].contains(where: { !recreated.contains($0) }) {
+            // The rollback put the table back, so the rebuild writes again what the replayed build wrote (`RK-AI`); a compared write it makes
+            // that the replay did not make, of an entry that existed before the frame, is one the replay skipped.
+            let replayedWrites = Set(stateTable.comparedWriteIDs[comparedWritesBefore..<replayedWriteIDs])
+            if stateTable.comparedWriteIDs[replayedWriteIDs...].contains(where: { !recreated.contains($0) && !replayedWrites.contains($0) }) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: writeMissed: a fresh run wrote a compared state the replay skipped")
             }
             if let replayed, let fresh = frame.verifySnapshot, let difference = replayed.difference(from: fresh) {
