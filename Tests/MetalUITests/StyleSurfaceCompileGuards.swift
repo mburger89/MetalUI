@@ -38,7 +38,7 @@ func aPlainImportCannotWriteAStyleField() throws {
     let fields = [
         "display", "position", "inset", "size", "minSize", "maxSize", "margin",
         "padding", "flexDirection", "gap", "justifyContent", "alignItems",
-        "justifyItems", "flexGrow", "flexShrink", "flexBasis", "alignSelf",
+        "justifyItems", "flexGrow", "flexShrink", "flexBasis", "alignSelf"
     ]
     let types = ["Display", "JustifyItems"]
     try #require(fields.count == 17)
@@ -94,7 +94,7 @@ func theDeletedStyleSpellingsDoNotCompile() throws {
         ("let _: FlexWrap? = nil", "cannot find type 'FlexWrap' in scope"),
         ("let _: AlignContent? = nil", "cannot find type 'AlignContent' in scope"),
         ("let _: Overflow? = nil", "cannot find type 'Overflow' in scope"),
-        ("_ = Style().border", "value of type 'Style' has no member 'border'"),
+        ("_ = Style().border", "value of type 'Style' has no member 'border'")
     ]
     try #require(fixtures.count == 7)
     let control = try typecheckFile("""

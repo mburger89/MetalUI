@@ -81,10 +81,4 @@ public struct TerminalCell: Sendable, Hashable {
     public let width: Int
     /// The cell's rendition.
     public let attributes: TerminalAttributes
-
-    init(grapheme: Character, width: Int, attributes: TerminalAttributes) {
-        self.grapheme = grapheme
-        self.width = width
-        self.attributes = attributes
-    }
 }

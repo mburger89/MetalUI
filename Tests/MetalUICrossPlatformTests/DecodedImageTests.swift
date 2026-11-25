@@ -127,11 +127,11 @@ private func fixtureData(_ name: String) throws -> Data {
 /// The probe's 2x2 table (`docs/probes/swiftui-image-orientation.swift`): stored `R B / G W`.
 private let probeTable: [(Image.Orientation, String)] = [
     (.up, "RBGW"), (.upMirrored, "BRWG"), (.down, "WGBR"), (.downMirrored, "GWRB"),
-    (.leftMirrored, "RGBW"), (.right, "GRWB"), (.rightMirrored, "WBGR"), (.left, "BWRG"),
+    (.leftMirrored, "RGBW"), (.right, "GRWB"), (.rightMirrored, "WBGR"), (.left, "BWRG")
 ]
 
 private let letterRGBA: [Character: [UInt8]] = [
-    "R": [255, 0, 0, 255], "B": [0, 0, 255, 255], "G": [0, 255, 0, 255], "W": [255, 255, 255, 255],
+    "R": [255, 0, 0, 255], "B": [0, 0, 255, 255], "G": [0, 255, 0, 255], "W": [255, 255, 255, 255]
 ]
 private let letterGrey: [Character: UInt8] = ["R": 10, "B": 20, "G": 30, "W": 40]
 
@@ -156,7 +156,7 @@ private let letterGrey: [Character: UInt8] = ["R": 10, "B": 20, "G": 30, "W": 40
         (.up, [1, 2, 3, 4, 5, 6], 3, 2), (.upMirrored, [3, 2, 1, 6, 5, 4], 3, 2),
         (.down, [6, 5, 4, 3, 2, 1], 3, 2), (.downMirrored, [4, 5, 6, 1, 2, 3], 3, 2),
         (.leftMirrored, [1, 4, 2, 5, 3, 6], 2, 3), (.right, [4, 1, 5, 2, 6, 3], 2, 3),
-        (.rightMirrored, [6, 3, 5, 2, 4, 1], 2, 3), (.left, [3, 6, 2, 5, 1, 4], 2, 3),
+        (.rightMirrored, [6, 3, 5, 2, 4, 1], 2, 3), (.left, [3, 6, 2, 5, 1, 4], 2, 3)
     ]
     for (orientation, expected, width, height) in wide {
         let image = DecodedImage(format: .grey, width: 3, height: 2, pixels: [1, 2, 3, 4, 5, 6], orientation: orientation)

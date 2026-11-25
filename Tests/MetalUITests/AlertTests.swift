@@ -63,7 +63,7 @@ private func button(_ title: String, destructive: Bool = false, isDefault: Bool 
         Row(name: "cancel only", input: [declared("Cancel", .cancel)],
             buttons: [button("Cancel", cancel: true)], runs: [0]),
         Row(name: "two plain", input: [declared("A"), declared("B")],
-            buttons: [button("A", isDefault: true), button("B")], runs: [0, 1]),
+            buttons: [button("A", isDefault: true), button("B")], runs: [0, 1])
     ]
     for row in rows {
         let resolved = AlertButtons.resolve(row.input)

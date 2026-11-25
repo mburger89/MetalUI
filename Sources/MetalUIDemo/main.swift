@@ -16,7 +16,7 @@ import Metal
 // the keys.
 
 @MainActor
-func runDemo() throws {
+func runDemo() throws { // swiftlint:disable:this function_body_length - the demo is a single top-to-bottom scene description
     let app = try App()
     // The demo's generated icon (ruling `AI-G`; human check O1): the Dock shows
     // it for a bare `swift run`, which has no bundle.

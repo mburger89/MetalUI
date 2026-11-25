@@ -161,7 +161,6 @@ private func composite(blurred: [Float], destination: [Float], grayTint l: Float
     return out
 }
 
-
 /// A scene of 6-point cells of red, blue, white and black in a pattern that is
 /// neither row- nor column-uniform, and the same pixels as premultiplied
 /// floats: structure on both axes at every scale, so a blur of it differs

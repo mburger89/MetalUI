@@ -502,22 +502,22 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
 @MainActor
 private protocol SpacingFirstStacks {
     static func hStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
-                                        @ElementBuilder content: () -> C) -> HStack<C>
+                                                @ElementBuilder content: () -> C) -> HStack<C>
     static func vStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
-                                        @ElementBuilder content: () -> C) -> VStack<C>
+                                                @ElementBuilder content: () -> C) -> VStack<C>
 }
 
 @MainActor
 private enum DeprecatedStackSpellings: SpacingFirstStacks {
     @available(*, deprecated)
     static func hStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
-                                        @ElementBuilder content: () -> C) -> HStack<C> {
+                                                @ElementBuilder content: () -> C) -> HStack<C> {
         HStack(spacing: spacing, alignment: alignment, content: content)
     }
 
     @available(*, deprecated)
     static func vStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
-                                        @ElementBuilder content: () -> C) -> VStack<C> {
+                                                @ElementBuilder content: () -> C) -> VStack<C> {
         VStack(spacing: spacing, alignment: alignment, content: content)
     }
 }
@@ -547,7 +547,7 @@ private enum DeprecatedStackSpellings: SpacingFirstStacks {
     let nine: [(ProposalAlignment, VerticalAlignment, HorizontalAlignment)] = [
         (.topLeading, .top, .leading), (.top, .top, .center), (.topTrailing, .top, .trailing),
         (.leading, .center, .leading), (.center, .center, .center), (.trailing, .center, .trailing),
-        (.bottomLeading, .bottom, .leading), (.bottom, .bottom, .center), (.bottomTrailing, .bottom, .trailing),
+        (.bottomLeading, .bottom, .leading), (.bottom, .bottom, .center), (.bottomTrailing, .bottom, .trailing)
     ]
     for (alignment, vertical, horizontal) in nine {
         let h = spellings.hStack(spacing: Pixels(20), alignment: alignment) { fixed("e", 0, 0, BoundsLog()) }
@@ -1179,7 +1179,7 @@ private func builderGroup<G: ElementGroup>(@ElementBuilder _ body: () -> G) -> G
     let nine: [(ProposalAlignment, Float, Float)] = [
         (.topLeading, 0, 0), (.top, 20, 0), (.topTrailing, 40, 0),
         (.leading, 0, 10), (.center, 20, 10), (.trailing, 40, 10),
-        (.bottomLeading, 0, 20), (.bottom, 20, 20), (.bottomTrailing, 40, 20),
+        (.bottomLeading, 0, 20), (.bottom, 20, 20), (.bottomTrailing, 40, 20)
     ]
     var positions: [String: Bounds<Pixels>] = [:]
     for (alignment, x, y) in nine {

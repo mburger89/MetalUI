@@ -24,7 +24,7 @@ private func modes(cursor: Bool = false, keypad: Bool = false, paste: Bool = fal
 /// The eight shift/option/control combinations with the xterm parameter written out (`1 + shift + 2 alt + 4 ctrl`), not computed.
 private let modifierRows: [(TerminalModifiers, String)] = [
     ([], ""), ([.shift], "2"), ([.option], "3"), ([.shift, .option], "4"),
-    ([.control], "5"), ([.shift, .control], "6"), ([.option, .control], "7"), ([.shift, .option, .control], "8"),
+    ([.control], "5"), ([.shift, .control], "6"), ([.option, .control], "7"), ([.shift, .option, .control], "8")
 ]
 
 @Suite struct EncoderKeyTests {
@@ -50,7 +50,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
     // The cursor-like keys: letter finals, SS3 only for the unmodified application form.
     static let cursorKeys: [(String, Character, String)] = [
         ("up", "\u{f700}", "A"), ("down", "\u{f701}", "B"), ("right", "\u{f703}", "C"), ("left", "\u{f702}", "D"),
-        ("home", "\u{f729}", "H"), ("end", "\u{f72b}", "F"),
+        ("home", "\u{f729}", "H"), ("end", "\u{f72b}", "F")
     ]
 
     @Test func cursorKeysInEveryModifierAndMode() {
@@ -130,7 +130,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
         let table: [(Character, UInt8)] = [
             ("@", 0), (" ", 0), ("`", 0), ("2", 0), ("[", 0x1B), ("3", 0x1B), ("\\", 0x1C), ("4", 0x1C),
             ("]", 0x1D), ("5", 0x1D), ("^", 0x1E), ("6", 0x1E), ("_", 0x1F), ("-", 0x1F), ("7", 0x1F),
-            ("/", 0x1F), ("?", 0x7F), ("8", 0x7F),
+            ("/", 0x1F), ("?", 0x7F), ("8", 0x7F)
         ]
         var rows: [Row] = []
         for (c, b) in table {
@@ -164,7 +164,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
             Row(name: "meta-escape", key: "\u{1b}", mods: [.option], meta: true, expect: "\(E)\(E)"),
             Row(name: "space", key: " ", chars: " ", expect: " "),
             Row(name: "ctrl-space", key: " ", chars: " ", mods: [.control], expect: "\u{0}"),
-            Row(name: "meta-space", key: " ", chars: " ", mods: [.option], meta: true, expect: "\(E) "),
+            Row(name: "meta-space", key: " ", chars: " ", mods: [.option], meta: true, expect: "\(E) ")
         ])
     }
 
@@ -183,7 +183,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
             // optionAsMeta without Option changes nothing.
             Row(name: "a with meta on", key: "a", chars: "a", meta: true, expect: "a"),
             // A key with no characters and no mapping is nothing.
-            Row(name: "empty", key: "x", chars: "", expect: ""),
+            Row(name: "empty", key: "x", chars: "", expect: "")
         ])
         let bytesE9 = TerminalEncoder.encodeKey(key("e", "\u{e9}"), modes: modes(), optionAsMeta: false)
         #expect(bytesE9 == [0xC3, 0xA9])
@@ -216,7 +216,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
     /// xterm ctlseqs keypad rows, literal: key, SS3 final in application mode.
     private static let keypadRows: [(Character, String)] = [
         ("0", "p"), ("1", "q"), ("2", "r"), ("3", "s"), ("4", "t"), ("5", "u"), ("6", "v"), ("7", "w"), ("8", "x"), ("9", "y"),
-        ("*", "j"), ("+", "k"), (",", "l"), ("-", "m"), (".", "n"), ("/", "o"), ("\r", "M"), ("=", "X"),
+        ("*", "j"), ("+", "k"), (",", "l"), ("-", "m"), (".", "n"), ("/", "o"), ("\r", "M"), ("=", "X")
     ]
 
     @Test func applicationKeypadSendsSS3() {
@@ -278,7 +278,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
             (.wheelUp, .none, false, true, true, true),
             (.wheelDown, .none, false, true, true, true),
             (.wheelLeft, .none, false, true, true, true),
-            (.wheelRight, .none, false, true, true, true),
+            (.wheelRight, .none, false, true, true, true)
         ]
         for (k, b, x10, normal, button, any) in rows {
             for (t, expected) in [(MouseTracking.x10, x10), (.normal, normal), (.buttonEvent, button), (.anyEvent, any)] {
@@ -299,7 +299,7 @@ private let modifierRows: [(TerminalModifiers, String)] = [
             (.press, .left, [.shift], "4;10;5M"), (.press, .left, [.option], "8;10;5M"), (.press, .left, [.control], "16;10;5M"),
             (.press, .left, [.shift, .option, .control], "28;10;5M"), (.press, .left, [.command], "0;10;5M"),
             (.release, .right, [.control], "18;10;5m"), (.wheelUp, .none, [.shift], "68;10;5M"),
-            (.move, .none, [.option], "43;10;5M"), (.wheelDown, .none, [.control, .option], "89;10;5M"),
+            (.move, .none, [.option], "43;10;5M"), (.wheelDown, .none, [.control, .option], "89;10;5M")
         ]
         for (k, b, m, s) in rows {
             #expect(enc(k, b, m, row: r, col: c, .anyEvent) == bytes("\(E)[<\(s)"), "\(k) \(b) \(m)")

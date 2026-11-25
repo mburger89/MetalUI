@@ -338,7 +338,7 @@ private func innerGaps(_ plan: NativeGridPlan, _ cell: NativeGridCell) -> Double
 /// grid's horizontal factor and its row's vertical factor, else the grid's
 /// (GL1–GL3, GL9, GL12; ruling GR-G).
 func nativeGridCellRects(_ plan: NativeGridPlan, solution: NativeGridSolution, x: Double, y: Double,
-                              measure: (Int, ProposedSize) -> SizeD) -> [(rect: LayoutRect, proposal: ProposedSize)] {
+                         measure: (Int, ProposedSize) -> SizeD) -> [(rect: LayoutRect, proposal: ProposedSize)] {
     var columnX = Array(repeating: 0.0, count: plan.columnCount)
     var cursor = x
     for column in 0..<plan.columnCount {

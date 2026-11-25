@@ -241,7 +241,7 @@ private func dragAndDrop(_ platform: FakePlatformWindow, through path: [Point<Pi
         ("nil", nil, .copy), ("copy", DropProposal(operation: .copy), .copy),
         ("move", DropProposal(operation: .move), .move),
         ("forbidden", DropProposal(operation: .forbidden), .none),
-        ("cancel", DropProposal(operation: .cancel), .none),
+        ("cancel", DropProposal(operation: .cancel), .none)
     ]
     for (name, proposal, expected) in table {
         let probe = DelegateProbe(log: DLog())

@@ -18,7 +18,7 @@ private func twoCircles(gap: Float, k: Float) -> Ref.Record {
     record.blendK = k
     record.members = [
         Ref.Member(x: 0, y: 0, width: 60 / width, height: 1),
-        Ref.Member(x: (60 + gap) / width, y: 0, width: 60 / width, height: 1),
+        Ref.Member(x: (60 + gap) / width, y: 0, width: 60 / width, height: 1)
     ]
     return record
 }

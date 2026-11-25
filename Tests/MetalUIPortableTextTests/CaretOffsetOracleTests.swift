@@ -38,7 +38,7 @@ import MetalUIHarfBuzz
 let caretStrings = corpusStrings + [
     "office", "ffi", "ffl", "fl", "fi fl ffi ffl", "the affluent official waffles",
     "e\u{301}te\u{301} cafe\u{301}", "a\u{308}\u{301}o\u{323}\u{302} n\u{303}",
-    "fi\u{301}", "tab\tseparated", "trailing space ", "   ", "AVA To Ty r. rg",
+    "fi\u{301}", "tab\tseparated", "trailing space ", "   ", "AVA To Ty r. rg"
 ] + wrapStrings.filter { !$0.unicodeScalars.contains(where: isHardBreakScalar) }
 
 func isHardBreakScalar(_ scalar: Unicode.Scalar) -> Bool {
@@ -97,7 +97,7 @@ func caretDifferences(tolerance: Double) throws -> (cases: Int, boundaries: Int,
         (noto, "ff", [0, 301, 688]),             // GDEF caret, not 344
         (noto, "ffi", [0, 315, 631, 946]),       // GDEF carets, not 315.33/630.67
         (source, "ff", [0, 288.5, 577]),         // no caret list: even split
-        (noto, "a\u{AD}b", [0, 561, 561, 1176]), // the soft hyphen: no kern rule
+        (noto, "a\u{AD}b", [0, 561, 561, 1176]) // the soft hyphen: no kern rule
     ]
     for (font, text, offsets) in expected {
         let apple = CoreTextTextSystem(), portable = try PortableTextSystem(
@@ -114,7 +114,7 @@ func caretDifferences(tolerance: Double) throws -> (cases: Int, boundaries: Int,
 /// family, a flag — and the edge cases, through both text systems.
 let caretContractStrings = [
     "", "a", " ", "office", "e\u{301}te\u{301}", "a\u{308}\u{301}b",
-    "👍🏽 ok", "👨‍👩‍👧 family", "🇩🇪 flag", "tab\tstop", "The quick brown fox.",
+    "👍🏽 ok", "👨‍👩‍👧 family", "🇩🇪 flag", "tab\tstop", "The quick brown fox."
 ]
 
 @MainActor
@@ -125,7 +125,7 @@ let caretContractStrings = [
     let portable = try PortableTextSystem(resolver: PortableFontResolver(defaultFont: font.data))
     let systems: [(String, any TextSystem, FontKey)] = [
         ("CoreText", apple, font.apple(size: 17).key),
-        ("portable", portable, portable.resolveFont(family: nil, size: 17)),
+        ("portable", portable, portable.resolveFont(family: nil, size: 17))
     ]
     for (name, system, key) in systems {
         #expect(system.caretOffsets("", font: key) == [0], "\(name)")

@@ -115,7 +115,7 @@ private let patterns: [Pattern] = [
     Pattern(name: "rectsOnly",
             script: [(r, 1, 0, 3), (r, 2, 1, 0), (r, 3, 0, 3), (r, 4, 0, 0)],
             runs: [run(r, 0, 4)],
-            rectIDs: [4, 1, 3, 2], glyphIDs: []),
+            rectIDs: [4, 1, 3, 2], glyphIDs: [])
 ]
 
 private func expectMatches(_ scene: Scene, _ p: Pattern, _ when: String) {

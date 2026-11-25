@@ -212,7 +212,7 @@ package func bundlePlan(_ options: BundleOptions, binPath: String, resourceBundl
         "CFBundleShortVersionString": options.version,
         "CFBundleVersion": options.version,
         "LSMinimumSystemVersion": minimumSystemVersion,
-        "NSPrincipalClass": "NSApplication",
+        "NSPrincipalClass": "NSApplication"
     ]
     var conversion: [ProcessInvocation] = []
     var scratch: String?

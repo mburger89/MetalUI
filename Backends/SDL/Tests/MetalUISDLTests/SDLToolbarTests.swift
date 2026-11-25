@@ -20,7 +20,7 @@ import MetalUIPlatform
     #expect(window.toolbar == nil)
     let toolbar = PlatformToolbar(items: [
         PlatformToolbarItem(id: "b", placement: .primaryAction, control: .button(title: "Go", image: nil)),
-        PlatformToolbarItem(id: "search", placement: .search, control: .search(prompt: "Search", text: "")),
+        PlatformToolbarItem(id: "search", placement: .search, control: .search(prompt: "Search", text: ""))
     ])
     #expect(window.setToolbar(toolbar) == false, "SDL draws its toolbar in the window")
     #expect(window.toolbar == toolbar)

@@ -64,7 +64,7 @@ struct EEIntReader: Component, @MainActor Equatable {
     @Environment(\.eeInt) var value
     var content: some ElementGroup {
         let _: Void = log.n += 1
-        eeCard("int\(value)", dark: value % 2 == 0)
+        eeCard("int\(value)", dark: value.isMultiple(of: 2))
     }
     static func == (l: EEIntReader, r: EEIntReader) -> Bool { l.memo && r.memo && l.log === r.log }
 }

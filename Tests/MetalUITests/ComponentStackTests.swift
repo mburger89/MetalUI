@@ -153,7 +153,7 @@ private func sampleOnASecondaryThread(_: UnsafeMutableRawPointer) -> UnsafeMutab
     pthread_attr_init(&attributes)
     defer { pthread_attr_destroy(&attributes) }
     try #require(pthread_attr_setstack(&attributes, mapped, stackSize) == 0)
-    let (_, crossThread, _) = try StackMeter.measuring { () throws -> Void in
+    let (_, crossThread, _) = try StackMeter.measuring { () throws in
         var thread: pthread_t?
         try #require(pthread_create(&thread, &attributes, sampleOnASecondaryThread, nil) == 0)
         pthread_join(try #require(thread), nil)
@@ -669,4 +669,3 @@ struct InlineStackShell12: Component {
         }
     }
 }
-

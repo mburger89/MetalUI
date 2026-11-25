@@ -22,7 +22,7 @@ private struct Fx {
     decorations.setLineDecorations([
         CodeLineDecoration(lines: 10..<20, gutterBar: .red, tag: 7),
         CodeLineDecoration(lines: 25..<30, gutterBar: .blue, tag: 8),
-        CodeLineDecoration(lines: 3..<4, gutterMarker: CodeGutterMarker("!", color: .red), tag: 11),
+        CodeLineDecoration(lines: 3..<4, gutterMarker: CodeGutterMarker("!", color: .red), tag: 11)
     ], asOf: buffer.version)
     let window = try harnessWindow(size: sz(400, 600)) {
         var view = CodeView(buffer: buffer, decorations: decorations).font(size: 12).codeCaretBlink(.off).gutterMarkerLane(true)

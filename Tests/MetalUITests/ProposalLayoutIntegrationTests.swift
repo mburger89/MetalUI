@@ -27,7 +27,6 @@ private struct DiagonalProbeLeaf: ProposalElement {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-
 /// Places each child at the previous child's bottom-trailing corner, each at
 /// its unspecified-proposal answer; answers the sum of the answers.
 private struct DiagonalLayout: ProposalLayout {
@@ -75,7 +74,7 @@ private func bounds(_ x: Int, _ y: Int, _ width: Int, _ height: Int) -> Bounds<P
     let insets = Edges(top: Pixels(11), right: Pixels(0), bottom: Pixels(0), left: Pixels(7))
 
     let called = DiagonalProbe()
-    var calledRoot = DiagonalLayout()() {
+    var calledRoot = DiagonalLayout {
         DiagonalProbeLeaf(size: SizeD(width: 20, height: 10), name: "first", probe: called)
         DiagonalProbeLeaf(size: SizeD(width: 30, height: 15), name: "second", probe: called)
         DiagonalProbeLeaf(size: SizeD(width: 25, height: 5), name: "third", probe: called)

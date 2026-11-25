@@ -128,7 +128,7 @@ private let alloyNames = [
     "arrow.uturn.forward", "square.and.arrow.up", "plus.magnifyingglass", "minus.magnifyingglass", "sidebar.left",
     "rectangle.lefthalf.inset.filled", "rectangle.bottomhalf.inset.filled", "house", "camera",
     // Record 288 (`SYM-R`): the plain plus and minus.
-    "plus", "minus",
+    "plus", "minus"
 ]
 
 // MARK: - 3: the catalogue
@@ -145,10 +145,10 @@ private let alloyNames = [
         let closeAt = try #require(data.ops.firstIndex(of: 3), "\(vendored): no close")
         let ringCoords = data.ops[...closeAt].reduce(0) { $0 + [2, 2, 6, 0][Int($1)] }
         let ring = data.coords[..<ringCoords].enumerated()
-        let xs = ring.filter { $0.offset % 2 == 0 }.map(\.element), ys = ring.filter { $0.offset % 2 == 1 }.map(\.element)
+        let xs = ring.filter { $0.offset.isMultiple(of: 2) }.map(\.element), ys = ring.filter { $0.offset % 2 == 1 }.map(\.element)
         #expect(xs.min() == 2 && xs.max() == 22 && ys.min() == 2 && ys.max() == 22, "\(vendored): the first subpath is the ring")
         let rest = Array(data.coords[ringCoords...])
-        try #require(!rest.isEmpty && rest.count % 2 == 0, "\(vendored): the glyph has geometry")
+        try #require(!rest.isEmpty && rest.count.isMultiple(of: 2), "\(vendored): the glyph has geometry")
         for i in stride(from: 0, to: rest.count, by: 2) {
             let (dx, dy) = (rest[i] - 12, rest[i + 1] - 12)
             #expect((dx * dx + dy * dy).squareRoot() < 10, "\(vendored): glyph point (\(rest[i]), \(rest[i + 1])) is not inside the ring")
@@ -166,7 +166,7 @@ private let alloyNames = [
     let mapping: [(String, String)] = [
         ("arrow.uturn.forward", "redo-2"), ("square.and.arrow.up", "share"), ("plus.magnifyingglass", "zoom-in"),
         ("minus.magnifyingglass", "zoom-out"), ("sidebar.left", "panel-left"), ("rectangle.lefthalf.inset.filled", "panel-left"),
-        ("rectangle.bottomhalf.inset.filled", "panel-bottom"), ("house", "house"), ("camera", "camera"),
+        ("rectangle.bottomhalf.inset.filled", "panel-bottom"), ("house", "house"), ("camera", "camera")
     ]
     for (sf, lucide) in mapping {
         #expect(BundledSymbols.table[sf]?.lucide == lucide, "\(sf) maps to \(lucide)")
@@ -293,7 +293,7 @@ private let alloyNames = [
         }
         let rows: [(Double, Image.Scale, Double)] = [
             (13, .small, 12.22), (13, .medium, 14.95), (13, .large, 18.98),
-            (26, .small, 24.44), (26, .medium, 29.9), (26, .large, 37.96),
+            (26, .small, 24.44), (26, .medium, 29.9), (26, .large, 37.96)
         ]
         for (points, scale, expected) in rows {
             let s = side(Image(systemName: "play").font(.system(size: points)).imageScale(scale))

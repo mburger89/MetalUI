@@ -72,7 +72,7 @@ struct ELRefusalArm: CustomStringConvertible, Sendable {
         ELRefusalArm(extra: .none, display: 1.5, header: 1, reasons: ["fractionalTranslation"]),
         ELRefusalArm(extra: .innerOffset, display: 2, header: 4, reasons: ["innerScope"]),
         ELRefusalArm(extra: .shadowInside, display: 2, header: 4, reasons: ["innerScope"]),
-        ELRefusalArm(extra: .flatten, display: 2, header: 4, reasons: ["effectScopeChanged", "effectFlatteningChanged"]),
+        ELRefusalArm(extra: .flatten, display: 2, header: 4, reasons: ["effectScopeChanged", "effectFlatteningChanged"])
     ]
 }
 

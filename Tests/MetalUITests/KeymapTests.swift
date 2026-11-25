@@ -269,8 +269,7 @@ private struct Inner: Action, Equatable {}
 /// should not need a device to reach it.
 private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
                    contexts: [KeyContext?] = [], pending: inout PendingStroke?) throws
-    -> KeymapMatch
-{
+    -> KeymapMatch {
     let stroke = try #require(Keystroke(spelling))
     let event = KeyEvent(charactersIgnoringModifiers: stroke.key,
                          characters: stroke.key,

@@ -446,7 +446,7 @@ struct BlockParser {
                 if nodes[item].lastLineBlank, nodes[item].next >= 0 { tight = false; break }
                 var sub = nodes[item].firstChild
                 while sub >= 0 {
-                    if (nodes[item].next >= 0 || nodes[sub].next >= 0), endsWithBlankLine(sub) { tight = false; break outer }
+                    if nodes[item].next >= 0 || nodes[sub].next >= 0, endsWithBlankLine(sub) { tight = false; break outer }
                     sub = nodes[sub].next
                 }
                 item = nodes[item].next

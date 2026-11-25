@@ -66,7 +66,7 @@ private let knownFormats = ImageFileFormat.allCases.filter { $0 != .unknown }
         ("BigTIFF LE", [0x49, 0x49, 0x2B, 0x00, 8, 0]), ("BigTIFF BE", [0x4D, 0x4D, 0x00, 0x2B, 0, 8]),
         ("ftyp isom", [0, 0, 0, 0x18] + ascii("ftyp") + ascii("isom")),
         ("ftyp mp42", [0, 0, 0, 0x18] + ascii("ftyp") + ascii("mp42")),
-        ("zeros", [UInt8](repeating: 0, count: 1024)),
+        ("zeros", [UInt8](repeating: 0, count: 1024))
     ]
     for (name, bytes) in cases { #expect(sniff(bytes) == .unknown, "\(name)") }
 }
@@ -236,7 +236,7 @@ private func oracle(_ b: [UInt8]) -> ImageFileFormat {
     try #require(agreed >= 2, "the readable fixtures")
     let generated: [[UInt8]] = [
         makePNG(width: 2, height: 2, bitDepth: 8, colorType: 6, rows: [UInt8](repeating: 1, count: 16)),
-        jpegWith([jpegSegment(0xC0, [8, 0, 5, 0, 7, 1, 1, 0x11, 0])]),
+        jpegWith([jpegSegment(0xC0, [8, 0, 5, 0, 7, 1, 1, 0x11, 0])])
     ]
     for bytes in generated {
         let read = try #require(ImageInfo(data: Data(bytes)))

@@ -41,7 +41,7 @@ private let probeProposals: [(String, ProposedSize)] = [
     ("inf", ProposedSize(width: .infinity, height: .infinity)),
     ("w200", ProposedSize(width: 200, height: nil)),
     ("h200", ProposedSize(width: nil, height: 200)),
-    ("w50", ProposedSize(width: 50, height: nil)),
+    ("w50", ProposedSize(width: 50, height: nil))
 ]
 
 /// One child's answers, recorded by `Ask`.
@@ -656,7 +656,7 @@ private func axRecords(_ frame: Frame) -> [AXRecord] {
         AXRecord(role: "radioButton", label: "Beta", value: "0"),
         AXRecord(role: "radioGroup", label: "Mode", value: nil),
         AXRecord(role: "slider", label: nil, value: "0.5"),
-        AXRecord(role: "textField", label: "Name", value: "Hello"),
+        AXRecord(role: "textField", label: "Name", value: "Hello")
     ].sorted { $0.description < $1.description }
     #expect(records == expected, "the literal records: \(records)")
     #expect(records == axRecords(legacy), "the Row spelling records the same: \(axRecords(legacy))")

@@ -109,7 +109,7 @@ func theSelectionInternalsAreUnreachableFromAnExternalModule() throws {
         ("conversionCount", "conversionCount", "@available(macOS 15, *) public func f() -> Int { TextSelection.conversionCount }"),
         ("init(offsets:in:)", "no exact matches in call to initializer", "@available(macOS 15, *) public func f() -> TextSelection { TextSelection(offsets: 0..<1, in: \"a\") }"),
         ("TextInputTarget", "TextInputTarget", "public func f(_ target: TextInputTarget) -> Bool { target.selectionSink == nil }"),
-        ("TextEditState", "TextEditState", "public func f(_ state: TextEditState) -> Bool { state.seenBinding == nil }"),
+        ("TextEditState", "TextEditState", "public func f(_ state: TextEditState) -> Bool { state.seenBinding == nil }")
     ]
     for negative in negatives {
         let result = try typecheckFile(negative.body, importing: "MetalUI")

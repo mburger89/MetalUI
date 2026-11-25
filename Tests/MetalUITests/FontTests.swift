@@ -69,7 +69,7 @@ func teSize(_ b: Bounds<Pixels>) -> (width: Float, height: Float) {
         (.largeTitle, .largeTitle, 26, nil), (.title, .title, 22, nil), (.title2, .title2, 17, nil),
         (.title3, .title3, 15, nil), (.headline, .headline, 13, .bold), (.subheadline, .subheadline, 11, nil),
         (.body, .body, 13, nil), (.callout, .callout, 12, nil), (.footnote, .footnote, 10, nil),
-        (.caption, .caption, 10, nil), (.caption2, .caption2, 10, .medium),
+        (.caption, .caption, 10, nil), (.caption2, .caption2, 10, .medium)
     ]
     try #require(table.count == Font.TextStyle.allCases.count)
     let system = teSystem()

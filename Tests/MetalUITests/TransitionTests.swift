@@ -483,7 +483,7 @@ private func same(_ a: MUIRect?, _ b: MUIRect?) -> Bool {
         ("move", .move(edge: .leading)), ("scale", .scale), ("slide", .slide),
         ("offset", .offset(x: Pixels(30), y: Pixels(5))), ("push", .push(from: .leading)),
         ("asymmetric", .asymmetric(insertion: .move(edge: .top), removal: .scale)),
-        ("combined", .opacity.combined(with: .move(edge: .bottom))),
+        ("combined", .opacity.combined(with: .move(edge: .bottom)))
     ]
     for (name, t) in cases {
         let r = insertion(t, reduceMotion: true)

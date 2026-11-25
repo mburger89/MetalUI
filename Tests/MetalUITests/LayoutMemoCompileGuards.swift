@@ -24,7 +24,7 @@ func thePlainImportCannotReachTheMemo() throws {
         ("memo", "public func reach(_ tree: LayoutTree) { _ = tree.memo }"),
         ("LayoutMemo", "public func reach() { _ = LayoutMemo() }"),
         ("keyed leaf", "public func reach(_ tree: LayoutTree) { _ = tree.newNativeLeaf(key: 1) { _ in LayoutMeasurement(size: .zero) } }"),
-        ("signature", "public func reach(_ tree: LayoutTree, _ id: LayoutNodeID) { _ = tree.structuralSignature(of: id) }"),
+        ("signature", "public func reach(_ tree: LayoutTree, _ id: LayoutNodeID) { _ = tree.structuralSignature(of: id) }")
     ] {
         let result = try typecheckFile(source, importing: "MetalUILayout")
         #expect(!result.succeeded, "\(name) must be unreachable from a plain import:\n\(result.output)")

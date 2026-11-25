@@ -127,7 +127,7 @@ private func snapshot(_ tree: AccessibilityTree, ids: AccessKitIDs = AccessKitID
     let number = ids.number(for: nid("row"))
     for (code, queued, request) in [
         (ACCESSKIT_ACTION_EXPAND, AccessKitSnapshot.Action.expand, AccessibilityRequest.expand(nid("row"))),
-        (ACCESSKIT_ACTION_COLLAPSE, .collapse, .collapse(nid("row"))),
+        (ACCESSKIT_ACTION_COLLAPSE, .collapse, .collapse(nid("row")))
     ] {
         var raw = accesskit_action_request()
         raw.action = accesskit_action(code.rawValue)

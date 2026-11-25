@@ -386,6 +386,9 @@ final class RetainedRecord {
     /// outer scope is a plain effect (a pure map the key holds): the scopes are not processed again
     /// (`SB-AB`). `nil` when an outer scope is not a plain effect.
     var finalScene: [RetainLog.SceneOp]?
+    /// Whether `finalScene` is `scene` itself: a record made with no paint scope open around it (`entryHeight == 0`) has the
+    /// same ops in both, so one array stands for both and a translation moves it once (`SB-AG`).
+    var finalIsScene = false
     var marks: [GlobalElementID] = []
     var touches: [RetainLog.Touch] = []
     /// The entries read-only accesses kept live under the paint (`RW-E`).
@@ -764,7 +767,10 @@ extension Frame {
         if !translated, retainLog?.needsLeaves != true, let final = r.finalScene {
             // No other live recorder wants the leaves where an outer scope would pass them: straight in.
             // `insertLeaves`, not `insertIntoScene`: a replayed opacity group composites again (`GO-G`).
-            for op in final { insertLeaves(op.leaves.flatMap(\.0)) }
+            // One group per op is the common case (a glyph, a rect): it goes in as it stands, with no flattened copy (`SB-AG`).
+            for op in final {
+                if op.leaves.count == 1 { insertLeaves(op.leaves[0].0) } else { insertLeaves(op.leaves.flatMap(\.0)) }
+            }
         } else {
             for op in movedScene ?? r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
         }
@@ -879,6 +885,7 @@ extension Frame {
                         // key (its ambient never holds the paint scopes), and a stream moved by the delta alone is the final stream of
                         // no effect that scales (`EL-L`).
                         old.key = key; old.scene = moved.scene; old.finalScene = key.ambient.scopes.isEmpty ? moved.finalScene : nil
+                        old.finalIsScene = old.finalIsScene && old.finalScene != nil
                     }
                     // Verify mode compares the fresh run with the record as moved (`SB-W`).
                     if retainedVerifiesFromEnvironment, phase.replayed == nil {
@@ -982,7 +989,11 @@ extension Frame {
         // leaves handed to it.
         var allEffects = true
         for scope in paintScopes where scope.kind != .effect { allEffects = false; break }
-        if allEffects {
+        if allEffects, recorder.entryHeight == 0 {
+            // No scope around the occurrence: the ops of boundary 0 are the ops of the entry height, one array for both.
+            record.finalScene = record.scene
+            record.finalIsScene = true
+        } else if allEffects {
             var final: [RetainLog.SceneOp] = []
             final.reserveCapacity(ops.count)
             for op in ops where op.boundary == 0 { final.append(op) }

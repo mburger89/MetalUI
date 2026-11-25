@@ -19,7 +19,7 @@ let bidiStrings = [
     "العدد 123 في النص",
     "Line one مرحبا\nسطر ثاني with English",
     "أ ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي",
-    "left, then عربي, then left again, then عربي آخر.",
+    "left, then عربي, then left again, then عربي آخر."
 ]
 
 @MainActor

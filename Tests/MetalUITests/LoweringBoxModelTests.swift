@@ -241,7 +241,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     let expected: [Kind: Bounds<Pixels>] = [
         .box: bounds(12, 12, 10, 10),
         .row: bounds(12, 0, 10, 10),
-        .column: bounds(0, 12, 10, 10),
+        .column: bounds(0, 12, 10, 10)
     ]
     for kind in Kind.allCases {
         // Built outside the builder closure: a builder `switch` adds an id level
@@ -474,7 +474,7 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
         inRow("margin.percent") { $0.margin.left = .length(.percent(0.1)) },
         inRow("minSize.percent") { $0.minSize.width = .length(.percent(0.5)) },
         inRow("maxSize.percent") { $0.maxSize.width = .length(.percent(0.5)) },
-        inRow("flexBasis") { $0.flexBasis = .length(.percent(0.5)) },
+        inRow("flexBasis") { $0.flexBasis = .length(.percent(0.5)) }
     ]
     var gapRow = MetalUI.Row { fixed(10, 10); fixed(10, 10) }
     gapRow.style.gap = Axes(both: .percent(0.1))

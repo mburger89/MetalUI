@@ -84,7 +84,7 @@ private func xywh(_ b: Bounds<Pixels>?) -> [Float]? {
     let records = Dictionary(report.frame.axEmissions.map { ($0.id, $0) },
                              uniquingKeysWith: { first, _ in first })
     let expectedRoles: [([Int], AXRole)] = [
-        ([0, 1], .textField), ([1, 0], .checkBox), ([2, 1], .slider), ([5, 0], .incrementor),
+        ([0, 1], .textField), ([1, 0], .checkBox), ([2, 1], .slider), ([5, 0], .incrementor)
     ]
     for (tail, role) in expectedRoles {
         let found = records[path(form, tail)]?.declared.role

@@ -1738,7 +1738,7 @@ public enum SDLKeys {
     static let keypadScancodes: [UInt32: String] = [
         84: "/", 85: "*", 86: "-", 87: "+", 88: "\r",
         89: "1", 90: "2", 91: "3", 92: "4", 93: "5", 94: "6", 95: "7", 96: "8", 97: "9", 98: "0",
-        99: ".", 103: "=", 133: ",",
+        99: ".", 103: "=", 133: ","
     ]
 
     /// SDL keycodes whose AppKit character is not the keycode itself.
@@ -1756,7 +1756,7 @@ public enum SDLKeys {
         0x4000_003E: "\u{f708}", 0x4000_003F: "\u{f709}", 0x4000_0040: "\u{f70a}", 0x4000_0041: "\u{f70b}",
         0x4000_0042: "\u{f70c}", 0x4000_0043: "\u{f70d}", 0x4000_0044: "\u{f70e}", 0x4000_0045: "\u{f70f}",
         // F13-F20 (SDLK_F13...SDLK_F20) → NSF13FunctionKey...NSF20FunctionKey (ruling KF-AH)
-        0x4000_0068: "\u{f710}", 0x4000_0069: "\u{f711}", 0x4000_006a: "\u{f712}", 0x4000_006b: "\u{f713}", 0x4000_006c: "\u{f714}", 0x4000_006d: "\u{f715}", 0x4000_006e: "\u{f716}", 0x4000_006f: "\u{f717}",
+        0x4000_0068: "\u{f710}", 0x4000_0069: "\u{f711}", 0x4000_006a: "\u{f712}", 0x4000_006b: "\u{f713}", 0x4000_006c: "\u{f714}", 0x4000_006d: "\u{f715}", 0x4000_006e: "\u{f716}", 0x4000_006f: "\u{f717}"
     ]
 
     /// SDL's editing event as a composition: `start`/`length` are code
@@ -1818,7 +1818,6 @@ enum SDLChrome {
         }
     }
 }
-
 
 /// `strdup`, spelled `_strdup` where the UCRT deprecates the POSIX name.
 private func duplicateCString(_ string: String) -> UnsafeMutablePointer<CChar>? {

@@ -556,7 +556,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// Red-before (record §49 §6.2, M2.2): `ModifiedElement`'s inner paint loop
 /// run innermost-first (the retired test's N8).
 @Test @MainActor func aModifierChainIsIdenticalToHandBuiltNestedBoxesUnderTheProposalAuthority() throws {
-    let chain = try observe() { log in
+    let chain = try observe { log in
         Row {
             CountingLeaf("leaf", log: log)
                 .background(.accent).onClick {}
@@ -567,7 +567,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 .background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let oracle = try observe() { log in
+    let oracle = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -578,7 +578,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let paddingsSwapped = try observe() { log in
+    let paddingsSwapped = try observe { log in
         Row {
             Box(style: paddingStyle(4), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -589,7 +589,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let idMoved = try observe() { log in
+    let idMoved = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -600,7 +600,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
-    let clickDropped = try observe() { log in
+    let clickDropped = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:
@@ -611,7 +611,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let animSkipped = try observe() { log in
+    let animSkipped = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 BoxWithoutAnimated(style: frameStyle(width: 60, height: 40), content:
@@ -622,7 +622,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).cornerRadius(9).onClick {}
         }
     }
-    let layerFewer = try observe() { log in
+    let layerFewer = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
@@ -634,7 +634,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
 
     // The radii-swapped oracle: the padding-4 layer's radius and the outermost
     // layer's exchanged, every other declaration unchanged.
-    let radiiSwapped = try observe() { log in
+    let radiiSwapped = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
                 Box(style: frameStyle(width: 60, height: 40), content:

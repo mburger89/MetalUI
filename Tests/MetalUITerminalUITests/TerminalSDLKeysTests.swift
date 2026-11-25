@@ -22,7 +22,7 @@ private func esc(_ s: String) -> [UInt8] { [0x1B] + Array(s.utf8) }
     await rig.focusTerminal()
     var rows: [(String, String, Modifiers, [UInt8])] = [
         ("insert", "\u{F727}", [], esc("[2~")), ("shift-insert", "\u{F727}", .shift, esc("[2;2~")),
-        ("ctrl-insert", "\u{F727}", .control, esc("[2;5~")),
+        ("ctrl-insert", "\u{F727}", .control, esc("[2;5~"))
     ]
     let numbers = [25, 26, 28, 29, 31, 32, 33, 34]
     for (index, number) in numbers.enumerated() {
@@ -47,7 +47,7 @@ private func esc(_ s: String) -> [UInt8] { [0x1B] + Array(s.utf8) }
     await rig.focusTerminal()
     let rows: [(String, String)] = [
         ("0", "p"), ("1", "q"), ("2", "r"), ("3", "s"), ("4", "t"), ("5", "u"), ("6", "v"), ("7", "w"), ("8", "x"),
-        ("9", "y"), ("*", "j"), ("+", "k"), ("-", "m"), (".", "n"), ("/", "o"), ("=", "X"), ("\r", "M"),
+        ("9", "y"), ("*", "j"), ("+", "k"), ("-", "m"), (".", "n"), ("/", "o"), ("=", "X"), ("\r", "M")
     ]
     for (character, final) in rows {
         rig.log.inputs = []
@@ -74,7 +74,7 @@ private func esc(_ s: String) -> [UInt8] { [0x1B] + Array(s.utf8) }
     await rig.focusTerminal()
     let rows: [(String, String, Modifiers, [UInt8])] = [
         ("ctrl-space", " ", .control, [0x00]), ("ctrl-shift-space", " ", [.control, .shift], [0x00]),
-        ("ctrl-backtick", "`", .control, [0x00]), ("ctrl-[", "[", .control, [0x1B]),
+        ("ctrl-backtick", "`", .control, [0x00]), ("ctrl-[", "[", .control, [0x1B])
     ]
     for (name, characters, modifiers, expected) in rows {
         rig.log.inputs = []

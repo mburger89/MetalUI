@@ -249,7 +249,7 @@ import CoreText
         ("matrix", FontKey(resolved: base),
          FontKey(resolved: CTFontCreateCopyWithAttributes(base, 13, &skew, nil))),
         ("size", helvetica13, FontResolver.resolve(family: "Helvetica", size: 26).key),
-        ("postScriptName", helvetica13, FontResolver.resolve(family: "Courier", size: 13).key),
+        ("postScriptName", helvetica13, FontResolver.resolve(family: "Courier", size: 13).key)
     ]
     let offset = try #require(MemoryLayout<FontKey>.offset(of: \FontKey.precomputedHash))
 

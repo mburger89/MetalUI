@@ -158,7 +158,7 @@ private let frameChannels: [String: Channel] = [
     "selectableTextRegions": .prepaintOnly, "textSelection": .keyed,
     // `G47`: the fingerprint of `environmentTop`, cleared by every write to the top and put back by the scope that restores one; a
     // derived value of a channel already classified (`environmentTop`), never replayed.
-    "topFingerprint": .frameLocal,
+    "topFingerprint": .frameLocal
 ]
 
 @MainActor private func storedNames(of subject: Any) -> Set<String> {
@@ -199,7 +199,7 @@ private let stateTableChannels: [String: Channel] = [
     "departedValues": .buildOnly, "departedRootsKept": .buildOnly, "lastDepartedValueCount": .buildOnly,
     "departedOverlay": .buildOnly, "focusStates": .buildOnly, "departedRoots": .buildOnly, "prepaintLog": .frameLocal,
     "doomedKeys": .buildOnly, "resetFocusSlots": .buildOnly, "isDirty": .ledger, "onWrite": .frameLocal, "writer": .frameLocal,
-    "writeCount": .ledger,
+    "writeCount": .ledger
 ]
 
 private let animationStoreChannels: [String: Channel] = [
@@ -208,7 +208,7 @@ private let animationStoreChannels: [String: Channel] = [
     "keyframeDepth": .buildOnly, "lastFrameInterpolations": .frameLocal, "retainLog": .frameLocal,
     "buildJournal": .buildOnly,
     // Cumulative work counters of `HP-I` (read by differencing); a retained skip does not replay them.
-    "borderKeyBuilds": .frameLocal, "numberTrackRebuilds": .frameLocal, "vectorTrackRebuilds": .frameLocal,
+    "borderKeyBuilds": .frameLocal, "numberTrackRebuilds": .frameLocal, "vectorTrackRebuilds": .frameLocal
 ]
 
 @MainActor @Test func everyStateTableAndAnimationStoreChannelIsClassified() {
@@ -234,7 +234,7 @@ private let environmentFields: [String: String] = [
     "textLineLimit": "fingerprint", "contentMargins": "fingerprint",
     "fieldStyles": "fingerprint (both styles)", "textSelectionEnabled": "fingerprint", "backgroundProminence": "fingerprint", "theme": "fingerprint", "textSystemBox": "fingerprint (presence)",
     "objects": "fingerprint (identities)", "custom": "fingerprint (readings), an uncomparable one a refusal",
-    "fileDialogs": "irrelevant: a window-owned handle, constant for the window",
+    "fileDialogs": "irrelevant: a window-owned handle, constant for the window"
 ]
 
 /// 1.11b — **every stored property of `EnvironmentValues` is in the fingerprint or declared irrelevant**

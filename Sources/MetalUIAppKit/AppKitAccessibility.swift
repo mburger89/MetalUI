@@ -51,7 +51,7 @@ import MetalUIPlatform
 /// override is rejected (`sending 'self' risks causing data races`, arm A's
 /// `-D CAPTURE`); handing it in boxed is not.
 nonisolated func mainActorAnswer<Object: AnyObject, T>(_ object: Object, fallback: T,
-                                                      _ body: @MainActor (Object) -> T) -> T {
+                                                       _ body: @MainActor (Object) -> T) -> T {
     guard Thread.isMainThread else { return fallback }
     let boxed = MainThreadAnswer(value: object)
     return MainActor.assumeIsolated { MainThreadAnswer(value: body(boxed.value)) }.value

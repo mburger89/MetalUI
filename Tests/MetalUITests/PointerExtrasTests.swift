@@ -68,7 +68,7 @@ private func pWindow<Root: Element>(_ content: @escaping @MainActor () -> Root) 
         PointerStyle.columnResize(directions: .leading).platformStyle,
         PointerStyle.columnResize(directions: .trailing).platformStyle,
         PointerStyle.rowResize(directions: .up).platformStyle,
-        PointerStyle.rowResize(directions: .down).platformStyle,
+        PointerStyle.rowResize(directions: .down).platformStyle
     ]
     #expect(lowered == [.columnResizeOneWay(towardTrailing: false), .columnResizeOneWay(towardTrailing: true),
                         .rowResizeOneWay(towardDown: false), .rowResizeOneWay(towardDown: true)])

@@ -85,7 +85,7 @@ private final class NativeMeasureCounter: @unchecked Sendable {
         (.trailing, LayoutRect(x: 93, y: 52, width: 20, height: 10)),
         (.bottomLeading, LayoutRect(x: 13, y: 87, width: 20, height: 10)),
         (.bottom, LayoutRect(x: 53, y: 87, width: 20, height: 10)),
-        (.bottomTrailing, LayoutRect(x: 93, y: 87, width: 20, height: 10)),
+        (.bottomTrailing, LayoutRect(x: 93, y: 87, width: 20, height: 10))
     ]
 
     for (alignment, expected) in cases {

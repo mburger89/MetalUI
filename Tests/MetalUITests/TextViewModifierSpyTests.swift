@@ -24,7 +24,7 @@ private func note(_ message: String) -> Comment { Comment(rawValue: message) }
     let plainOnes: [(String, Set<String>, Set<String>)] = [
         ("no modifier", calls(Column { Text("a") }).plain, calls(Column { Text("a") }).styled),
         ("bold()", calls(Column { Text("a") }.bold()).plain, calls(Column { Text("a") }.bold()).styled),
-        ("italic()", calls(Column { Text("a") }.italic()).plain, calls(Column { Text("a") }.italic()).styled),
+        ("italic()", calls(Column { Text("a") }.italic()).plain, calls(Column { Text("a") }.italic()).styled)
     ]
     for (name, plain, styled) in plainOnes {
         #expect(styled.isEmpty && plain.isSuperset(of: ["measure", "placeGlyphs"]), note("\(name): plain \(plain), styled \(styled)"))
@@ -35,7 +35,7 @@ private func note(_ message: String) -> Comment { Comment(rawValue: message) }
         ("kerning(0)", calls(Column { Text("a") }.kerning(0))),
         ("tracking(1)", calls(Column { Text("a") }.tracking(1))),
         ("baselineOffset(1)", calls(Column { Text("a") }.baselineOffset(1))),
-        ("monospaced()", calls(Column { Text("a") }.monospaced())),
+        ("monospaced()", calls(Column { Text("a") }.monospaced()))
     ]
     for (name, seen) in styledOnes {
         #expect(seen.plain.isEmpty && !seen.styled.isEmpty, note("\(name): plain \(seen.plain), styled \(seen.styled)"))

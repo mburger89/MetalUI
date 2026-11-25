@@ -274,7 +274,7 @@ private func lineAndFace(_ system: PortableTextSystem, _ string: String, width: 
     let plain = xs(Text("AAAA"))
     for (name, own, view) in [
         ("kerning", Text("AAAA").kerning(5), Column { Text("AAAA") }.kerning(5)),
-        ("tracking", Text("AAAA").tracking(5), Column { Text("AAAA") }.tracking(5)),
+        ("tracking", Text("AAAA").tracking(5), Column { Text("AAAA") }.tracking(5))
     ] as [(String, Text, EnvironmentScope<Column<Text>>)] {
         try #require(!samePositions(xs(own), plain), "set up: \(name) moves the glyphs")
         #expect(samePositions(xs(view), xs(own)), note("\(name) above equals \(name) on the Text"))

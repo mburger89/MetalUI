@@ -35,7 +35,7 @@ struct LinePlacedGlyph {
     let penX: Double
     /// The UTF-16 unit of the styled string its cluster starts at; `nil` for
     /// an ellipsis token's glyph.
-    var unit: Int? = nil
+    var unit: Int?
     /// Its styled run (ruling RT-F) — 0 for a plain string.
     var style: Int = 0
     /// How far it moves the pen as a line walks it (a tab to its stop, a hard

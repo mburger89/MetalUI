@@ -17,7 +17,7 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @MainActor private func box() -> some Element { Box().frame(width: px(10), height: px(10)) }
 
 @MainActor private func openBackdropWindow<E: Element>(_ model: BackdropModel, honoured: Bool = true,
-                                                      _ content: @escaping @MainActor (BackdropModel) -> E)
+                                                       _ content: @escaping @MainActor (BackdropModel) -> E)
     throws -> (Window, FakePlatformWindow) {
     let (app, platform) = try shellApp()
     platform.windowsShowBackdrops = honoured

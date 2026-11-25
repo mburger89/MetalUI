@@ -71,7 +71,7 @@ let probedMarkdownRows: [(String, String, [MarkdownRun])] = [
     ("N17", "a\tb", [plain("a\tb")]),
     ("N18", "`` a ``", [code("a")]),
     ("N19", "*a*b*", [italic("a"), plain("b*")]),
-    ("N20", "x_y_ z", [plain("x_y_ z")]),
+    ("N20", "x_y_ z", [plain("x_y_ z")])
 ]
 
 /// **3.1** (ruling RT-B item 2). The parser answers every `M` and `N` row of
@@ -96,7 +96,7 @@ let probedMarkdownRows: [(String, String, [MarkdownRun])] = [
     let decoded: [(String, String)] = [
         ("&amp;", "&"), ("&#65;", "A"), ("&#x41;", "A"), ("&#X41;", "A"), ("&copy;", "©"), ("&nbsp;", "\u{A0}"),
         ("&lt;&gt;&quot;&apos;", "<>\"'"), ("&mdash;&hellip;&euro;", "—…€"), ("&#0;", "\u{FFFD}"),
-        ("&#x110000;", "\u{FFFD}"),
+        ("&#x110000;", "\u{FFFD}")
     ]
     for (source, expected) in decoded {
         #expect(parseInlineMarkdown(source) == [plain(expected)], "\(source) decodes to \(expected.debugDescription)")

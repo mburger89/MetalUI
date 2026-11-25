@@ -442,7 +442,7 @@ private struct AuditControls: Component {
         ("Search", AuditNode(.textField, label: "Search", value: "abc")),
         ("Notes", AuditNode(.textArea, label: "Notes", value: "line")),
         ("Tap me", AuditNode(.staticText, value: "Tap me")),
-        ("Name", AuditNode(.textField, label: "Name", value: "")),
+        ("Name", AuditNode(.textField, label: "Name", value: ""))
     ]
     for (reading, row) in expected {
         let node = try tree.one(reading).node
@@ -574,7 +574,7 @@ private let modalText = "Modal, Declared inside the list, painted over it, and c
         AuditNode(.checkBox, label: "Water the plants", value: "0", actions: press),
         AuditNode(.checkBox, label: "Take out the bins", value: "1", actions: press),
         AuditNode(.checkBox, label: "Call the plumber", value: "0", actions: press),
-        AuditNode(.table),
+        AuditNode(.table)
     ]
     let rows = controls.auditRows
     try #require(rows.count > expected.count, "the tree: \(rows)")
@@ -781,7 +781,7 @@ private func markerValue(_ key: String, _ id: AccessibilityNodeID, _ node: Acces
         AuditNode(.staticText, value: "(the first field echoes here)"),
         AuditNode(.secureTextField, label: "Password", value: ""),   // `SCF-F`: the demo's secure field
         AuditNode(.staticText, value: "Password: 0 characters"),
-        AuditNode(.textArea, label: "A multi-line editor: return, up and down, the wheel", value: ""),
+        AuditNode(.textArea, label: "A multi-line editor: return, up and down, the wheel", value: "")
     ]
     #expect(textInput.auditRows == expected, "the text-input demo: \(textInput.auditRows)")
     #expect(textInput.focused == nil, "nothing focused at first")

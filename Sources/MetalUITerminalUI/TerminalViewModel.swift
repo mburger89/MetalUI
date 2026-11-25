@@ -301,7 +301,7 @@ final class TerminalViewModel {
 
     /// What the surface's `draw` runs. `sink` is nil on a context with no grid sink (a headless test window): the
     /// whole policy runs and is counted, nothing is recorded.
-    func draw(into sink: SurfaceTextSink?, time: Double, isNewTarget: Bool,
+    func draw(into sink: SurfaceTextSink?, time: Double, isNewTarget: Bool, // swiftlint:disable:this cyclomatic_complexity - one switch over every key and mouse input
               clear: (Float, Float, Float, Float) -> Void) {
         statistics.draws += 1
         guard let cache, let colors else { return }
@@ -347,7 +347,7 @@ final class TerminalViewModel {
         let blinks = cursorBlink && snapshot.modes.cursorStyle.blinking
         let idle = blinksStopped(now: now, activity: activity)
         let elapsed = max(0, now - activity)
-        let phaseOn = !blinks || idle || Int((elapsed + 1e-6) / Self.blinkHalfPeriod) % 2 == 0
+        let phaseOn = !blinks || idle || Int((elapsed + 1e-6) / Self.blinkHalfPeriod).isMultiple(of: 2)
         var shape: TerminalRowPainter.CursorShape?
         let cursor = snapshot.cursor
         if cursor.visible, cursor.row >= 0, cursor.row < snapshot.size.rows {

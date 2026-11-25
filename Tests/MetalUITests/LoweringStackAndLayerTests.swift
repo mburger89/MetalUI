@@ -89,7 +89,7 @@ private func report<C: ElementGroup>(@ElementBuilder _ make: @MainActor () -> C)
 private let stackAlignments: [(Alignment, Float, Float)] = [
     (.topLeading, 0, 0), (.top, 0.5, 0), (.topTrailing, 1, 0),
     (.leading, 0, 0.5), (.center, 0.5, 0.5), (.trailing, 1, 0.5),
-    (.bottomLeading, 0, 1), (.bottom, 0.5, 1), (.bottomTrailing, 1, 1),
+    (.bottomLeading, 0, 1), (.bottom, 0.5, 1), (.bottomTrailing, 1, 1)
 ]
 
 /// **4.1.** A lowered `Stack` places fixed children at all nine alignments (ruling
@@ -166,7 +166,7 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
          [field(.stack, "margin.unconsumed")]),
         ("hidden stretching Stack (lowered as if shown since stage 6b, LR-DH)",
          report { Stack { fixed(20, 10); fixed(10, 30) }.alignItems(.stretch).hidden() },
-         []),
+         [])
     ]
     try #require(reported.count == 3)
     for (name, entries, expected) in reported {
@@ -268,7 +268,7 @@ private let stackAlignments: [(Alignment, Float, Float)] = [
 private let frameAlignments: [(ProposalAlignment, Float, Float)] = [
     (.topLeading, 0, 0), (.top, 0.5, 0), (.topTrailing, 1, 0),
     (.leading, 0, 0.5), (.center, 0.5, 0.5), (.trailing, 1, 0.5),
-    (.bottomLeading, 0, 1), (.bottom, 0.5, 1), (.bottomTrailing, 1, 1),
+    (.bottomLeading, 0, 1), (.bottom, 0.5, 1), (.bottomTrailing, 1, 1)
 ]
 
 /// **4.4.** A lowered fixed `.frame(width: 60, height: 40, alignment:)` places its
@@ -507,7 +507,7 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
         ("minWidth after frame", report { fixed(10, 10).frame(width: px(40)).cssMinWidth(px(10)) }, [style]),
         ("flexGrow after flexible frame", report { fixed(10, 10).frame(maxWidth: px(80)).flexGrow(1) }, [style]),
         ("alignItems after frame, inner layer",
-         report { fixed(10, 10).frame(width: px(40)).alignItems(.flexEnd).padding(px(4)) }, [style]),
+         report { fixed(10, 10).frame(width: px(40)).alignItems(.flexEnd).padding(px(4)) }, [style])
     ]
     try #require(arms.count == 4)
     for (name, entries, expected) in arms {
@@ -548,7 +548,7 @@ private func renderAtNilProposal<C: ElementGroup>(@ElementBuilder _ make: () -> 
         ("two nodes", report { TwoBoxes().frame(width: px(40)).hidden() }, []),
         ("with a width after it", report { fixed(10, 10).frame(width: px(40)).hidden().cssWidth(px(60)) }, [style]),
         ("inner layer", report { fixed(10, 10).frame(width: px(40)).hidden().padding(px(4)) }, []),
-        ("two nodes, not hidden", report { TwoBoxes().frame(width: px(40)) }, []),
+        ("two nodes, not hidden", report { TwoBoxes().frame(width: px(40)) }, [])
     ]
     try #require(arms.count == 5)
     for (name, entries, expected) in arms {
@@ -650,7 +650,7 @@ private func animatedRects<E: ElementGroup>(_ ids: [GlobalElementID],
         ("maxWidth", fixed(100, 10).frame(maxWidth: px(40)), fixed(100, 10).frame(maxWidth: px(80)),
          [bounds(0, 0, 40, 10), bounds(0, 0, 40, 10), bounds(0, 0, 60, 10)]),
         ("maxHeight", fixed(10, 100).frame(maxHeight: px(40)), fixed(10, 100).frame(maxHeight: px(80)),
-         [bounds(0, 0, 10, 40), bounds(0, 0, 10, 40), bounds(0, 0, 10, 60)]),
+         [bounds(0, 0, 10, 40), bounds(0, 0, 10, 40), bounds(0, 0, 10, 60)])
     ]
     var ran = 0
     for (name, start, end, expected) in arms {
@@ -678,7 +678,7 @@ private func animatedRects<E: ElementGroup>(_ ids: [GlobalElementID],
         }),
         ("minWidth only", LayoutDifferential.report(width: 200, height: 200) {
             NoNodes().frame(minWidth: px(40)).background(.accent)
-        }),
+        })
     ]
     try #require(arms.count == 2)
     for (name, r) in arms {

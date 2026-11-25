@@ -11,7 +11,7 @@ import MetalUIPlatform
     let identifiers = [
         "public.utf8-plain-text", "public.plain-text", "public.json", "public.url", "public.data",
         "com.example.graph", "com.Example.Graph", "Com.EXAMPLE.graph", "a b/c%d;e=f\u{e9}\u{1F600}",
-        "mime:image/png", "mime:application/x-foo", "mime:text/plain", "mime:Image/PNG", "mime:", "%", "%41", "",
+        "mime:image/png", "mime:application/x-foo", "mime:text/plain", "mime:Image/PNG", "mime:", "%", "%41", ""
     ]
     for identifier in identifiers {
         let mime = ClipboardMime.mime(forIdentifier: identifier)

@@ -946,7 +946,7 @@ extension LayoutPass {
     /// otherwise unreachable (`scrollView`, stage 3) stays reachable through the
     /// weights check and through an unconsumed record, and not through, say, a
     /// child's `alignSelf: .baseline`.
-    func planLegacyItems(_ received: [LoweredItem?], parent: Style, parentKind: LoweredItem.Kind,
+    func planLegacyItems(_ received: [LoweredItem?], parent: Style, parentKind: LoweredItem.Kind, // swiftlint:disable:this cyclomatic_complexity - one switch over every legacy modifier kind
                          parentSite: LoweringSite, fields: inout [UnlowerableField]) -> [LegacyItemPlan] {
         let single = received.count == 1
         // The weights check (LR-AE): every growing sibling's declared factor.

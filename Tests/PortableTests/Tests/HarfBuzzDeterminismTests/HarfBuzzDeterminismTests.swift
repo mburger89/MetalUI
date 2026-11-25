@@ -56,7 +56,7 @@ let latinStrings: [(String, String)] = [
     ("mark a+diaeresis", "a\u{0308}"),
     ("mark n+tilde", "n\u{0303}"),
     ("digits", "0123456789"),
-    ("punctuation", ".,;:!?-()'\""),
+    ("punctuation", ".,;:!?-()'\"")
 ]
 
 /// A plain word, a sentence with spaces, lam-alef, a word with harakat, and
@@ -66,7 +66,7 @@ let arabicStrings: [(String, String)] = [
     ("arabic sentence", "مرحبا بالعالم"),
     ("arabic lam-alef", "لا"),
     ("arabic harakat", "مَرْحَبًا"),
-    ("arabic-indic digits", "٠١٢٣٤٥٦٧٨٩"),
+    ("arabic-indic digits", "٠١٢٣٤٥٦٧٨٩")
 ]
 
 /// Every case, in a fixed order: both Latin faces over the Latin strings, then

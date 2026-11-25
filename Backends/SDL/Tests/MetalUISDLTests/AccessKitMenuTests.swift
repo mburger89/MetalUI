@@ -18,7 +18,6 @@ private func withCNode<T>(_ node: AccessKitSnapshot.Node, _ body: (OpaquePointer
     return body(c)
 }
 
-
 /// **S1.1** (`MN-R`, `MN-G` item 2). The menu roles reach AccessKit as `MENU`,
 /// `MENU_ITEM`, `MENU_ITEM_CHECK_BOX` (toggled from its `"1"`), a menu button
 /// as `BUTTON` with a menu popup, a popover as a non-modal `DIALOG`; a node
@@ -33,7 +32,7 @@ private func withCNode<T>(_ node: AccessKitSnapshot.Node, _ body: (OpaquePointer
             nid("item"): AccessibilityNode(role: .menuItem, label: "Copy", actions: [.press]),
             nid("check"): AccessibilityNode(role: .menuItemCheckBox, label: "Flag", value: "1", actions: [.press]),
             nid("button"): AccessibilityNode(role: .menuButton, label: "Actions", actions: [.press, .showMenu]),
-            nid("popover"): AccessibilityNode(role: .popover),
+            nid("popover"): AccessibilityNode(role: .popover)
         ],
         geometry: [:], focused: nil)
     let ids = AccessKitIDs()

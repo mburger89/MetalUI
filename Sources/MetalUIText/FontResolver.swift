@@ -182,7 +182,7 @@ public enum FontResolver {
         if let weight = descriptor.weight {
             request = CTFontDescriptorCreateWithAttributes([
                 kCTFontFamilyNameAttribute: CTFontCopyFamilyName(base),
-                kCTFontTraitsAttribute: [kCTFontWeightTrait: weight],
+                kCTFontTraitsAttribute: [kCTFontWeightTrait: weight]
             ] as CFDictionary)
         }
         if descriptor.italic,

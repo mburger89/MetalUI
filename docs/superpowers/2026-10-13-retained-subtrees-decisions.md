@@ -1,7 +1,7 @@
 # Retained subtrees — decisions
 
 Rulings for item C14b of the gpui-gap priority list (user request 2026-10-02; **not a plan
-task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AG`.**
+task**), the second half of C14 (record §104, `IV-A`…`IV-Q`). Prefix `SB-`. **Next unused: `SB-AH`.**
 Spec: [`specs/2026-10-13-retained-subtrees-design.md`](specs/2026-10-13-retained-subtrees-design.md);
 fixture: [`specs/2026-10-13-retained-subtrees-fixture.md`](specs/2026-10-13-retained-subtrees-fixture.md).
 Record: `../record/109-retained-subtrees.md` (Record phase). Branch `perf/retained-subtrees` from
@@ -687,3 +687,15 @@ twin for a descendant's *prepaint, paint and build windows*, which an ancestor c
 flagged where its old record was in fact still right (a fire in a descendant whose picture is the same) re-runs the ancestor's
 prepaint and paint once: a work cost only after a write, never in a steady frame.
 
+## SB-AG — A record with no paint scope around it keeps one array for its scene and its final stream, and a replay of it flattens nothing (G47, record 412)
+
+**Question.** A translated `.equatable()` cell moved its record twice when its key holds no paint scope: `movedPaintRecord` ran `movedOps` over `old.scene` and again over `old.finalScene`, two copies of every primitive of the occurrence, and both stayed alive in the record (Alloy: 36k live blocks of 512 B, the `[CapturedPrimitive]` of one glyph each). `replayPaint` also built `op.leaves.flatMap(\.0)` for every op of a final stream, an array per op, though one group per op is the usual shape (a glyph, a rect).
+
+**Ruling.**
+1. A record made with `recorder.entryHeight == 0` and every outer scope a plain effect (the no-scope case: no scope at all) stores `finalScene = scene`, the same array, and sets `RetainedRecord.finalIsScene`. The ops of boundary 0 and those of the entry height are then the same ops (`finishRetainedPaint` filtered the same stream twice). `movedPaintRecord` moves the scene once and answers it as the final stream too; the hit arm clears the flag with the stream (`old.finalIsScene && old.finalScene != nil`). A record made under scopes keeps two streams and two moves, as before.
+2. `replayPaint` hands `op.leaves[0].0` to `insertLeaves` when the op has one group, and flattens only when it has more.
+3. Exact: the same primitives, the same order, the same insertions (`insertLeaves` reads its argument and keeps nothing); a refused move refuses on the same primitive (both streams were the same input).
+
+**Evidence.** Record 412: `scrollcells eq nest`, base to branch 35.5k to 27.5k allocations per scroll step, with the stream sharing alone 5.2k fewer and the single-group replay alone 2.7k fewer; `ScrollAllocationChurnTests` pin both, red when either is restored.
+
+**Cost if wrong.** A flag left set on a record whose streams differ would replay the scene's ops where the final stream's were due: an outer effect applied twice or not at all. The flag is set at one site (the no-scope case) and cleared where the stream is replaced.

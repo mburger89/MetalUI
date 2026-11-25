@@ -15,8 +15,8 @@ private let appKitLike = HeadlessPlatformWindow.Options(
     hiddenTitleBarInsets: Edges(top: Pixels(32), right: Pixels(0), bottom: Pixels(0), left: Pixels(69)))
 
 @MainActor private final class MetricsModel {
-    var height: Pixels? = nil
-    var leading: Pixels? = nil
+    var height: Pixels?
+    var leading: Pixels?
     var applies = true
 }
 

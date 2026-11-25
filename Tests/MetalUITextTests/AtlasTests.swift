@@ -97,7 +97,7 @@ private func inkBounds(_ image: GlyphImage) -> (minX: Int, maxX: Int, minY: Int,
         (0, 0, 20, 6), (20, 0, 11, 14), (31, 0, 17, 9),
         (0, 14, 20, 6), (20, 14, 11, 14), (31, 14, 17, 9),
         (0, 28, 20, 6), (20, 28, 11, 14), (31, 28, 17, 9),
-        (0, 42, 20, 6), (20, 42, 11, 14), (31, 42, 17, 9),
+        (0, 42, 20, 6), (20, 42, 11, 14), (31, 42, 17, 9)
     ]
     for (i, slot) in slots.enumerated() {
         #expect(slot.x == expected[i].0)
@@ -160,7 +160,7 @@ private func inkBounds(_ image: GlyphImage) -> (minX: Int, maxX: Int, minY: Int,
         GlyphKey(font: f13, glyph: 43, size: 13, subpixelVariant: 0, scaleFactor: 2),
         GlyphKey(font: f13, glyph: 42, size: 26, subpixelVariant: 0, scaleFactor: 2),
         GlyphKey(font: f13, glyph: 42, size: 13, subpixelVariant: 1, scaleFactor: 2),
-        GlyphKey(font: f13, glyph: 42, size: 13, subpixelVariant: 0, scaleFactor: 1),
+        GlyphKey(font: f13, glyph: 42, size: 13, subpixelVariant: 0, scaleFactor: 1)
     ]
     #expect(Set(keys).count == 6)
 
