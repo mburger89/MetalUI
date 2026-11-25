@@ -65,7 +65,7 @@ struct XRRoot: Component {
                     Text("tick \(context.date.timeIntervalSinceReferenceDate)").frame(width: Pixels(160), height: Pixels(14))
                 }
                 ZStack {
-                    if side.model.n % 3 != 0 {
+                    if !side.model.n.isMultiple(of: 3) {
                         Text("shown").onAppear { side.log.add("appear \(side.model.n)") }.onDisappear { side.log.add("disappear") }
                     }
                 }.frame(width: Pixels(60), height: Pixels(14))
@@ -590,7 +590,7 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
         ("invalidation", { try await xrCensus { invalidationDemoContent() } }), ("retained", { try await xrCensus { retainedSubtreeDemoContent() } }),
         ("keyFocus", { try await xrCensus { keyFocusDemoContent() } }), ("services", { try await xrCensus { servicesDemoContent() } }),
         ("clipboard", { try await xrCensus { clipboardDemoContent() } }), ("tabs", { try await xrCensus { tabStripDemoContent() } }),
-        ("accessibility", { try await xrCensus { accessibilityDisplayDemoContent() } }),
+        ("accessibility", { try await xrCensus { accessibilityDisplayDemoContent() } })
     ]
     var found: [String: String] = [:]
     for (name, run) in demos {

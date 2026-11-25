@@ -1473,6 +1473,6 @@ extension StateTable {
         // A hint of row positions that every reader verifies with one read (`TBL-N`).
         "TableRowPositionCache": .cache,
         // The divider drag in progress: written by the drag gesture (input), never by a build (`TBL-S`).
-        "TableResizeDragBox": .immutable,
+        "TableResizeDragBox": .immutable
     ]
 }

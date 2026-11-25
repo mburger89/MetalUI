@@ -2272,6 +2272,12 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         return true
     }
 
+    /// The digest the rollback is compared with (a test asked for it, or verify mode, which also traps on a class held in state that nobody classified, `RK-AK`).
+    private func rollbackDigestBeforeAttempt() -> [String]? {
+        if retainedVerifiesFromEnvironment { stateTable.verifyReferencesAreClassified() }
+        return testingRollbackDigests == nil && !retainedVerifiesFromEnvironment ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
+    }
+
     /// `RK-AI`: puts the state table back as the abandoned attempt found it; a test that asked records its digest before the attempt (`before`),
     /// as the attempt left it and after the rollback.
     @discardableResult
@@ -2427,8 +2433,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         }
         // `RK-AI`: the attempt that may be abandoned logs its first write of each state, and rolls back with the checkpoint (verify mode
         // abandons every replayed frame, so it is always armed).
-        if retainedVerifiesFromEnvironment { stateTable.verifyReferencesAreClassified() }
-        let rollbackBefore = testingRollbackDigests == nil && !retainedVerifiesFromEnvironment ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
+        let rollbackBefore = rollbackDigestBeforeAttempt()
         if checkpoint != nil || retainedVerifiesFromEnvironment { stateTable.beginAttempt(); glyphAtlas.beginAttempt() }
         let comparedWritesBefore = stateTable.comparedWriteIDs.count   // verify mode: where the replayed build's compared writes start
         var frame = buildFrame()
