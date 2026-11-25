@@ -355,7 +355,7 @@ enum RPAmbient: String, CaseIterable { case opacity, shadow, blur, compositingGr
 
 /// 4 — an ancestor's paint-only value (an opacity, a shadow, a blur, a composited shadow) changes under a subtree
 /// that did not: the replayed prepaint cannot paint (`RK-C`), so the frame is redone once and equals the retention-off
-/// frame. **Scoped** (`RK-AM`, record 422): the redo rebuilds the failing card only, so the neighbour (B) replays in the
+/// frame. **Scoped** (`RK-AM`, record 423): the redo rebuilds the failing card only, so the neighbour (B) replays in the
 /// redo and in every build after it, the card's own quarantine keeps it off replay for eight builds, and no build is
 /// suspended. **Window-wide** (a channel the attempt wrote that no rollback undoes, `testingRedoFault`): every prepaint
 /// replay is off in the redo and the next eight builds (`RK-D`). Mutations: the redo disabled (the subtree is painted

@@ -545,7 +545,7 @@ private struct RGMoving: Component {
 
 /// 20 — a graft that cannot paint (a paint-only ambient above it changed) or cannot prepaint (the occurrence moved: its rects are not
 /// the ledger's) asks the window to build the frame again: the redo's frame equals the retention-off frame in scene, tree, log and **state
-/// table**, counts one redo, and the grafts resume. **Scoped** (`RK-AM`, record 422): the redo rebuilds the failing occurrence only and the
+/// table**, counts one redo, and the grafts resume. **Scoped** (`RK-AM`, record 423): the redo rebuilds the failing occurrence only and the
 /// neighbour grafts in the redo and every frame after it, no build suspended. **Window-wide** (`testingRedoFault`): the redo grafts nothing, nor
 /// do the eight builds after it (`RK-D`). **Red before:** `retainedRedos` reads 0 and the frame is wrong (a grafted occurrence cannot be drawn).
 /// **Mutations:** the window-wide redo's `graftAllowed` not suspended (a grafted redo asks for a redo: the assertion or the scene), the

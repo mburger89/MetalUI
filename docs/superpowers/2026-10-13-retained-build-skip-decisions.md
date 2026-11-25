@@ -577,17 +577,17 @@ Per grafted outermost occurrence: **60.5 µs of build stood for, 10.7 µs of gra
 
 **Cost if wrong.** A graft kept across a scroll step shows the old window; `aScrollStepRebuildsALazyContainerInsideAnEquatableOccurrence` (both directions, backoff on, no redo).
 
-## RK-AM — A redo rebuilds the failing occurrences and what is under them, not the window (amends `RK-D` item 3, `RK-M`; record 422)
+## RK-AM — A redo rebuilds the failing occurrences and what is under them, not the window (amends `RK-D` item 3, `RK-M`; record 423)
 
 **Question.** With the rollback exact (`RK-AI`, `GL-K`, `RK-AK`) and the suite green with the nine-build backoff off (record 419), can a redo be scoped to the occurrences that asked for it? Record 416: the window-wide suspension of graft and prepaint replay kept Alloy's transcript on the rebuild path for 24 of 30 deltas.
 
 **Ruling.** (1) `noteRedo(entries, scoped: true)` no longer sets `prepaintSuspendedUntil`. It quarantines each failing entry (8, 16 ... builds, the entry's exponent) **and its identity as a scope** (`RK-AN`). (2) The window rolls the attempt back (state table, atlas, the animation checkpoint, the scroll queue, the surfaces) and builds attempt 2 with `memos.redoScopes` = the failing ids and `redoInProgress` set. `prepaintReplayAllowed` holds in attempt 2 while scopes exist, so every occurrence grafts and replays as in attempt 1 except the ones `isInRedoScope` names (at, under or **above** a scope, a defence: an ancestor of a failing occurrence was built in attempt 1 and decides the same in attempt 2) and the ones under a quarantined scope; the trace names the refusal `scopedRedo` (prepaint) or in `graftRefusals` (graft). Attempt 2 is armed (`beginAttempt` on the table and the atlas) because it may ask again. (3) **Exact** because attempt 2 is a legal build of the frame with fewer grafts (`RK-Y`, `SB-W`): the rollback put every channel back, a ledger or record the attempt made names versions or glyph slots the rollback invalidated (`RK-AI`, `GL-K`), and `RK-M` (a) cannot happen since the whole subtree of a failing occurrence is refused. (4) **Window-wide remains, with the nine-build backoff, when:** attempt 2 itself asks for a redo (**escalation**: a third build with every replay off, `retained.redoEscalations` = 1, `retainedRedoEscalations`; the suite asserts 0 in `RPPair.redraw` and in the fixtures); the attempt wrote a channel declared unrestorable (`Frame.noteUnrestorable`; nothing declares one today); an occurrence has no identity to scope; and verify mode, which keeps whole-frame fresh comparisons (`RK-N`). `Window.testingRedoFault` takes the last two paths and the escalation in tests.
 
-**Evidence.** Record 422: the chrome transcript (`ChromeTranscriptFixture.swift`) redoes 3 times in 40 streamed words; window-wide 39.1 requests and 55 prepaints a step, 22 backoff builds, 151 grafts; scoped 24.9, 34.4, 0, 235. A redo frame costs 43 requests (70 window-wide) with 4 rows still grafting.
+**Evidence.** Record 423: the chrome transcript (`ChromeTranscriptFixture.swift`) redoes 3 times in 40 streamed words; window-wide 39.1 requests and 55 prepaints a step, 22 backoff builds, 151 grafts; scoped 24.9, 34.4, 0, 235. A redo frame costs 43 requests (70 window-wide) with 4 rows still grafting.
 
 **Cost if wrong.** An occurrence that should have been rebuilt and was replayed shows as a frame that differs from a fresh one after a redo: `aScopedRedoEqualsAFreshFrameInEveryChannel`, the redo differentials of 417 to 419 and verify mode.
 
-## RK-AN — A failed occurrence's descendants are quarantined with it (record 422)
+## RK-AN — A failed occurrence's descendants are quarantined with it (record 423)
 
 **Question.** The entry quarantine of `RK-D` item 3 reaches only the failing entry. Record 416: a row's descendants (nested `.equatable()` paragraphs) graft in the next frame and fail the same way one level down, a redo a frame for 18 frames.
 

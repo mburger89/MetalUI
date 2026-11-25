@@ -593,7 +593,7 @@ func everyReferenceHeldInStateIsClassified() async throws {
         ("clipboard", { try await xrCensus { clipboardDemoContent() } }), ("tabs", { try await xrCensus { tabStripDemoContent() } }),
         ("accessibility", { try await xrCensus { accessibilityDisplayDemoContent() } })
     ]
-    // Not in a demo: an `OutlineGroup` in a lazy stack (found by verify mode's trap on `OutlineIndex`, record 422).
+    // Not in a demo: an `OutlineGroup` in a lazy stack (found by verify mode's trap on `OutlineIndex`, record 423).
     struct Node: Identifiable { let id: String; let kids: [Node]? }
     let tree = [Node(id: "a", kids: [Node(id: "a1", kids: nil), Node(id: "a2", kids: nil)]), Node(id: "b", kids: nil)]
     let outlined: [(String, () async throws -> [String: String])] = [("outlineGroup", {
@@ -681,7 +681,7 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
     }
 }
 
-/// A table's edit session is a class a build writes (its placement and the one-shot focus and seed flags, `TableBody`): found by verify mode's census (record 422).
+/// A table's edit session is a class a build writes (its placement and the one-shot focus and seed flags, `TableBody`): found by verify mode's census (record 423).
 /// A rolled-back attempt gives its fields back, so a redo's second attempt requests the focus the first attempt consumed. Mutation: the rollback not restoring `needsFocus`.
 @Test @MainActor func aRolledBackTableEditSessionRequestsItsFocusAgain() {
     let session = TableEditSession<Int>(cell: TableCell(row: 3, column: 1), text: "abc", position: 2)

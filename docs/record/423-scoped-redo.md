@@ -1,6 +1,6 @@
-# 422: a redo rebuilds the failing occurrences and what is under them, not the window (`RK-AM`, `RK-AN`; Piece 2 of the exact-redo plan)
+# 423: a redo rebuilds the failing occurrences and what is under them, not the window (`RK-AM`, `RK-AN`; Piece 2 of the exact-redo plan)
 
-Class `M`, no divergence, no public API but `FrameWork.retainedRedoEscalations` (test-support). Branch `perf/scoped-redo`, **stacked on #438** (record 419; #438 on #435 on #434). Plan: `docs/superpowers/plans/2026-11-25-exact-redo-and-movable-records.md`, Piece 2. Records 420 and 421 belong to concurrent branches.
+Class `M`, no divergence, no public API but `FrameWork.retainedRedoEscalations` (test-support). Branch `perf/scoped-redo`, **stacked on #438** (record 419; #438 on #435 on #434). Plan: `docs/superpowers/plans/2026-11-25-exact-redo-and-movable-records.md`, Piece 2. **Renumbered from 422** when #440 (scene size classes) took 422 first; the rulings `RK-AM` and `RK-AN` are unchanged.
 
 ## The mechanism
 

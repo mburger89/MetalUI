@@ -4,7 +4,7 @@ import MetalUIScene
 import MetalUITesting
 import Testing
 
-// The scoped redo (`RK-AM`, `RK-AN`, record 422): a frame abandoned because a grafted occurrence's record cannot follow the scroll move is built again
+// The scoped redo (`RK-AM`, `RK-AN`, record 423): a frame abandoned because a grafted occurrence's record cannot follow the scroll move is built again
 // with graft and prepaint replay off only for that occurrence and what is under and above it, after a rollback that makes the second attempt a legal build
 // (records 417 to 419). The fixture is Alloy's transcript (`ChromeTranscriptFixture.swift`); it redoes three times in 40 streamed words.
 

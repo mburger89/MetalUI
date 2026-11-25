@@ -150,7 +150,7 @@ final class TableEditSession<ID: Hashable> {
 
 /// A build writes the session's placement and its one-shot flags (`position`, `lastFrame`, `editorFocused`, `needsSeed`, `needsFocus`): a redo's second attempt
 /// would find the focus request already consumed. The body registers the session before its first write of an attempt, and a rollback puts the fields back
-/// (`RK-AJ`; found by verify mode's census, record 422).
+/// (`RK-AJ`; found by verify mode's census, record 423).
 extension TableEditSession: @MainActor AttemptRestorable {
     func beginAttempt() { attemptSaved = SavedFields(text: text, isOpen: isOpen, position: position, lastFrame: lastFrame, needsFocus: needsFocus,
                                                     needsSeed: needsSeed, editorFocused: editorFocused) }
