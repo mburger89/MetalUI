@@ -197,6 +197,42 @@ final class StateTable {
     var prepaintLog: PrepaintLog?
     private var marked: Set<GlobalElementID> = []
 
+    // MARK: The attempt's undo log (`RK-AI`)
+
+    /// Whether an attempt is open: the build that may be abandoned and built again (`beginAttempt`). While it is, the first
+    /// write, deletion or liveness flip of each id puts the entry as it stood into `attemptUndo`.
+    private(set) var attemptArmed = false
+    /// The entries as the attempt found them, by id: `nil` is an id the attempt created. Kept between frames for its capacity;
+    /// a quiet frame writes nothing and logs nothing.
+    private var attemptUndo: [GlobalElementID: Entry?] = [:]
+    /// `marked`, `readJournal.count` and `markJournal.count` at `beginAttempt`: the table's other channels a rollback restores.
+    private var attemptMarked: Set<GlobalElementID> = []
+    private var attemptReadCount = 0
+    private var attemptMarkCount = 0
+    /// The in-place reference state registered this attempt (`AttemptRestorable`), in registration order.
+    private var attemptRestorables: [AttemptRestorable] = []
+    /// The log is dropped, not just emptied, when it held more than this many entries at the end of an attempt: a scroll through
+    /// a large table writes thousands once, and the capacity is not kept for the quiet frames after it.
+    static let attemptLogRetainedEntries = 1024
+    /// The entries the open attempt has logged (a test observable and the cost pin's reading).
+    var attemptLogCount: Int { attemptUndo.count }
+    /// What the last attempt held when it closed (a test observable: the steady-frame cost pins read it).
+    struct AttemptTally: Equatable {
+        var closed = 0
+        var loggedEntries = 0
+        var registeredStores = 0
+        var rolledBack = false
+    }
+    private(set) var lastAttempt = AttemptTally()
+    /// The in-place reference stores registered with the open attempt.
+    var attemptRestorableCount: Int { attemptRestorables.count }
+
+    /// Logs the entry at `id` as it stands, the first time the open attempt touches it. One branch when no attempt is open.
+    @inline(__always) private func logUndo(_ id: GlobalElementID) {
+        guard attemptArmed else { return }
+        if attemptUndo.index(forKey: id) == nil { attemptUndo[id] = .some(storage[id]) }
+    }
+
     /// Advanced by `sweep()`, once per frame. An entry's `lastSeenGeneration`
     /// is compared against this to decide staleness.
     private(set) var generation: UInt64 = 0
@@ -518,6 +554,7 @@ final class StateTable {
             doomedKeys.append(id)
         }
         for id in doomedKeys {
+            logUndo(id)
             let removed = storage.removeValue(forKey: id)
             if keepingDeparted, let removed { departedValues[id] = removed.value }
             marked.remove(id)
@@ -706,7 +743,7 @@ final class StateTable {
     /// replay skipped. Never reset; a window reads a difference.
     private(set) var comparedWriteCount: Int = 0
     /// The ids of those writes in order, kept only in verify mode: a rebuild that recreates a rolled-back entry writes it
-    /// again, which is not a write the replay skipped (`discardEntries`).
+    /// again, which is not a write the replay skipped (`rollbackAttempt`).
     private(set) var comparedWriteIDs: [GlobalElementID] = []
 
     /// Read-modify-write the state at `id`, creating it from `initial` on first
@@ -780,10 +817,80 @@ final class StateTable {
             value = initial()
         }
         body(&value)
+        logUndo(id)
         versionCounter &+= 1
         storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true,
                             version: versionCounter)
         writeCount += 1
+    }
+
+    // MARK: Beginning, rolling back and accepting an attempt (`RK-AI`)
+
+    /// Opens an attempt: the build that follows may be abandoned after its paint and built again (`RK-C`, `RK-N`). The first
+    /// write of each id from here is logged until `acceptAttempt` or `rollbackAttempt`, so the redo starts from the table the
+    /// attempt did (`rollbackAttempt`). Costs nothing until something writes.
+    func beginAttempt() {
+        attemptRestorables.removeAll(keepingCapacity: true)
+        attemptUndo.removeAll(keepingCapacity: true)
+        attemptMarked = marked
+        attemptReadCount = readJournal.count
+        attemptMarkCount = markJournal.count
+        attemptArmed = true
+    }
+
+    /// Puts the table back as `beginAttempt` found it, and returns the ids the attempt created (verify mode's `writeMissed`
+    /// check names them). The entries (value, generation, liveness and **version**, so a standing ledger's versions still
+    /// match), `marked`, the two journals and every registered in-place store (`AttemptRestorable`). `versionCounter` stays
+    /// monotonic, so a version is never handed out twice. The attempt's own `@State` writes did fire `onWrite`: the window may draw one frame more
+    /// than it needed, never one fewer. A table with no open attempt is untouched.
+    @discardableResult
+    func rollbackAttempt() -> Set<GlobalElementID> {
+        guard attemptArmed else { return [] }
+        var created = Set<GlobalElementID>()
+        for (id, prior) in attemptUndo {
+            if let prior {
+                storage[id] = prior
+            } else {
+                storage.removeValue(forKey: id)
+                created.insert(id)
+            }
+        }
+        marked = attemptMarked
+        if readJournal.count > attemptReadCount { readJournal.removeSubrange(attemptReadCount...) }
+        if markJournal.count > attemptMarkCount { markJournal.removeSubrange(attemptMarkCount...) }
+        for restorable in attemptRestorables { restorable.rollbackAttempt() }
+        closeAttempt(rolledBack: true)
+        return created
+    }
+
+    /// The attempt is the frame that is kept: the log is dropped (its capacity kept up to `attemptLogRetainedEntries`).
+    func acceptAttempt() {
+        guard attemptArmed else { return }
+        closeAttempt()
+    }
+
+    private func closeAttempt(rolledBack: Bool = false) {
+        lastAttempt = AttemptTally(closed: lastAttempt.closed + 1, loggedEntries: attemptUndo.count,
+                                   registeredStores: attemptRestorables.count, rolledBack: rolledBack)
+        for restorable in attemptRestorables { restorable.endAttempt() }
+        attemptRestorables.removeAll(keepingCapacity: true)
+        if attemptUndo.count > Self.attemptLogRetainedEntries {
+            attemptUndo = [:]
+        } else {
+            attemptUndo.removeAll(keepingCapacity: true)
+        }
+        attemptMarked = []
+        attemptArmed = false
+    }
+
+    /// Registers in-place reference state the open attempt is about to mutate (`RK-AJ`). The store is told to begin the moment it
+    /// is registered, so a store registered before its first mutation can be rolled back to it; one registered twice is begun once.
+    /// A no-op when no attempt is open.
+    func restorable(_ store: AttemptRestorable) {
+        guard attemptArmed else { return }
+        for held in attemptRestorables where held === store { return }
+        attemptRestorables.append(store)
+        store.beginAttempt()
     }
 
     // MARK: Read-only access (`RW-C`, `RW-D`, `RW-E`)
@@ -797,16 +904,6 @@ final class StateTable {
 
     /// The ids of every stored entry (verify mode snapshots them before a build).
     func entryIDs() -> Set<GlobalElementID> { Set(storage.keys) }
-
-    /// Verify mode: deletes the entries a build created, so the fresh build starts from the table the first one did (`RW-O`).
-    /// The window-retained slots (`$ax`) stay. Their liveness mark goes with them; the next build marks what it reads.
-    func discardEntries(createdSince before: Set<GlobalElementID>) -> Set<GlobalElementID> {
-        for id in storage.keys where !before.contains(id) && !Self.isWindowRetained(id) { doomedKeys.append(id) }
-        let discarded = Set(doomedKeys)
-        for id in doomedKeys { storage.removeValue(forKey: id); marked.remove(id) }
-        doomedKeys.removeAll(keepingCapacity: true)
-        return discarded
-    }
 
     /// The entries the open (unswept) frame read or re-noted, and the journals emptied (`RW-O`): verify mode takes an
     /// abandoned replayed build's set this way before it builds the frame again, since only a completed frame sweeps.
@@ -828,7 +925,10 @@ final class StateTable {
     /// repeats, and what a read-only access does besides noting its read. Idempotent with a fresh frame's access.
     func touchLive(_ id: GlobalElementID) {
         marked.insert(id)
-        if let index = storage.index(forKey: id) { storage.values[index].isLive = true }
+        if let index = storage.index(forKey: id) {
+            if attemptArmed, !storage.values[index].isLive { logUndo(id) }
+            storage.values[index].isLive = true
+        }
     }
 
     /// A read-only access: live in every open window's liveness channel, and a read.
@@ -908,7 +1008,10 @@ final class StateTable {
         retainLog?.marks.append(id)
         marked.insert(id)
         // `PA-E`: through the index; `storage[id]?.isLive = true` runs a `modify` coroutine that allocates.
-        if let index = storage.index(forKey: id) { storage.values[index].isLive = true }
+        if let index = storage.index(forKey: id) {
+            if attemptArmed, !storage.values[index].isLive { logUndo(id) }
+            storage.values[index].isLive = true
+        }
     }
 
     /// `mark`, and on a slot with **no entry** stores `initial` as its first evaluation (`FV-A`, overturns `LC-S`
@@ -928,8 +1031,10 @@ final class StateTable {
         retainLog?.marks.append(id)
         marked.insert(id)
         if let index = storage.index(forKey: id) {
+            if attemptArmed, !storage.values[index].isLive { logUndo(id) }
             storage.values[index].isLive = true
         } else {
+            logUndo(id)
             versionCounter &+= 1
             storage[id] = Entry(value: initial(), lastSeenGeneration: generation, isLive: true, version: versionCounter)
         }
@@ -998,6 +1103,7 @@ final class StateTable {
             departedOverlay?.values[id] = value   // `LC-I` item 2: discarded with the overlay
             return
         }
+        logUndo(id)
         versionCounter &+= 1
         storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true,
                             version: versionCounter)
@@ -1025,7 +1131,10 @@ final class StateTable {
     func markLive(_ id: GlobalElementID) {
         contentMemos.journal.record(.liveState(id))
         marked.insert(id)
-        storage[id]?.isLive = true
+        if let index = storage.index(forKey: id) {
+            if attemptArmed, !storage.values[index].isLive { logUndo(id) }
+            storage.values[index].isLive = true
+        }
     }
 
     /// Read the state at `id` without marking it. Test observability: a reader
@@ -1139,6 +1248,7 @@ final class StateTable {
     /// either of those changes later and something will, silently, unless
     /// this line is still here to catch it.
     func sweep() {
+        acceptAttempt()   // `RK-AI`: a frame that reaches its sweep is the attempt that is kept; nothing after it is undone
         resetFocusSlots.removeAll(keepingCapacity: true)
         // `ID-R`: a name an evaluated position replaced, and that this frame
         // produced nowhere, is reset before the next frame can return to it.
@@ -1240,5 +1350,31 @@ extension StateTable {
     /// The `@State` entries and their versions and liveness, sorted: what a test compares across two windows.
     var entryDigest: [String] {
         storage.map { "\(sbPath($0.key))|live:\($0.value.isLive)" }.sorted()
+    }
+}
+
+// MARK: - In-place reference state (`RK-AJ`)
+
+/// A class held in a state entry that is mutated in place (`RowExtentIndex` inside `LazyOrigin` and `ListOrigin`): the entry's
+/// undo log restores the value, which still holds the same reference, so the object journals its own writes. It is registered
+/// through `StateTable.restorable(_:)` before its first mutation of an attempt; `beginAttempt` then starts its journal,
+/// `rollbackAttempt` undoes it exactly (the same bits, not the same up to rounding) and `endAttempt` frees it, after either.
+protocol AttemptRestorable: AnyObject {
+    func beginAttempt()
+    func rollbackAttempt()
+    func endAttempt()
+    /// Everything the store holds that a frame can read, exactly (a test's before and after comparison).
+    var attemptContents: String { get }
+}
+
+extension StateTable {
+    /// Every entry, its liveness, generation, version and a description of its value, sorted: what a rollback test compares before an
+    /// attempt and after the rollback (a `class` in a value prints its type and identity, so a reference swapped for a copy shows).
+    var attemptDigest: [String] {
+        storage.map { id, entry in
+            let held = (entry.value as? LazyOrigin)?.extents ?? (entry.value as? ListOrigin)?.extents
+            let contents = (held as? AttemptRestorable)?.attemptContents ?? ""
+            return "\(sbPath(id))|live:\(entry.isLive)|gen:\(entry.lastSeenGeneration)|v:\(entry.version)|\(String(reflecting: entry.value))|\(contents)"
+        }.sorted() + ["marked:\(marked.map { sbPath($0) }.sorted())|reads:\(readJournal.count)|marks:\(markJournal.count)"]
     }
 }

@@ -234,6 +234,11 @@ extension Window {
     /// The `@State` entries with their versions and liveness, sorted: compared across two windows by the graft's
     /// sweep differential (`RK-F`).
     package var testingStateEntries: [String] { stateTable.entryDigest }
+    /// What the last attempt held when it closed (`RK-AI`): entries logged, in-place stores registered, whether it was rolled back.
+    package var testingLastAttempt: (closed: Int, loggedEntries: Int, registeredStores: Int, rolledBack: Bool) {
+        let tally = stateTable.lastAttempt
+        return (tally.closed, tally.loggedEntries, tally.registeredStores, tally.rolledBack)
+    }
 
     /// A write of `value` to the entry at `id` as an input would make it (`RW-`): bumps the version, dirties the window.
     package func testingWriteState<S>(_ id: GlobalElementID, _ value: S) { stateTable.write(id, value) }
