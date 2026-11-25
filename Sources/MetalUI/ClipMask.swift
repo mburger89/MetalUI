@@ -92,11 +92,14 @@ extension Frame {
         maskScopesPushed += 1
         let scope = PaintScope(kind: .composite, effect: .identity, entryClipDepth: clipDepth)
         scope.mask = primitive
+        let ordinal = reserveCaptures(of: scope)
         paintScopes.append(scope)
         body()
         paintScopes.removeLast()
+        noteCaptured(scope.captures.count, ordinal: ordinal)
         guard !scope.captures.isEmpty else { return }
-        var captures = scope.captures
+        var captures = scope.captures   // taken, not copied (`G51`)
+        scope.captures = []
         if captures.contains(where: { if case .backdrop = $0.kind { true } else { false } }) {
             masksFlattenedBackdrop += 1
         } else {
@@ -161,8 +164,8 @@ extension Frame {
             insertIntoScene(baked)
             return
         }
-        var inner = collectingIntoFreshScene { insertLeaves(children) }
-        var maskScene = collectingIntoFreshScene { for m in mask { insertIntoScene(m) } }
+        var inner = collectingIntoFreshScene(reserving: children) { insertLeaves(children) }
+        var maskScene = collectingIntoFreshScene(reserving: mask) { for m in mask { insertIntoScene(m) } }
         guard let content = inner.paintedBounds(), let shape = maskScene.paintedBounds() else { return }
         let painted = (minX: max(content.minX, shape.minX), minY: max(content.minY, shape.minY),
                        maxX: min(content.maxX, shape.maxX), maxY: min(content.maxY, shape.maxY))
