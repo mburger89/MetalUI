@@ -3070,6 +3070,9 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         }
         if recordsElementBounds, capacityHints.elementBounds > 0 { elementBounds.reserveCapacity(capacityHints.elementBounds) }
         if collectsAccessibility, capacityHints.axNodes > 0 { axNodes.reserveCapacity(capacityHints.axNodes) }
+        // `HP-L`: the scene's rect and glyph arrays, an eighth over for a frame that draws a little more.
+        scene.reserveCapacity(rects: capacityHints.sceneRects + capacityHints.sceneRects / 8,
+                              glyphs: capacityHints.sceneGlyphs + capacityHints.sceneGlyphs / 8)
         self.startCapacities = currentCapacities()
     }
 
@@ -3080,14 +3083,15 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     func capacityHints() -> FrameCapacityHints {
         FrameCapacityHints(tree: tree.capacityHint, focus: focusRegistry.countHint, hitboxes: hitboxes.count,
                            selectableRegions: selectableTextRegions.count, loweringItems: lowering.items.count, elementBounds: elementBounds.count,
-                           axNodes: axNodes.count)
+                           axNodes: axNodes.count, sceneRects: scene.rects.count, sceneGlyphs: scene.glyphs.count)
     }
 
     /// The capacities the hot stores have now (not their counts).
     private func currentCapacities() -> FrameCapacityHints {
         FrameCapacityHints(tree: tree.capacities, focus: focusRegistry.capacityHint, hitboxes: hitboxes.capacity,
                            selectableRegions: selectableTextRegions.capacity, loweringItems: min(lowering.items.capacity, lowering.order.capacity),
-                           elementBounds: elementBounds.capacity, axNodes: axNodes.capacity)
+                           elementBounds: elementBounds.capacity, axNodes: axNodes.capacity,
+                           sceneRects: scene.rects.capacity, sceneGlyphs: scene.glyphs.capacity)
     }
 
     // MARK: - Lowering diagnostics (plan task 7, rulings LR-C, LR-D)
@@ -5185,6 +5189,8 @@ struct FrameCapacityHints: Equatable {
     var loweringItems = 0
     var elementBounds = 0
     var axNodes = 0
+    var sceneRects = 0
+    var sceneGlyphs = 0
 }
 
 // MARK: - Restoring scopes (`KF-AM`, `MN-AS`)
