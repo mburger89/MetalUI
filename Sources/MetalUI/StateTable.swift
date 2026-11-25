@@ -913,13 +913,11 @@ final class StateTable {
     /// The ids of every stored entry (verify mode snapshots them before a build).
     func entryIDs() -> Set<GlobalElementID> { Set(storage.keys) }
 
-    /// The entries the open (unswept) frame read or re-noted, and the journals emptied (`RW-O`): verify mode takes an
-    /// abandoned replayed build's set this way before it builds the frame again, since only a completed frame sweeps.
+    /// The entries the open (unswept) frame read or re-noted (`RW-O`): verify mode takes an abandoned replayed build's set this way before it
+    /// builds the frame again, since only a completed frame sweeps. **The journals are not emptied**: the rollback truncates them to what they
+    /// held when the attempt began (`RK-AI`), which keeps what an input handler noted between frames (the rollback channel compares them).
     func takeUnsweptJournals() -> Set<GlobalElementID> {
-        let taken = Set(readJournal).union(markJournal)
-        readJournal.removeAll(keepingCapacity: true)
-        markJournal.removeAll(keepingCapacity: true)
-        return taken
+        Set(readJournal).union(markJournal)
     }
 
     /// Appends `id` to the read journal and the graft journal (`RW-D`). No version moves and nothing is tainted.
