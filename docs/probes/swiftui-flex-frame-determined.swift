@@ -10,13 +10,28 @@
 //   xcrun swiftc -parse-as-library docs/probes/swiftui-flex-frame-determined.swift -o /tmp/ffd && /tmp/ffd
 //
 // RECORDED OUTPUT (macOS 27.2.1, 2026-11-24; "10 | 500 | 1500" are the frame's answers over a child of width 10, 500 and 1500; `=` agree,
-// `!` the child shows through; inf is infinity):
+// `!` the child shows through; inf is infinity; proposals are the width, the height is 100):
 //
-//   (filled in below by the run)
+//   min320 max inf          0: 320|320|320=  nil: 320|500|1500!  100: 320|320|320=  500: 500|500|500=  900: 900|900|900=  inf: inf|inf|inf=
+//   min200 ideal250 max380  0: 200|200|200=  nil: 250|250|250=  100: 200|200|200=  500: 380|380|380=  900: 380|380|380=  inf: 380|380|380=
+//   min240 max800           0: 240|240|240=  nil: 240|500|800!  100: 240|240|240=  500: 500|500|500=  900: 800|800|800=  inf: 800|800|800=
+//   max380 only             0: 10|380|380!  nil: 10|380|380!  100: 100|380|380!  500: 380|380|380=  900: 380|380|380=  inf: 380|380|380=
+//   max inf only            0: 10|500|1500!  nil: 10|500|1500!  100: 100|500|1500!  500: 500|500|1500!  900: 900|900|1500!  inf: inf|inf|inf=
+//   min240 only             0: 240|240|240=  nil: 240|500|1500!  100: 240|240|240=  500: 240|500|500!  900: 240|500|900!  inf: 240|500|1500!
+//   ideal250 only           0: 10|500|1500!  nil: 250|250|250=  100: 10|500|1500!  500: 10|500|1500!  900: 10|500|1500!  inf: 10|500|1500!
+//   min100 ideal250         0: 100|100|100=  nil: 250|250|250=  100: 100|100|100=  500: 100|500|500!  900: 100|500|900!  inf: 100|500|1500!
+//   fixed 150               0: 150|150|150=  nil: 150|150|150=  100: 150|150|150=  500: 150|150|150=  900: 150|150|150=  inf: 150|150|150=
+//   no frame                0: 10|500|1500!  nil: 10|500|1500!  100: 10|500|1500!  500: 10|500|1500!  900: 10|500|1500!  inf: 10|500|1500!
 //
-// READ: see ruling `HS-M`. A frame is child-independent on an axis at a proposal when it has a fixed size, or a maximum AND a
-// minimum with a non-nil proposal (clamp(proposal, min, max)), or a nil proposal with an ideal (clamp(ideal, min, max)). A
-// maximum alone answers max(proposal, child) (the child shows through), a minimum alone or no bound answers the child.
+// READ: see ruling `HS-M`. A frame is child-independent on an axis at a proposal (`=`) when it has a fixed size, or a maximum AND a
+// minimum with a non-nil proposal (clamp(proposal, min, max): `min320 max inf` at 0 and 100, `min240 max800` at 900), or a maximum
+// alone with a proposal at or above it (`max380 only` from 500, `max inf only` at inf), or a nil proposal with an ideal
+// (clamp(ideal, min, max): `min200 ideal250 max380` at nil). The child shows through (`!`) for a maximum alone below it, for no
+// proposal and no ideal (`min320 max inf` at nil), for a minimum alone above it, for an ideal alone at a proposal, and for no frame.
+// So the ideal (nil) probe of a pane with no `idealWidth` is the child's and cannot be skipped by the frame.
+//
+// Not used by `HS-M`, noticed: a frame with a minimum and no maximum (`min240 only`, `min100 ideal250`) answers the child's width
+// clipped to the proposal (1500 over a 500 proposal answers 500), where `framedSize` answers the child's. Not investigated here.
 import SwiftUI
 
 struct Fixed: Layout {

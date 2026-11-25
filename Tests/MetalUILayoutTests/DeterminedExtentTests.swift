@@ -178,3 +178,40 @@ private func stack(_ tree: LayoutTree, axis: ProposalStackAxis, specs: [Bounds1]
     }
     #expect(checked > 1000, "\(checked)")
 }
+
+/// **6** The rows `docs/probes/swiftui-flex-frame-determined.swift` recorded from SwiftUI, as literals: over a child 10 wide, the
+/// answer at proposals 0, nil, 100, 500, 900 and infinity, and whether SwiftUI's answer was the same over children of 500 and 1500
+/// (`=`: determined here too). The measured answer is SwiftUI's; `determinedExtent` is that answer exactly where SwiftUI's did not
+/// move with the child, and `nil` where it did. Mutations: any arm of `framedDetermined` answering a different number (the min+max
+/// arm unclamped, the ideal arm answering the child, the maximum-alone arm answering at a proposal below the maximum).
+@Test func theRecordedSwiftUIRowsHoldMeasuredAndDetermined() {
+    let inf = Double.infinity
+    let proposals: [Double?] = [0, nil, 100, 500, 900, inf]
+    typealias Row = (name: String, bounds: Bounds1, answers: [(Double, Bool)])
+    let rows: [Row] = [
+        ("min320 max inf", Bounds1(minimum: 320, maximum: inf),
+         [(320, true), (320, false), (320, true), (500, true), (900, true), (inf, true)]),
+        ("min200 ideal250 max380", Bounds1(minimum: 200, ideal: 250, maximum: 380),
+         [(200, true), (250, true), (200, true), (380, true), (380, true), (380, true)]),
+        ("min240 max800", Bounds1(minimum: 240, maximum: 800),
+         [(240, true), (240, false), (240, true), (500, true), (800, true), (800, true)]),
+        ("max380 only", Bounds1(maximum: 380),
+         [(10, false), (10, false), (100, false), (380, true), (380, true), (380, true)]),
+        ("max inf only", Bounds1(maximum: inf),
+         [(10, false), (10, false), (100, false), (500, false), (900, false), (inf, true)]),
+        ("fixed 150", Bounds1(width: 150),
+         [(150, true), (150, true), (150, true), (150, true), (150, true), (150, true)]),
+    ]
+    for row in rows {
+        for (proposal, expected) in zip(proposals, row.answers) {
+            let tree = LayoutTree(generation: 0)
+            let frame = tree.newNativeFrame(child: fixedLeaf(tree, 10), width: row.bounds.width, minWidth: row.bounds.minimum,
+                                            idealWidth: row.bounds.ideal, maxWidth: row.bounds.maximum)
+            let offer = ProposedSize(width: proposal, height: 100)
+            #expect(tree.measureNativeLayout(root: frame, proposal: offer).size.width == expected.0,
+                    "\(row.name) at \(String(describing: proposal)): measured")
+            let known = tree.determinedExtent(frame, proposal: offer, horizontal: true)
+            #expect(known == (expected.1 ? expected.0 : nil), "\(row.name) at \(String(describing: proposal)): determined \(String(describing: known))")
+        }
+    }
+}
