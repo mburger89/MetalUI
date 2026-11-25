@@ -134,12 +134,37 @@ final class TableEditSession<ID: Hashable> {
     var needsSeed = true
     /// Whether the editor held focus as of the last build.
     var editorFocused = false
+    /// What the fields were when an attempt began (`AttemptRestorable`, below).
+    struct SavedFields {
+        var text: String, isOpen: Bool, position: Int?, lastFrame: (x: Double, y: Double, width: Double)?
+        var needsFocus: Bool, needsSeed: Bool, editorFocused: Bool
+    }
+    var attemptSaved: SavedFields?
 
     init(cell: TableCell<ID>, text: String, position: Int?) {
         self.cell = cell
         self.text = text
         self.position = position
     }
+}
+
+/// A build writes the session's placement and its one-shot flags (`position`, `lastFrame`, `editorFocused`, `needsSeed`, `needsFocus`): a redo's second attempt
+/// would find the focus request already consumed. The body registers the session before its first write of an attempt, and a rollback puts the fields back
+/// (`RK-AJ`; found by verify mode's census, record 422).
+extension TableEditSession: @MainActor AttemptRestorable {
+    func beginAttempt() { attemptSaved = SavedFields(text: text, isOpen: isOpen, position: position, lastFrame: lastFrame, needsFocus: needsFocus,
+                                                    needsSeed: needsSeed, editorFocused: editorFocused) }
+
+    func rollbackAttempt() {
+        guard let saved = attemptSaved else { return }
+        text = saved.text; isOpen = saved.isOpen; position = saved.position; lastFrame = saved.lastFrame
+        needsFocus = saved.needsFocus; needsSeed = saved.needsSeed; editorFocused = saved.editorFocused
+        attemptSaved = nil
+    }
+
+    func endAttempt() { attemptSaved = nil }
+
+    var attemptContents: String { "\(text)|\(isOpen)|\(String(describing: position))|\(String(describing: lastFrame))|\(needsFocus)|\(needsSeed)|\(editorFocused)" }
 }
 
 /// The value the `editing` binding contributes to the after-frame comparison (`TCM-H`).

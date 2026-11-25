@@ -1471,6 +1471,10 @@ extension StateTable {
         // An outline's flattened rows: the group's per-frame cache, validated against its data by a read each frame and rebuilt from it, so a build twice answers once
         // (`OG-K`).
         "OutlineIndex": .cache,
+        // Immutable: a parent and a component, both `let`.
+        "GlobalElementID": .immutable,
+        // The recorder's "a key already ended this recording" flag: written by a key event, read by the focus loss it causes; a build neither reads nor writes it.
+        "RecordingEnd": .immutable,
         // A hint of row positions that every reader verifies with one read (`TBL-N`).
         "TableRowPositionCache": .cache,
         // The divider drag in progress: written by the drag gesture (input), never by a build (`TBL-S`).

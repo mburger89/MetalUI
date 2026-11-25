@@ -617,7 +617,9 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
         }
     }
     // The classification table names no class nobody holds in any demo (it cannot rot), except Swift's key path subclasses.
-    let stale = StateTable.classifiedReferences.keys.filter { found[$0] == nil && !$0.hasSuffix("KeyPath") }.sorted()
+    // Rows for classes the census windows do not reach (found by verify mode over the whole suite: a `ShortcutRecorder`, a state holding an identity).
+    let outsideTheDemos: Set<String> = ["GlobalElementID", "RecordingEnd"]
+    let stale = StateTable.classifiedReferences.keys.filter { found[$0] == nil && !$0.hasSuffix("KeyPath") && !outsideTheDemos.contains($0) }.sorted()
     #expect(stale.isEmpty, "classified but held by no demo window: \(stale)")
     #expect(unclassified.isEmpty, "classes held in state with no classification: \(unclassified)")
 }
@@ -676,4 +678,18 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
         pair.redraw()
         try pair.compare("a frame after a scroll of \(delta)")
     }
+}
+
+/// A table's edit session is a class a build writes (its placement and the one-shot focus and seed flags, `TableBody`): found by verify mode's census (record 422).
+/// A rolled-back attempt gives its fields back, so a redo's second attempt requests the focus the first attempt consumed. Mutation: the rollback not restoring `needsFocus`.
+@Test @MainActor func aRolledBackTableEditSessionRequestsItsFocusAgain() {
+    let session = TableEditSession<Int>(cell: TableCell(row: 3, column: 1), text: "abc", position: 2)
+    let before = session.attemptContents
+    session.beginAttempt()
+    session.needsFocus = false; session.needsSeed = false; session.editorFocused = true; session.position = 7; session.lastFrame = (x: 1, y: 2, width: 3)
+    #expect(session.attemptContents != before)
+    session.rollbackAttempt()
+    #expect(session.attemptContents == before && session.needsFocus && session.needsSeed, "the fields are back: \(session.attemptContents)")
+    session.beginAttempt(); session.needsFocus = false; session.endAttempt()
+    #expect(!session.needsFocus, "an accepted attempt keeps its writes")
 }

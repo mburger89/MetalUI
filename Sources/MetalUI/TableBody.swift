@@ -289,6 +289,7 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
             // 9b. Cell mode's editor (`TCM-F`): the body's own child, above the cells and under the header, placed by position.
             if let cellContext, let session = cellContext.openSession {
                 editSession = session
+                frame.stateTable.restorable(session)   // `RK-AJ`: this build writes the session's fields
                 let editorID = GlobalElementID.child(of: id, at: 0, name: tableEditorName)
                 session.editorFocused = frame.focusedElement == editorID
                 // The row: the session's position verified with one read, then `tableRowIndex`, then one scan (`TCM-F`).
@@ -498,6 +499,7 @@ struct TableBody<Value: Identifiable>: Element, ProposalElement {
             pass.withState(id, initial: TableViewState()) { $0.refocus = false }
         }
         guard let session = layout.editSession, session.isOpen, layout.editor != nil else { return }
+        frame.stateTable.restorable(session)   // `RK-AJ`: the one-shot flags below are consumed once per attempt
         let editorID = GlobalElementID.child(of: id, at: 0, name: tableEditorName)
         if session.needsSeed {
             session.needsSeed = false
