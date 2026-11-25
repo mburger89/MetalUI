@@ -66,16 +66,36 @@ private func prose(_ words: Int) -> String { (0..<words).map { "token\($0)" }.jo
 @Test func aGrowingTextIsPlacedIntoTheSameGlyphArrayEveryFrame() {
     let system = CoreTextTextSystem()
     let font = system.resolveFont(FontDescriptor(size: 13))
-    func place(_ words: Int) -> Int {
-        system.placeGlyphs(prose(words), font: font, wrappingAt: 400, options: TextLayoutOptions(),
-                           origin: (x: 0, y: 0), scaleFactor: 2).count
+    var blocks: Set<UnsafeRawPointer?> = []
+    func place(_ words: Int) {
+        let glyphs = system.placeGlyphs(prose(words), font: font, wrappingAt: 400, options: TextLayoutOptions(),
+                                        origin: (x: 0, y: 0), scaleFactor: 2)
+        glyphs.withUnsafeBufferPointer { blocks.insert(UnsafeRawPointer($0.baseAddress)) }
     }
-    #expect(place(400) > 0)
+    place(400)
     #expect(system.glyphBuffer.reuses == 0)
-    for words in 401...440 { _ = place(words) }
-    #expect(system.glyphBuffer.reuses >= 35, "reused \(system.glyphBuffer.reuses) of 40")
-    // The text shrinks to a tenth: the big block is let go instead of held.
-    let before = system.glyphBuffer.reuses
-    _ = place(20)
-    #expect(system.glyphBuffer.reuses == before, "a ten-times-smaller text kept the large block")
+    for words in 401...420 { place(words) }
+    // The text grew by about 150 glyphs inside one capacity class: one block, written 21 times. A fresh
+    // array per frame is 21 addresses (a freed block may be handed back, so allow a few).
+    #expect(system.glyphBuffer.reuses == 20, "reused \(system.glyphBuffer.reuses) of 20")
+    #expect(blocks.count <= 2, "\(blocks.count) distinct glyph blocks over 21 frames")
+}
+
+/// A kept block is not held for a text a tenth its size.
+@MainActor
+@Test func theKeptGlyphArrayIsDroppedWhenTheNextTextNeedsUnderAQuarterOfIt() {
+    let system = CoreTextTextSystem()
+    let font = system.resolveFont(FontDescriptor(size: 13))
+    func place(_ words: Int) {
+        _ = system.placeGlyphs(prose(words), font: font, wrappingAt: 400, options: TextLayoutOptions(),
+                               origin: (x: 0, y: 0), scaleFactor: 2)
+    }
+    place(400)
+    place(401)
+    #expect(system.glyphBuffer.reuses == 1)
+    place(20)
+    #expect(system.glyphBuffer.reuses == 1, "a ten-times-smaller text was written into the large block")
+    // And the small request replaced it: the next small text reuses the small block.
+    place(21)
+    #expect(system.glyphBuffer.reuses == 2)
 }

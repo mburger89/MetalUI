@@ -81,11 +81,19 @@ frames, in the same probe: master +39 MiB, #432 +39, this round +38; the floor w
 25 KB reply Alloy measured is not reproduced by paragraph blocks. Probe counters
 (`placeGlyphsCalls`, `placeGlyphsReturned`, `placeGlyphsComputed` on `CoreTextTextSystem`, `package`): in
 that variant **every frame calls `placeGlyphs` for every `Text` on screen (about 205 calls, 30 000 glyphs
-returned), and 2 of them compute a placement; the rest answer from the shape's memo.** So settled
-paragraphs do not re-place, but they still run `prepaint`/`paint` and rebuild their `[TextGlyph]` from the
-memo. Under `.equatable()` on each paragraph the numbers are the same (202 calls, 28 000 glyphs, 2
-computed): the equatable occurrence does not skip a settled `Text`'s glyph work here (the G49b question).
-That conversion (`[TextGlyph]` from `[PlacedGlyph]` per call) is the per-frame cost a graft would remove.
+returned), and 2 of them compute a placement; the rest answer from the shape's memo.** That variant
+had 200 static `Text` rows that were NOT under `.equatable()`: an un-wrapped `Text` runs `prepaint` and
+`paint` every frame and rebuilds its `[TextGlyph]` from the memo (about 2 MB a frame). **Corrected in round 3
+(the first version of this paragraph read the 200 static rows as settled paragraphs and said `.equatable()`
+did not help): with `.equatable()` on every row (40 growing-message paragraphs and the 200 static rows) the
+last frame is 2 `placeGlyphs` calls and 1 710 glyphs (the growing paragraph and the composer), 3 439 calls over
+1500 frames, against 310 638 with the 200 static rows plain and 33 519 / 3 038 for 40 paragraphs alone plain /
+equatable.** `METALUI_TRACE_RETAINED=1` over 500 frames of the fully wrapped variant prints only misses:
+`first-or-dropped` and `noRecord` once per row, `replayDisallowed, quarantine` and `coverage.build` in the
+warm-up frames, `ledgerKey.*` / `key.ambient.clip` with `extras.scroller` on the scroll frames (every 40th),
+`serial` for the growing paragraph. No `recordCannotMove`, `maskStraddlesEntryClip`, `inexactTranslation`
+or `requestRedo` line appeared. So the cost an app sees is a row that is not equatable (Alloy's
+message-block rows must be), not the redo backoff.
 
 ## Not done
 
