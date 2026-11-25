@@ -12,6 +12,7 @@ private typealias MallocLogger = @convention(c) (UInt32, UInt, UInt, UInt, UInt,
 private let mallocLogTypeAllocate: UInt32 = 2
 
 nonisolated(unsafe) private var allocationsSeen = 0
+nonisolated(unsafe) private var bytesSeen = 0
 nonisolated(unsafe) private var countedThread: pthread_t?
 nonisolated(unsafe) private var chainedLogger: MallocLogger?
 
@@ -20,6 +21,7 @@ nonisolated(unsafe) private let countingLogger: MallocLogger = { type, a1, a2, a
     if type & mallocLogTypeAllocate != 0,
        let thread = countedThread, pthread_equal(thread, pthread_self()) != 0 {
         allocationsSeen += 1
+        bytesSeen += Int(a2)
     }
     chainedLogger?(type, a1, a2, a3, result, skip)
 }
@@ -40,6 +42,13 @@ public func countAllocations(_ body: () -> Void) -> Int? {
     slot.pointee = chainedLogger
     countedThread = nil
     return allocationsSeen
+}
+
+/// The allocations and the bytes they asked for that `body` makes on the calling thread (`HP-L`): a pin on a copy's size
+/// reads the bytes, one on how many buffers are made reads the count. `nil` as `countAllocations`.
+public func countAllocatedBytes(_ body: () -> Void) -> (allocations: Int, bytes: Int)? {
+    guard let allocations = countAllocations({ bytesSeen = 0; body() }) else { return nil }
+    return (allocations, bytesSeen)
 }
 
 /// Runs `body` on a second thread and answers the allocations the **calling** thread made meanwhile (the

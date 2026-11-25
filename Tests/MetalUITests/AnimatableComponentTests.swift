@@ -356,7 +356,8 @@ private struct SteadyEquatable: Component, @MainActor Equatable {
     // 322 since the lint pass (record 410): `StateTable.sweep` and `LoweringState.consume` wrote through
     // `dictionary[key]!.field = x`, which allocates per write in the debug build; `index(forKey:)` plus an in-place
     // `values[index]` write does not (-60 and -12), same writes, one lookup instead of three in `consume`.
-    #expect(allocations == 322, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
+    // 319 since the scroll-path pass (record 412, `HP-L`): the scene's arrays start at the last frame's count and grow three times less.
+    #expect(allocations == 319, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
     #endif
     #expect(h.store.vectorTrackRebuilds == 0 && h.store.count == 0, "and no track: \(h.store.vectorTrackRebuilds) \(h.store.count)")
 }
