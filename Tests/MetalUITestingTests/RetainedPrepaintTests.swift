@@ -233,6 +233,10 @@ nonisolated(unsafe) var rpRedoBackoff = true
         // Both windows share one clock: left alone each anchors its `TimelineView` clock to the wall clock at its first
         // non-zero tick, a few ms apart, and a second boundary between the two anchors draws two different dates (`RK-AD`).
         on.window.testingTimelineClockOffset = 0; off.window.testingTimelineClockOffset = 0
+        // The window's first frame ran before the pin, on the simulated clock anchored on `Date()` a few ms apart per window: its timeline text packed the digits of
+        // two different instants (nothing else of the first frame differs), and the digits stay in each atlas, in an order the other window did not pack them.
+        // The atlas starts again from the pinned clock, so the two atlases are the same function of the same frames (`RK-AD`).
+        for w in [on, off] { w.window.testingReclaimAtlas() }
         off.window.testingRetainedSubtrees = false
         on.window.testingRedoBackoff = rpRedoBackoff
         on.window.testingRetainedGraft = graft   // lane 1's pins count a build that runs; lane 2's tests grafts (`RK-B`)

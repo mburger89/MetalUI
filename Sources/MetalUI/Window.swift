@@ -4328,3 +4328,9 @@ private final class ObservationChangeCount: @unchecked Sendable {
 private struct WeakWindow: @unchecked Sendable {
     weak var window: Window?
 }
+
+extension Window {
+    /// Empties the glyph atlas between frames (`GL-A`), so a test that pinned its clock after the first frame can start the atlas again from the pinned frames (`RK-AD`).
+    /// Here, not in `TestingHooks.swift`: `Window.swift` is the one file allowed to call `reclaim()` (`theGlyphAtlasIsReclaimedOnlyAtTheTopOfADraw`).
+    package func testingReclaimAtlas() { glyphAtlas.reclaim() }
+}
