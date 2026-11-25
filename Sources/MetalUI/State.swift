@@ -83,7 +83,10 @@ public struct State<Value> {
         @MainActor var resolvedSlot: GlobalElementID? {
             guard let occurrences, StateDispatch.owner != nil else { return slotID }
             // A slot's parent is its element (`bind`'s `child(of: id, …)`).
-            guard let index = StateDispatch.resolve(among: occurrences.map { $0.parent ?? $0 }) else {
+            guard let index = StateDispatch.resolve(among: occurrences.map { slot in
+                guard let parent = slot.parent else { preconditionFailure("a state slot id is a child of its element") }
+                return parent
+            }) else {
                 return slotID
             }
             return occurrences[index]

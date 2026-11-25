@@ -1729,7 +1729,7 @@ public enum SDLKeys {
     /// Insert and so on, and then it is that key, not a keypad key.
     static func keypadCharacter(scancode: UInt32, keycode: UInt32) -> String? {
         guard let character = keypadScancodes[scancode] else { return nil }
-        guard let plain = character.unicodeScalars.first?.value else { return nil }
+        guard let plain = character.unicodeScalars.first?.value else { preconditionFailure("keypad characters are never empty") }
         guard keycode == 0x4000_0000 | scancode || keycode == plain else { return nil }
         return character
     }

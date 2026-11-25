@@ -160,7 +160,10 @@ public final class SingleInstance: @unchecked Sendable, Hashable {
         guard mui_instance_next(handle, &strings, &count) else { return nil }
         defer { mui_instance_free_message(strings, count) }
         guard let strings else { return [] }
-        return (0..<Int(count)).compactMap { index in strings[index].map { String(cString: $0) } }
+        return (0..<Int(count)).map { index in
+            guard let entry = strings[index] else { preconditionFailure("a forwarded message holds no null strings") }
+            return String(cString: entry)
+        }
     }
 
     /// Every queued message (a test's read-back).

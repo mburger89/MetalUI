@@ -17,7 +17,7 @@ public enum TerminalEncoder {
         if mods.contains(.command) { return [] }
         let shift = mods.contains(.shift), ctrl = mods.contains(.control), alt = mods.contains(.option)
         let scalars = key.key.unicodeScalars
-        let code = scalars.count == 1 ? (scalars.first?.value ?? 0) : 0
+        let code = (scalars.count == 1 ? scalars.first?.value : nil) ?? 0
 
         // xterm modifier parameter: 1 + shift + 2 alt + 4 ctrl.
         let param = 1 + (shift ? 1 : 0) + (alt ? 2 : 0) + (ctrl ? 4 : 0)

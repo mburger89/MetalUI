@@ -471,7 +471,7 @@ public final class CodeBuffer {
             return inverses
         }
         // Many edits close together: one splice of their span instead of one rope edit each.
-        guard let lastStep = steps.last, let firstStep = steps.first else { return [] }   // `steps.count > 1` above
+        guard let lastStep = steps.last, let firstStep = steps.first else { preconditionFailure("`steps.count > 1` above") }
         let spanLo = lastStep.range.lowerBound, spanHi = firstStep.range.upperBound
         let inverses: [CodeInverse]
         if descending, steps.count >= 32, spanHi - spanLo <= steps.count * 256 {
@@ -488,7 +488,7 @@ public final class CodeBuffer {
     /// splice over their span: every event's position, old text and log entry are read from the text before
     /// the splice, which is what each saw in turn (an edit only changes the text above it).
     private func applySpliced(_ steps: [(range: Range<Int>, text: String)], origin: CodeEditOrigin, transaction tx: CodeTransactionID) -> [CodeInverse] {
-        guard let lastStep = steps.last, let firstStep = steps.first else { return [] }   // callers pass 32 or more
+        guard let lastStep = steps.last, let firstStep = steps.first else { preconditionFailure("callers pass 32 steps or more") }
         let spanLo = lastStep.range.lowerBound, spanHi = firstStep.range.upperBound
         let original = CodeSnapshot(rope: rope, version: version)
         var spliced: [UInt8] = []

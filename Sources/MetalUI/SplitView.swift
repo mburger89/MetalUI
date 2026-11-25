@@ -67,9 +67,9 @@ enum SplitSolver {
     /// the same groups in the same order, never below a minimum (minimums that do not fit overflow).
     static func solve(_ panes: [SplitPaneLimits], preferred: [Double]?, available: Double) -> [Double] {
         guard !panes.isEmpty else { return [] }
-        let usePreferred = preferred?.count == panes.count
+        let preferredSizes = preferred?.count == panes.count ? preferred : nil
         var sizes = panes.indices.map { index -> Double in
-            let want = usePreferred ? (preferred?[index] ?? panes[index].ideal) : panes[index].ideal
+            let want = preferredSizes?[index] ?? panes[index].ideal
             return Swift.min(Swift.max(want, panes[index].minimum), panes[index].maximum)
         }
         var delta = available - sizes.reduce(0, +)
