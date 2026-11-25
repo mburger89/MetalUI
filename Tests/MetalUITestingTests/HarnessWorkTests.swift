@@ -120,8 +120,10 @@ private struct HarnessSettling: Component {
     // root whole, so a warm drag frame (the `.offset` registers no node; same tree,
     // same proposal, same bounds) is one build and NO layout work, and the press
     // frame, whose V2 is V1 by signature, misses only the proposals V1 was not
-    // asked at (measured: 25 misses, 44 hits, 0 calls; was 67 / 78 / 6).
-    let pressFrame = [1, 0, 44, 25]
+    // asked at (measured: 25 misses, 44 hits, 0 calls; was 67 / 78 / 6). `HS-M` (record
+    // 413): a stack no longer measures a fixed frame for its flexibility probes, so the
+    // same frame is 17 misses and 24 hits.
+    let pressFrame = [1, 0, 24, 17]
     let perFrame = [1, 0, 0, 0]
     func layout(_ work: FrameWork) -> [Int] {
         [work.builds, work.layoutMeasureCalls, work.layoutCacheHits, work.layoutCacheMisses]
