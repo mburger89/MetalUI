@@ -53,7 +53,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-13-incremental-invalidation-decisions.md`, next `IV-T`), `SB-` (retained subtrees:
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AH`), `RK-` (retained build skip, prepaint replay, the graft:
   `2026-10-13-retained-build-skip-decisions.md`, next `RK-AI`), `HP-` (hot paths:
-  `2026-10-13-hot-paths-decisions.md`, next `HP-N`), `CW-` (window chrome on SDL:
+  `2026-10-13-hot-paths-decisions.md`, next `HP-O`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
   `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-T`), `CB-` (clipboard beyond text:

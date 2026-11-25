@@ -75,5 +75,7 @@ func aLongerTranscriptCostsTheSameStreamedFrame() async throws {
 // at 20 and 100 rows) 39 and 44 MB, 28 and 30 large requests. The ceilings sit about 2.5 % over.
 private let g51ByteCeiling = 20_650_000.0
 private let g51LargeCeiling = 7.4
-private let g51LargeByteCeiling = 7_050_000.0
+// Record 422 (`HP-N`): the scene's arrays reserve a size class, up to an eighth over, so the large bytes read 7.07 MB (the bytes are
+// not the lever there, the sizes are: `G52StreamingCapacityTests`).
+private let g51LargeByteCeiling = 7_250_000.0
 private let g51AllocationCeiling = 176_500.0
