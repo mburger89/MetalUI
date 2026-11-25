@@ -3084,7 +3084,26 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         // `HP-L`: the scene's rect and glyph arrays, an eighth over for a frame that draws a little more.
         scene.reserveCapacity(rects: capacityHints.sceneRects + capacityHints.sceneRects / 8,
                               glyphs: capacityHints.sceneGlyphs + capacityHints.sceneGlyphs / 8)
+        self.scopeCaptureHints = capacityHints.scopeCaptures   // `G51`
         self.startCapacities = currentCapacities()
+    }
+
+    /// The previous frame's collected counts of its first composite and mask scopes (`G51`), and this frame's, by opening order.
+    private var scopeCaptureHints: [Int] = []
+    private(set) var scopeCaptureCounts: [Int] = []
+
+    /// Opens `scope`'s capture array with the room the same-numbered scope of the last frame filled (`G51`), and answers its number.
+    func reserveCaptures(of scope: PaintScope) -> Int {
+        let ordinal = scopeCaptureCounts.count
+        guard ordinal < FrameCapacityHints.maxScopeHints else { return -1 }
+        scopeCaptureCounts.append(0)
+        if ordinal < scopeCaptureHints.count, scopeCaptureHints[ordinal] > 0 { scope.captures.reserveCapacity(scopeCaptureHints[ordinal]) }
+        return ordinal
+    }
+
+    /// Notes what `scope` collected under the number `reserveCaptures(of:)` gave it.
+    func noteCaptured(_ count: Int, ordinal: Int) {
+        if ordinal >= 0 { scopeCaptureCounts[ordinal] = count }
     }
 
     /// The capacities this frame's hot stores started with (`HP-K`); read by the test that pins the seeding.
@@ -3094,7 +3113,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     func capacityHints() -> FrameCapacityHints {
         FrameCapacityHints(tree: tree.capacityHint, focus: focusRegistry.countHint, hitboxes: hitboxes.count,
                            selectableRegions: selectableTextRegions.count, loweringItems: lowering.items.count, elementBounds: elementBounds.count,
-                           axNodes: axNodes.count, sceneRects: scene.rects.count, sceneGlyphs: scene.glyphs.count)
+                           axNodes: axNodes.count, sceneRects: scene.rects.count, sceneGlyphs: scene.glyphs.count,
+                           scopeCaptures: scopeCaptureCounts)
     }
 
     /// The capacities the hot stores have now (not their counts).
@@ -3102,7 +3122,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         FrameCapacityHints(tree: tree.capacities, focus: focusRegistry.capacityHint, hitboxes: hitboxes.capacity,
                            selectableRegions: selectableTextRegions.capacity, loweringItems: min(lowering.items.capacity, lowering.order.capacity),
                            elementBounds: elementBounds.capacity, axNodes: axNodes.capacity,
-                           sceneRects: scene.rects.capacity, sceneGlyphs: scene.glyphs.capacity)
+                           sceneRects: scene.rects.capacity, sceneGlyphs: scene.glyphs.capacity,
+                           scopeCaptures: scopeCaptureHints)
     }
 
     // MARK: - Lowering diagnostics (plan task 7, rulings LR-C, LR-D)
@@ -4226,8 +4247,26 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     }
 
     /// `body`'s scene insertions collected into a fresh `Scene` instead of the frame's (`GF-B`); not finalized.
-    func collectingIntoFreshScene(_ body: () -> Void) -> Scene {
+    func collectingIntoFreshScene(reserving primitives: [CapturedPrimitive] = [], _ body: () -> Void) -> Scene {
         var inner = Scene()
+        // The group's rects and glyphs are known before they are inserted: one allocation each, not a doubling run (`G51`).
+        if !primitives.isEmpty {
+            var rects = 0, glyphs = 0
+            // A `while`: a `for` over an array allocates once per element in a debug build (`CV-R`). A primitive in a deeper group
+            // lands in that group's scene.
+            var index = 0
+            while index < primitives.count {
+                if primitives[index].groups.isEmpty {
+                    switch primitives[index].kind {
+                    case .rect: rects += 1
+                    case .glyph: glyphs += 1
+                    default: break
+                    }
+                }
+                index += 1
+            }
+            inner.reserveCapacity(rects: rects, glyphs: glyphs)
+        }
         swap(&scene, &inner)
         body()
         swap(&scene, &inner)
@@ -4237,7 +4276,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// One offscreen group (`GO-C`): `children` rendered into a scene of their own, boxed, and that scene drawn back as
     /// one quad at `alpha`.
     private func insertGroup(_ children: [CapturedPrimitive], alpha: Float) {
-        var inner = collectingIntoFreshScene { insertLeaves(children) }
+        var inner = collectingIntoFreshScene(reserving: children) { insertLeaves(children) }
         guard let painted = inner.paintedBounds() else { return }
         let limitX = Float(contentSize.width.value * scaleFactor), limitY = Float(contentSize.height.value * scaleFactor)
         // One pixel of anti-aliasing around the painted box, floored and ceiled without libm, cut by the target.
@@ -4439,8 +4478,13 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
 
     /// Opens a text draw's leaf group; nothing when no paint scope is open
     /// (the emitters then insert directly, as they always did).
-    func beginLeafGroup() {
-        leafGroup = paintScopes.isEmpty ? nil : []
+    /// `count` is how many primitives the draw will emit when it knows: the group then holds exactly that and is never
+    /// regrown by appending, and a record that keeps the leaf keeps no spare capacity (`G51`).
+    func beginLeafGroup(reserving count: Int = 0) {
+        guard !paintScopes.isEmpty else { leafGroup = nil; return }
+        var group: [CapturedPrimitive] = []
+        if count > 0 { group.reserveCapacity(count) }
+        leafGroup = group
     }
 
     /// Sends the group's glyphs through the scopes as one leaf.
@@ -5202,6 +5246,11 @@ struct FrameCapacityHints: Equatable {
     var axNodes = 0
     var sceneRects = 0
     var sceneGlyphs = 0
+    /// How many primitives each of the frame's first `FrameCapacityHints.maxScopeHints` composite and mask scopes collected, in the
+    /// order they opened (`G51`): the next frame opens its n-th such scope with that room, so a scope that gathers a whole
+    /// viewport of glyphs is not grown by doubling through four or five copies of its array.
+    var scopeCaptures: [Int] = []
+    static let maxScopeHints = 64
 }
 
 // MARK: - Restoring scopes (`KF-AM`, `MN-AS`)

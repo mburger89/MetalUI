@@ -15,6 +15,7 @@ extension PaintPass {
         frame.beginLeafGroup()
         defer { frame.endLeafGroup() }
         var ink: [CapturedPrimitive] = []
+        ink.reserveCapacity(glyphs.underestimatedCount)
         for glyph in glyphs { if let primitive = frame.inkGlyph(glyph, color: color) { ink.append(primitive) } }
         drawGradientInk(ink, fill: fill)
     }

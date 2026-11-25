@@ -75,17 +75,7 @@ public final class ShapingCache {
         }
     }
 
-    /// A cached value stamped with the generation it was last touched in —
-    /// hit or inserted — so ``endFrame()`` can tell "used this frame, or
-    /// recently enough" from "stale" without a second, parallel dictionary to
-    /// keep in sync. Generic so the sweep in ``endFrame()`` is one function
-    /// (it served a second, min-content, dictionary until stage 9).
-    private struct Entry<Value> {
-        var value: Value
-        var generation: Int
-    }
-
-    private var storage: [Key: Entry<ShapedText>] = [:]
+    private var storage = BoundedTable<Key, ShapedText>()
 
     /// A styled text's key (ruling RT-F item 5): the whole `StyledText` value
     /// — string and runs, each run's resolved face, kerning, tracking and
@@ -108,12 +98,54 @@ public final class ShapingCache {
 
     /// Styled shapes, in their own dictionary under the same sweep (RT-F item
     /// 5); a lookup counts in ``hits``/``misses`` like a plain one.
-    private var styledStorage: [StyledKey: Entry<StyledShapedText>] = [:]
+    private var styledStorage = BoundedTable<StyledKey, StyledShapedText>()
 
-    /// Records a shape that never reaches this cache (`caretOffsets`), for the trace's `uncached:` list.
+    /// Records a shape that never reaches this cache, for the trace's `uncached:` list. Nothing in `Sources/` calls it since
+    /// `caretOffsets` joined the cache (`TS-F`); a system that shapes outside the cache still can.
     func traceBypass(_ entry: @autoclosure () -> String) {
         if ShapingTrace.active { trace.bypass(entry()) }
     }
+
+    /// The key of a string's caret offsets: the string and the font, the two things `Shaper.caretOffsets` reads (it is one
+    /// unwrapped line, so no width and no options).
+    private struct CaretKey: Hashable {
+        var string: String
+        var font: FontKey
+    }
+
+    /// Caret offsets by `(string, font)`, the same generation stamps and the same bounds as `storage` (`TS-F`).
+    private var caretStorage = BoundedTable<CaretKey, [Double]>()
+
+    /// Caret lookups answered from `caretStorage`, and computed by `Shaper.caretOffsets`. Counted apart from ``hits`` and
+    /// ``misses`` so a pin on shaped lookups does not move when a text field reads its offsets.
+    private(set) var caretHits = 0
+    package private(set) var caretMisses = 0
+
+    /// `Shaper.caretOffsets(_:font:)`, once per `(string, font)` while the string is in use (`TS-F`): a field reads its offsets
+    /// in prepaint and again in paint, and a key stroke changes the string once, so the line is typeset once per stroke, not
+    /// twice. The empty string is `[0]` without a lookup, a trace line or a typesetter.
+    public func caretOffsets(_ string: String, font: ResolvedFont) -> [Double] {
+        guard !string.isEmpty else { return [0] }
+        registerFont(font)
+        let key = CaretKey(string: string, font: font.key)
+        if let idx = caretStorage.dict.index(forKey: key) {
+            caretHits += 1
+            if ShapingTrace.active { trace.hit() }
+            caretStorage.dict.values[idx].generation = currentGeneration
+            return caretStorage.dict.values[idx].value
+        }
+        caretMisses += 1
+        if ShapingTrace.active {
+            trace.miss(ShapingTrace.quoted(string) + "(caretOffsets " + ShapingTrace.describe(font.key) + ")")
+        }
+        let offsets = Shaper.caretOffsets(string, font: font)
+        caretStorage.insert(key, offsets, generation: currentGeneration, cost: TextCacheBudget.weight(of: string))
+        trimInFrame()
+        return offsets
+    }
+
+    /// Entry count of the caret dictionary, for tests.
+    package var caretStorageCount: Int { caretStorage.dict.count }
 
     /// The font last registered under each key, for ``font(for:)``.
     ///
@@ -157,8 +189,8 @@ public final class ShapingCache {
     /// see whether the cache is a cache — a ``shaped(_:font:wrappingAt:)``
     /// that never stores would leave every other behavioural test green while
     /// shaping on every single call. Pinned by `theCacheIsActuallyConsulted`.
-    private(set) var hits = 0
-    private(set) var misses = 0
+    package private(set) var hits = 0
+    package private(set) var misses = 0
 
     /// This frame's lookups for `METALUI_TRACE_SHAPING` (`TS-E`): written only while ``ShapingTrace/active``, written out and
     /// cleared by ``endFrame()``.
@@ -170,7 +202,10 @@ public final class ShapingCache {
     var lookups: Int { hits + misses }
 
     /// Entry count, for tests. `storage` stays private.
-    var storageCount: Int { storage.count }
+    package var storageCount: Int { storage.dict.count }
+
+    /// Entry count of the styled dictionary, for tests.
+    package var styledStorageCount: Int { styledStorage.dict.count }
 
     /// True for the duration of one frame's layout-and-paint construction —
     /// the same shape as `GlyphAtlas.isBuildingFrame` and
@@ -200,7 +235,8 @@ public final class ShapingCache {
     private static let staleAfterGenerations = 2
 
     /// The per-dictionary size `endFrame()`'s sweep triggers on — **a
-    /// trigger, not a ceiling.** `sweep(_:)` guards on `dict.count >
+    /// trigger, not a ceiling** (the ceiling is ``entryLimit``/``costLimit``, `TS-F`, applied after this sweep).
+    /// `sweep(_:)` guards on `dict.count >
     /// sweepThreshold` and then removes only *stale* entries, so
     /// `count <= sweepThreshold` is not an invariant this type enforces: a
     /// workload whose live, every-frame-touched working set is itself over
@@ -250,7 +286,38 @@ public final class ShapingCache {
     static let sweepThreshold = 256
 
     /// An empty cache.
-    public init() {}
+    public convenience init() { self.init(entryLimit: TextCacheBudget.entries, costLimit: TextCacheBudget.cost) }
+
+    /// A cache with its own budget, for a test that has to cross it without shaping thousands of strings.
+    package init(entryLimit: Int, costLimit: Int) {
+        precondition(entryLimit > 0 && costLimit > 0, "a cache bound is positive")
+        self.entryLimit = entryLimit
+        self.costLimit = costLimit
+    }
+
+    /// The most **stale** entries, and the most stale weight (`TextCacheBudget/weight(of:)`), that `storage`, `styledStorage`
+    /// and `caretStorage` hold **together** after a frame (`TS-F`, record 411; `TS-G`, record 421): entries neither the current
+    /// nor the previous frame touched. Over it, ``endFrame()`` evicts the least recently touched first across all three; the
+    /// entries those two frames touched are the working set and stay however many there are. Inside a frame an eviction runs
+    /// once the stale entries are a quarter over.
+    let entryLimit: Int
+    let costLimit: Int
+
+    /// Entries evicted over the cache's life, by the sweep and the bound, for tests and probes.
+    package private(set) var evictionCount = 0
+
+    /// Entries, and weight, held across the three tables.
+    package var heldEntryCount: Int { heldEntries }
+    private var heldEntries: Int { storage.count + styledStorage.count + caretStorage.count }
+    private var heldCost: Int { storage.cost + styledStorage.cost + caretStorage.cost }
+
+    /// What the last finished frame touched, across the three tables: its distinct entries and their weight. The live set
+    /// the budget is sized from; a scan, so for tests and probes.
+    package func liveSet() -> (entries: Int, cost: Int) {
+        let tables = [storage.live(in: currentGeneration), styledStorage.live(in: currentGeneration),
+                      caretStorage.live(in: currentGeneration)]
+        return (tables.reduce(0) { $0 + $1.entries }, tables.reduce(0) { $0 + $1.cost })
+    }
 
     /// Makes `font` reachable by its ``FontKey`` from inside a later
     /// `MainActor.assumeIsolated` block, for a caller (Task 4's measure
@@ -344,8 +411,11 @@ public final class ShapingCache {
     /// guard argument, which relies on `fonts` never losing an entry.
     private var resolvedFonts: [FontRequest: ResolvedFont] = [:]
 
+    /// Entry count of the registered-font map, for tests.
+    package var registeredFontCount: Int { fonts.count }
+
     /// Entry count for the font memo, for tests.
-    var resolvedFontCount: Int { resolvedFonts.count }
+    package var resolvedFontCount: Int { resolvedFonts.count }
 
     /// ``FontResolver/resolve(family:size:)``, memoized per request.
     ///
@@ -407,18 +477,19 @@ public final class ShapingCache {
         // frame from the second hash lookup and the copy. `index(forKey:)`
         // hashes once; `values[idx]` addresses the bucket directly for both
         // the re-stamp and the read below.
-        if let idx = storage.index(forKey: key) {
+        if let idx = storage.dict.index(forKey: key) {
             hits += 1
             if ShapingTrace.active { trace.hit() }
-            storage.values[idx].generation = currentGeneration
-            return storage.values[idx].value
+            storage.dict.values[idx].generation = currentGeneration
+            return storage.dict.values[idx].value
         }
 
         misses += 1
         if ShapingTrace.active { trace.miss(ShapingTrace.entry(string, font: font.key, width: width, options: options)) }
         let result = options == TextLayoutOptions() ? Shaper.shape(string, font: font, wrappingAt: width)
             : Shaper.shape(string, font: font, wrappingAt: width, options: options)
-        storage[key] = Entry(value: result, generation: currentGeneration)
+        storage.insert(key, result, generation: currentGeneration, cost: TextCacheBudget.weight(of: string))
+        trimInFrame()
         return result
     }
 
@@ -429,16 +500,17 @@ public final class ShapingCache {
                 options: TextLayoutOptions) -> StyledShapedText {
         for font in fonts { registerFont(font) }
         let key = StyledKey(text: text, width: width, options: options)
-        if let idx = styledStorage.index(forKey: key) {
+        if let idx = styledStorage.dict.index(forKey: key) {
             hits += 1
             if ShapingTrace.active { trace.hit() }
-            styledStorage.values[idx].generation = currentGeneration
-            return styledStorage.values[idx].value
+            styledStorage.dict.values[idx].generation = currentGeneration
+            return styledStorage.dict.values[idx].value
         }
         misses += 1
         if ShapingTrace.active { trace.miss(ShapingTrace.entry(text, width: width, options: options)) }
         let result = StyledShaper.shape(text, fonts: fonts, wrappingAt: width, options: options)
-        styledStorage[key] = Entry(value: result, generation: currentGeneration)
+        styledStorage.insert(key, result, generation: currentGeneration, cost: TextCacheBudget.weight(of: text.string))
+        trimInFrame()
         return result
     }
 
@@ -484,8 +556,14 @@ public final class ShapingCache {
         precondition(isBuildingFrame, "endFrame called without a matching beginFrame")
         isBuildingFrame = false
         if ShapingTrace.active { trace.finish(frame: currentGeneration, system: "coretext") }
+        let before = heldEntries
         sweep(&storage)
         sweep(&styledStorage)
+        sweep(&caretStorage)
+        evictionCount += before - heldEntries
+        bound()
+        armedEntries = 0
+        armedCost = 0
     }
 
     /// Ends a frame that is built again (`GL-K`): closes the bracket and gives the generation back, with no sweep and no trace line. An entry the
@@ -495,18 +573,47 @@ public final class ShapingCache {
         precondition(isBuildingFrame, "abandonFrame called without a matching beginFrame")
         isBuildingFrame = false
         currentGeneration -= 1
+        armedEntries = 0   // as `endFrame()`: the redo's frame arms its own in-frame trims
+        armedCost = 0
     }
 
-    /// Drops every entry untouched for ``staleAfterGenerations``, but only
-    /// once `dict` is over ``sweepThreshold`` — see ``sweepThreshold``'s own
-    /// doc comment for why that makes this a trigger rather than a target
-    /// size, and ``endFrame()``'s for why a dictionary can run it safely
-    /// where the atlas cannot.
-    private func sweep<Key: Hashable, Value>(_ dict: inout [Key: Entry<Value>]) {
-        guard dict.count > Self.sweepThreshold else { return }
-        let cutoff = currentGeneration - Self.staleAfterGenerations
-        for (key, entry) in dict where entry.generation < cutoff {
-            dict.removeValue(forKey: key)
-        }
+    /// Runs an eviction inside a frame once the stale entries of the three tables together are a quarter over their budget: a
+    /// frame that misses ten thousand distinct strings is the working set and is kept, but a frame that pushes old entries
+    /// out past the budget does not hold them until it ends. A scan finds the stale entries, so after one that evicts nothing
+    /// the next waits for a quarter-budget more inserts: a large working set costs one scan per quarter-budget of misses.
+    private func trimInFrame() {
+        guard heldEntries > max(TextCacheBudget.inFrameLimit(entryLimit), armedEntries)
+                || heldCost > max(TextCacheBudget.inFrameLimit(costLimit), armedCost) else { return }
+        bound()
+        armedEntries = heldEntries + entryLimit / 4
+        armedCost = heldCost + costLimit / 4
+    }
+
+    private var armedEntries = 0
+    private var armedCost = 0
+
+    /// Evicts the least recently touched **stale** entries of the three tables, oldest generation first, until the stale ones
+    /// are within the budget. Entries the current or the previous frame touched are the working set and are never evicted
+    /// (`TS-G`): bounding them is what made a window with several large views re-shape every frame (record 421).
+    private func bound() {
+        let before = heldEntries
+        defer { evictionCount += before - heldEntries }
+        let protectedFrom = currentGeneration - 1
+        var stamps: [(generation: Int, cost: Int)] = []
+        storage.appendStaleStamps(to: &stamps, before: protectedFrom)
+        styledStorage.appendStaleStamps(to: &stamps, before: protectedFrom)
+        caretStorage.appendStaleStamps(to: &stamps, before: protectedFrom)
+        guard let cut = TextCacheBudget.cut(&stamps, entries: entryLimit, cost: costLimit) else { return }
+        let share = TextCacheBudget.shares(of: cut.allowance, among: [storage.count(inGeneration: cut.generation),
+                                                                      styledStorage.count(inGeneration: cut.generation),
+                                                                      caretStorage.count(inGeneration: cut.generation)])
+        storage.evict(olderThan: cut.generation, andUpTo: share[0])
+        styledStorage.evict(olderThan: cut.generation, andUpTo: share[1])
+        caretStorage.evict(olderThan: cut.generation, andUpTo: share[2])
+    }
+
+    private func sweep<K: Hashable, V>(_ table: inout BoundedTable<K, V>) {
+        guard table.count > Self.sweepThreshold else { return }
+        table.removeOlder(than: currentGeneration - Self.staleAfterGenerations)
     }
 }

@@ -308,6 +308,15 @@ enum StyledShaper {
             resolved[id] = made
             return made
         }
+        var placedFonts: [FontKey: PlacedFont] = [:]
+        var lastPlacedFont: PlacedFont?
+        func placedFont(_ font: ResolvedFont) -> PlacedFont {
+            if let last = lastPlacedFont, last.font.key == font.key { return last }
+            let box = placedFonts[font.key] ?? PlacedFont(font)
+            placedFonts[font.key] = box
+            lastPlacedFont = box
+            return box
+        }
         for (index, line) in shaped.lines.enumerated() {
             let box = shaped.measurement.lines[index]
             let baseline = origin.y + box.top + shaped.ascents[index]
@@ -324,7 +333,7 @@ enum StyledShaper {
                 placed.append((PlacedGlyph(key: GlyphKey(font: font.key, glyph: glyph.glyph,
                                                          size: Double(CTFontGetSize(font.ctFont)),
                                                          subpixelVariant: placement.variant, scaleFactor: scaleFactor),
-                                           font: font, pixelX: placement.pixelX, baselineY: y), glyph.run))
+                                           placedFont: placedFont(font), pixelX: placement.pixelX, baselineY: y), glyph.run))
                 if glyph.glyph != 0xFFFF {
                     pens.append(StyledTextLines.Pen(x: glyph.x, advance: glyph.advance, run: glyph.run, isWhitespace: false))
                 }

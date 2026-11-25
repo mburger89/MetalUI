@@ -268,37 +268,43 @@ private final class WidthModel {
 /// closure). `R` → `O` → `SC` at (200, 100): 3 misses. `SC` probes `S1` and `S2`
 /// at (200, ∞) and (200, 0), then offers `S1` 50 (→ 20 tall) and `S2` 80.
 ///
-/// - `S1` at (200, c): its miss, then `Fa` and `Fb` each at (∞, c), (0, c) and
-///   their offers (100, c) / (190, c) — 6 misses — each asking its leaf at its
-///   fixed size (6 lookups). At c = ∞ the two leaves miss and are called once
-///   each: **9 misses, 4 hits, 2 calls**; at c = 0 and 50: **7 misses, 6 hits**.
-///   Total 23 / 16 / 2.
-/// - `S2` at (200, c), with c′ = max(0, c − 8): its miss; `Fc` at (∞, c), (0, c),
-///   (100, c) — 3 misses, 3 leaf lookups; `P` at (∞, c), (0, c), (180, c), each a
-///   chain `P` → `SP` (∞ / 0 / 172, c′) → `SB` → `Fd` — 12 misses, 3 leaf lookups.
-///   At c = ∞: **18 misses, 4 hits, 2 calls**; at c = 0 and 80 (c′ 0, 72): **16
-///   misses, 6 hits**. Total 50 / 16 / 2.
+/// **`HS-M` (record 413): a stack's flexibility probe of a frame that no child can
+/// change measures nothing.** `Fa`, `Fb`, `Fc` are fixed-size frames: their answers at
+/// (∞, c) and (0, c) are their own size, so `S1` and `S2` do not measure them there (the
+/// derivation below counted each of those probes as a miss and its leaf lookup as a
+/// hit: 118 misses and 94 hits before). `P` is padding, so its probes are measured as
+/// ever.
 ///
-/// Measurement: **76 misses, 32 hits, 4 calls.**
+/// - `S1` at (200, c): its miss, then `Fa` and `Fb` at their offers (100, c) / (190, c)
+///   only — 3 misses — each asking its leaf at its fixed size (2 lookups). At c = ∞ the
+///   two leaves miss and are called once each: **5 misses, 0 hits, 2 calls**; at c = 0
+///   and 50: **3 misses, 2 hits**. Total 11 / 4 / 2.
+/// - `S2` at (200, c), with c′ = max(0, c − 8): its miss; `Fc` at its offer (100, c) —
+///   1 miss, 1 leaf lookup; `P` at (∞, c), (0, c), (180, c), each a
+///   chain `P` → `SP` (∞ / 0 / 172, c′) → `SB` → `Fd` — 12 misses, 3 leaf lookups.
+///   At c = ∞: **16 misses, 2 hits, 2 calls**; at c = 0 and 80 (c′ 0, 72): **14
+///   misses, 4 hits**. Total 44 / 10 / 2.
+///
+/// Measurement: **58 misses, 14 hits, 4 calls.**
 ///
 /// **Placement.** `R` re-asks `O` (1 hit) and places it at its answer, 40×38 (the
 /// row widths 40 and 38; heights 20 + 18). `O` proposes `SC` its own size, (40, 38):
 /// a new key, so `SC` is solved again —
 ///
-/// - `S1` at (40, ∞) and (40, 0): the four probes hit, `Fa` (20, c) and `Fb` (30, c)
-///   miss, their leaves hit: 3 misses, 6 hits each; `S1` at (40, 19), a new cross:
-///   7 misses, 6 hits;
-/// - `S2` at (40, ∞) and (40, 0): four probe hits, `Fc` (20, c) misses, the chain
-///   `P` (20, c) → `SP` (12, c′) → `SB` → `Fd` misses 4, two leaf hits: 6 misses,
-///   6 hits each; `S2` at (40, 18), c′ = 10: 16 misses, 6 hits;
+/// - `S1` at (40, ∞) and (40, 0): `Fa` (20, c) and `Fb` (30, c) miss, their leaves
+///   hit: 3 misses, 2 hits each; `S1` at (40, 19), a new cross: 3 misses, 2 hits;
+/// - `S2` at (40, ∞) and (40, 0): the two probes of `P` hit, `Fc` (20, c) misses, the
+///   chain `P` (20, c) → `SP` (12, c′) → `SB` → `Fd` misses 4, two leaf hits: 6 misses,
+///   4 hits each; `S2` at (40, 18), c′ = 10: 14 misses, 4 hits;
 ///
-/// with `SC`'s own miss: **42 misses, 36 hits**. Then placing `SC` re-solves at
-/// (40, 38): 6 hits; `S1` re-solves at (40, 19): 6 hits, and its frames re-ask
-/// their leaves: 2; `S2` re-solves at (40, 18): 6 hits, `Fc`'s leaf 1, `P` asks `SP`
-/// at (12, 10), `SP` asks `SB`, `SB` asks `Fd`, `Fd` asks `Ld`: 4. Placement: **42
-/// misses, 62 hits, 0 calls.**
+/// with `SC`'s own miss: **36 misses, 18 hits**. Then placing `SC` re-solves at
+/// (40, 38): 6 hits; `S1` re-solves at (40, 19): 2 hits (its offers), and its frames
+/// re-ask their leaves: 2; `S2` re-solves at (40, 18): 4 hits (`P`'s two probes and the
+/// two offers), `Fc`'s leaf 1, `P` asks `SP`
+/// at (12, 10), `SP` asks `SB`, `SB` asks `Fd`, `Fd` asks `Ld`: 4. Placement: **36
+/// misses, 38 hits, 0 calls.**
 ///
-/// **Totals: 118 misses, 94 hits, 4 calls.**
+/// **Totals: 94 misses, 52 hits, 4 calls.**
 ///
 /// Mutation that must redden it: **M5f**, every lowered node wrapped in an extra
 /// native `padding(0)` (the node count and every figure move).
@@ -313,8 +319,8 @@ private final class WidthModel {
     try #require(frame.unlowerableFields.isEmpty, "\(frame.unlowerableFields)")
     #expect(frame.tree.nodeCount == 16)
     let work = frame.tree.lastNativeLayoutWork
-    #expect(work.cacheMisses == 118, "cacheMisses")
-    #expect(work.cacheHits == 94, "cacheHits")
+    #expect(work.cacheMisses == 94, "cacheMisses")
+    #expect(work.cacheHits == 52, "cacheHits")
     #expect(work.measureCalls == 4, "measureCalls")
     // The placement the derivation assumed: the column 40×38, the second row at
     // (1, 20), the padded box's frame at (25, 24).

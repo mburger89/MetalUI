@@ -87,7 +87,7 @@ extension PaintPass {
     /// Emits one text draw's glyphs as one leaf (`GX-J`; SH4, SH5e): a shadow
     /// scope shadows the whole run once, not glyph by glyph.
     func drawGlyphs<S: Sequence>(_ glyphs: S, color: Hsla) where S.Element == TextGlyph {
-        frame.beginLeafGroup()
+        frame.beginLeafGroup(reserving: glyphs.underestimatedCount)
         for glyph in glyphs { frame.draw(glyph, color: color) }
         frame.endLeafGroup()
     }
