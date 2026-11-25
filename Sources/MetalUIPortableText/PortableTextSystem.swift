@@ -203,6 +203,9 @@ public final class PortableTextSystem: TextSystem {
     /// Starts a frame for the cache's sweep bookkeeping.
     public func beginFrame() { generation += 1 }
 
+    /// Ends a frame that is built again (`GL-K`): the generation goes back and nothing is dropped.
+    public func abandonFrame() { generation -= 1 }
+
     /// Drops measurements no frame has asked for since the previous one — the
     /// same two-frame lifetime `ShapingCache` gives its working set (`TS-G`: there is no stale entry here for a budget to bound).
     public func endFrame() {

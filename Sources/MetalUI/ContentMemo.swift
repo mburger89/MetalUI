@@ -230,6 +230,10 @@ package final class ContentMemoStore {
     var buildSerial = 0
     var prepaintSuspendedUntil = 0
     var redoInProgress = false
+    /// The entries a paint record was made for while an attempt was open (`GL-K`): a rollback clears them, because the record holds the atlas
+    /// slots of glyphs the attempt packed and the rollback forgets. Appended only while `recordsAttempt`; a new record is the rare case.
+    var recordsAttempt = false
+    var attemptRecorded: [Entry] = []
     /// Whether a window drives this store's frames and so builds an abandoned frame again (`RK-D`): a bare
     /// `Frame.render` has no one to redo it, so it never replays a prepaint.
     var windowRedoes = false

@@ -2274,10 +2274,18 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
 
     /// `RK-AI`: puts the state table back as the abandoned attempt found it; a test that asked records its digest before the attempt (`before`),
     /// as the attempt left it and after the rollback.
-    private func rollBackAttempt(recordingFrom before: [String]?) {
-        let during = before == nil ? nil : stateTable.attemptDigest
-        stateTable.rollbackAttempt()
-        if let before, let during { testingRollbackDigests?.append((before: before, during: during, after: stateTable.attemptDigest)) }
+    @discardableResult
+    private func rollBackAttempt(recordingFrom before: [String]?) -> Set<GlobalElementID> {
+        let during = before == nil ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
+        glyphAtlas.rollbackAttempt()   // `GL-K`
+        let atlas = glyphAtlas
+        let created = stateTable.rollbackAttempt { record in   // `GL-K`: a record the attempt made may name a glyph the rollback forgot
+            record.glyphSlotsAre(packed: { !atlas.wasRolledBack(x: $0.origin.x, y: $0.origin.y, width: $0.size.width, height: $0.size.height) })
+        }
+        if let before, let during {
+            testingRollbackDigests?.append((before: before, during: during, after: stateTable.attemptDigest + glyphAtlas.attemptDigest))
+        }
+        return created
     }
 
     /// The build-and-adopt half of `drawFrameIfNeeded` (ruling `CR-Q`): builds
@@ -2412,8 +2420,8 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         }
         // `RK-AI`: the attempt that may be abandoned logs its first write of each state, and rolls back with the checkpoint (verify mode
         // abandons every replayed frame, so it is always armed).
-        let rollbackBefore = testingRollbackDigests == nil ? nil : stateTable.attemptDigest
-        if checkpoint != nil || retainedVerifiesFromEnvironment { stateTable.beginAttempt() }
+        let rollbackBefore = testingRollbackDigests == nil ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
+        if checkpoint != nil || retainedVerifiesFromEnvironment { stateTable.beginAttempt(); glyphAtlas.beginAttempt() }
         let comparedWritesBefore = stateTable.comparedWriteIDs.count   // verify mode: where the replayed build's compared writes start
         var frame = buildFrame()
         if !frame.redoEntries.isEmpty {
@@ -2443,7 +2451,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             // find: a `List`'s measured viewport, a scroller's extent, so its window bounds rows the first build's did not.
             // The attempt is rolled back (`RK-AI`, amends `RW-U`): entries it created are deleted, the ones it wrote restored,
             // and both builds start from the same table with the scene comparison on.
-            let recreated = stateTable.rollbackAttempt()
+            let recreated = rollBackAttempt(recordingFrom: nil)
             let firstFrame = frame
             memos.resetBuildCounters()
             scrollRequests.restore(pendingScrollRequests)
@@ -2469,6 +2477,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed prepaint differs from a fresh one: \(difference)")
             }
         }
+        glyphAtlas.acceptAttempt()   // `GL-K`
         stateTable.acceptAttempt()   // `RK-AI`: normally closed by the sweep; a frame that skipped it keeps its writes too
         let scene = frame.finalizedScene()
         lastScene = scene

@@ -154,6 +154,8 @@ public final class CoreTextTextSystem: TextSystem {
     public func beginFrame() { cache.beginFrame() }
     /// Ends a frame, sweeping cache entries unused for long enough.
     public func endFrame() { cache.endFrame() }
+    /// Gives the shaping cache's epoch back, with no sweep (`GL-K`).
+    public func abandonFrame() { cache.abandonFrame() }
 
     /// The font `key` names, which ``resolveFont(_:)`` registered.
     private func registered(_ key: FontKey) -> ResolvedFont {

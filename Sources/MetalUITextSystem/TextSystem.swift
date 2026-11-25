@@ -89,6 +89,15 @@ public protocol TextSystem: AnyObject, Sendable {
     /// Brackets one frame's text work, for per-frame caches.
     func beginFrame()
     func endFrame()
+    /// Ends a frame ``beginFrame()`` opened that is built again (`RK-C`'s redo, `GL-K`): the epoch goes back to what it was before
+    /// ``beginFrame()`` and nothing is swept, so the redo is the frame's one aging step, not a second. The default is ``endFrame()``,
+    /// for a system whose caches do not age by frame.
+    func abandonFrame()
+}
+
+extension TextSystem {
+    /// The default: ends the bracket as ``endFrame()`` does.
+    public func abandonFrame() { endFrame() }
 }
 
 extension TextSystem {

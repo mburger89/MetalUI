@@ -274,6 +274,8 @@ public final class GlyphAtlas {
     private struct Placement {
         let glyph: PackedGlyph
         var generation: Int
+        /// The stamp before this frame's, written only while an attempt is open (`GL-K`): a rollback gives it back.
+        var previous = 0
     }
 
     /// ``Placement/generation`` is the only per-glyph state the rebuild policy
@@ -364,6 +366,7 @@ public final class GlyphAtlas {
             // pixels as live, which is what ``wantsReclaim`` reads. A later use
             // in the same frame touches nothing.
             if placed.values[idx].generation != currentGeneration {
+                if attempt != nil { placed.values[idx].previous = placed.values[idx].generation }
                 placed.values[idx].generation = currentGeneration
                 let slot = placed.values[idx].glyph.slot
                 frameLiveArea &+= slot.width &* slot.height
@@ -381,6 +384,7 @@ public final class GlyphAtlas {
             let empty = PackedGlyph(slot: AtlasSlot(x: 0, y: 0, width: 0, height: 0),
                                     left: 0, top: 0)
             placed[key] = Placement(glyph: empty, generation: currentGeneration)
+            if attempt != nil { attemptKeys.append(key) }
             return empty
         }
 
@@ -400,7 +404,124 @@ public final class GlyphAtlas {
         frameLiveArea &+= slot.width &* slot.height
         let entry = PackedGlyph(slot: slot, left: image.left, top: image.top)
         placed[key] = Placement(glyph: entry, generation: currentGeneration)
+        if attempt != nil { attemptKeys.append(key) }
         return entry
+    }
+
+    // MARK: The attempt bracket (`GL-K`)
+
+    /// What ``beginAttempt()`` found: the packer, the counters a frame moves and the extent.
+    private struct AttemptSnapshot {
+        let generation: Int
+        let packedArea: Int
+        let droppedGlyphs: Int
+        let reclaimRequested: Bool
+        let shelfY: Int
+        let shelfHeight: Int
+        let cursorX: Int
+        let width: Int
+        let height: Int
+        let growCount: Int
+        let dirtyRects: [(x: Int, y: Int, width: Int, height: Int)]
+        let dirtyRectsCollapsed: Bool
+    }
+    private var attempt: AttemptSnapshot?
+    /// The keys inserted into ``placed`` while an attempt is open (one per new glyph, an empty one included).
+    private var attemptKeys: [GlyphKey] = []
+    /// How many times the atlas doubled inside an attempt that was rolled back. Growth is not undone (nothing moves, and a
+    /// renderer's texture of the old size is replaced anyway); the fixtures pin this at 0 so that a redo never costs one.
+    package private(set) var growthsInAbandonedAttempts = 0
+    /// The slots the last rollback emptied (`GL-K`). A record that names one of them held a glyph the rollback forgot, even when the redo packed another glyph of the
+    /// same size into the same rectangle: the rectangle alone cannot tell the two apart, so a record is judged by this set, not by whether its slot is occupied.
+    private var rolledBackSlots: Set<AtlasSlot> = []
+
+    /// Whether the last rollback emptied the slot at this rectangle (a scene glyph's `atlasBounds`).
+    package func wasRolledBack(x: Float, y: Float, width: Float, height: Float) -> Bool {
+        rolledBackSlots.contains(AtlasSlot(x: Int(x), y: Int(y), width: Int(width), height: Int(height)))
+    }
+    /// The most keys an attempt's log keeps its capacity for.
+    package static let attemptLogRetainedKeys = 1024
+    /// The keys the open attempt has logged (a test observable).
+    package var attemptLoggedKeys: Int { attemptKeys.count }
+    package var isAttemptOpen: Bool { attempt != nil }
+    /// How many keys the last attempt held when it closed (the steady-frame cost pins read it).
+    package private(set) var lastAttemptLoggedKeys = 0
+
+    /// Opens an attempt, before the frame's ``beginFrame()``: the build that follows may be abandoned after its paint and built again
+    /// (`RK-C`). A new glyph is logged by key from here; a re-stamp keeps the stamp it replaced.
+    package func beginAttempt() {
+        precondition(!isBuildingFrame, "beginAttempt called while a frame is being built")
+        attemptKeys.removeAll(keepingCapacity: true)
+        attempt = AttemptSnapshot(generation: currentGeneration, packedArea: packedArea, droppedGlyphs: droppedGlyphs,
+                                  reclaimRequested: reclaimRequested, shelfY: shelfY, shelfHeight: shelfHeight,
+                                  cursorX: cursorX, width: width, height: height, growCount: growCount,
+                                  dirtyRects: dirtyRects, dirtyRectsCollapsed: dirtyRectsCollapsed)
+    }
+
+    /// Puts the atlas back as ``beginAttempt()`` found it, after the abandoned frame's ``endFrame()``: the glyphs the attempt packed are
+    /// forgotten (their rectangles zeroed) and the shelf packer rewinds, so the redo packs the same glyphs into the same slots; the
+    /// stamps it set are given back; the frame counter, ``packedArea``, ``droppedGlyphs`` and ``reclaimRequested`` return. Growth
+    /// stays (``growthsInAbandonedAttempts``); the dirty regions return only if the extent did not change.
+    package func rollbackAttempt() {
+        guard let found = attempt else { return }
+        precondition(!isBuildingFrame, "rollbackAttempt called while a frame is being built")
+        growthsInAbandonedAttempts += growCount - found.growCount
+        rolledBackSlots.removeAll(keepingCapacity: true)
+        for key in attemptKeys {
+            guard let removed = placed.removeValue(forKey: key) else { continue }
+            let slot = removed.glyph.slot
+            guard slot.width > 0, slot.height > 0 else { continue }
+            keysBySlot.removeValue(forKey: slot)
+            rolledBackSlots.insert(slot)
+            for row in 0..<slot.height {
+                let start = (slot.y + row) * width + slot.x
+                pixels.replaceSubrange(start..<(start + slot.width), with: repeatElement(0, count: slot.width))
+            }
+        }
+        let stamped = found.generation + 1
+        for index in placed.values.indices where placed.values[index].generation == stamped {
+            placed.values[index].generation = placed.values[index].previous
+        }
+        currentGeneration = found.generation
+        packedArea = found.packedArea
+        droppedGlyphs = found.droppedGlyphs
+        reclaimRequested = found.reclaimRequested
+        shelfY = found.shelfY
+        shelfHeight = found.shelfHeight
+        cursorX = found.cursorX
+        if width == found.width, height == found.height {
+            dirtyRects = found.dirtyRects
+            dirtyRectsCollapsed = found.dirtyRectsCollapsed
+        }
+        closeAttempt()
+    }
+
+    /// The attempt is the frame that is kept: the log is dropped.
+    package func acceptAttempt() {
+        guard attempt != nil else { return }
+        closeAttempt()
+    }
+
+    private func closeAttempt() {
+        lastAttemptLoggedKeys = attemptKeys.count
+        if attemptKeys.count > Self.attemptLogRetainedKeys { attemptKeys = [] } else { attemptKeys.removeAll(keepingCapacity: true) }
+        attempt = nil
+    }
+
+    /// Everything a rollback restores, as a comparable value: the glyph map with its slots and stamps, the slot map, the packer, the counters,
+    /// the extent, the dirty regions and the pixels.
+    package var attemptDigest: [String] {
+        var lines = placed.map { "\(String(reflecting: $0.key))|\($0.value.glyph.slot)|\($0.value.generation)" }.sorted()
+        lines += keysBySlot.map { "slot \($0.key)|\(String(reflecting: $0.value))" }.sorted()
+        lines.append("packer \(shelfY) \(shelfHeight) \(cursorX) area \(packedArea) gen \(currentGeneration) dropped \(droppedGlyphs) "
+                     + "reclaim \(reclaimRequested) extent \(width)x\(height) dirty \(dirtyRects) \(dirtyRectsCollapsed) pixels \(pixels.hashValue)")
+        return lines
+    }
+
+    /// The slot map and the packer, without stamps or pixels: what a window that replays and one that does not must agree on.
+    package var slotDigest: [String] {
+        keysBySlot.map { "slot \($0.key)|\(String(reflecting: $0.value))" }.sorted()
+            + ["packer \(shelfY) \(shelfHeight) \(cursorX) area \(packedArea) extent \(width)x\(height)"]
     }
 
     /// The key `slot` was packed for in the current ``layoutGeneration``, or `nil` for an empty slot, a slot of an earlier

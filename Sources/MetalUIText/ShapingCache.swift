@@ -566,6 +566,17 @@ public final class ShapingCache {
         armedCost = 0
     }
 
+    /// Ends a frame that is built again (`GL-K`): closes the bracket and gives the generation back, with no sweep and no trace line. An entry the
+    /// abandoned frame touched keeps its stamp, which the redo's own generation equals, so it is kept as long as the redo's touches keep it.
+    /// Without this a redo advanced the epoch twice, and an entry last used the frame before could be swept one frame early.
+    public func abandonFrame() {
+        precondition(isBuildingFrame, "abandonFrame called without a matching beginFrame")
+        isBuildingFrame = false
+        currentGeneration -= 1
+        armedEntries = 0   // as `endFrame()`: the redo's frame arms its own in-frame trims
+        armedCost = 0
+    }
+
     /// Runs an eviction inside a frame once the stale entries of the three tables together are a quarter over their budget: a
     /// frame that misses ten thousand distinct strings is the working set and is kept, but a frame that pushes old entries
     /// out past the budget does not hold them until it ends. A scan finds the stale entries, so after one that evicts nothing

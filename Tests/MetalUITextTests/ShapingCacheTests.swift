@@ -230,3 +230,22 @@ private func touchLiveFillers(_ cache: ShapingCache, count: Int, tag: String) {
 // `aCounterOnlyCountsCallsWithinItsOwnBinding` retired at stage 9 with
 // `Shaper.runCallCounter`, the task-local sink whose scope it pinned
 // (`LR-FD`, record §51).
+
+/// A frame that is built again ends with `abandonFrame()` (`GL-K`, record 418), which gives the epoch back: a redo advanced the generation twice
+/// before, so an entry last used the frame before aged a frame early (swept one frame sooner than a fresh frame's sweep would have). After
+/// an abandoned frame the next `beginFrame()` stamps the generation the abandoned one did, and nothing was swept. Mutation: `abandonFrame`
+/// as `endFrame` (the generation is one higher).
+@MainActor
+@Test func anAbandonedFrameDoesNotAdvanceTheEpochOrSweep() {
+    let cache = ShapingCache()
+    cache.beginFrame(); cache.endFrame()
+    let before = cache.currentGeneration
+    for index in 0..<(ShapingCache.sweepThreshold + 4) { _ = cache.shaped("filler \(index)", font: font, wrappingAt: nil) }
+    cache.beginFrame()
+    _ = cache.shaped("kept", font: font, wrappingAt: nil)
+    cache.abandonFrame()
+    #expect(cache.currentGeneration == before)
+    cache.beginFrame()
+    #expect(cache.currentGeneration == before + 1, "the redo is the frame's one step")
+    cache.endFrame()
+}

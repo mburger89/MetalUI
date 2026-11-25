@@ -833,6 +833,8 @@ final class StateTable {
         attemptRestorables.removeAll(keepingCapacity: true)
         attemptUndo.removeAll(keepingCapacity: true)
         attemptMarked = marked
+        contentMemos.attemptRecorded.removeAll(keepingCapacity: true)
+        contentMemos.recordsAttempt = true
         attemptReadCount = readJournal.count
         attemptMarkCount = markJournal.count
         attemptArmed = true
@@ -843,8 +845,10 @@ final class StateTable {
     /// match), `marked`, the two journals and every registered in-place store (`AttemptRestorable`). `versionCounter` stays
     /// monotonic, so a version is never handed out twice. The attempt's own `@State` writes did fire `onWrite`: the window may draw one frame more
     /// than it needed, never one fewer. A table with no open attempt is untouched.
+    /// `recordIsValid` answers whether a paint record the attempt made still holds only what the rollback left standing (`GL-K`: every glyph
+    /// slot it names is still packed); the others are cleared and the redo paints those occurrences again. The default clears them all.
     @discardableResult
-    func rollbackAttempt() -> Set<GlobalElementID> {
+    func rollbackAttempt(recordIsValid: (RetainedRecord) -> Bool = { _ in false }) -> Set<GlobalElementID> {
         guard attemptArmed else { return [] }
         var created = Set<GlobalElementID>()
         for (id, prior) in attemptUndo {
@@ -859,6 +863,8 @@ final class StateTable {
         if readJournal.count > attemptReadCount { readJournal.removeSubrange(attemptReadCount...) }
         if markJournal.count > attemptMarkCount { markJournal.removeSubrange(attemptMarkCount...) }
         for restorable in attemptRestorables { restorable.rollbackAttempt() }
+        // A paint record the attempt made may hold the atlas slots of glyphs the rollback forgets (`GL-K`): the redo paints those occurrences again.
+        for entry in contentMemos.attemptRecorded { if let record = entry.record, !recordIsValid(record) { entry.record = nil } }
         closeAttempt(rolledBack: true)
         return created
     }
@@ -880,6 +886,8 @@ final class StateTable {
             attemptUndo.removeAll(keepingCapacity: true)
         }
         attemptMarked = []
+        contentMemos.recordsAttempt = false
+        contentMemos.attemptRecorded.removeAll(keepingCapacity: true)
         attemptArmed = false
     }
 
