@@ -252,7 +252,9 @@ public final class Renderer {
             let descriptor = MTLRenderPipelineDescriptor()
             descriptor.vertexFunction = vertexFn
             descriptor.fragmentFunction = fragmentFn
-            let attachment = descriptor.colorAttachments[0]!
+            guard let attachment = descriptor.colorAttachments[0] else {
+                preconditionFailure("a render pipeline descriptor always has colour attachment 0")
+            }
             attachment.pixelFormat = Renderer.pixelFormat
             // Premultiplied source-over, matching the shaders' premultiplied output.
             attachment.isBlendingEnabled = true
@@ -378,7 +380,12 @@ public final class Renderer {
         // every cached texture too.
         // A group's scene reads the textures the root's `prepareImageTextures` already uploaded for the whole tree.
         let imageTextures = isGroup
-            ? scene.textures.map { activeTextures.imageTextures[ObjectIdentifier($0)]!.gpu }
+            ? scene.textures.map { texture in
+                guard let uploaded = activeTextures.imageTextures[ObjectIdentifier(texture)] else {
+                    preconditionFailure("the root uploaded every texture a group samples")
+                }
+                return uploaded.gpu
+            }
             : try prepareImageTextures(for: scene)
 
         guard !scene.isEmpty else { return }
@@ -523,7 +530,7 @@ public final class Renderer {
         var constants = GroupTintPass(src: SIMD4(0, 0, Int32(target.width), Int32(target.height)),
                                       tint: SIMD4<Float>(1, 1, 1, 1))
         encoder.setRenderPipelineState(pipelines.mask)
-        withUnsafeBytes(of: &constants) { encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 0) }
+        encoder.setFragmentBytes(&constants, length: MemoryLayout<GroupTintPass>.size, index: 0)
         encoder.setFragmentTexture(scratch, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
@@ -552,7 +559,7 @@ public final class Renderer {
                 throw RendererError.encoderUnavailable
             }
             encoder.setRenderPipelineState(pipeline)
-            encoder.setFragmentBytes(bytes.baseAddress!, length: bytes.count, index: 0)
+            if let base = bytes.baseAddress { encoder.setFragmentBytes(base, length: bytes.count, index: 0) }
             encoder.setFragmentTexture(source, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             encoder.endEncoding()
@@ -946,7 +953,7 @@ public final class Renderer {
             withUnsafeTemporaryAllocation(byteCount: MemoryLayout<BackdropBlurPass>.stride, alignment: MemoryLayout<BackdropBlurPass>.alignment) { buffer in
                 buffer.initializeMemory(as: UInt8.self, repeating: 0)
                 withUnsafeBytes(of: &constants) { UnsafeMutableRawBufferPointer(buffer).copyMemory(from: $0) }
-                encoder.setFragmentBytes(buffer.baseAddress!, length: buffer.count, index: 0)
+                if let base = buffer.baseAddress { encoder.setFragmentBytes(base, length: buffer.count, index: 0) }
             }
             encoder.setFragmentTexture(source, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
@@ -1223,8 +1230,9 @@ public final class Renderer {
                 throw RendererError.bufferAllocationFailed
             }
             source.pixels.withUnsafeBytes { bytes in
+                guard let base = bytes.baseAddress else { return }   // an empty image has nothing to upload
                 texture.replace(region: MTLRegionMake2D(0, 0, source.width, source.height),
-                                mipmapLevel: 0, withBytes: bytes.baseAddress!,
+                                mipmapLevel: 0, withBytes: base,
                                 bytesPerRow: source.width * 4)
             }
             imageTextureUploadCount += 1
@@ -1293,9 +1301,7 @@ public final class Renderer {
     package func upload(_ atlas: GlyphAtlas, into state: WindowTextureState) {
         uploadCalls += 1
         let existing = state.texture
-        let sizeChanged = existing == nil
-            || existing!.width != atlas.width
-            || existing!.height != atlas.height
+        let sizeChanged = existing.map { $0.width != atlas.width || $0.height != atlas.height } ?? true
         // **A texture that has been encoded is immutable from here on.** See
         // ``WindowTextureState/wasEncoded``: writing into it would race the in-flight
         // frame that bound it. Note the `dirtyRect != nil` conjunct — without
@@ -1323,8 +1329,10 @@ public final class Renderer {
             texture = made
             // Never bound; safe to write for exactly as long as that holds.
             state.wasEncoded = false
+        } else if let existing {
+            texture = existing
         } else {
-            texture = existing!
+            preconditionFailure("a texture of the atlas\'s size is kept when no full upload is needed")
         }
 
         // One region per dirty rect (`RG-H`); a new or resized texture takes the whole atlas.
@@ -1347,8 +1355,9 @@ public final class Renderer {
             // source rows are slices of a wider bitmap, and Metal walks them by
             // this stride. Passing the region's width would read a diagonal
             // smear out of the atlas. Each rect's pointer is offset to its own origin.
+            guard let origin = buffer.baseAddress else { return }   // an atlas always has pixels
             for region in regions {
-                let base = buffer.baseAddress! + (region.y * atlas.width + region.x)
+                let base = origin + (region.y * atlas.width + region.x)
                 texture.replace(
                     region: MTLRegionMake2D(region.x, region.y, region.width, region.height),
                     mipmapLevel: 0,
@@ -1404,7 +1413,8 @@ public final class Renderer {
 
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         pixels.withUnsafeMutableBytes { raw in
-            texture.getBytes(raw.baseAddress!,
+            guard let base = raw.baseAddress else { return }   // a texture of no pixels reads back none
+            texture.getBytes(base,
                              bytesPerRow: width * 4,
                              from: MTLRegionMake2D(0, 0, width, height),
                              mipmapLevel: 0)

@@ -149,10 +149,11 @@ public struct KeyBinding {
     /// more than the two strokes §8.3 supports.
     var strokes: [Keystroke]? {
         let parsed = spelling.split(separator: " ").map { Keystroke(String($0)) }
-        guard (1...2).contains(parsed.count), !parsed.contains(where: { $0 == nil }) else {
+        let strokes = parsed.compactMap { $0 }
+        guard (1...2).contains(parsed.count), strokes.count == parsed.count else {
             return nil
         }
-        return parsed.map { $0! }
+        return strokes
     }
 }
 

@@ -165,7 +165,7 @@ public final class PseudoTerminal: @unchecked Sendable {
     /// available now, or -1 at end of file (the child's side is closed, or the
     /// pty is closed).
     public func read(into buffer: UnsafeMutableRawBufferPointer) -> Int {
-        guard let base = buffer.baseAddress, buffer.count > 0 else { return 0 }
+        guard let base = buffer.baseAddress, !buffer.isEmpty else { return 0 }
         // Under the lock so the descriptor cannot be closed (and reused) mid-read.
         lock.lock()
         defer { lock.unlock() }
@@ -201,7 +201,8 @@ public final class PseudoTerminal: @unchecked Sendable {
     private func drainWrites() {
         while let first = pending.first {
             let n = first.withUnsafeBytes { raw in
-                sysWrite(master, raw.baseAddress! + pendingHead, raw.count - pendingHead)
+                guard let base = raw.baseAddress else { return 0 }   // `write` queues no empty array
+                return sysWrite(master, base + pendingHead, raw.count - pendingHead)
             }
             if n < 0 {
                 if errno == EINTR { continue }

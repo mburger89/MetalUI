@@ -124,7 +124,7 @@ enum StyledShaper {
                 runs = (kept[index].allSatisfy(\.isEmpty) ? [] : runs) + [token]
             }
             let metrics = StyledTextLines.lineMetrics(runs: runs, styles: styles) { key in
-                let font = metricsByKey[key]!
+                guard let font = metricsByKey[key] else { preconditionFailure("every style's font was measured above") }
                 return TextFontMetrics(ascent: font.ascent, descent: font.descent, leading: font.leading,
                                        lineHeight: font.lineHeight)
             }
@@ -164,7 +164,9 @@ enum StyledShaper {
             guard count > 0 else { continue }
             let attributes = CTRunGetAttributes(run) as NSDictionary
             let isToken = attributes[tokenMarker] != nil
-            let font = attributes[kCTFontAttributeName as String] as! CTFont
+            guard let fontValue = attributes[kCTFontAttributeName as String],
+                  CFGetTypeID(fontValue as CFTypeRef) == CTFontGetTypeID() else { continue }   // a run without a font draws nothing
+            let font = unsafeDowncast(fontValue as AnyObject, to: CTFont.self)
             var ids = [CGGlyph](repeating: 0, count: count)
             var positions = [CGPoint](repeating: .zero, count: count)
             var advances = [CGSize](repeating: .zero, count: count)
@@ -175,7 +177,7 @@ enum StyledShaper {
             CTRunGetStringIndices(run, CFRange(location: 0, length: 0), &indices)
             for index in 0..<count {
                 let unit = isToken ? nil : base + indices[index]
-                let styleRun = isToken ? tokenRun ?? 0 : runOfUnit[min(max(unit!, 0), runOfUnit.count - 1)]
+                let styleRun = unit.map { runOfUnit[min(max($0, 0), runOfUnit.count - 1)] } ?? tokenRun ?? 0
                 result.append(LineGlyph(font: font, glyph: ids[index], x: Double(positions[index].x),
                                         y: Double(positions[index].y), advance: Double(advances[index].width),
                                         run: styleRun, unit: unit))

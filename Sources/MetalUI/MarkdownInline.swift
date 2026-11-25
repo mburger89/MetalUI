@@ -1029,7 +1029,7 @@ private struct InlineMarkdownParser {
                     matches = false
                     break
                 }
-                let lower = c >= "A" && c <= "Z" ? Unicode.Scalar(c.value + 32)! : c
+                let lower = c >= "A" && c <= "Z" ? Unicode.Scalar(UInt8(c.value + 32)) : c
                 if lower != e {
                     matches = false
                     break

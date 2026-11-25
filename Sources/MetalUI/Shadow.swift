@@ -138,7 +138,7 @@ extension Frame {
         }
         guard !mask.rect.isEmpty else { return nil }
         let placed = anchor.placed(mask.rect)
-        if rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty { return nil }
+        if rasterClip != placement.clip, placed.isDisjoint(with: placement.clip) { return nil }
         return (placement.quad(over: placed), cache.texture(for: key, color: paint.color, mask: mask))
     }
 

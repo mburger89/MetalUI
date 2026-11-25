@@ -67,7 +67,9 @@ public struct DropInfo {
 }
 
 /// A drop destination's behaviour, as a value — SwiftUI's `DropDelegate`
-/// (ruling `DE-A`). Only ``performDrop(info:)`` is required.
+/// (ruling `DE-A`). Only ``performDrop(info:)`` is required. Not class-bound, as in
+/// SwiftUI: a delegate is a value, stored by value. The `class_delegate_protocol` disable is the
+/// only path: a class-bound protocol would break SwiftUI parity (struct delegates).
 ///
 /// Call order (ruling `DE-B`): entering a destination runs ``validateDrop(info:)``,
 /// then — if it answered `true` — ``dropEntered(info:)`` and ``dropUpdated(info:)``;
@@ -77,7 +79,7 @@ public struct DropInfo {
 /// that answered `false`. A drag whose items match none of the declared types
 /// reaches no callback. Every method runs from input, on the main actor.
 @MainActor
-public protocol DropDelegate {
+public protocol DropDelegate { // swiftlint:disable:this class_delegate_protocol
     /// Whether the drag may be dropped here; `false` runs neither
     /// `dropEntered` nor `dropUpdated` nor `performDrop`. Default `true`.
     func validateDrop(info: DropInfo) -> Bool

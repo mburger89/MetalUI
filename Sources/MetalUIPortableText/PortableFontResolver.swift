@@ -312,7 +312,10 @@ struct FaceTraits: Equatable {
             // class 500 and CoreText's 0).
             weight = 0
         } else if weightClass > 0 {
-            weight = Self.classWeights.min { abs($0.0 - weightClass) < abs($1.0 - weightClass) }!.1
+            guard let nearest = Self.classWeights.min(by: { abs($0.0 - weightClass) < abs($1.0 - weightClass) }) else {
+                preconditionFailure("classWeights is a non-empty table")
+            }
+            weight = nearest.1
         } else {
             weight = 0
         }

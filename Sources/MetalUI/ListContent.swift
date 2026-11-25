@@ -464,7 +464,7 @@ final class ListContentEngine<SelectionValue: Hashable, Content: ProposalElement
         }
         engine = inner
         layout = state
-        return result!
+        return scopeResult(result)
     }
 
     /// The list's focus, its arrow keys over the visible units and its accessibility selection (`DD-T`, `DD-Z` item 6,

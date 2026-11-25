@@ -354,7 +354,8 @@ public final class SDLWindowRenderer: WindowRenderer {
         guard let handles = prepareTextures(for: sharedTextures) else { return false }
         guard let commandBuffer = mui_renderer_command_buffer(renderer) else { return false }
 
-        let device = OpaquePointer(mui_renderer_device(renderer)!)
+        guard let rawDevice = mui_renderer_device(renderer) else { return false }
+        let device = OpaquePointer(rawDevice)
         let toDraw = surfaceTable.update(
             references: scene.allSurfaceTargets(), requests: surfaces,
             create: { target in
@@ -449,7 +450,12 @@ public final class SDLWindowRenderer: WindowRenderer {
             let set = SDLGroupSet(scene, counts: (rectRecords.count, glyphRecords.count,
                                                   imageRecords.count + scene.groups.count, transformRecords.count),
                                   mainRunCount: mainRunCount, groupTextureBase: UInt32(handles.count + surfaceHandles.count),
-                                  textureIndex: { indexOf[ObjectIdentifier($0)]! },
+                                  textureIndex: { texture in
+                                      guard let index = indexOf[ObjectIdentifier(texture)] else {
+                                          preconditionFailure("a group's texture is in the frame's shared list")
+                                      }
+                                      return index
+                                  },
                                   surfaceIndex: { id in
                                       guard let k = allTargets.firstIndex(where: { $0.id == id }), surfaceHandles[k] != nil else { return nil }
                                       return UInt32(handles.count + k)

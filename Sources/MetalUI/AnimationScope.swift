@@ -105,7 +105,7 @@ public struct TransactionScope<Content: ElementGroup>: ElementGroup {
             return withLayer { $0.prepaintGroup(layout: &layered, pass: &pass) }.flatMap { $0 }
         }
         // No push: nothing in prepaint reads the transaction.
-        return content.prepaintGroup(layout: &layout.content!, pass: &pass)
+        return content.prepaintGroup(layout: &layout.content.required, pass: &pass)
     }
 
     public mutating func paintGroup(layout: inout TransactionScopeLayout<Content.GroupLayout>,
@@ -121,7 +121,7 @@ public struct TransactionScope<Content: ElementGroup>: ElementGroup {
         // The transaction layout resolved, not the write run again: a value
         // compared twice would read "unchanged" in paint.
         pass.frame.withTransactionScope(layout.transaction) {
-            content.paintGroup(layout: &layout.content!, prepaint: &prepaint!, pass: &pass)
+            content.paintGroup(layout: &layout.content.required, prepaint: &prepaint.required, pass: &pass)
         }
     }
 }
@@ -182,7 +182,7 @@ extension TransactionScope: Element where Content: Element {
             return ScopeLayerState(plain: nil, layered: inner)
         }
         // No push: nothing in prepaint reads the transaction.
-        let state = content.prepaint(id, bounds: bounds, layout: &layout.plain!.content!, pass: &pass)
+        let state = content.prepaint(id, bounds: bounds, layout: &layout.plain.required.content.required, pass: &pass)
         return ScopeLayerState(plain: state, layered: nil)
     }
 
@@ -195,8 +195,8 @@ extension TransactionScope: Element where Content: Element {
             withLayer { $0.paint(id, bounds: bounds, layout: &layered, prepaint: &inner, pass: &pass) }
             return
         }
-        pass.frame.withTransactionScope(layout.plain!.transaction) {
-            content.paint(id, bounds: bounds, layout: &layout.plain!.content!, prepaint: &prepaint.plain!, pass: &pass)
+        pass.frame.withTransactionScope(layout.plain.required.transaction) {
+            content.paint(id, bounds: bounds, layout: &layout.plain.required.content.required, prepaint: &prepaint.plain.required, pass: &pass)
         }
     }
 }

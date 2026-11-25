@@ -23,7 +23,7 @@ struct TableSource<Value> {
         if Data.Index.self == Int.self, let start = data.startIndex as? Int {
             // `Collection.index(_:offsetBy:)` on a Strideable index range-checks against `endIndex`; reading by arithmetic keeps
             // a position read to the one subscript.
-            element = { data[(start + $0) as! Data.Index] }
+            element = { data[trapCast((start + $0)) as Data.Index] }
         } else {
             element = { data[data.index(data.startIndex, offsetBy: $0)] }
         }

@@ -117,14 +117,14 @@ extension PrepaintPass {
         // which is also what SwiftUI does (probe
         // `swiftui-allows-hit-testing-side-effects`, arms A1 and K1).
         guard handlers.allowsHitTesting else {
-            var result: R!
+            var result: R?
             allowsHitTesting(false) {
                 result = registerAndScopeBody(handlers, decoration, at: bounds, for: id,
                                               accessibleText: accessibleText,
                                               synthesizesAccessibility: synthesizesAccessibility,
                                               content: content)
             }
-            return result
+            return scopeResult(result)
         }
         return registerAndScopeBody(handlers, decoration, at: bounds, for: id,
                                     accessibleText: accessibleText,
@@ -157,11 +157,11 @@ extension PrepaintPass {
         // is the same call with a scroll offset, and `Frame.insertHitbox`
         // intersects an incoming rect with the active clip, so a hitbox declared
         // inside a clipped box is recorded at the visible part of itself.
-        var result: R!
+        var result: R?
         clipped(to: region.bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
                 cornerRadii: region.radii) {
             result = content()
         }
-        return result
+        return scopeResult(result)
     }
 }

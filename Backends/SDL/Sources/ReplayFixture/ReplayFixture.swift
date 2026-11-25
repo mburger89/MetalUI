@@ -277,7 +277,7 @@ public struct ReplayFixture: Equatable, Sendable {
             case .backdrop: backdropCount
             case .group: imageCount
             }
-            guard run.count > 0, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
+            guard run.count >= 1, UInt64(run.start) + UInt64(run.count) <= UInt64(records) else {
                 throw .invalid("run \(index) \(run.kind) \(run.start)+\(run.count) exceeds \(records) records")
             }
             if run.kind == .image {
@@ -571,8 +571,9 @@ extension ReplayFixture {
                 let w: Float = t.det3 != 0 ? t.g * x + t.h * y + t.i : 1
                 return ((t.a * x + t.c * y + t.tx) / w, (t.b * x + t.d * y + t.ty) / w)
             }
-        let x0 = corners.map(\.0).min()! - 1, x1 = corners.map(\.0).max()! + 1
-        let y0 = corners.map(\.1).min()! - 1, y1 = corners.map(\.1).max()! + 1
+        let xs = corners.map(\.0), ys = corners.map(\.1)   // four corners each
+        let x0 = Swift.min(xs[0], xs[1], xs[2], xs[3]) - 1, x1 = Swift.max(xs[0], xs[1], xs[2], xs[3]) + 1
+        let y0 = Swift.min(ys[0], ys[1], ys[2], ys[3]) - 1, y1 = Swift.max(ys[0], ys[1], ys[2], ys[3]) + 1
         return (x0, y0, x1 - x0, y1 - y0)
     }
 
@@ -631,10 +632,11 @@ extension ReplayFixture {
         for b in quads {
             let corners = [project(b.x, b.y), project(b.x + b.width, b.y),
                            project(b.x, b.y + b.height), project(b.x + b.width, b.y + b.height)].map(snapped)
-            let x0 = max(0, Int((corners.map(\.x).min()! - 1).rounded(.down)))
-            let x1 = min(w - 1, Int((corners.map(\.x).max()! + 1).rounded(.up)))
-            let y0 = max(0, Int((corners.map(\.y).min()! - 1).rounded(.down)))
-            let y1 = min(h - 1, Int((corners.map(\.y).max()! + 1).rounded(.up)))
+            let xs = corners.map(\.x), ys = corners.map(\.y)   // four corners each
+            let x0 = max(0, Int((Swift.min(xs[0], xs[1], xs[2], xs[3]) - 1).rounded(.down)))
+            let x1 = min(w - 1, Int((Swift.max(xs[0], xs[1], xs[2], xs[3]) + 1).rounded(.up)))
+            let y0 = max(0, Int((Swift.min(ys[0], ys[1], ys[2], ys[3]) - 1).rounded(.down)))
+            let y1 = min(h - 1, Int((Swift.max(ys[0], ys[1], ys[2], ys[3]) + 1).rounded(.up)))
             guard x0 <= x1, y0 <= y1 else { continue }
             for y in y0...y1 { for x in x0...x1 { mask[y * w + x] = true } }
         }

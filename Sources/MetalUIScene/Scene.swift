@@ -386,7 +386,8 @@ public struct Scene: Sendable {
                 if unbounded {
                     x0 = -1e9; y0 = -1e9; x1 = 1e9; y1 = 1e9
                 } else {
-                    x0 = xs.min()!; x1 = xs.max()!; y0 = ys.min()!; y1 = ys.max()!
+                    x0 = Swift.min(xs[0], xs[1], xs[2], xs[3]); x1 = Swift.max(xs[0], xs[1], xs[2], xs[3])   // four corners each
+                    y0 = Swift.min(ys[0], ys[1], ys[2], ys[3]); y1 = Swift.max(ys[0], ys[1], ys[2], ys[3])
                 }
                 cut = m.outerMask
             }

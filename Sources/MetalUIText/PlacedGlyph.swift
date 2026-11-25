@@ -227,8 +227,9 @@ extension ShapedText {
 private func resolvedRunFont(of run: CTRun, fallingBackTo requested: ResolvedFont)
     -> ResolvedFont {
     let attributes = CTRunGetAttributes(run) as NSDictionary
-    guard let value = attributes[kCTFontAttributeName as String] else { return requested }
-    let runFont = value as! CTFont
+    guard let value = attributes[kCTFontAttributeName as String],
+          CFGetTypeID(value as CFTypeRef) == CTFontGetTypeID() else { return requested }
+    let runFont = unsafeDowncast(value as AnyObject, to: CTFont.self)
     if CFEqual(runFont, requested.ctFont) { return requested }
     return ResolvedFont(ctFont: runFont)
 }

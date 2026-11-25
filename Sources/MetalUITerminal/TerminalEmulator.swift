@@ -108,7 +108,7 @@ public final class TerminalEmulator {
     /// Feeds bytes from the child. Any split of a stream into calls gives the same state; a UTF-8 sequence or
     /// escape sequence cut by the end of a call completes on the next.
     public func feed(_ bytes: UnsafeRawBufferPointer) {
-        guard bytes.count > 0 else { return }
+        guard !bytes.isEmpty else { return }
         parser.feed(bytes.bindMemory(to: UInt8.self), self)
     }
 

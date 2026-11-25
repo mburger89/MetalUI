@@ -256,6 +256,12 @@ extension LayoutModifier {
             guard let value else { return nil }
             return Pixels(Float(value))
         }
+        // The numbers of a case whose inputs were all set come back all set (`animatedNumbers` keeps each slot).
+        func num(_ values: [Double?], _ index: Int) -> Double {
+            guard let value = values[index] else { preconditionFailure("an animated number whose input was set is nil") }
+            return value
+        }
+        func pix(_ values: [Double?], _ index: Int) -> Pixels { Pixels(Float(num(values, index))) }
         func raw(_ value: Pixels?) -> Double? {
             guard let value else { return nil }
             return Double(value.value)
@@ -291,45 +297,45 @@ extension LayoutModifier {
             let v = numbers("padding", [raw(insets.top), raw(insets.right), raw(insets.bottom),
                                         raw(insets.left)],
                             -Double.greatestFiniteMagnitude...Double.greatestFiniteMagnitude)
-            self = .padding(Edges(top: px(v[0])!, right: px(v[1])!, bottom: px(v[2])!, left: px(v[3])!))
+            self = .padding(Edges(top: pix(v, 0), right: pix(v, 1), bottom: pix(v, 2), left: pix(v, 3)))
         case let .opacity(value):
             let v = numbers("opacity", [Double(value)], 0...1)
-            self = .opacity(Float(v[0]!))
+            self = .opacity(Float(num(v, 0)))
         case let .clip(cornerRadius):
             let v = numbers("clip", [raw(cornerRadius)], size)
-            self = .clip(cornerRadius: px(v[0])!)
+            self = .clip(cornerRadius: pix(v, 0))
         case let .border(token, width, cornerRadius):
             let v = numbers("border", [raw(width)], size)
-            self = .border(token, width: px(v[0])!, cornerRadius: cornerRadius)
+            self = .border(token, width: pix(v, 0), cornerRadius: cornerRadius)
         case let .rotationEffect(angle, anchor):
             // The angle and its anchor (`GX-H`; N1, N9).
             let v = numbers("rotationEffect", [angle.radians, anchor.x, anchor.y], any)
-            self = .rotationEffect(Angle(radians: v[0]!), anchor: UnitPoint(x: v[1]!, y: v[2]!))
+            self = .rotationEffect(Angle(radians: num(v, 0)), anchor: UnitPoint(x: num(v, 1), y: num(v, 2)))
         case let .scaleEffect(x, y, anchor):
             // Both factors and their anchor (N2, N2b).
             let v = numbers("scaleEffect", [x, y, anchor.x, anchor.y], any)
-            self = .scaleEffect(x: v[0]!, y: v[1]!, anchor: UnitPoint(x: v[2]!, y: v[3]!))
+            self = .scaleEffect(x: num(v, 0), y: num(v, 1), anchor: UnitPoint(x: num(v, 2), y: num(v, 3)))
         case let .rotation3DEffect(angle, axis, anchor, anchorZ, perspective):
             // Eight numbers: the angle, the axis, the anchor, `anchorZ` and `perspective` (`PJ-B`).
             let v = numbers("rotation3DEffect", [angle.radians, axis.x, axis.y, axis.z, anchor.x, anchor.y, anchorZ,
                                                  perspective], any)
-            self = .rotation3DEffect(Angle(radians: v[0]!), axis: (v[1]!, v[2]!, v[3]!),
-                                     anchor: UnitPoint(x: v[4]!, y: v[5]!), anchorZ: v[6]!, perspective: v[7]!)
+            self = .rotation3DEffect(Angle(radians: num(v, 0)), axis: (num(v, 1), num(v, 2), num(v, 3)),
+                                     anchor: UnitPoint(x: num(v, 4), y: num(v, 5)), anchorZ: num(v, 6), perspective: num(v, 7))
         case .projectionEffect:
             // No animatable data: a projection snaps (`PJ-B`).
             break
         case let .offset(x, y):
             // Both components (N3).
             let v = numbers("offset", [raw(x), raw(y)], any)
-            self = .offset(x: px(v[0])!, y: px(v[1])!)
+            self = .offset(x: pix(v, 0), y: pix(v, 1))
         case let .shadow(token, radius, x, y):
             // The radius and both offsets (`GX-J`; N4, N5); the colour in paint.
             let v = numbers("shadow", [raw(radius), raw(x), raw(y)], any)
-            self = .shadow(token, radius: px(max(0, v[0]!))!, x: px(v[1])!, y: px(v[2])!)
+            self = .shadow(token, radius: Pixels(Float(max(0, num(v, 0)))), x: pix(v, 1), y: pix(v, 2))
         case let .blur(radius):
             // The radius (`LK-K` item 6, the shadow-radius precedent).
             let v = numbers("blur", [raw(radius)], size)
-            self = .blur(radius: px(v[0])!)
+            self = .blur(radius: pix(v, 0))
         case .fixedSize, .aspectRatio, .layoutPriority, .background, .backgroundMaterial, .glassEffect, .clipShape, .allowsHitTesting,
              .compositingGroup, .keyboard:
             break

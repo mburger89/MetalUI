@@ -152,7 +152,9 @@ public enum HarfBuzzShaper {
         glyphs.reserveCapacity(count)
         var advance = 0.0
         for index in 0..<count {
-            let info = infos![index], position = positions![index]
+            guard let info = infos?[index], let position = positions?[index] else {
+                throw HarfBuzzError(operation: "hb_buffer_get_glyph_infos")
+            }
             glyphs.append(ShapedGlyph(
                 id: UInt16(truncatingIfNeeded: info.codepoint),
                 cluster: Int(info.cluster),

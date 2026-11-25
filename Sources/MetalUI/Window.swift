@@ -3860,15 +3860,15 @@ public final class Window {
         }
     }
 
-    /// The `GlobalElementID` owning the topmost opaque hitbox under `point`,
-    /// from the most recently drawn frame's registrations.
-    ///
-    /// **`topmostOpaqueHitbox(in:at:)`, the one ranking, against the window's
-    /// own copy of the list.** `Frame.topmostHitbox(at:)` cannot answer this
-    /// for `mouseDown` — the frame that built `lastHitboxes` is long gone by
-    /// the time an input event arrives — so the list, not the closure, is what
-    /// differs between the two call sites. There were three copies of that
-    /// closure before this task and there is one now.
+    // The `GlobalElementID` owning the topmost opaque hitbox under `point`,
+    // from the most recently drawn frame's registrations.
+    //
+    // **`topmostOpaqueHitbox(in:at:)`, the one ranking, against the window's
+    // own copy of the list.** `Frame.topmostHitbox(at:)` cannot answer this
+    // for `mouseDown` — the frame that built `lastHitboxes` is long gone by
+    // the time an input event arrives — so the list, not the closure, is what
+    // differs between the two call sites. There were three copies of that
+    // closure before this task and there is one now.
     // MARK: Text input (ruling TI-B)
 
     /// The caret last handed to `setTextInputArea`, so it is called on change.

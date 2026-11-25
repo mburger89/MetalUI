@@ -467,11 +467,12 @@ public final class CodeBuffer {
         guard !sequentialMoves, let descending = CodeEditRun.order(of: shape) else {
             // One move per event, the selections left as the events move them and normalised once at the end.
             let inverses = steps.map { applyEvent($0.range, $0.text, origin: origin, transaction: tx, normalizing: false) }
-            for entry in selectionStates { entry.state?.setInternal(entry.state!.stored) }
+            for entry in selectionStates { if let state = entry.state { state.setInternal(state.stored) } }
             return inverses
         }
         // Many edits close together: one splice of their span instead of one rope edit each.
-        let spanLo = steps.last!.range.lowerBound, spanHi = steps.first!.range.upperBound
+        guard let lastStep = steps.last, let firstStep = steps.first else { preconditionFailure("`steps.count > 1` above") }
+        let spanLo = lastStep.range.lowerBound, spanHi = firstStep.range.upperBound
         let inverses: [CodeInverse]
         if descending, steps.count >= 32, spanHi - spanLo <= steps.count * 256 {
             inverses = applySpliced(steps, origin: origin, transaction: tx)
@@ -487,7 +488,8 @@ public final class CodeBuffer {
     /// splice over their span: every event's position, old text and log entry are read from the text before
     /// the splice, which is what each saw in turn (an edit only changes the text above it).
     private func applySpliced(_ steps: [(range: Range<Int>, text: String)], origin: CodeEditOrigin, transaction tx: CodeTransactionID) -> [CodeInverse] {
-        let spanLo = steps.last!.range.lowerBound, spanHi = steps.first!.range.upperBound
+        guard let lastStep = steps.last, let firstStep = steps.first else { preconditionFailure("callers pass 32 steps or more") }
+        let spanLo = lastStep.range.lowerBound, spanHi = firstStep.range.upperBound
         let original = CodeSnapshot(rope: rope, version: version)
         var spliced: [UInt8] = []
         spliced.reserveCapacity(spanHi - spanLo + 64)

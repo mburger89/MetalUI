@@ -105,20 +105,21 @@ enum StackMeter {
     /// Records the current stack depth in the open scope. A no-op off the
     /// main thread, outside every scope, and in a release build.
     nonisolated static func sample() {
-        guard isEnabled, Thread.isMainThread, scope != nil else { return }
+        guard isEnabled, Thread.isMainThread, var open = scope else { return }
         let address = stackAddress()
-        if address < scope!.lowest { scope!.lowest = address }
+        if address < open.lowest { open.lowest = address; scope = open }
     }
 
     /// `sample()`, remembering `component` when this is the deepest
     /// `Component` layout entry so far in the open scope.
     nonisolated static func sample(component: Any.Type) {
-        guard isEnabled, Thread.isMainThread, scope != nil else { return }
+        guard isEnabled, Thread.isMainThread, var open = scope else { return }
         let address = stackAddress()
-        if address < scope!.lowest { scope!.lowest = address }
-        if address < scope!.deepestComponentAddress {
-            scope!.deepestComponentAddress = address
-            scope!.deepestComponent = component
+        if address < open.lowest { open.lowest = address }
+        if address < open.deepestComponentAddress {
+            open.deepestComponentAddress = address
+            open.deepestComponent = component
         }
+        scope = open
     }
 }

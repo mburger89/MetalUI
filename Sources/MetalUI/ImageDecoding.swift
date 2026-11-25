@@ -67,7 +67,7 @@ func decodeImage(_ bytes: UnsafeRawBufferPointer, channels wanted: Int = 4,
         else { return nil }
         defer { stbi_image_free(samples) }
         guard decodedSizeIsAccepted(width: Int(width), height: Int(height)) else { return nil }
-        guard expected == nil || (Int(width), Int(height)) == (expected!.width, expected!.height) else { return nil }
+        guard expected.map({ (Int(width), Int(height)) == ($0.width, $0.height) }) ?? true else { return nil }
         let count = Int(width) * Int(height) * wanted
         let rgba = [UInt8](unsafeUninitializedCapacity: count) { buffer, initialized in
             for i in 0..<count {
@@ -81,7 +81,7 @@ func decodeImage(_ bytes: UnsafeRawBufferPointer, channels wanted: Int = 4,
     else { return nil }
     defer { stbi_image_free(samples) }
     guard decodedSizeIsAccepted(width: Int(width), height: Int(height)) else { return nil }
-    guard expected == nil || (Int(width), Int(height)) == (expected!.width, expected!.height) else { return nil }
+    guard expected.map({ (Int(width), Int(height)) == ($0.width, $0.height) }) ?? true else { return nil }
     let count = Int(width) * Int(height) * wanted
     return (Int(width), Int(height), Array(UnsafeBufferPointer(start: samples, count: count)))
 }

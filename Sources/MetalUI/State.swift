@@ -83,7 +83,10 @@ public struct State<Value> {
         @MainActor var resolvedSlot: GlobalElementID? {
             guard let occurrences, StateDispatch.owner != nil else { return slotID }
             // A slot's parent is its element (`bind`'s `child(of: id, …)`).
-            guard let index = StateDispatch.resolve(among: occurrences.map { $0.parent! }) else {
+            guard let index = StateDispatch.resolve(among: occurrences.map { slot in
+                guard let parent = slot.parent else { preconditionFailure("a state slot id is a child of its element") }
+                return parent
+            }) else {
                 return slotID
             }
             return occurrences[index]
@@ -182,7 +185,7 @@ extension State {
         } else if let previous = box.slotID, previous != slotID {
             table.noteAliasedStateBox()
             if box.occurrences == nil { box.occurrences = [previous] }
-            if !box.occurrences!.contains(slotID) { box.occurrences!.append(slotID) }
+            if box.occurrences?.contains(slotID) == false { box.occurrences?.append(slotID) }
         }
         box.slotID = slotID
         box.boundGeneration = table.generation

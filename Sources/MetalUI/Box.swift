@@ -876,7 +876,7 @@ extension StyledElement {
                 // `anActionBubblesPastAnElementThatDoesNotHandleIt` — and the
                 // measurement is that it reddens alone when the same mutation
                 // is paired with a conditional cast here.
-                handler(action as! A)
+                handler(trapCast(action) as A)
             }
         }
     }

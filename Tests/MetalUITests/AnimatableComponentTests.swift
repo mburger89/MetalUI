@@ -354,7 +354,10 @@ private struct SteadyEquatable: Component, @MainActor Equatable {
     // 397 since `GO-C`: `processScopes` hands its one leaf group to `insertLeaves` directly, where the old loop made a
     // tuple-array iteration copy (398 on master 3c7eadb9). 394 since `G47`: the keys of a frame share one environment fingerprint
     // box (the dictionaries it was copied with are made once per top, not once per key).
-    #expect(allocations == 394, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
+    // 322 since the lint pass (record 410): `StateTable.sweep` and `LoweringState.consume` wrote through
+    // `dictionary[key]!.field = x`, which allocates per write in the debug build; `index(forKey:)` plus an in-place
+    // `values[index]` write does not (-60 and -12), same writes, one lookup instead of three in `consume`.
+    #expect(allocations == 322, "a steady frame of a bare and an equatable non-animatable component: \(allocations)")
     #endif
     #expect(h.store.vectorTrackRebuilds == 0 && h.store.isEmpty, "and no track: \(h.store.vectorTrackRebuilds) \(h.store.count)")
 }

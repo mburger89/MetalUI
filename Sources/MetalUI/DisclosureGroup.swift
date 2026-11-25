@@ -197,7 +197,10 @@ enum DisclosureSlot {
     /// The ordinal of `local` among the body's stored properties (the `@State` slot's number).
     static let ordinal: Int = {
         let probe = DisclosureGroupBody<EmptyGroup, EmptyGroup>(expansion: nil, label: EmptyGroup(), makeContent: { EmptyGroup() })
-        return Mirror(reflecting: probe).children.enumerated().first { $0.element.label == "_local" }!.offset
+        guard let local = Mirror(reflecting: probe).children.enumerated().first(where: { $0.element.label == "_local" }) else {
+            preconditionFailure("DisclosureGroupBody has no `_local` slot")
+        }
+        return local.offset
     }()
 
     /// The slot `local` lives at, for the group whose component id is `group`.

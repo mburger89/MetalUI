@@ -994,8 +994,8 @@ final class StateTable {
         retainLog?.taint("stateWrite")
         prepaintLog?.taint("stateWrite")
         contentMemos.journal.taint("stateWrite")   // `RK-F`
-        if departedOverlay != nil, departedOverlay!.roots.contains(where: { id.isOrDescends(from: $0) }) {
-            departedOverlay!.values[id] = value   // `LC-I` item 2: discarded with the overlay
+        if departedOverlay?.roots.contains(where: { id.isOrDescends(from: $0) }) == true {
+            departedOverlay?.values[id] = value   // `LC-I` item 2: discarded with the overlay
             return
         }
         versionCounter &+= 1
@@ -1167,9 +1167,9 @@ final class StateTable {
         generation += 1
         for id in storage.keys {
             let isMarked = marked.contains(id)
-            storage[id]!.isLive = isMarked
+            storage[required: id].isLive = isMarked
             if isMarked {
-                storage[id]!.lastSeenGeneration = generation
+                storage[required: id].lastSeenGeneration = generation
             }
         }
         marked.removeAll(keepingCapacity: true)

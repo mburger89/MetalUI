@@ -48,7 +48,7 @@ public final class TerminalSnapshotSource: @unchecked Sendable {
     /// Feeds `bytes` on `queue` (at once when already there, else a copy is queued), publishes, merges the
     /// damage into the pending snapshot and wakes the bound view if it is not already woken.
     public func feed(_ bytes: UnsafeRawBufferPointer) {
-        guard bytes.count > 0 else { return }
+        guard !bytes.isEmpty else { return }
         if onQueue {
             feedOnQueue(bytes)
         } else {
@@ -203,7 +203,7 @@ private struct Merge {
     }
 
     var snapshot: TerminalSnapshot {
-        let damaged = rows.keys.sorted().map { TerminalDamagedRow(index: $0, row: rows[$0]!) }
+        let damaged = rows.sorted { $0.key < $1.key }.map { TerminalDamagedRow(index: $0.key, row: $0.value) }
         return TerminalSnapshot(version: latest.version, size: latest.size, viewportOffset: latest.viewportOffset,
                                 damagedRows: damaged, isFullFrame: full, cursor: latest.cursor, modes: latest.modes,
                                 selection: latest.selection, links: latest.links,

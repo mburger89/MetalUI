@@ -188,7 +188,7 @@ public struct Slider: Element, StyledElement {
             composed.actions[adjustment] = { action in
                 // The key is `AccessibilityAdjustment`'s, so the cast holds by
                 // construction (`Box.onAction`'s reasoning).
-                let direction = (action as! AccessibilityAdjustment).direction
+                let direction = (trapCast(action) as AccessibilityAdjustment).direction
                 adjust(direction == .increment ? .forward : .backward)
             }
         }

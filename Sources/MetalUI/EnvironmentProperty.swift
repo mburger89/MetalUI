@@ -146,12 +146,12 @@ extension Environment: BindableEnvironment {
                 box.occurrences = [(previous, last)]
             }
             if let index = box.occurrences?.firstIndex(where: { $0.id == id }) {
-                box.occurrences![index].values = values
+                box.occurrences?[index].values = values
             } else {
                 box.occurrences?.append((id, values))
             }
         } else if let index = box.occurrences?.firstIndex(where: { $0.id == id }) {
-            box.occurrences![index].values = values
+            box.occurrences?[index].values = values
         }
         box.values = values
         box.boundID = id

@@ -179,7 +179,7 @@ extension Frame {
         }) else { return nil }
         let placed = anchor.placed(rect)
         // An overscanned raster wholly outside the clip draws nothing (`OS-A`).
-        if rasterClip != placement.clip, placed.intersection(placement.clip).isEmpty { return nil }
+        if rasterClip != placement.clip, placed.isDisjoint(with: placement.clip) { return nil }
         var quad = placement.quad(over: placed)
         quad.opacity = paint.opacity
         return (quad, texture)

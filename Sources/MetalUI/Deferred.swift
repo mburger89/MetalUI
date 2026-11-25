@@ -135,11 +135,11 @@ public struct Deferred<Content: Element>: Element {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout LayoutState,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        var result: Content.GroupPrepaint!
+        var result: Content.GroupPrepaint?
         pass.deferred {
             result = content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
-        return result
+        return scopeResult(result)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

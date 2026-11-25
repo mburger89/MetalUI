@@ -45,7 +45,9 @@ final class BackdropPipelines {
             let descriptor = MTLRenderPipelineDescriptor()
             descriptor.vertexFunction = vertexFn
             descriptor.fragmentFunction = fragmentFn
-            let attachment = descriptor.colorAttachments[0]!
+            guard let attachment = descriptor.colorAttachments[0] else {
+                preconditionFailure("a render pipeline descriptor always has colour attachment 0")
+            }
             attachment.pixelFormat = Renderer.pixelFormat
             if destinationIn {
                 attachment.isBlendingEnabled = true

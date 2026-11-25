@@ -43,7 +43,8 @@ final class Submitted: @unchecked Sendable {
     /// Blocks until the worker finished. A plain method so Swift 6 accepts the wait.
     func await() -> Result<SDLGPUFence, SDLGPUError> {
         ready.wait()
-        return result!
+        guard let result else { preconditionFailure("the worker signalled before it recorded an outcome") }
+        return result
     }
 }
 

@@ -727,7 +727,7 @@ extension Frame {
 
     func openRecorderWindow(_ recorder: SubtreeRecorder) {
         if retainLog == nil { retainLog = RetainLog() }
-        let log = retainLog!
+        guard let log = retainLog else { preconditionFailure("the log was made above when absent") }
         recorder.entryHeight = paintScopes.count
         recorder.readLow = stateTable.readJournal.count
         recorder.from = log.current
@@ -741,7 +741,7 @@ extension Frame {
 
     /// Closes the recorder's window and returns what it covered.
     func closeRecorderWindow(_ recorder: SubtreeRecorder) -> (to: RetainLog.Marks, after: LedgerSnapshot) {
-        let log = retainLog!
+        guard let log = retainLog else { preconditionFailure("a recorder window closed with none open") }
         let to = log.current
         let after = ledgerSnapshot()
         stateTable.contentMemos.retained.ledgerSnapshots += 1
@@ -939,7 +939,7 @@ extension Frame {
     /// Closes the paint window; stores the record, or counts why not.
     func finishRetainedPaint(_ phase: RetainedPhase, recorder: SubtreeRecorder, key: ReplayKey, old: RetainedRecord?) {
         let (to, after) = closeRecorderWindow(recorder)
-        let log = retainLog!
+        guard let log = retainLog else { preconditionFailure("a recorder window closed with none open") }
         log.recorders.removeAll { $0 === recorder }
         // `RK-AF`: an occurrence nested in this one returned from its paint without emitting its leaves because the frame is
         // abandoned for a redo (`noteRedoHole`). What this recorder holds is a hole, not the occurrence's paint: storing it

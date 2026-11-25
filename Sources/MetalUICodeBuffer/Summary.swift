@@ -105,6 +105,7 @@ struct Chunk: Sendable {
     var bytes: ContiguousArray<UInt8>
     var compact: ChunkSummary
     var count: Int { bytes.count }
+    var isEmpty: Bool { bytes.isEmpty }
 
     init(_ bytes: ContiguousArray<UInt8>) {
         self.bytes = bytes

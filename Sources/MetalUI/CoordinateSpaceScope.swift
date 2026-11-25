@@ -170,10 +170,10 @@ public struct CoordinateSpaceScope<Content: ElementGroup>: ElementGroup {
             return withLayer { $0.prepaintGroup(layout: &layered, pass: &pass) }.flatMap { $0 }
         }
         guard let space = pass.frame.localSpace(of: layout.nodes, name: name) else {
-            return content.prepaintGroup(layout: &layout.content!, pass: &pass)
+            return content.prepaintGroup(layout: &layout.content.required, pass: &pass)
         }
         return pass.frame.withNamedSpace(space) {
-            content.prepaintGroup(layout: &layout.content!, pass: &pass)
+            content.prepaintGroup(layout: &layout.content.required, pass: &pass)
         }
     }
 
@@ -188,7 +188,7 @@ public struct CoordinateSpaceScope<Content: ElementGroup>: ElementGroup {
             prepaint = wrapped.flatMap { $0 }
             return
         }
-        content.paintGroup(layout: &layout.content!, prepaint: &prepaint!, pass: &pass)
+        content.paintGroup(layout: &layout.content.required, prepaint: &prepaint.required, pass: &pass)
     }
 }
 
@@ -240,7 +240,7 @@ extension CoordinateSpaceScope: Element where Content: Element {
         }
         let space = pass.frame.localSpace(of: bounds, name: name)
         let state = pass.frame.withNamedSpace(space) {
-            content.prepaint(id, bounds: bounds, layout: &layout.plain!, pass: &pass)
+            content.prepaint(id, bounds: bounds, layout: &layout.plain.required, pass: &pass)
         }
         return ScopeLayerState(plain: state, layered: nil)
     }
@@ -254,7 +254,7 @@ extension CoordinateSpaceScope: Element where Content: Element {
             withLayer { $0.paint(id, bounds: bounds, layout: &layered, prepaint: &inner, pass: &pass) }
             return
         }
-        content.paint(id, bounds: bounds, layout: &layout.plain!, prepaint: &prepaint.plain!, pass: &pass)
+        content.paint(id, bounds: bounds, layout: &layout.plain.required, prepaint: &prepaint.plain.required, pass: &pass)
     }
 }
 

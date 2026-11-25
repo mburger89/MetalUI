@@ -103,7 +103,7 @@ struct RasterAnchor {
     /// nothing), exceeds ``overscanLimit`` or leaves `target` by more than
     /// half its size on any side.
     func overscanned(extent: RasterRect, clip: RasterRect, target: RasterRect) -> RasterAnchor? {
-        guard mode == .cut, !extent.isEmpty, !extent.intersection(clip).isEmpty,
+        guard mode == .cut, !extent.isEmpty, !extent.isDisjoint(with: clip),
               extent.width <= RasterAnchor.overscanLimit / max(extent.height, 1),
               extent.x >= target.x - target.width / 2, extent.maxX <= target.maxX + target.width / 2,
               extent.y >= target.y - target.height / 2, extent.maxY <= target.maxY + target.height / 2

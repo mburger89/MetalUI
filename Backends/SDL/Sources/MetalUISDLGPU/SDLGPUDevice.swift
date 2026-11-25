@@ -420,7 +420,10 @@ public final class SDLGPUDevice: @unchecked Sendable {
         guard !bytes.isEmpty, offset >= 0, offset + bytes.count <= buffer.size,
               let transfer = makeTransferBuffer(size: bytes.count, direction: .upload),
               let memory = transfer.map() else { return false }
-        bytes.withUnsafeBytes { memory.copyMemory(from: $0.baseAddress!, byteCount: bytes.count) }
+        bytes.withUnsafeBytes { source in
+            // An empty array has no base address; there is nothing to copy.
+            if let base = source.baseAddress { memory.copyMemory(from: base, byteCount: bytes.count) }
+        }
         transfer.unmap()
         guard let fence = try? await submitBatch({ commandBuffer in
             commandBuffer.copy(transfer, to: buffer, destinationOffset: offset, size: bytes.count)

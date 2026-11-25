@@ -184,6 +184,7 @@ struct LazySectionForEachSource<Data: RandomAccessCollection, ID: Hashable, Cont
         var parts: [any LazyUnitSource]
         var starts: [Int]
         var count: Int { starts[starts.count - 1] }
+        var isEmpty: Bool { starts[starts.count - 1] == 0 }
     }
     let sections: [Built]
     /// Each section's first unit, ascending, with the total last.
@@ -273,7 +274,7 @@ struct LazySectionForEachSource<Data: RandomAccessCollection, ID: Hashable, Cont
     func spans(startingAt first: Int) -> [LazySectionSpan] {
         sections.indices.compactMap { index in
             let built = sections[index]
-            guard built.count > 0 else { return nil }
+            guard !built.isEmpty else { return nil }
             let base = first + prefix[index]
             var header: Range<Int>?, footer: Range<Int>?
             func merged(_ old: Range<Int>?, _ new: Range<Int>) -> Range<Int> {

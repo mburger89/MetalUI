@@ -464,7 +464,7 @@ public struct EnvironmentValues {
     /// The object provided as `type`, or `nil` (`MD-H` item 2).
     func object<T: AnyObject>(_ type: T.Type) -> T? {
         // Only `setObject(_:as:)` writes the slot, under the same static type.
-        objects[ObjectIdentifier(type)].map { $0 as! T }
+        objects[ObjectIdentifier(type)].map { trapCast($0) as T }
     }
 
     /// Provides `object` as `type` below — `nil` removes it (probe `W1`).
@@ -492,7 +492,7 @@ public struct EnvironmentValues {
         get {
             guard let stored = custom[ObjectIdentifier(key)] else { return K.defaultValue }
             // Only this setter writes the slot, typed by the same key.
-            return stored.value as! K.Value
+            return trapCast(stored.value) as K.Value
         }
         set { custom[ObjectIdentifier(key)] = CustomValue(value: newValue, reading: .of(newValue)) }
     }

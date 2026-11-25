@@ -86,7 +86,7 @@ public final class PseudoTerminal: @unchecked Sendable {
     /// Returns the number of bytes read (more than 0), 0 when nothing is available now, or -1 at end of file
     /// (the child and its console are gone and everything was read, or the pty is closed).
     public func read(into buffer: UnsafeMutableRawBufferPointer) -> Int {
-        guard let base = buffer.baseAddress, buffer.count > 0 else { return 0 }
+        guard let base = buffer.baseAddress, !buffer.isEmpty else { return 0 }
         return core.read(base, buffer.count)
     }
 

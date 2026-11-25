@@ -638,9 +638,10 @@ extension CodeView {
                 }
             }
             if alive {
-                marked = (min(max(0, offset), snap.utf8Count), state.composition)
-                plan.selection = marked!.offset..<marked!.offset   // the selection a commit replaces is not drawn
-                plan.head = marked!.offset
+                let markedOffset = min(max(0, offset), snap.utf8Count)
+                marked = (markedOffset, state.composition)
+                plan.selection = markedOffset..<markedOffset   // the selection a commit replaces is not drawn
+                plan.head = markedOffset
             } else {
                 state.composition = .none
             }
@@ -800,8 +801,9 @@ extension CodeView {
             let layout = layoutOfRow(headRow, snap, state.scrollXPx)
             let local = min(primary.head, snap.utf8Count) - snap.lineRange(headRow).lowerBound
             let points = layout.x(ofByte: local) ?? (local < layout.windowStart ? layout.caretX.first : layout.caretX.last) ?? 0
-            revealX = Int((points * scaleD).rounded())
-            state.measuredWidthPx = max(state.measuredWidthPx, revealX! + 1)
+            let reveal = Int((points * scaleD).rounded())
+            revealX = reveal
+            state.measuredWidthPx = max(state.measuredWidthPx, reveal + 1)
         }
         let estimate = Int((Double(snap.longestLineScalars) * metrics.space * scaleD).rounded(.up))
         plan.maxScrollXPx = max(0, max(estimate, state.measuredWidthPx) + plan.padPx - textViewPx)
