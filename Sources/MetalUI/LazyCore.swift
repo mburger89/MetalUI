@@ -133,8 +133,9 @@ enum LazyLinePlanner {
     /// rebuilds the index by key (once, the window recomputed) and the anchor follows its key,
     /// placed at its OLD offset (`VL-G` item 3, `VL-O`).
     static func plan(lineCount count: Int, key: (Int) -> AnyHashable, stored: LazyOrigin?, origin: Double,
-                     context: ScrollContext?, axis: ScrollAxis) -> LazyLinePlan {
+                     context: ScrollContext?, axis: ScrollAxis, stateTable: StateTable) -> LazyLinePlan {
         let storedIndex = stored?.extents as? RowExtentIndex<AnyHashable>
+        if let storedIndex { stateTable.restorable(storedIndex) }   // `RK-AJ`: this plan may rebuild it, and an attempt may be abandoned
         guard let context = context?.along(axis) else {   // `XS-H`: a two-axis scroller's horizontal slot for a horizontal container
             if let storedIndex, storedIndex.count != count { storedIndex.rebuild(ids: (0..<count).lazy.map(key)) }
             return LazyLinePlan(mode: .unbounded, window: 0..<count, anchorLine: 0, anchorOffset: 0,
@@ -248,6 +249,7 @@ enum LazyLinePlanner {
             }
         }
         guard let extents = held else { return (nil, 0) }
+        pass.frame.stateTable.restorable(extents)   // `RK-AJ`: the records below mutate it in place
         if extents.count != count { extents.rebuild(ids: (0..<count).lazy.map(key)) }
         if extents.width != cross { extents.forgetMeasurements(width: cross) }
         for line in realised { extents.record(line.extent, at: line.line, id: key(line.line)) }

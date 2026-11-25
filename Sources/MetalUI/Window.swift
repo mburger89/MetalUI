@@ -938,6 +938,9 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
     /// frame's scheme changed (`CR-Q`), 3 when both — test observability
     /// (`LC-K`). 0 after a call that drew nothing.
     private(set) var lastDrawBuildCount = 0
+    /// Test hook (`RK-AI`): when non-nil, every redo appends the state table's digest before the attempt, as the attempt left it and after
+    /// the rollback. The two outer ones are equal for an exact rollback.
+    package var testingRollbackDigests: [(before: [String], during: [String], after: [String])]?
 
     /// Called with each frame `buildAndAdoptFrame` built, after its read-backs
     /// — test observability (the frame's tree and its recorded work, spec test
@@ -2269,6 +2272,14 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         return true
     }
 
+    /// `RK-AI`: puts the state table back as the abandoned attempt found it; a test that asked records its digest before the attempt (`before`),
+    /// as the attempt left it and after the rollback.
+    private func rollBackAttempt(recordingFrom before: [String]?) {
+        let during = before == nil ? nil : stateTable.attemptDigest
+        stateTable.rollbackAttempt()
+        if let before, let during { testingRollbackDigests?.append((before: before, during: during, after: stateTable.attemptDigest)) }
+    }
+
     /// The build-and-adopt half of `drawFrameIfNeeded` (ruling `CR-Q`): builds
     /// one frame at `scaleFactor` — taking the parked root transaction, so a
     /// second call in one `beginFrame()` gets none — and adopts it: the read-
@@ -2399,13 +2410,18 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             }
             return frame
         }
-        let entriesBeforeBuild = retainedVerifiesFromEnvironment ? stateTable.entryIDs() : []   // verify mode: what the first build creates (`RW-F`)
+        // `RK-AI`: the attempt that may be abandoned logs its first write of each state, and rolls back with the checkpoint (verify mode
+        // abandons every replayed frame, so it is always armed).
+        let rollbackBefore = testingRollbackDigests == nil ? nil : stateTable.attemptDigest
+        if checkpoint != nil || retainedVerifiesFromEnvironment { stateTable.beginAttempt() }
+        let comparedWritesBefore = stateTable.comparedWriteIDs.count   // verify mode: where the replayed build's compared writes start
         var frame = buildFrame()
         if !frame.redoEntries.isEmpty {
             // What the abandoned attempt consumed and the redo must see again (`RK-D`, `RK-M`): the parked
             // transaction (the same value is passed), the window's `scrollTo` queue, the build counters.
             memos.noteRedo(frame.redoEntries)
             scrollRequests.restore(pendingScrollRequests)
+            rollBackAttempt(recordingFrom: rollbackBefore)   // `RK-AI`: the redo plans from the table the attempt found, not from what its prepaint wrote
             if let checkpoint { animationStore.rollbackBuild(checkpoint) }
             surfaceRegistry.rollbackBuild()
             memos.redoInProgress = true
@@ -2425,8 +2441,9 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             let replayedWriteIDs = stateTable.comparedWriteIDs.count
             // A first sighting (a panel shown in the frame that replays a sibling) leaves entries the second build would
             // find: a `List`'s measured viewport, a scroller's extent, so its window bounds rows the first build's did not.
-            // They are deleted, and both builds start from the same table with the scene comparison on.
-            let recreated = stateTable.discardEntries(createdSince: entriesBeforeBuild)
+            // The attempt is rolled back (`RK-AI`, amends `RW-U`): entries it created are deleted, the ones it wrote restored,
+            // and both builds start from the same table with the scene comparison on.
+            let recreated = stateTable.rollbackAttempt()
             let firstFrame = frame
             memos.resetBuildCounters()
             scrollRequests.restore(pendingScrollRequests)
@@ -2442,14 +2459,17 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             for id in stateTable.lastReadJournal where !replayedReads.contains(id) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: unrecordedRead \(sbPath(id)): a fresh run read an entry the replayed frame's records do not name")
             }
-            // The replayed frame's own writes are stored, so the rebuild finds them unchanged; an entry it created is rebuilt, and written again.
-            if stateTable.comparedWriteIDs[replayedWriteIDs...].contains(where: { !recreated.contains($0) }) {
+            // The rollback put the table back, so the rebuild writes again what the replayed build wrote (`RK-AI`); a compared write it makes
+            // that the replay did not make, of an entry that existed before the frame, is one the replay skipped.
+            let replayedWrites = Set(stateTable.comparedWriteIDs[comparedWritesBefore..<replayedWriteIDs])
+            if stateTable.comparedWriteIDs[replayedWriteIDs...].contains(where: { !recreated.contains($0) && !replayedWrites.contains($0) }) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: writeMissed: a fresh run wrote a compared state the replay skipped")
             }
             if let replayed, let fresh = frame.verifySnapshot, let difference = replayed.difference(from: fresh) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed prepaint differs from a fresh one: \(difference)")
             }
         }
+        stateTable.acceptAttempt()   // `RK-AI`: normally closed by the sweep; a frame that skipped it keeps its writes too
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes

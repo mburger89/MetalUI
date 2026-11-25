@@ -62,6 +62,41 @@ final class RowExtentIndex<ID: Hashable> {
     /// `rebuild(ids:)` calls so far — a work counter.
     private(set) var rebuilds = 0
 
+    // MARK: The attempt's journal (`RK-AJ`)
+
+    /// What a rolled-back attempt restores. `nil` outside an attempt, so a mutation pays one nil check.
+    ///
+    /// The index is a class held in a state entry, so the entry's undo log restores the reference and nothing else
+    /// (`AttemptRestorable`). `record` logs the old height and id of a row it changes and the old value of every Fenwick node
+    /// it touches, and a rollback puts them back in reverse order, so every sum is the same bits, not the same up to
+    /// rounding. `rebuild` and `forgetMeasurements` replace or clear every array: the first of them moves the arrays as they
+    /// stand into `snapshot` (O(n) and transient, on a data or width change only), and the records logged before it are
+    /// undone over the snapshot at the rollback. A quiet frame journals nothing.
+    private struct Journal {
+        struct Row { let index: Int; let height: Double; let id: ID? }
+        struct Node { let k: Int; let sum: Double; let count: Int32 }
+        struct Snapshot {
+            let count: Int
+            let heights: [Double]
+            let ids: [ID?]
+            let sums: [Double]
+            let counts: [Int32]
+        }
+        var rows: [Row] = []
+        var nodes: [Node] = []
+        var snapshot: Snapshot?
+        /// How many of `rows` and `nodes` were logged before the snapshot (they are undone over it).
+        var rowsBeforeSnapshot = 0
+        var nodesBeforeSnapshot = 0
+        let count: Int
+        let width: Double?
+        let measuredTotal: Double
+        let measuredCount: Int
+    }
+    private var journal: Journal?
+    /// The number of entries the open attempt has journalled (a test observable).
+    var journalledWrites: Int { journal.map { $0.rows.count + $0.nodes.count + ($0.snapshot == nil ? 0 : 1) } ?? 0 }
+
     init(count: Int, declaredEstimate: Double?) {
         let count = Swift.max(0, count)
         self.count = count
@@ -148,8 +183,11 @@ final class RowExtentIndex<ID: Hashable> {
     /// ignored (stored extents stay finite).
     func record(_ height: Double, at index: Int, id: ID) {
         guard heights.indices.contains(index), height.isFinite else { return }
-        ids[index] = id
         let old = heights[index]
+        if journal != nil, journal?.snapshot == nil, !(old == height && ids[index] == id) {
+            journal?.rows.append(.init(index: index, height: old, id: ids[index]))
+        }
+        ids[index] = id
         let sumDelta: Double
         let countDelta: Int32
         if old.isNaN {
@@ -164,8 +202,10 @@ final class RowExtentIndex<ID: Hashable> {
         heights[index] = height
         guard sumDelta != 0 || countDelta != 0 else { return }
         var k = index + 1
+        let journalling = journal != nil && journal?.snapshot == nil
         while k <= count {
             nodeVisits += 1
+            if journalling { journal?.nodes.append(.init(k: k, sum: sums[k], count: counts[k])) }
             sums[k] += sumDelta
             counts[k] += countDelta
             k += k & -k
@@ -175,6 +215,7 @@ final class RowExtentIndex<ID: Hashable> {
     /// Forgets every height (`VL-E` item 2: the width changed) and stores the
     /// new `width`. **Keeps the ids** (`VL-O` item 2).
     func forgetMeasurements(width: Double) {
+        takeSnapshot()
         self.width = width
         for i in heights.indices { heights[i] = .nan }
         for i in sums.indices { sums[i] = 0 }
@@ -189,6 +230,7 @@ final class RowExtentIndex<ID: Hashable> {
     /// index of each id (the first occurrence, should the data repeat one).
     @discardableResult
     func rebuild<C: Collection>(ids newIDs: C) -> [ID: Int] where C.Element == ID {
+        takeSnapshot()
         rebuilds += 1
         var measuredByID: [ID: Double] = [:]
         measuredByID.reserveCapacity(measuredCount)
@@ -235,5 +277,54 @@ final class RowExtentIndex<ID: Hashable> {
         measuredTotal = total
         measuredCount = measured
         return lookup
+    }
+
+    /// Moves the arrays as they stand into the journal, once per attempt, before the first call that replaces or clears them.
+    private func takeSnapshot() {
+        guard journal != nil, journal?.snapshot == nil else { return }
+        guard var held = journal else { return }
+        journal = nil   // the copy below is the only holder, so the arrays are not copied twice
+        held.rowsBeforeSnapshot = held.rows.count
+        held.nodesBeforeSnapshot = held.nodes.count
+        held.snapshot = .init(count: count, heights: heights, ids: ids, sums: sums, counts: counts)
+        journal = held
+    }
+}
+
+extension RowExtentIndex: AttemptRestorable {
+    func beginAttempt() {
+        journal = Journal(count: count, width: width, measuredTotal: measuredTotal, measuredCount: measuredCount)
+    }
+
+    func rollbackAttempt() {
+        guard let held = journal else { return }
+        var rowsEnd = held.rows.count, nodesEnd = held.nodes.count
+        if let snapshot = held.snapshot {
+            count = snapshot.count
+            heights = snapshot.heights
+            ids = snapshot.ids
+            sums = snapshot.sums
+            counts = snapshot.counts
+            rowsEnd = held.rowsBeforeSnapshot
+            nodesEnd = held.nodesBeforeSnapshot
+        }
+        for row in held.rows[..<rowsEnd].reversed() {
+            heights[row.index] = row.height
+            ids[row.index] = row.id
+        }
+        for node in held.nodes[..<nodesEnd].reversed() {
+            sums[node.k] = node.sum
+            counts[node.k] = node.count
+        }
+        width = held.width
+        measuredTotal = held.measuredTotal
+        measuredCount = held.measuredCount
+        journal = nil
+    }
+
+    func endAttempt() { journal = nil }
+
+    var attemptContents: String {
+        "count \(count) width \(String(describing: width)) total \(measuredTotal) measured \(measuredCount) heights \(heights) ids \(ids) sums \(sums) counts \(counts)"
     }
 }
