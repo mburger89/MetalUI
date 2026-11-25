@@ -64,7 +64,7 @@ empty unfocused field across 30 frames of other text changing asks 0 times; an i
 storing (CoreText, portable); the empty guard removed (both); the key leaving out the font; the portable `endFrame` not
 filtering; eviction newest-first; `endFrame` not bounding; `trimInFrame` removed; cost ignored (two forms); a hit not re-stamping;
 the system bypassing the cache. Caret placement, click-to-caret, selection and IME ran through the unchanged field suites.
-Full run: root 7369 tests in 80 suites green (`--build-system native`, `--no-parallel`). Steady-frame and allocation pins
+Full run (first version): root 7369 tests in 80 suites green (`--build-system native`, `--no-parallel`). Steady-frame and allocation pins
 unchanged (no pin moved in the full run).
 
 ## Revision after review: one shared byte budget
@@ -117,4 +117,4 @@ hold no layout; layouts and caret lines weigh the text). Pinned by `thePortableT
 `CaretOffsetsCacheTests` 3. 19 mutations, each killed by a named test: the earlier 13 (adapted) and the in-frame order ignored
 (`aWorkingSetOverTheBudgetReShapesTheOverageAndNoMore`), the shares giving the first table all (`theThreeTablesShareOneBudget`), the
 in-frame limit doubled, the portable `endFrame` and `trimInFrame` not bounding, and the shaped weight ignoring its text.
-Probe: `scratchpad/caret/G48Probe/main.swift`, set up by `setup-probe.sh <worktree>`; modes `key keyv stream table code fill`.
+Full run after the revision: root 7371 tests in 80 suites green (+15 net over master). Probe: `scratchpad/caret/G48Probe/main.swift`, set up by `setup-probe.sh <worktree>`; modes `key keyv stream table code fill`.
