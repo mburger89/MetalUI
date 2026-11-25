@@ -670,6 +670,7 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
         pair.redraw()
         try pair.compare("a frame after a scroll of \(delta)")
     }
+}
 
 /// A record the attempt made names a glyph by its atlas rectangle, and the redo may pack a different glyph of the same size into the rectangle the rollback
 /// emptied (the packer is rewound, bitmaps of digits and of most capitals share a size): the rectangle is occupied again, so "is the slot still packed" cannot
