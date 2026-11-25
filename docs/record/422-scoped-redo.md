@@ -55,6 +55,12 @@ The eight backoff-behaviour pins of record 419's list and its two literals, now 
 - **`TableEditSession` is a class a build writes** (`TableBody`: the row position and last frame, the editor's focus, and the one-shot `needsSeed` and `needsFocus` flags consumed in prepaint): a redo's second attempt found the focus request already consumed and never made it. It is now `AttemptRestorable` and `TableBody` registers it in layout and prepaint (`aRolledBackTableEditSessionRequestsItsFocusAgain`). A real exactness gap of the redo since `RK-D`, only reachable with a cell-mode edit open in a frame that redoes.
 - The whole suite under `METALUI_VERIFY_RETAINED=1` now ends: no trap, and the failing tests are the count pins of record 419's baseline (same names, plus `colourOnlyHighlightsCostWhatMasterCosts`, `aWriteReadOnlyBelowAMemoBoundaryCosts...`), two allocation pins (`recordingAndNotRecordingAllocateTheSame`, `anEnabledIdleTextAllocatesNothingPerRow`: a verify-mode frame also digests the table, which allocates; I could not baseline them on master here) and the census test, which is skipped under verify (the demo windows never idle there).
 
+## The stack, and the capacity hints
+
+After the merge of #436 the 200-reply transcript test `aTokenCostsTheLastBlockWhateverTheTranscriptHolds` crashed (signal 11, reported as a bad pointer in `Frame.render`) on this branch and passed on #434: a main-thread stack overflow, passing with `ulimit -s 60000`. The recursive build and prepaint paths pay for every local a function adds, inlined or not: `isInRedoScope`, `isInQuarantinedScope` (called from `graftRecord` and the prepaint decision) and `Frame.noteScrollContextRead` (from `LayoutPass.scrollContext`) are `@inline(never)`, which restored the headroom. A new check on those paths owes the same.
+
+**Capacity hints** (G51's `FrameCapacityHints.scopeCaptures` and the rest) come from the adopted frame only: `Window.buildAndAdoptFrame` reads `frame.capacityHints()` after the redo, from the frame it adopts; every attempt is built with the window's hints as they stood before the frame, so attempt 2 reserves what attempt 1 did, and an abandoned frame never writes them (`Frame.startCapacities` is the frame's own).
+
 ## Not here
 
 The movable-record work (record 416's Piece 3: `maskStraddlesEntryClip`, `inexactTranslation`) removes the redos' cause; this removes their cost. `Frame.noteUnrestorable` has no caller in the product: the census of record 419 found no state a rollback cannot restore.

@@ -1295,6 +1295,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// A layout read the published scroll context: journalled with the depth it was read at, so a graft of the occurrence is refused when that
     /// scroller's offset, viewport or end-pinning is no longer what the build windowed against (`graftDependenciesHold`). A lazy container,
     /// a `List` and a table body windowed against an offset the key did not hold: a scroll step grafted the stale window.
+    @inline(never)
     func noteScrollContextRead() {
         let journal = stateTable.contentMemos.journal
         if journal.isRecording { journal.record(.scrollContextRead(activeScrollContext, scrollContextStack.count)) }

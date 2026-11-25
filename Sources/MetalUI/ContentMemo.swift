@@ -246,11 +246,13 @@ package final class ContentMemoStore {
     static let quarantinedScopeLimit = 64
 
     /// Whether `id` is at, under or above a scope of the redo in progress.
+    @inline(never)   // called from the recursive build and prepaint: its locals stay out of their frames
     func isInRedoScope(_ id: GlobalElementID) -> Bool {
         redoScopes.contains { id.isOrDescends(from: $0) || $0.isOrDescends(from: id) }
     }
 
     /// Whether `id` is at or under a quarantined scope that has not expired.
+    @inline(never)
     func isInQuarantinedScope(_ id: GlobalElementID) -> Bool {
         quarantinedScopes.contains { $0.until > buildSerial && id.isOrDescends(from: $0.id) }
     }
