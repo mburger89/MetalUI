@@ -14,6 +14,13 @@ public final class CoreTextTextSystem: TextSystem {
     /// fallback font CoreText ran a glyph in — so ``rasterize(_:)`` can draw
     /// a key it placed.
     private var placedFonts: [FontKey: ResolvedFont] = [:]
+    /// The glyph array `placeGlyphs` returned last, kept so the next call writes into the same block (`G50`).
+    var glyphBuffer = KeptBuffer<TextGlyph>()
+    /// `placeGlyphs` calls, the glyphs they returned and the calls that computed a placement rather than
+    /// answering from the shape's memo; for probes and tests (`G50`).
+    package private(set) var placeGlyphsCalls = 0
+    package private(set) var placeGlyphsReturned = 0
+    package private(set) var placeGlyphsComputed = 0
 
     /// The CoreText text system over `cache`, the default on Apple platforms
     /// (`TS-B`).
@@ -64,16 +71,20 @@ public final class CoreTextTextSystem: TextSystem {
                             options: TextLayoutOptions,
                             origin: (x: Double, y: Double), scaleFactor: Float) -> [TextGlyph] {
         let requested = registered(font)
-        let placed = cache.shaped(string, font: requested, wrappingAt: width, options: options)
-            .placedGlyphs(at: origin, font: requested, scaleFactor: scaleFactor)
+        let shaped = cache.shaped(string, font: requested, wrappingAt: width, options: options)
+        let computedBefore = shaped.placement.placementsComputed
+        let placed = shaped.placedGlyphs(at: origin, font: requested, scaleFactor: scaleFactor)
+        placeGlyphsCalls += 1
+        placeGlyphsReturned += placed.count
+        placeGlyphsComputed += shaped.placement.placementsComputed - computedBefore
         // Plain loops, not closures passed to `map`: a closure in `@MainActor` code costs a dynamic
         // isolation check per call (`HP-F`, profile 2026-10-13).
-        var glyphs: [TextGlyph] = []
-        glyphs.reserveCapacity(placed.count)
+        var glyphs = glyphBuffer.take(minimumCapacity: placed.count)
         for glyph in placed {
             if placedFonts[glyph.font.key] == nil { placedFonts[glyph.font.key] = glyph.font }
             glyphs.append(TextGlyph(key: glyph.key, pixelX: glyph.pixelX, baselineY: glyph.baselineY))
         }
+        glyphBuffer.keep(glyphs)
         return glyphs
     }
 

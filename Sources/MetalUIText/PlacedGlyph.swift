@@ -26,7 +26,11 @@ public struct PlacedGlyph {
     /// requested font instead would draw a glyph id from one face out of
     /// another face's outlines — the same class of error ``FontKey`` exists to
     /// prevent, arriving through the run rather than through the name.
-    public let font: ResolvedFont
+    public var font: ResolvedFont { placedFont.font }
+
+    /// The run's font, shared by every glyph of the run: one reference here instead of a 56-byte
+    /// ``ResolvedFont`` per glyph (`G50`, record 415).
+    let placedFont: PlacedFont
 
     /// The whole device pixel the bitmap is blitted at, from
     /// ``GlyphRaster/subpixelPlacement(forDeviceX:)``. The fraction that was
@@ -37,6 +41,25 @@ public struct PlacedGlyph {
     /// The glyph's baseline, in whole device pixels, y **down** from the text
     /// box's top edge plus whatever origin the caller supplied.
     public let baselineY: Int
+
+    /// A placed glyph in `font`, which is boxed here; the placement paths share one box per run instead.
+    public init(key: GlyphKey, font: ResolvedFont, pixelX: Int, baselineY: Int) {
+        self.init(key: key, placedFont: PlacedFont(font), pixelX: pixelX, baselineY: baselineY)
+    }
+
+    init(key: GlyphKey, placedFont: PlacedFont, pixelX: Int, baselineY: Int) {
+        self.key = key
+        self.placedFont = placedFont
+        self.pixelX = pixelX
+        self.baselineY = baselineY
+    }
+}
+
+/// A ``ResolvedFont`` behind one reference, so the glyphs of a run share it.
+final class PlacedFont {
+    let font: ResolvedFont
+
+    init(_ font: ResolvedFont) { self.font = font }
 }
 
 /// What one shape's placement has read, computed and remembered (`HP-A`): a class so the `ShapedText`
@@ -45,10 +68,12 @@ public struct PlacedGlyph {
 final class PlacementBox {
     /// One run of a line, read from CoreText once: its font, point size, glyph ids and pen positions.
     struct Run {
-        let font: ResolvedFont
+        let placedFont: PlacedFont
         let size: Double
         let glyphs: [CGGlyph]
         let positions: [CGPoint]
+
+        var font: ResolvedFont { placedFont.font }
     }
 
     /// The memo's key: origin and scale by bit pattern, and the requested font (it decides the baseline
@@ -168,7 +193,7 @@ extension ShapedText {
                         // A zero-length CFRange means "the whole run" for both calls.
                         CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
                         CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
-                        out.append(PlacementBox.Run(font: runFont, size: Double(CTFontGetSize(runFont.ctFont)),
+                        out.append(PlacementBox.Run(placedFont: PlacedFont(runFont), size: Double(CTFontGetSize(runFont.ctFont)),
                                                     glyphs: glyphs, positions: positions))
                     }
                 }
@@ -181,7 +206,7 @@ extension ShapedText {
 
         box.placementsComputed += 1
         var placed: [PlacedGlyph] = []
-        placed.reserveCapacity(runLines.reduce(0) { $0 + $1.reduce(0) { $0 + $1.glyphs.count } })
+        placed.reserveCapacity(GlyphCapacity.rounded(runLines.reduce(0) { $0 + $1.reduce(0) { $0 + $1.glyphs.count } }))
         for (index, runs) in runLines.enumerated() {
             let baseline = origin.y
                 + Double(index) * font.metrics.lineHeight
@@ -199,7 +224,7 @@ extension ShapedText {
                     placed.append(PlacedGlyph(
                         key: GlyphKey(font: run.font.key, glyph: run.glyphs[i], size: run.size,
                                       subpixelVariant: subpixel.variant, scaleFactor: scaleFactor),
-                        font: run.font,
+                        placedFont: run.placedFont,
                         pixelX: subpixel.pixelX,
                         baselineY: y))
                 }

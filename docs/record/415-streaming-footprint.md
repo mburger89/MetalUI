@@ -53,9 +53,42 @@ Tests: `GlyphFootprintTests` pin the strides. Their bounds are below the sizes t
 print measured on the unmodified tree (`FontKey` 88, `GlyphKey` 128, `PlacedGlyph` 264, `TextGlyph` 144), so each
 expectation is false there; the tests were written after the change and not run red in the suite.
 
+## Round 2: the remaining footprint, the paragraph case, and what is not fixed
+
+Region counts at the end of 1500 frames (`vmmap --summary`), growing text, 14 KB:
+
+| build | footprint | `Malloc Large (empty)` | `Malloc Small` / `(empty)` dirty | live malloc |
+| --- | --- | --- | --- | --- |
+| master | +242 (+336 in the earlier run) | 43 regions, 137 MiB | 81 / 99 MiB | 80 MiB |
+| #432 (FontKey box) | +110 | 5 regions, 15 MiB | 78 / 41 MiB | 47 MiB |
+| #432 + this round | +95 | 5 regions, 15 MiB | 78 / 47 MiB | 41 MiB |
+
+The freed 3 MB blocks are gone (the 5 left are the live 3 MB scene and memo arrays); what remains is
+`Malloc Small`, the per-line shapes (CoreText lines, run arrays) of about 220 cached entries of a text that
+is new each frame. That is the ShapingCache's entry count, which `#427` (a shared byte budget) owns.
+
+This round: placement memo and the `[TextGlyph]` array are reserved in quarter-power-of-two classes
+(`GlyphCapacity`), `placeGlyphs` writes into the block the previous call returned (`KeptBuffer`, one per
+system, at most 64 Ki glyphs, dropped when the next text needs under a quarter), and a `PlacedGlyph` holds its
+font as one reference per run (`PlacedFont`): `PlacedGlyph` 136 to 88 bytes (`font` is a computed property;
+the public `init(key:font:pixelX:baselineY:)` remains; four source files touched). The new tests failed to
+compile on the tree without these members (`glyphBuffer`, `placedFont`), and the 96-byte bound is under the
+136 measured before. A frame-time gain is inside the probe's noise on a loaded machine.
+
+**The paragraph-split case (what Alloy sees)**: the same 14 KB in 40 paragraphs (`ForEach` of `Text`), 1500
+frames, in the same probe: master +39 MiB, #432 +39, this round +38; the floor with no growing text is
++32 to +37. A message split into paragraphs costs nothing extra on master already, so the 550 MB per
+25 KB reply Alloy measured is not reproduced by paragraph blocks. Probe counters
+(`placeGlyphsCalls`, `placeGlyphsReturned`, `placeGlyphsComputed` on `CoreTextTextSystem`, `package`): in
+that variant **every frame calls `placeGlyphs` for every `Text` on screen (about 205 calls, 30 000 glyphs
+returned), and 2 of them compute a placement; the rest answer from the shape's memo.** So settled
+paragraphs do not re-place, but they still run `prepaint`/`paint` and rebuild their `[TextGlyph]` from the
+memo. Under `.equatable()` on each paragraph the numbers are the same (202 calls, 28 000 glyphs, 2
+computed): the equatable occurrence does not skip a settled `Text`'s glyph work here (the G49b question).
+That conversion (`[TextGlyph]` from `[PlacedGlyph]` per call) is the per-frame cost a graft would remove.
+
 ## Not done
 
-Still +111 MiB for a 14 KB message: the per-glyph `font` in `PlacedGlyph` (56 bytes) and the memo itself
-are kept; the placement memo and `[TextGlyph]` could be dropped for text longer than a screen, and
-`Scene`'s per-frame arrays could keep their capacity across frames. Both are follow-ups, as is a byte
-budget (not an entry count) on the ShapingCache.
+A `[TextGlyph]` memo in the placement box (settled text would skip the per-frame conversion; costs a second
+array per entry unless `PlacedGlyph` is dropped for the system path), `Scene` capacity reuse (`#428`), and a
+byte budget on the ShapingCache (`#427`).
