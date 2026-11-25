@@ -940,6 +940,9 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
     private(set) var lastDrawBuildCount = 0
     /// Test hook (`RK-AI`): when non-nil, every redo appends the state table's digest before the attempt, as the attempt left it and after
     /// the rollback. The two outer ones are equal for an exact rollback.
+    /// Test hook (`RK-AM`): makes the next redos take a path that is window-wide or escalates, which nothing in the product does on its own today.
+    package enum RedoFault { case unrestorableChannel, secondAttemptAsksAgain }
+    package var testingRedoFault: RedoFault?
     package var testingRollbackDigests: [(before: [String], during: [String], after: [String])]?
 
     /// Called with each frame `buildAndAdoptFrame` built, after its read-backs
@@ -2438,15 +2441,39 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         let comparedWritesBefore = stateTable.comparedWriteIDs.count   // verify mode: where the replayed build's compared writes start
         var frame = buildFrame()
         if !frame.redoEntries.isEmpty {
+            // A scoped redo (`RK-AM`) rebuilds the failing occurrences and what is under them; the rest of the frame replays as in the attempt, which is exact
+            // because the rollback put everything back (`RK-AI`, `GL-K`). Window-wide (every replay off, nine builds of backoff) when a channel the attempt wrote
+            // cannot be rolled back, when an occurrence has no identity to scope, and in verify mode, which compares whole frames.
+            let ids = frame.redoEntries.compactMap(\.id)
+            let firstEntries = frame.redoEntries
+            if testingRedoFault == .unrestorableChannel { frame.noteUnrestorable("test") }
+            let scoped = !retainedVerifiesFromEnvironment && frame.unrestorableChannels.isEmpty && ids.count == frame.redoEntries.count
             // What the abandoned attempt consumed and the redo must see again (`RK-D`, `RK-M`): the parked
             // transaction (the same value is passed), the window's `scrollTo` queue, the build counters.
-            memos.noteRedo(frame.redoEntries)
+            memos.noteRedo(frame.redoEntries, scoped: scoped)
             scrollRequests.restore(pendingScrollRequests)
             rollBackAttempt(recordingFrom: rollbackBefore)   // `RK-AI`: the redo plans from the table the attempt found, not from what its prepaint wrote
             if let checkpoint { animationStore.rollbackBuild(checkpoint) }
             surfaceRegistry.rollbackBuild()
             memos.redoInProgress = true
+            if scoped {
+                memos.redoScopes = ids
+                stateTable.beginAttempt(); glyphAtlas.beginAttempt()   // attempt 2 is armed too: it may ask again
+            }
             frame = buildFrame()
+            if testingRedoFault == .secondAttemptAsksAgain, scoped, frame.redoEntries.isEmpty { frame.redoEntries = firstEntries }
+            if scoped, !frame.redoEntries.isEmpty {
+                // Attempt 2 asked for a redo: the third build has every replay off, and the window backs off (`RK-AM`).
+                memos.noteRedo(frame.redoEntries)
+                memos.retained.redoEscalations = 1
+                scrollRequests.restore(pendingScrollRequests)
+                rollBackAttempt(recordingFrom: rollbackBefore)
+                if let checkpoint { animationStore.rollbackBuild(checkpoint) }
+                surfaceRegistry.rollbackBuild()
+                memos.redoScopes = []
+                frame = buildFrame()
+            }
+            memos.redoScopes = []
             memos.redoInProgress = false
             assert(frame.redoEntries.isEmpty, "a redo asked for a redo (RK-M): every replay is off in it")
         } else if frame.verifyAbandoned {

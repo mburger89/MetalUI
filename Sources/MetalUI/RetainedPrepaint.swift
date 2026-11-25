@@ -304,7 +304,8 @@ extension Frame {
         let ledgerOfRecord = old?.prepaint
         var inputs = PrepaintInvalidation.Inputs()
         inputs.replayDisallowed = !memos.prepaintReplayAllowed
-        inputs.quarantined = entry.quarantineUntil > memos.buildSerial
+        inputs.quarantined = entry.quarantineUntil > memos.buildSerial || memos.isInQuarantinedScope(build.key.id)
+        inputs.scopedRedo = memos.isInRedoScope(build.key.id)
         inputs.hasRecord = old != nil
         inputs.hasLedger = ledgerOfRecord != nil
         inputs.observedChange = entry.observedChange
@@ -561,6 +562,12 @@ extension Frame {
     func requestRedo(_ entry: ContentMemoStore.Entry) {
         redoEntries.append(entry)
     }
+
+    /// A channel this attempt wrote that a rollback cannot undo (`RK-AM`): the redo is window-wide, every replay off, as before. Nothing declares one
+    /// today (the census of record 419 found none); a new store of that kind owes this call.
+    func noteUnrestorable(_ channel: String) {
+        unrestorableChannels.append(channel)
+    }
 }
 
 // MARK: - The window's side of the redo
@@ -568,24 +575,35 @@ extension Frame {
 extension ContentMemoStore {
     /// Whether prepaint replay is in force for the build in progress: on, not in a redo, not backed off (`RK-D`).
     var prepaintReplayAllowed: Bool {
-        replaysPrepaint && windowRedoes && !redoInProgress && buildSerial >= prepaintSuspendedUntil
+        replaysPrepaint && windowRedoes && (!redoInProgress || !redoScopes.isEmpty) && buildSerial >= prepaintSuspendedUntil
     }
 
     /// The frame was abandoned for `entries` (`RK-D` item 3): prepaint replay is suspended window-wide for the
     /// next eight builds, each entry for 8, 16 … 256, and this build's counters restart (the abandoned attempt's
     /// work was thrown away; `redos` counts the redo).
-    func noteRedo(_ entries: [Entry]) {
+    func noteRedo(_ entries: [Entry], scoped: Bool = false) {
         let serial = buildSerial
-        if redoBackoff { prepaintSuspendedUntil = serial + 9 }
+        // A scoped redo leaves the window replaying (`RK-AM`); only a window-wide one (an escalation, an unrestorable channel, verify mode) suspends it.
+        if !scoped, redoBackoff { prepaintSuspendedUntil = serial + 9 }
         var seen = Set<ObjectIdentifier>()
         for entry in entries where seen.insert(ObjectIdentifier(entry)).inserted {
             entry.quarantineUntil = serial + 1 + (8 << entry.redoExponent)
+            if scoped, let id = entry.id { quarantine(id, until: entry.quarantineUntil) }
             entry.redoExponent = min(entry.redoExponent + 1, 5)
         }
         let evaluated = evaluations   // `CF-C`: the one loss with no repeat
         resetBuildCounters()
         carriedEvaluations = evaluated
         retained.redos = 1
+    }
+
+    /// Keeps `id` and everything under it out of graft and prepaint replay until `until` (`RK-AN`): at most 64 scopes, the soonest to expire dropped first.
+    func quarantine(_ id: GlobalElementID, until: Int) {
+        quarantinedScopes.removeAll { $0.until <= buildSerial || $0.id == id }
+        if quarantinedScopes.count >= Self.quarantinedScopeLimit {
+            if let soonest = quarantinedScopes.indices.min(by: { quarantinedScopes[$0].until < quarantinedScopes[$1].until }) { quarantinedScopes.remove(at: soonest) }
+        }
+        quarantinedScopes.append(QuarantinedScope(id: id, until: until))
     }
 }
 
