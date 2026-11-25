@@ -61,7 +61,10 @@ private func grey(_ pixels: [UInt8], _ x: Int, _ y: Int) -> Int { Int(pixels[(y 
     let atlas = GlyphAtlas(width: 256, height: 256)
     let request = SurfaceDrawRequest(target: target, scaleFactor: scale, time: 0, policy: .onDemand, value: 0) { ctx in
         if ctx.isNewTarget { ctx.clear(red: 0, green: 0, blue: 0, alpha: 1) }
-        painter.draw(row, at: 0, columns: columns, origin: (8, 8), into: (ctx as! SDLGPUDrawContext).textSink!)
+        guard let sink = (ctx as? SDLGPUDrawContext)?.textSink else {
+            preconditionFailure("an SDL surface request draws into an SDLGPUDrawContext with a text sink")
+        }
+        painter.draw(row, at: 0, columns: columns, origin: (8, 8), into: sink)
     }
     try #require(renderer.beginFrame() != nil)
     try #require(renderer.finishFrame(scene: scene(), atlas: atlas, surfaces: [request]))
@@ -76,7 +79,8 @@ private func grey(_ pixels: [UInt8], _ x: Int, _ y: Int) -> Int { Int(pixels[(y 
     for (scale, text, columns) in [(Float(1), "─┼┃╋═╬", 6), (Float(2), "─┼═", 3)] {
         let (p, m) = try render(text, columns: columns, scale: scale)
         for (column, character) in text.enumerated() {
-            let rects = try #require(SyntheticGlyphs.rects(for: character.unicodeScalars.first!.value,
+            let scalar = try #require(character.unicodeScalars.first)
+            let rects = try #require(SyntheticGlyphs.rects(for: scalar.value,
                                                            cellWidth: m.cellWidth, cellHeight: m.cellHeight))
             for y in 0..<m.cellHeight {
                 for x in 0..<m.cellWidth {

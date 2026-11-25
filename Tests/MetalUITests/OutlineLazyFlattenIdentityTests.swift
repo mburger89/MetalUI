@@ -39,7 +39,7 @@ private struct LeafRow: Component {
     }
 
     var content: some ProposalElementGroup {
-        let _ = serials.seen[name] = serial
+        let _: Void = serials.seen[name] = serial
         Color.gray.frame(height: Pixels(20))
     }
 }
@@ -119,5 +119,5 @@ private struct NodeRow: Component {
     let shared = Set(lazy.elementBounds.keys).intersection(eager.elementBounds.keys)
     #expect(shared.count == lazy.elementBounds.count && shared.count > 15, "shared \(shared.count) of \(lazy.elementBounds.count)")
     let differing = shared.filter { lazy.elementBounds[$0] != eager.elementBounds[$0] }
-    #expect(differing.isEmpty, "differing: \(differing.map { ($0, lazy.elementBounds[$0]!, eager.elementBounds[$0]!) })")
+    #expect(differing.isEmpty, "differing: \(differing.map { ($0, String(describing: lazy.elementBounds[$0]), String(describing: eager.elementBounds[$0])) })")
 }

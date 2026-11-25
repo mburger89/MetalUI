@@ -161,11 +161,13 @@ private func rowNodes(_ tree: AccessibilityTree) -> [Int: AccessibilityNode] {
     var result: [Int: AccessibilityNode] = [:]
     for (id, node) in tree.nodes {
         if node.role == .button, let label = node.label, label.hasPrefix("Row ") {
-            result[Int(label.dropFirst(4))!] = node
+            if let index = Int(label.dropFirst(4)) { result[index] = node } else { Issue.record("a button labelled \(label) has no row index") }
         }
         if node.role == .row {
             let texts = kids(tree, id).compactMap(\.value)
-            if let text = texts.first, text.hasPrefix("Row ") { result[Int(text.dropFirst(4))!] = node }
+            if let text = texts.first, text.hasPrefix("Row ") {
+                if let index = Int(text.dropFirst(4)) { result[index] = node } else { Issue.record("a row's text \(text) has no row index") }
+            }
         }
     }
     return result

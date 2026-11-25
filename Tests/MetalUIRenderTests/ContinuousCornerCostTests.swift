@@ -49,7 +49,8 @@ private func median(_ values: [Double]) -> Double { values.sorted()[values.count
                 commandBuffer.waitUntilCompleted()
                 if frame >= 10 { times.append((commandBuffer.gpuEndTime - commandBuffer.gpuStartTime) * 1000) }
             }
-            print("COST \(name) \(Int(w))x\(Int(h)) r\(Int(r)) kind \(kind): median \(String(format: "%.3f", median(times))) ms, min \(String(format: "%.3f", times.min()!)), max \(String(format: "%.3f", times.max()!)) (50 frames, 10000 rects, \(width)x\(height))")
+            let fastest = try #require(times.min()), slowest = try #require(times.max())
+            print("COST \(name) \(Int(w))x\(Int(h)) r\(Int(r)) kind \(kind): median \(String(format: "%.3f", median(times))) ms, min \(String(format: "%.3f", fastest)), max \(String(format: "%.3f", slowest)) (50 frames, 10000 rects, \(width)x\(height))")
         }
     }
 }

@@ -57,7 +57,7 @@ private let hoverText = (0..<3).map { "row\($0) alpha beta gamma\n" }.joined() +
     let word: Range<Int> = {
         let snap = buffer.snapshot()
         let line = snap.line(3)
-        let r = line.range(of: "target")!
+        guard let r = line.range(of: "target") else { preconditionFailure("row 3 contains target") }
         let start = snap.lineRange(3).lowerBound + line.utf8.distance(from: line.startIndex, to: r.lowerBound)
         return start..<(start + 6)
     }()
@@ -227,7 +227,8 @@ private let hoverText = (0..<3).map { "row\($0) alpha beta gamma\n" }.joined() +
     let model = HoverModel()
     let geometry = CodeViewGeometry()
     let snap = buffer.snapshot()
-    let start = snap.lineRange(3).lowerBound + snap.line(3).utf8.distance(from: snap.line(3).startIndex, to: snap.line(3).range(of: "target")!.lowerBound)
+    let target = try #require(snap.line(3).range(of: "target"))
+    let start = snap.lineRange(3).lowerBound + snap.line(3).utf8.distance(from: snap.line(3).startIndex, to: target.lowerBound)
     let window = try harnessWindow(size: sz(400, 300)) {
         VStack(spacing: 0) {
             HoverHost(buffer: buffer, geometry: geometry, model: model, word: start..<(start + 6)).equatable()

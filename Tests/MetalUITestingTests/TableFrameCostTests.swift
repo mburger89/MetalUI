@@ -16,7 +16,7 @@ private struct WriterChip: Component {
     let log: DxLog
     @State var dx: Float = 0
     var content: some ElementGroup {
-        let _ = { log.lastBuiltDx = dx; log.builds += 1 }()
+        let _: Void = { log.lastBuiltDx = dx; log.builds += 1 }()
         VStack(spacing: 0) {
             Rectangle().frame(width: Pixels(200), height: Pixels(200))
                 .gesture(DragGesture(minimumDistance: Pixels(0)).onChanged { v in dx = Float(v.translation.width.value) })
@@ -109,7 +109,7 @@ private let windowRequests = 1 + 3 * 10 + 28 * (1 + 2 * 10)
 
 @Test @MainActor func anEmptyTablesSteadyCostIsTheBase() async throws {
     let w = try harnessWindow(size: sz(800, 600)) {
-        Table([] as [RowRef]) { TableColumnForEach(0..<0) { (c: Int) in TableColumn("c\(c)") { (r: RowRef) in Text("x") } } }
+        Table([] as [RowRef]) { TableColumnForEach(0..<0) { (c: Int) in TableColumn("c\(c)") { (_: RowRef) in Text("x") } } }
     }
     let f = try await steady(w)
     print("TBL-M B: steady elementRequests \(f.elementRequests), elementPaints \(f.elementPaints)")

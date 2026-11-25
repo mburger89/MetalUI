@@ -651,7 +651,8 @@ private struct SpaceRecorder: ProposalElement {
     #expect(near(first.toSpace?.apply(pt(80, 80)), pt(10, 10)))
     try #require(local.previous.count >= 2)
     #expect(local.previous[0] == nil, "the first frame has no last frame")
-    #expect(local.previous.last! == local.recorded[local.recorded.count - 2], "carried: \(local.previous)")
+    let localPreviousLast = try #require(local.previous.last)
+    #expect(localPreviousLast == local.recorded[local.recorded.count - 2], "carried: \(local.previous)")
     #expect(window.lastPresentationSpaces.values.first == local.recorded.last)
 
     let named = SpaceLog()
@@ -662,7 +663,8 @@ private struct SpaceRecorder: ProposalElement {
     namedWindow.drawFrameIfNeeded()
     let space = try #require(named.recorded.first)
     #expect(near(space.toWindow.apply(pt(0, 0)), pt(75, 75)), "the 50 × 50 container at (75, 75): \(space.toWindow)")
-    #expect(named.previous.last! == named.recorded[named.recorded.count - 2])
+    let namedPreviousLast = try #require(named.previous.last)
+    #expect(namedPreviousLast == named.recorded[named.recorded.count - 2])
     withExtendedLifetime((window, namedWindow)) {}
 }
 

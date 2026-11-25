@@ -42,7 +42,7 @@ private enum Kind: String, CaseIterable, Sendable, CustomTestStringConvertible {
     case .boundEditor:
         window = try harnessWindow { TextEditor("Title", text: model.textBinding, selectedOffsets: model.offsetsBinding) }
     }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     try window.focus(window.element(label: "Title"))
     return window
 }
@@ -224,7 +224,7 @@ private func aReplacementWhileAFieldWasUnfocusedDoesNotMoveALaterClick() throws 
             TextField("Other", text: Binding(get: { other }, set: { other = $0 }))
         }
     }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     try window.focus(window.element(label: "Title"))
     window.typeText("a")
     window.typeKey(.tab)

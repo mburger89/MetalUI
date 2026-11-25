@@ -61,8 +61,10 @@ private func decode(_ bytes: [UInt8]) -> [UInt32] {
                                     0xE1, 0xED, 0xEF, 0xF0, 0xF4, 0xF5, 0xFF]
         for _ in 0..<3_000 {
             let length = Int.random(in: 0...12, using: &rng)
-            let bytes = (0..<length).map { _ in
-                Bool.random(using: &rng) ? interesting.randomElement(using: &rng)! : UInt8.random(in: 0...255, using: &rng)
+            let bytes: [UInt8] = (0..<length).map { _ in
+                guard Bool.random(using: &rng) else { return UInt8.random(in: 0...255, using: &rng) }
+                guard let byte = interesting.randomElement(using: &rng) else { preconditionFailure("the list is not empty") }
+                return byte
             }
             // The standard library replaces each maximal invalid subpart with one U+FFFD, as the decoder must.
             let reference = String(decoding: bytes, as: UTF8.self).unicodeScalars.map(\.value)

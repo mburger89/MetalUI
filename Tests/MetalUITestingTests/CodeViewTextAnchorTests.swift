@@ -34,7 +34,8 @@ private enum Kind { case suggestion, popover }
     CodeView(buffer: buffer, decorations: CodeDecorations(buffer: buffer)).font(size: 12).showsLineNumbers(false)
         .codeCaretBlink(.off).geometry(geometry)
         .onKeyPress(keys: [.downArrow, .upArrow, .return, .escape, .tab]) { press in
-            model.keys.append(String(press.key.character.unicodeScalars.first!.value, radix: 16))
+            guard let scalar = press.key.character.unicodeScalars.first else { preconditionFailure("a key press carries a character") }
+            model.keys.append(String(scalar.value, radix: 16))
             return model.consumes ? .handled : .ignored
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "a")) { press in
@@ -82,7 +83,7 @@ private extension Bounds where Unit == Pixels {
 @MainActor private func byteRange(of needle: String, inRow row: Int, _ buffer: CodeBuffer) -> Range<Int> {
     let snap = buffer.snapshot()
     let line = snap.line(row)
-    let r = line.range(of: needle)!
+    guard let r = line.range(of: needle) else { preconditionFailure("row \(row) does not contain \(needle)") }
     let start = snap.lineRange(row).lowerBound + line.utf8.distance(from: line.startIndex, to: r.lowerBound)
     return start..<(start + needle.utf8.count)
 }
@@ -136,7 +137,9 @@ private let plainText = (0..<60).map { "row\($0) alpha beta gamma\n" }.joined()
     buffer.replace(0..<0, with: "inserted line\nand another\n")
     window.window.setNeedsRedraw()   // an observed write dirties the window asynchronously off Apple (as in G35 A's tests)
     window.tick(); window.tick(); window.tick()
-    let moved = try #require(geometry.rects(for: buffer.map(word.lowerBound, from: version, bias: .after)!..<buffer.map(word.upperBound, from: version, bias: .before)!).first)
+    let movedLower = try #require(buffer.map(word.lowerBound, from: version, bias: .after))
+    let movedUpper = try #require(buffer.map(word.upperBound, from: version, bias: .before))
+    let moved = try #require(geometry.rects(for: movedLower..<movedUpper).first)
     #expect(moved.origin.y.value > before.origin.y.value + 10, "the word is two rows lower: \(moved) vs \(before)")
     box = try popoverFrame(window)
     #expect(near(box.origin.x.value, moved.origin.x.value) && near(box.origin.y.value, moved.bottom + 2), "\(box) vs \(moved)")
@@ -609,7 +612,8 @@ private struct FieldHost: Component {
             CodeView(buffer: buffer, decorations: decorations).font(size: 12).showsLineNumbers(false)
                 .codeCaretBlink(.off).geometry(geometry)
                 .onKeyPress(keys: [.escape, .return]) { press in
-                    model.viewKeys.append(String(press.key.character.unicodeScalars.first!.value, radix: 16))
+                    guard let scalar = press.key.character.unicodeScalars.first else { preconditionFailure("a key press carries a character") }
+                    model.viewKeys.append(String(scalar.value, radix: 16))
                     return .handled
                 }
                 .onKeyPress(characters: CharacterSet(charactersIn: "a")) { press in

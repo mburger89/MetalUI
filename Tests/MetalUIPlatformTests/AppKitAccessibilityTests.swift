@@ -134,11 +134,14 @@ private func makeTree(roots: [String], _ entries: [String: Entry], focused: Stri
     var geometry: [AccessibilityNodeID: AccessibilityGeometry] = [:]
     var next = 0
     func visit(_ name: String) {
-        let entry = entries[name]!
+        guard let entry = entries[name] else { preconditionFailure("no entry named \(name)") }
         geometry[nid(name)] = AccessibilityGeometry(frame: entry.frame, visibleFrame: entry.visible ?? entry.frame,
                                                     layer: entry.layer, order: next)
         next += 1
-        for child in entry.node.children { visit(child.base as! String) }
+        for child in entry.node.children {
+            guard let childName = child.base as? String else { preconditionFailure("node ids in this file wrap names") }
+            visit(childName)
+        }
     }
     roots.forEach(visit)
     precondition(geometry.count == entries.count, "every entry must be reachable from a root")

@@ -112,26 +112,35 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.01 }
     let ideal = try #require(field["ideal"])
     #expect(near(ideal.width, 43.95) && ideal.height == 24,
             "TextField ideal (\"Hello\" + the caret + the chrome's 12): \(ideal)")
-    #expect(field["infWidth"]!.width == .infinity && field["infWidth"]!.height == 24,
-            "M1.9a — TextField at ∞×nil: \(field["infWidth"]!)")
-    #expect(field["inf"]!.width == .infinity && field["inf"]!.height == 24,
-            "TextField at ∞×∞ (one line and the chrome tall): \(field["inf"]!)")
-    #expect(field["w200"]! == SizeD(width: 200, height: 24), "TextField w200: \(field["w200"]!)")
+    let fieldInfWidth = try #require(field["infWidth"])
+    #expect(fieldInfWidth.width == .infinity && fieldInfWidth.height == 24,
+            "M1.9a — TextField at ∞×nil: \(fieldInfWidth)")
+    let fieldInf = try #require(field["inf"])
+    #expect(fieldInf.width == .infinity && fieldInf.height == 24,
+            "TextField at ∞×∞ (one line and the chrome tall): \(fieldInf)")
+    let fieldW200 = try #require(field["w200"])
+    #expect(fieldW200 == SizeD(width: 200, height: 24), "TextField w200: \(fieldW200)")
 
     let slider = try answers(Slider(value: .constant(0.5)))
-    #expect(slider["ideal"]! == SizeD(width: 30, height: 16), "Slider ideal: \(slider["ideal"]!)")
-    #expect(slider["infWidth"]! == SizeD(width: .infinity, height: 16),
-            "M1.9b — Slider at ∞×nil: \(slider["infWidth"]!)")
-    #expect(slider["w200"]! == SizeD(width: 200, height: 16), "Slider w200: \(slider["w200"]!)")
+    let sliderIdeal = try #require(slider["ideal"])
+    #expect(sliderIdeal == SizeD(width: 30, height: 16), "Slider ideal: \(sliderIdeal)")
+    let sliderInfWidth = try #require(slider["infWidth"])
+    #expect(sliderInfWidth == SizeD(width: .infinity, height: 16),
+            "M1.9b — Slider at ∞×nil: \(sliderInfWidth)")
+    let sliderW200 = try #require(slider["w200"])
+    #expect(sliderW200 == SizeD(width: 200, height: 16), "Slider w200: \(sliderW200)")
 
     let editor = try answers(TextEditor(text: "Hello", onChange: { _ in }))
     let editorIdeal = try #require(editor["ideal"])
     #expect(near(editorIdeal.width, 31.95) && editorIdeal.height == 16, "TextEditor ideal: \(editorIdeal)")
-    #expect(editor["inf"]!.width == .infinity && editor["inf"]!.height == .infinity,
-            "M1.9c — TextEditor at ∞×∞: \(editor["inf"]!)")
-    #expect(editor["w200"]! == SizeD(width: 200, height: 16), "TextEditor w200: \(editor["w200"]!)")
-    #expect(near(editor["h200"]!.width, 31.95) && editor["h200"]!.height == 200,
-            "TextEditor h200: \(editor["h200"]!)")
+    let editorInf = try #require(editor["inf"])
+    #expect(editorInf.width == .infinity && editorInf.height == .infinity,
+            "M1.9c — TextEditor at ∞×∞: \(editorInf)")
+    let editorW200 = try #require(editor["w200"])
+    #expect(editorW200 == SizeD(width: 200, height: 16), "TextEditor w200: \(editorW200)")
+    let editorH200 = try #require(editor["h200"])
+    #expect(near(editorH200.width, 31.95) && editorH200.height == 200,
+            "TextEditor h200: \(editorH200)")
 }
 
 /// **1.23** (`PE-D`'s named exception: a legacy `Row` is the same native

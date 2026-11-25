@@ -218,7 +218,7 @@ private func rowTop(_ element: TestElement) -> Float {
         let window = try harnessWindow(size: sz(200, 200)) {
             VStack(spacing: Pixels(0)) {
                 ScrollViewReader { proxy in
-                    let _ = holder.keep(proxy)
+                    let _: Bool = holder.keep(proxy)
                     ProposalScrollView {
                         LazyVStack(spacing: Pixels(0)) {
                             ForEach(0..<200) { index in ProposalText("row \(index)").frame(height: Pixels(20)) }
@@ -258,7 +258,7 @@ private func rowTop(_ element: TestElement) -> Float {
     let window = try harnessWindow(size: sz(200, 200)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = holder.keep(proxy)
+                let _: Bool = holder.keep(proxy)
                 ProposalScrollView {
                     VStack(spacing: Pixels(0)) {
                         ForEach(0..<200) { index in ProposalText("row \(index)").frame(height: Pixels(20)) }

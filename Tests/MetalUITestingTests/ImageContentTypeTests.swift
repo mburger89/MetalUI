@@ -155,5 +155,5 @@ private func rawItem(_ type: ContentType, _ data: Data) -> DropItem {
     window.drop([rawItem(.png, pngBytes)], at: pt(100, 150))
     #expect(log.datas == [pngBytes], "a Data destination takes the bytes of a PNG")
     window.drop([rawItem(.png, pngBytes)], at: pt(100, 30))
-    #expect(log.urls.count == 0, "and a URL destination refuses an image")
+    #expect(log.urls.isEmpty, "and a URL destination refuses an image")
 }

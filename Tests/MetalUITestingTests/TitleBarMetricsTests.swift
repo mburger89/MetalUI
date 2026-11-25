@@ -26,7 +26,7 @@ private struct MetricsReader: Component {
     @Environment(\.titleBarInsets) var insets
     let log: MetricsLog
     var content: some ElementGroup {
-        let _ = log.note(insets)
+        let _: Int = log.note(insets)
         Color.clear.frame(width: Pixels(400), height: Pixels(300))
     }
 }

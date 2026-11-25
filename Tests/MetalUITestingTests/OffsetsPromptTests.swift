@@ -35,7 +35,7 @@ private func same(_ a: Hsla, _ b: Hsla) -> Bool {
             }
         }
     }
-    model.redraw = { [unowned window] in window.window.setNeedsRedraw() }
+    model.redraw = { [weak window] in window?.window.setNeedsRedraw() }
     window.tick(); window.tick()
     return window
 }

@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import MetalUISDLGPU
 @testable import MetalUISDLGPU
 @testable import MetalUISDL
 

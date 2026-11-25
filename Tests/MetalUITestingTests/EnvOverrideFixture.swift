@@ -99,8 +99,8 @@ struct EnvOverrideTests {
     @Test(arguments: [EOArm.none, .insideScheme, .outsideScheme], [ColorScheme.light, .dark]) func anEqualOverrideDoesNotMissAnOccurrence(arm: EOArm, scheme: ColorScheme) throws {
         let (window, _) = try envOverrideWindow(arm, scheme: scheme)
         var frames: [FrameWork] = []
-        let lines = collectTrace {
-            let strip = try! window.frame(ofID: "strip")
+        let lines = try collectTrace {
+            let strip = try window.frame(ofID: "strip")
             let y = strip.origin.y.value + strip.size.height.value / 2
             window.resetFrameWork()
             window.drag(from: pt(strip.origin.x.value + 20, y), to: pt(strip.origin.x.value + 320, y), steps: 6)
@@ -115,10 +115,10 @@ struct EnvOverrideTests {
                 "\(arm) \(scheme): \(frames.map { "h\($0.retainedHits) m\($0.retainedMisses)" })")
     }
 
-    @MainActor private func dragFrames(_ window: TestWindow) -> (frames: [FrameWork], reasons: Set<String>) {
+    @MainActor private func dragFrames(_ window: TestWindow) throws -> (frames: [FrameWork], reasons: Set<String>) {
         var frames: [FrameWork] = []
-        let lines = collectTrace {
-            let strip = try! window.frame(ofID: "strip")
+        let lines = try collectTrace {
+            let strip = try window.frame(ofID: "strip")
             let y = strip.origin.y.value + strip.size.height.value / 2
             window.resetFrameWork()
             window.drag(from: pt(strip.origin.x.value + 20, y), to: pt(strip.origin.x.value + 320, y), steps: 6)
@@ -130,7 +130,7 @@ struct EnvOverrideTests {
     /// EO-D: MetalCreator's shape, a material fill under a `.background { }` attachment with the override inside it.
     @Test(arguments: [EOArm.insideMaterial, .insideMaterialOpposite, .backgroundTint]) func aBackgroundAttachmentWithAnOverrideDoesNotMiss(arm: EOArm) throws {
         let (window, _) = try envOverrideWindow(arm)
-        let (frames, reasons) = dragFrames(window)
+        let (frames, reasons) = try dragFrames(window)
         #expect(!reasons.contains { $0.contains("environment") }, "\(arm): \(reasons.sorted())")
         let drag = frames.dropLast()
         #expect(!drag.isEmpty && drag.allSatisfy { $0.retainedMisses == 1 && $0.retainedHits == 7 },
@@ -169,7 +169,7 @@ struct EnvOverrideTests {
     /// EO-C: every other stamped key, written by an override equal to the inherited value, is as free as the colour scheme.
     @Test(arguments: EOKey.allCases) func anOverrideOfEveryStampedKeyIsFreeWhenEqual(key: EOKey) throws {
         let (window, _) = try envOverrideWindow(.stamped(key))
-        let (frames, reasons) = dragFrames(window)
+        let (frames, reasons) = try dragFrames(window)
         #expect(!reasons.contains { $0.contains("environment") }, "\(key): \(reasons.sorted())")
         let drag = frames.dropLast()
         #expect(!drag.isEmpty && drag.allSatisfy { $0.retainedMisses == 1 && $0.retainedHits == 7 },

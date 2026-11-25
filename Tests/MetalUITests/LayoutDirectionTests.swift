@@ -48,7 +48,11 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 @Test @MainActor func aMirroredEffectIsTheConjugateOfTheLeftToRightOne() {
     let rect = Bounds(origin: Point(x: px(80), y: px(0)), size: Size(width: px(20), height: px(10)))
     func mapped(_ effect: RenderEffectSpec, mirrored: Bool, _ x: Double, _ y: Double) -> (x: Double, y: Double) {
-        effect.map(in: rect, mirrored: mirrored).apply(x, y)!
+        guard let point = effect.map(in: rect, mirrored: mirrored).apply(x, y) else {
+            Issue.record("the effect map is not invertible at (\(x), \(y))")
+            return (.nan, .nan)
+        }
+        return point
     }
     // Offset: +10 moves right left-to-right, left mirrored.
     let offset = RenderEffectSpec.offset(x: px(10), y: px(3))

@@ -28,9 +28,12 @@ private let hasMetal = MTLCreateSystemDefaultDevice() != nil
 /// RGBA bytes of `image`, row-major.
 private func rgba(_ image: CGImage) -> [UInt8] {
     var out = [UInt8](repeating: 0, count: image.width * image.height * 4)
-    let context = CGContext(data: &out, width: image.width, height: image.height, bitsPerComponent: 8,
-                            bytesPerRow: image.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(data: &out, width: image.width, height: image.height, bitsPerComponent: 8,
+                                  bytesPerRow: image.width * 4, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+        preconditionFailure("an sRGB RGBA bitmap context can be made")
+    }
     context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
     return out
 }

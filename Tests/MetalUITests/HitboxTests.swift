@@ -118,10 +118,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)
     let clip = rect(50, 50, 20, 20)
-    var wide: HitboxID!
+    var wideID: HitboxID?
     pass.clipped(to: clip, offsetBy: pt(0, 0)) {
-        wide = pass.insertHitbox(rect(0, 0, 300, 300), id: eid("wide"), opaque: true)
+        wideID = pass.insertHitbox(rect(0, 0, 300, 300), id: eid("wide"), opaque: true)
     }
+    let wide = try #require(wideID)
 
     #expect(frame.topmostHitbox(at: pt(55, 55)) == wide,
             "inside the clip and inside the declared bounds")
@@ -143,10 +144,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 @Test @MainActor func aHigherLayerBeatsALaterRegistration() throws {
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)
-    var hoisted: HitboxID!
+    var hoistedID: HitboxID?
     pass.deferred {
-        hoisted = pass.insertHitbox(rect(0, 0, 100, 100), id: eid("hoisted"), opaque: true)
+        hoistedID = pass.insertHitbox(rect(0, 0, 100, 100), id: eid("hoisted"), opaque: true)
     }
+    let hoisted = try #require(hoistedID)
     let plain = pass.insertHitbox(rect(0, 0, 100, 100), id: eid("plain"), opaque: true)
 
     let hit = try #require(frame.topmostHitbox(at: pt(50, 50)))
@@ -175,14 +177,16 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)
     let viewport = rect(0, 0, 100, 300)
-    var scrim: HitboxID!
-    var row: HitboxID!
+    var scrimID: HitboxID?
+    var rowID: HitboxID?
     pass.clipped(to: viewport, offsetBy: pt(0, 0)) {
         pass.deferred {
-            scrim = pass.insertHitbox(rect(0, 0, 300, 300), id: eid("scrim"), opaque: true)
+            scrimID = pass.insertHitbox(rect(0, 0, 300, 300), id: eid("scrim"), opaque: true)
         }
-        row = pass.insertHitbox(rect(0, 0, 100, 40), id: eid("row"), opaque: true)
+        rowID = pass.insertHitbox(rect(0, 0, 100, 40), id: eid("row"), opaque: true)
     }
+    let scrim = try #require(scrimID)
+    let row = try #require(rowID)
 
     #expect(frame.topmostHitbox(at: pt(250, 250)) == scrim,
             "the scrim escaped the 100-wide viewport clip and covers the whole window")

@@ -20,7 +20,13 @@ private let fontURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent(
 /// A frame over the portable text system (a `Frame` needs a `TextSystem` off Apple platforms, `XP-B`); no icon test draws text.
 @MainActor
 private func makeFrame(_ width: Float, _ height: Float, collectsAccessibility: Bool = false) -> Frame {
-    let system = PortableTextSystem(resolver: try! PortableFontResolver(defaultFont: [UInt8](Data(contentsOf: fontURL))))
+    let resolver: PortableFontResolver
+    do {
+        resolver = try PortableFontResolver(defaultFont: [UInt8](Data(contentsOf: fontURL)))
+    } catch {
+        preconditionFailure("the bundled NotoSans-Regular.ttf must load: \(error)")
+    }
+    let system = PortableTextSystem(resolver: resolver)
     return Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1, textSystem: system,
                  collectsAccessibility: collectsAccessibility)
 }
@@ -189,7 +195,10 @@ private let alloyNames = [
             // The glyph's ink box is units 2...22 (the outline's stroke), so its centre is unit (12, 12).
             let ink = (0..<1600).filter { canvas[$0 * 4 + 3] > 0 }
             let xs = ink.map { $0 % 40 }, ys = ink.map { $0 / 40 }
-            let cx = Double(xs.min()! + xs.max()! + 1) / 2, cy = Double(ys.min()! + ys.max()! + 1) / 2
+            guard let minX = xs.min(), let maxX = xs.max(), let minY = ys.min(), let maxY = ys.max() else {
+                preconditionFailure("the icon draws ink")
+            }
+            let cx = Double(minX + maxX + 1) / 2, cy = Double(minY + maxY + 1) / 2
             return pixel(canvas, Int(cx + (ux - 12) * unit), Int(cy + (uy - 12) * unit), width: 40)[3]
         }
         #expect(alpha("rectangle.lefthalf.inset.filled", 6, 12) == 255, "inside the filled left half")

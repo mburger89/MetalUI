@@ -192,15 +192,17 @@ private func bounds(_ g: PathGeometry) -> (minX: Double, minY: Double, maxX: Dou
     #expect(close(end, expect, 1e-4), "\(end) vs \(expect)")
     #expect(close(end, p(70.7107, 70.7107), 5e-2), "near the true circle's half-way: \(end)")
     let mid = g.trimmed(from: 0.25, to: 0.75)
-    #expect(trace(mid).map { $0.first! } == ["M", "C"], "one move, one cubic: \(trace(mid))")
+    #expect(try trace(mid).map { try #require($0.first) } == ["M", "C"], "one move, one cubic: \(trace(mid))")
     guard case .move(let start) = mid.elements[0] else { Issue.record("no move"); return }
     #expect(close(start, oraclePoint(g, at: total * 0.25), 1e-4), "start \(start)")
-    #expect(close(mid.currentPoint!, oraclePoint(g, at: total * 0.75), 1e-4), "end \(mid.currentPoint!)")
+    let midEnd = try #require(mid.currentPoint)
+    #expect(close(midEnd, oraclePoint(g, at: total * 0.75), 1e-4), "end \(midEnd)")
     var q = PathGeometry()
     q.move(to: p(0, 100)); q.addQuadCurve(to: p(100, 100), control: p(50, 0))
     let qt = q.trimmed(from: 0.2, to: 0.6)
-    #expect(trace(qt).map { $0.first! } == ["M", "Q"], "a trimmed quad stays a quad: \(trace(qt))")
-    #expect(close(qt.currentPoint!, oraclePoint(q, at: oracleLength(q) * 0.6), 1e-4), "\(qt.currentPoint!)")
+    #expect(try trace(qt).map { try #require($0.first) } == ["M", "Q"], "a trimmed quad stays a quad: \(trace(qt))")
+    let qtEnd = try #require(qt.currentPoint)
+    #expect(close(qtEnd, oraclePoint(q, at: oracleLength(q) * 0.6), 1e-4), "\(qtEnd)")
 }
 
 /// **PG-A 5** (TR4). One fraction runs across every subpath end to end: two
@@ -355,7 +357,8 @@ private func bounds(_ g: PathGeometry) -> (minX: Double, minY: Double, maxX: Dou
     #expect(close(end, p(50, 100), 1e-9), "\(end)")
     var neg = PathGeometry()
     neg.addRelativeArc(center: p(50, 50), radius: 50, startAngle: 0, delta: -quarter)
-    #expect(close(neg.currentPoint!, p(50, 0), 1e-9), "\(neg.currentPoint!)")
+    let negEnd = try #require(neg.currentPoint)
+    #expect(close(negEnd, p(50, 0), 1e-9), "\(negEnd)")
     #expect(trace(neg).first == "M(100,50)")
 }
 
@@ -368,14 +371,17 @@ private func bounds(_ g: PathGeometry) -> (minX: Double, minY: Double, maxX: Dou
     let rad = { (degrees: Double) in degrees * 3.141592653589793 / 180 }
     var big = PathGeometry()
     big.addRelativeArc(center: p(50, 50), radius: 50, startAngle: 0, delta: rad(450))
-    #expect(close(big.currentPoint!, p(50, 100), 1e-9), "\(big.currentPoint!)")
+    let bigEnd = try #require(big.currentPoint)
+    #expect(close(bigEnd, p(50, 100), 1e-9), "\(bigEnd)")
     #expect(big.elements.filter { if case .cubic = $0 { true } else { false } }.count == 5)
     var thousand = PathGeometry()
     thousand.addRelativeArc(center: p(50, 50), radius: 50, startAngle: 0, delta: rad(1000))
-    #expect(close(thousand.currentPoint!, p(58.682, 0.760), 1e-3), "\(thousand.currentPoint!)")
+    let thousandEnd = try #require(thousand.currentPoint)
+    #expect(close(thousandEnd, p(58.682, 0.760), 1e-3), "\(thousandEnd)")
     var neg = PathGeometry()
     neg.addRelativeArc(center: p(50, 50), radius: 50, startAngle: 0, delta: rad(-450))
-    #expect(close(neg.currentPoint!, p(50, 0), 1e-9), "\(neg.currentPoint!)")
+    let negEnd = try #require(neg.currentPoint)
+    #expect(close(negEnd, p(50, 0), 1e-9), "\(negEnd)")
     var zero = PathGeometry()
     zero.addRelativeArc(center: p(50, 50), radius: 50, startAngle: rad(30), delta: 0)
     #expect(trace(zero) == ["M(93.301,75)"], "\(trace(zero))")
@@ -389,18 +395,20 @@ private func bounds(_ g: PathGeometry) -> (minX: Double, minY: Double, maxX: Dou
 /// point and, joining, turns the first move into a line from the current
 /// point: a +90° arc translated (10, 20) starts at (110, 70); scaled (2, 1) it
 /// ends at (100, 100).
-@Test func aTransformedAppendMapsPointsAndJoins() {
+@Test func aTransformedAppendMapsPointsAndJoins() throws {
     var arc = PathGeometry()
     arc.addRelativeArc(center: p(50, 50), radius: 50, startAngle: 0, delta: 1.5707963267948966)
     var moved = PathGeometry()
     moved.append(arc, transformedBy: .translation(10, 20))
     #expect(trace(moved).first == "M(110,70)", "\(trace(moved))")
-    #expect(close(moved.currentPoint!, p(60, 120), 1e-9))
+    let movedEnd = try #require(moved.currentPoint)
+    #expect(close(movedEnd, p(60, 120), 1e-9))
     var scaled = PathGeometry()
     scaled.move(to: p(0, 0))
     scaled.append(arc, transformedBy: .scale(2, 1), joining: true)
     #expect(Array(trace(scaled).prefix(2)) == ["M(0,0)", "L(200,50)"], "\(trace(scaled))")
-    #expect(close(scaled.currentPoint!, p(100, 100), 1e-9))
+    let scaledEnd = try #require(scaled.currentPoint)
+    #expect(close(scaledEnd, p(100, 100), 1e-9))
 }
 
 private let PINNED_LENGTH_BITS: UInt64 = 4639731540171258189

@@ -48,7 +48,8 @@ private enum ClosureKeyU2: EnvironmentKey { static var defaultValue: HoldsClosur
 @MainActor @Test func aFunctionOrAFunctionHoldingStructReadsUncomparable() {
     let f: () -> Void = {}
     for reading in [EnvironmentReading.of(f), .of(HoldsClosure(run: {})), .of(EnvironmentValues())] {
-        #expect(reading != reading, "an uncomparable reading equals nothing, itself included")
+        let sameReading = reading
+        #expect(reading != sameReading, "an uncomparable reading equals nothing, itself included")
         #expect(reading.isUncomparable)
     }
     #expect(!EnvironmentReading.of(3).isUncomparable)

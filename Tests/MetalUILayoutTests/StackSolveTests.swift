@@ -87,7 +87,9 @@ private struct Reference {
                         flexibility[index] = mainLength(measure(index, offer(.infinity))) - mainLength(measure(index, offer(0)))
                     }
                     order.sort { lhs, rhs in
-                        let (l, r) = (flexibility[lhs]!, flexibility[rhs]!)
+                        guard let l = flexibility[lhs], let r = flexibility[rhs] else {
+                            preconditionFailure("every member's flexibility was measured")
+                        }
                         return l != r ? l < r : lhs < rhs
                     }
                 }

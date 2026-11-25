@@ -26,7 +26,7 @@ private func esc(_ s: String) -> [UInt8] { [0x1B] + Array(s.utf8) }
     ]
     let numbers = [25, 26, 28, 29, 31, 32, 33, 34]
     for (index, number) in numbers.enumerated() {
-        let character = String(UnicodeScalar(0xF710 + UInt32(index))!)
+        let character = String(try #require(UnicodeScalar(0xF710 + UInt32(index))))
         rows.append(("F\(13 + index)", character, [], esc("[\(number)~")))
         rows.append(("shift-F\(13 + index)", character, .shift, esc("[\(number);2~")))
     }

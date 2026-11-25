@@ -27,7 +27,12 @@ import Testing
             e.feed(FuzzSupport.bytes(count: Int.random(in: 1...120, using: &rng), using: &rng))
         case 7..<13:
             var bytes: [UInt8] = []
-            for _ in 0..<Int.random(in: 1...6, using: &rng) { bytes += Self.fragments.randomElement(using: &rng)! }
+            for _ in 0..<Int.random(in: 1...6, using: &rng) {
+                guard let fragment = Self.fragments.randomElement(using: &rng) else {
+                    preconditionFailure("the fragment list is not empty")
+                }
+                bytes += fragment
+            }
             e.feed(bytes)
         case 13..<15:
             e.feed((0..<Int.random(in: 1...80, using: &rng)).map { _ in UInt8.random(in: 0...255, using: &rng) })

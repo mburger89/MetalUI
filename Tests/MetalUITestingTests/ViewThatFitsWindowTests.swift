@@ -47,7 +47,7 @@ private struct FitRow: Component {
     let window = try harnessWindow(size: sz(300, 100)) { threeCandidates(log) }
     window.typeKey("a", modifierFlags: .primary)
     window.typeKey("c", modifierFlags: .primary)
-    #expect(log.entries.filter { $0.hasPrefix("fire") }.isEmpty, "K1: the unchosen candidates' keys fire nothing: \(log.entries)")
+    #expect(!log.entries.contains { $0.hasPrefix("fire") }, "K1: the unchosen candidates' keys fire nothing: \(log.entries)")
     window.typeKey("b", modifierFlags: .primary)
     window.typeKey("b", modifierFlags: .primary)
     #expect(log.entries.filter { $0.hasPrefix("fire") } == ["fire B 1", "fire B 2"], "K1 positive control: the chosen key fires, counting")
@@ -191,7 +191,7 @@ private struct EventfulRow: Component {
 @Test @MainActor func unchosenCandidatesRunNoLifecycleOrGeometryOrPresentation() throws {
     let log = HarnessLog()
     let window = try harnessWindow(size: sz(300, 100)) { eventful(log) }
-    #expect(log.entries.filter { $0.contains("wide") }.isEmpty, "X0: nothing of the wide candidate ran: \(log.entries)")
+    #expect(!log.entries.contains { $0.contains("wide") }, "X0: nothing of the wide candidate ran: \(log.entries)")
     #expect(Set(log.entries) == ["geometry mid 150", "task mid", "appear mid", "onChange mid 1"], "X1: the chosen candidate's did: \(log.entries)")
     #expect(window.presentedAlert == nil, "X0: the unchosen candidate's alert is not presented")
     log.entries = []
@@ -300,7 +300,7 @@ private struct EventfulRow: Component {
     let window = try harnessWindow(size: sz(100, 100)) {
         VStack(spacing: Pixels(0)) {
             ScrollViewReader { proxy in
-                let _ = box.keep(proxy)
+                let _: Bool = box.keep(proxy)
                 ProposalScrollView {
                     VStack(spacing: Pixels(0)) {
                         ViewThatFits(in: .horizontal) {

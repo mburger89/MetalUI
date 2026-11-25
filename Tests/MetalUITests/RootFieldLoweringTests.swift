@@ -77,9 +77,11 @@ private func drawInAProductionProposalWindow<E: Element>(_ root: @escaping @Main
         FileHandle.standardError.write(Data("no Metal device\n".utf8))
         exit(3)
     }
-    let (window, _) = try! makeFakeWindow(device: device, size: 200, content: root)
-    window.setNeedsRedraw()
-    window.drawFrameIfNeeded()
+    guard let pair = try? makeFakeWindow(device: device, size: 200, content: root) else {
+        preconditionFailure("the production proposal window could not be made")
+    }
+    pair.0.setNeedsRedraw()
+    pair.0.drawFrameIfNeeded()
 }
 
 /// **1.8** (`LR-DO` item 1). Every root field that still has no lowering **traps a

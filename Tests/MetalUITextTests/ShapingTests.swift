@@ -134,11 +134,13 @@ private let ctFontKey = NSAttributedString.Key(kCTFontAttributeName as String)
 /// still kills the mutation, but by accident rather than by the stated property.
 /// At 25 the intended three lines appear: `"a "` 10.68, `"bb "` 19.40,
 /// `"ccc"` 21.59.
-@Test func widestLineIsTheWidestLineNotTheFirst() {
+@Test func widestLineIsTheWidestLineNotTheFirst() throws {
     let shaped = Shaper.shape("a bb ccc", font: font, wrappingAt: 25)
     #expect(shaped.lines.count == 3)
-    #expect(shaped.widestLine == shaped.lines.last!.advance)
-    #expect(shaped.widestLine > shaped.lines.first!.advance)
+    let lastLine = try #require(shaped.lines.last)
+    let firstLine = try #require(shaped.lines.first)
+    #expect(shaped.widestLine == lastLine.advance)
+    #expect(shaped.widestLine > firstLine.advance)
 }
 
 /// **The non-termination guard (spec §3.4).** `CTTypesetterSuggestLineBreak`

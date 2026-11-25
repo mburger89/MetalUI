@@ -28,7 +28,7 @@ struct XSCard: Component, @MainActor Equatable {
 /// `ledgerKey.extras.scroller`.
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
 func aDiagonallyScrolledTwoAxisScrollerReplaysItsCardsTranslated() async throws {
-    let pair = try RPPair(size: sz(160, 120), warm: 4, accessibility: false, graft: false) { side in
+    let pair = try RPPair(size: sz(160, 120), warm: 4, accessibility: false, graft: false) { _ in
         VStack(spacing: 0) {
             ScrollView([.horizontal, .vertical]) {
                 VStack(spacing: 4) {

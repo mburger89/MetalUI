@@ -30,7 +30,8 @@ private let rowTitles = ["/clear", "/compact", "/help"]
         TextField("Message", text: m.textBinding)
             .accessibilityIdentifier("field")
             .onKeyPress(keys: [.downArrow, .upArrow, .return, .escape, .tab]) { press in
-                m.keys.append(String(press.key.character.unicodeScalars.first!.value, radix: 16))
+                guard let scalar = press.key.character.unicodeScalars.first else { preconditionFailure("a key press carries a character") }
+                m.keys.append(String(scalar.value, radix: 16))
                 return m.consumes ? .handled : .ignored
             }
             .frame(width: Pixels(200), height: Pixels(24))

@@ -71,7 +71,7 @@ private func linkTarget(_ q: TerminalLinkQuery) -> TerminalLinkTarget? {
     rig.window.pressModifiers(Modifiers.primary)
     rig.window.pressModifiers([])
     #expect(rig.window.platformWindow.pointerStyles.count == outside, "no pointer, no resolve")
-    #expect(rig.log.links.filter { $0.phase == .hover }.isEmpty, "no pointer, no query")
+    #expect(!rig.log.links.contains { $0.phase == .hover }, "no pointer, no query")
 }
 
 /// **3** (`TRM-BO`) A modifier change over a view with no link draws no frame, builds nothing and requests no element; over

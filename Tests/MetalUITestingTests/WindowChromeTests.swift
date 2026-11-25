@@ -65,7 +65,7 @@ private struct InsetsReader: Component {
     @Environment(\.titleBarInsets) var insets
     let log: InsetsLog
     var content: some ElementGroup {
-        let _ = log.noteInsets(insets)
+        let _: Int = log.noteInsets(insets)
         Color.clear.frame(width: Pixels(400), height: Pixels(300))
     }
 }

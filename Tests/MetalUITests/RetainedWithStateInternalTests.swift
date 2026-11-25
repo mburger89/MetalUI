@@ -9,7 +9,8 @@ import MetalUICore
 private func rwID(_ names: String...) -> GlobalElementID {
     var current: GlobalElementID?
     for name in names { current = GlobalElementID.child(of: current, at: 0, name: ElementID(name)) }
-    return current!
+    guard let current else { preconditionFailure("rwID needs at least one name") }
+    return current
 }
 
 /// Opens one recorder of each of the three windows that a write must taint: paint, prepaint and graft.

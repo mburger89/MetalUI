@@ -134,7 +134,7 @@ private func scrolledWindow(_ model: VModel, log: VLog, header: Float = 0,
         Box(style: column(width: 200, height: 200)) {
             if header > 0 { Box(style: column(width: 200, height: header)) }
             ScrollViewReader { proxy in
-                let _ = proxyBox?.keep(proxy)
+                let _: Bool? = proxyBox?.keep(proxy)
                 ScrollView {
                     Box(style: column(width: model.width)) {
                         List(model.items, estimatedRowHeight: estimate) { item in
@@ -584,7 +584,7 @@ func aRefinedRevealNeverRefinesAgain() throws {
     #expect(window.scrollRequests.pending.count == 1, "frame A carries one refinement")
     try setOffset(window, 0)
     window.drawFrameIfNeeded()
-    #expect(window.scrollRequests.pending.count == 0, "frame B carries nothing")
+    #expect(window.scrollRequests.pending.isEmpty, "frame B carries nothing")
     let frames = settle(window)
     #expect(frames == 2, "frames after B: \(frames)")
     let offset = try storedOffset(window)

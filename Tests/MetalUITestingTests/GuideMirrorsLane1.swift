@@ -1,3 +1,5 @@
+// swiftlint:disable duplicate_imports - the guide blocks are byte-for-byte mirrors, each opening with its own imports
+
 import Foundation
 import MetalUI
 import MetalUITesting
@@ -735,3 +737,5 @@ private let inputPrimary: EventModifiers = .control
     #expect(inputCopyFromCode(window.window, InputGraph(nodes: 9)) == InputGraph(nodes: 9))
     #expect(window.clipboardRepresentations.count == 2)
 }
+
+// swiftlint:enable duplicate_imports

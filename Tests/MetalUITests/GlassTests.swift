@@ -253,7 +253,7 @@ private struct Wedge: Shape, Equatable {
         Color.clear.frame(width: px(60), height: px(40)).glassEffect(in: Wedge())
     })
     #expect(scene.backdrops.isEmpty, "no backdrop for a path")
-    #expect(scene.rects.filter { $0.background.a > 0 }.isEmpty, "not a rect fill: \(scene.rects.count)")
+    #expect(!scene.rects.contains { $0.background.a > 0 }, "not a rect fill: \(scene.rects.count)")
     #expect(scene.images.count == 1, "one path raster: \(scene.images.count)")
 }
 
@@ -329,7 +329,7 @@ private struct Wedge: Shape, Equatable {
     #expect(prominent.b - prominent.r > 0.05 || abs(prominent.r - prominent.b) > 0.05, "the prominent tint is the accent: \(prominent)")
     let radius = scene.backdrops[0].cornerRadii.topLeft
     #expect(radius > 0 && abs(scene.backdrops[0].bounds.size.height - 2 * radius) < 0.5, "a capsule: radius \(radius) of \(scene.backdrops[0].bounds)")
-    #expect(scene.rects.filter { $0.borderWidths.top > 0 }.isEmpty, "no border")
+    #expect(!scene.rects.contains { $0.borderWidths.top > 0 }, "no border")
 }
 
 // MARK: - 34
