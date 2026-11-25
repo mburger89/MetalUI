@@ -68,7 +68,8 @@ public struct DropInfo {
 
 /// A drop destination's behaviour, as a value — SwiftUI's `DropDelegate`
 /// (ruling `DE-A`). Only ``performDrop(info:)`` is required. Not class-bound, as in
-/// SwiftUI: a delegate is a value, stored by value.
+/// SwiftUI: a delegate is a value, stored by value. The `class_delegate_protocol` disable is the
+/// only path: a class-bound protocol would break SwiftUI parity (struct delegates).
 ///
 /// Call order (ruling `DE-B`): entering a destination runs ``validateDrop(info:)``,
 /// then — if it answered `true` — ``dropEntered(info:)`` and ``dropUpdated(info:)``;

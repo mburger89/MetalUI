@@ -33,7 +33,8 @@ extension Optional {
         }
         _modify {
             guard self != nil else { preconditionFailure("an optional the caller had already set is nil") }
-            // The one audited force unwrap: an in-place edit with no move and no allocation.
+            // The only path under the memory rule: an in-place edit with no move and no allocation. The
+            // move-out/move-in spelling without `!` cost 24 allocations a steady frame (record 410).
             // swiftlint:disable:next force_unwrapping
             yield &self!
         }
@@ -49,7 +50,8 @@ extension Optional {
     @inline(__always)
     mutating func withRequired<R>(_ body: (inout Wrapped) -> R) -> R {
         guard self != nil else { preconditionFailure("an optional the caller had already set is nil") }
-        // The one audited force unwrap besides ``required``.
+        // The only path under the memory rule: `body(&self!)` hands the payload over in place; every
+        // `!`-free spelling measured allocates in the debug build (record 410).
         // swiftlint:disable:next force_unwrapping
         return body(&self!)
     }
