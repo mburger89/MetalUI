@@ -23,14 +23,14 @@ import MetalUIPlatform
     return w.lastFrameWork.elementRequests
 }
 
-@MainActor private func stripRequests(menu: Bool = false) throws -> Int {
+@MainActor private func stripRequests(menu: Bool = false, shape: TabStripSelectionShape = .rectangle) throws -> Int {
     let m = StripModel()
     return try steadyRequests {
         VStack(spacing: 0) {
             if menu {
                 TabStrip(selection: m.binding, tabs: m.tabs).onCloseTab { _ in }.tabContextMenu { _ in Button("Split") {} }
             } else {
-                TabStrip(selection: m.binding, tabs: m.tabs).onCloseTab { _ in }
+                TabStrip(selection: m.binding, tabs: m.tabs).selectedTabShape(shape).onCloseTab { _ in }
             }
             Color.red
         }
@@ -80,4 +80,15 @@ import MetalUIPlatform
 @MainActor @Test func aTabStripWithAMenuCostsNoExtraRequest() throws {
     let without = try stripRequests(), with = try stripRequests(menu: true)
     #expect(with - without == 0, "without \(without), with \(with)")
+}
+
+/// **5** The close slot's inset on a shaped strip (`TBS-R`) costs a padding, not an element: a capsule strip of three tabs
+/// costs 76 requests (the pill's `TabStripFill` and its `ZStack`, two per tab over `.rectangle`'s 70, were there before the
+/// inset: 76 measured with the inset forced to 0), so the padding adds none, and a `.rectangle` strip is untouched at 70.
+/// Mutation: wrap the slot in an element per tab (a `ContextualModifier`, an `HStack`): 79.
+@MainActor @Test func theCloseInsetCostsNoRequestPerTab() throws {
+    #expect(try stripRequests() == 70)
+    let capsule = try stripRequests(shape: .capsule), rounded = try stripRequests(shape: .roundedRectangle(radius: 6))
+    #expect(capsule == 76, "capsule \(capsule)")
+    #expect(rounded == 76, "rounded \(rounded)")
 }
