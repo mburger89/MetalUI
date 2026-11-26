@@ -71,8 +71,8 @@ struct ScrollChrome {
 
     /// The horizontal slot of the `ScrollContext` a two-axis scroller publishes (`XS-H`): the glide-aware raw offset, last frame's
     /// viewport extent and whether the axis follows its end (`XS-J`, per axis).
-    func crossContext(_ state: ScrollState, now: Double) -> ScrollAxisContext {
-        let raw = Self.currentCrossOffset(state, now: now)
+    func crossContext(_ state: ScrollState, now: Double, scale: Float) -> ScrollAxisContext {
+        let raw = Self.layoutCrossOffset(state, now: now, scale: scale)
         return ScrollAxisContext(offset: raw, viewportExtent: state.cross.viewportExtent,
                                  followsEnd: crossChrome.layoutFollowsEnd(memory: state.cross.anchor, raw: raw))
     }
@@ -164,6 +164,45 @@ struct ScrollChrome {
         state.cross.glide?.value(at: now).offset ?? state.cross.offset
     }
 
+    /// `round(value * scale) / scale`, ties up: the device-pixel grid SwiftUI presents a scroll position on (`DSA-J`, probe
+    /// `swiftui-scroll-offset-pixel-snap.swift`: 30.25 is 30.0 at 1x and 30.5 at 2x). A non-positive scale snaps nothing.
+    static func snap(_ value: Double, scale: Float) -> Double {
+        let s = Double(scale)
+        guard s > 0 else { return value }
+        return (value * s + 0.5).rounded(.down) / s
+    }
+
+    /// The largest grid position not past `value` (the end of the content, `DSA-J`): a position past the end would show a gap.
+    /// The `1e-6` of a device pixel keeps a position already on the grid from falling to the one below it by float error.
+    static func snapDown(_ value: Double, scale: Float) -> Double {
+        let s = Double(scale)
+        guard s > 0 else { return value }
+        return (value * s + 1e-6).rounded(.down) / s
+    }
+
+    /// **The one place a raw offset becomes the presented one** (`DSA-J`): clamped to the content (`clampOffset`), snapped to the
+    /// device-pixel grid, and never past the grid position at or before the end (content 399.5 in 300 ends at 99, as SwiftUI
+    /// reports it at 1x). Idempotent, so paint may apply it to what prepaint committed. Prepaint's write-back (`resolveSlot`)
+    /// commits it; layout and paint read through it, so every consumer sees the same number.
+    func presentedOffset(_ raw: Double, content: Double, viewport: Double, scale: Float) -> Double {
+        let snapped = Self.snap(clampOffset(raw, content: content, viewport: viewport), scale: scale)
+        if alignedOffset(content: content, viewport: viewport) != nil { return snapped }
+        return min(snapped, Self.snapDown(max(0, content - viewport), scale: scale))
+    }
+
+    /// The offset layout sees (`DSA-J`): `currentOffset` plus the sub-pixel residue input has accumulated, snapped. No clamp (the
+    /// content's size does not exist yet); equal to what prepaint then commits whenever the clamp does not move it.
+    static func layoutOffset(_ state: ScrollState, now: Double, scale: Float) -> Double {
+        if let glide = state.glide { return snap(glide.value(at: now).offset, scale: scale) }
+        return snap(state.offset + state.residue, scale: scale)
+    }
+
+    /// `layoutOffset` for the horizontal slot of a two-axis scroller.
+    static func layoutCrossOffset(_ state: ScrollState, now: Double, scale: Float) -> Double {
+        if let glide = state.cross.glide { return snap(glide.value(at: now).offset, scale: scale) }
+        return snap(state.cross.offset + state.cross.residue, scale: scale)
+    }
+
     // Two overloads, one per pass type, rather than one function taking a
     // shared protocol. `PrepaintPass` and `PaintPass` have no common protocol
     // to write this against — `Passes.swift` records why: a `StatefulPass`
@@ -220,16 +259,18 @@ struct ScrollChrome {
         let crossContent = crossAxis ? horizontal.extent(contentSize) : 0
         var resolved: Double = 0, crossResolved: Double = 0
         let now = pass.frame.timestamp
+        let scale = pass.frame.scaleFactor
         var gliding = false
         // A compared write (`RW-H`): a settled scroller re-stores what is there, which bumps no version and taints nothing.
         pass.withState(id, initial: ScrollState(), unchanged: Self.sameScrollState) {
-            gliding = resolveSlot(offset: &$0.offset, glide: &$0.glide, anchor: &$0.anchor, viewportExtent: &$0.viewportExtent,
-                                  content: content, viewport: viewport, now: now)
+            gliding = resolveSlot(offset: &$0.offset, residue: &$0.residue, glide: &$0.glide, anchor: &$0.anchor,
+                                  viewportExtent: &$0.viewportExtent, content: content, viewport: viewport, scale: scale, now: now)
             resolved = $0.offset
             if crossAxis {
-                if horizontal.resolveSlot(offset: &$0.cross.offset, glide: &$0.cross.glide, anchor: &$0.cross.anchor,
-                                          viewportExtent: &$0.cross.viewportExtent, content: crossContent,
-                                          viewport: crossViewport, now: now) { gliding = true }
+                if horizontal.resolveSlot(offset: &$0.cross.offset, residue: &$0.cross.residue, glide: &$0.cross.glide,
+                                          anchor: &$0.cross.anchor, viewportExtent: &$0.cross.viewportExtent,
+                                          content: crossContent, viewport: crossViewport, scale: scale,
+                                          now: now) { gliding = true }
                 crossResolved = $0.cross.offset
             }
         }
@@ -240,18 +281,29 @@ struct ScrollChrome {
     /// One axis's resolution of one prepaint, over the fields of its slot (`XS-D`): the glide step (`SP-F`), the default anchor
     /// (`DSA-D`), the clamp, and the viewport extent `requestLayout` reads back next frame. Returns whether a glide is still
     /// running. `self` is the chrome of THAT axis (`crossChrome` for the horizontal slot of a two-axis scroller).
-    func resolveSlot(offset: inout Double, glide: inout ScrollGlide?, anchor: inout ScrollAnchorMemory,
-                     viewportExtent: inout Double, content: Double, viewport: Double, now: Double) -> Bool {
+    func resolveSlot(offset: inout Double, residue: inout Double, glide: inout ScrollGlide?, anchor: inout ScrollAnchorMemory,
+                     viewportExtent: inout Double, content: Double, viewport: Double, scale: Float, now: Double) -> Bool {
         var gliding = false
+        // The raw position: what the wheel left in `offset`, plus the sub-pixel part earlier prepaints did not present (`DSA-J`).
+        var raw = offset + residue
+        var placed = false   // a position a program chose (a glide, an anchor, the clamp) owes input's residue nothing
         if let running = glide {   // `SP-F`: the animated value is the stored one, and a landed glide ends
             let step = running.value(at: now)
-            offset = step.offset
+            raw = step.offset
+            placed = true
             if step.finished { glide = nil } else { gliding = true }
         }
         if !anchors.isEmpty {   // `DSA-D`: the anchor decides the offset the clamp then bounds
-            offset = anchoredOffset(offset, content: content, viewport: viewport, memory: &anchor)
+            let anchored = anchoredOffset(raw, content: content, viewport: viewport, memory: &anchor)
+            if anchored != raw { placed = true }
+            raw = anchored
         }
-        offset = clampOffset(offset, content: content, viewport: viewport)
+        // `DSA-J`: the one commit. `offset` is the presented position, on the device-pixel grid; `residue` keeps what the grid
+        // did not take, so ten 0.3 pt deltas at 1x still move 3 pt.
+        let presented = presentedOffset(raw, content: content, viewport: viewport, scale: scale)
+        let clamped = clampOffset(raw, content: content, viewport: viewport)
+        residue = placed || clamped != raw || presented != Self.snap(clamped, scale: scale) ? 0 : raw - presented
+        offset = presented
         // The half `ScrollState.viewportExtent`'s own doc names: this is
         // the only writer, and it is what lets NEXT frame's `requestLayout`
         // read a viewport extent at all.
@@ -275,7 +327,7 @@ struct ScrollChrome {
         let viewport = extent(bounds.size)
         let content = extent(pass.bounds(of: contentNode).size)
         let stored = Self.currentOffset(pass.readState(id, initial: ScrollState()), now: pass.frame.timestamp)   // `RW-H`
-        return clampOffset(stored, content: content, viewport: viewport)
+        return presentedOffset(stored, content: content, viewport: viewport, scale: pass.frame.scaleFactor)   // `DSA-J`: what prepaint committed
     }
 
     /// Both axes' offsets for paint (`XS-D`): the primary's as above, and the horizontal axis's, clamped on read the same way.
@@ -288,8 +340,8 @@ struct ScrollChrome {
         let state = pass.readState(id, initial: ScrollState())   // `RW-H`
         let contentSize = pass.bounds(of: contentNode).size
         let stored = Self.currentCrossOffset(state, now: pass.frame.timestamp)
-        return (primary, horizontal.clampOffset(stored, content: horizontal.extent(contentSize),
-                                                viewport: horizontal.extent(bounds.size)))
+        return (primary, horizontal.presentedOffset(stored, content: horizontal.extent(contentSize),
+                                                    viewport: horizontal.extent(bounds.size), scale: pass.frame.scaleFactor))
     }
 
     /// The fading overlay scroll indicator: a thumb sized and positioned to

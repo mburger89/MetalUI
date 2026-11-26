@@ -387,7 +387,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// One slot's landing of a `scrollTo` (`XS-I`): a glide from where the slot is when it ran under `withAnimation` (`SP-F`), else
     /// the offset itself. The one body for the primary slot and the cross slot.
     private static func land(_ target: Double, animation: Animation?, at now: Double,
-                             offset: inout Double, glide: inout ScrollGlide?) {
+                             offset: inout Double, residue: inout Double, glide: inout ScrollGlide?) {
         if let animation, target != offset {
             // `SP-F`: glide from where the scroller is to the target; the next frame's clock starts it.
             // A refinement of the same target (a lazy container's second resolution, `VL-P`) leaves the
@@ -400,7 +400,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         } else {
             glide = nil
         }
-        if glide == nil { offset = target }
+        if glide == nil { offset = target; residue = 0 }   // `DSA-J`: a program's position owes input's residue nothing
     }
 
     /// Writes each resolved scroller's offset, then adds each anchor
@@ -413,10 +413,10 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         for resolution in scrollResolutions {
             stateTable.withState(resolution.scroller, initial: ScrollState()) {
                 Self.land(resolution.offset, animation: resolution.animation, at: timestamp,
-                          offset: &$0.offset, glide: &$0.glide)
+                          offset: &$0.offset, residue: &$0.residue, glide: &$0.glide)
                 if let cross = resolution.cross {   // `XS-I`: the same landing for the horizontal slot
                     Self.land(cross, animation: resolution.animation, at: timestamp,
-                              offset: &$0.cross.offset, glide: &$0.cross.glide)
+                              offset: &$0.cross.offset, residue: &$0.cross.residue, glide: &$0.cross.glide)
                 }
             }
         }
@@ -438,7 +438,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         for (scroller, value) in pendingPositionKnown { positions.setKnown(value, for: scroller) }
         pendingPositionKnown = [:]
         var moved: [GlobalElementID: Double] = [:]
-        for resolution in scrollResolutions { moved[resolution.scroller] = resolution.offset }
+        for resolution in scrollResolutions { moved[resolution.scroller] = ScrollChrome.snap(resolution.offset, scale: scaleFactor) }
         positions.finishFrame(moved: moved)
         if !scrollResolutions.isEmpty || !scrollAnchorAdjustments.isEmpty { requestAnotherFrame() }
         scrollResolutions = []

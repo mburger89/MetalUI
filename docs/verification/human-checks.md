@@ -2655,3 +2655,11 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **TXS7.** (`HC-TXS-7`, `TXS-A`) `.disabled(true)` and `.allowsHitTesting(false)` on a selectable `Text`: does a drag still select (the probe found the selection view still exists, `E1c`, `E1d`)? MetalUI registers no region under either. **Observed:**
 - [ ] **TXS8.** (`HC-TXS-8`) The I-beam over a selectable `Text` in SwiftUI (MetalUI draws none, divergence 374's row); with Full Keyboard Access on, is the `Text` a Tab stop (probe `F2` ran with it off)? **Observed:**
 - [ ] **TXS9.** (`TXS-G`) VoiceOver on a MetalUI window with a selectable `Text` selected: VO+A reads it, "selected text" is the range, and the text area attributes are present on every selectable `Text`, unselected ones included. A client cannot move the selection (divergence 1127). Orca and Narrator on the `AccessKit` build: the `Text` reads as plain static text (divergence 1125). **Observed:**
+
+## PSN. Scroll offset pixel snap (record 426; ruling `DSA-J`; decisions `docs/superpowers/2026-11-07-default-scroll-anchor-decisions.md`; probe `docs/probes/swiftui-scroll-offset-pixel-snap.swift`)
+
+*An agent cannot: the author's only display is 1x, so the 2x grid of SwiftUI's scroll position is unmeasured (the probe's injected 2x leaves the window's backing scale at 1), and a real Retina trackpad scroll cannot be built offscreen.*
+
+- [ ] **PSN1.** (`DSA-J`) On a Retina Mac run `/usr/bin/swift docs/probes/swiftui-scroll-offset-pixel-snap.swift 2>&1 | grep -v 'warning:\|^ *[0-9]* |\|^ *|\|note:\|WARNING: Application performed a reentrant\|Connection\]'`. The first line should say `backingScaleFactor=2.0`. In arm `F4a`, does `scrollPosition.y=100.3` report `clip=100.500` (half-point steps, which MetalUI's grid gives) or `clip=100.000` (whole points)? Does the bottom anchor of arm `F1` over 399.5 report `99.5` or `99.0`? If whole points, change `ScrollChrome.snap`'s grid for the scroll position to whole points at every scale (one function) and say so in `DSA-J`. **Observed:**
+- [ ] **PSN2.** (`DSA-J`) `swift run MetalUIDemo` on a Retina Mac, a scroller with rows and a trackpad: scroll slowly (a few pixels at a time) and then flick. Rows should never look blurred between scroll steps, and a slow scroll must still move. In SwiftUI the same scroll gives crisp rows. **Observed:**
+
