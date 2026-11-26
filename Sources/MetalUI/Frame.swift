@@ -117,6 +117,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// The occurrences whose replayed prepaint met a paint-time ambient that differed and so could not paint
     /// (`RK-C`, `RK-D`): non-empty at the end of paint means the frame is abandoned and built again.
     var redoEntries: [ContentMemoStore.Entry] = []
+    /// Channels the attempt wrote that no rollback undoes (`Frame.noteUnrestorable`, `RK-AM`): a redo of such a frame is window-wide.
+    var unrestorableChannels: [String] = []
 
     /// Verify mode (`RK-N`, `METALUI_VERIFY_RETAINED=1`): what this frame held after the root's paint, taken only
     /// when a prepaint was replayed, and whether the frame was abandoned there so the window builds it again with
@@ -1293,6 +1295,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// A layout read the published scroll context: journalled with the depth it was read at, so a graft of the occurrence is refused when that
     /// scroller's offset, viewport or end-pinning is no longer what the build windowed against (`graftDependenciesHold`). A lazy container,
     /// a `List` and a table body windowed against an offset the key did not hold: a scroll step grafted the stale window.
+    @inline(never)
     func noteScrollContextRead() {
         let journal = stateTable.contentMemos.journal
         if journal.isRecording { journal.record(.scrollContextRead(activeScrollContext, scrollContextStack.count)) }
@@ -4709,6 +4712,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         } else if retainedVerifiesFromEnvironment, memos.redoInProgress {
             verifySnapshot = captureRetainedVerifySnapshot()
         }
+        if redoEntries.isEmpty, !memos.redoScopes.isEmpty, let entry = memos.testingEscalationEntry { redoEntries = [entry] }
         if !redoEntries.isEmpty || verifyAbandoned {
             // A replayed prepaint met a paint-time ambient that differed (`RK-C`): this frame is abandoned
             // before anything after the root's paint runs (`RK-M`), and the window builds it again. Verify mode

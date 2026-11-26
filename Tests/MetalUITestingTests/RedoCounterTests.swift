@@ -33,6 +33,9 @@ private struct RRCounter: Component, @MainActor Equatable {
 
 @MainActor private func rrRedoFrames(refused: Bool) async throws -> (pair: RPPair<some Element>, redo: FrameWork, after: FrameWork) {
     let pair = try RPPair(size: sz(200, 260), warm: 4) { rrRoot($0, refused: refused) }
+    // These pins describe the window-wide redo (every replay off, then a backoff build): a channel the attempt wrote that no rollback undoes takes that path
+    // (`RK-AM`, record 423); the scoped redo's counts are `ScopedRedoTests`'.
+    pair.on.window.testingRedoFault = .unrestorableChannel
     pair.redraw()
     try #require(pair.frames.last?.retainedPrepaintHits == 3, "all three replay before the change: \(String(describing: pair.frames.last))")
     pair.onSide.model.n += 1; pair.offSide.model.n += 1

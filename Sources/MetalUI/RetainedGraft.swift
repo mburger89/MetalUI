@@ -454,6 +454,8 @@ extension Frame {
         // A ledger holding a geometry note a translation cannot recompute would redo the whole frame and back replay off for eight
         // builds (`RG-J`): the refusal stays for such a ledger only (`RL-G`); a recomputable one moves like any other.
         if !geometryNotesRecomputable(ledger) { memos.graftRefusals.append("geometryGraft"); return nil }
+        // `RK-AM`, `RK-AN`: at, under or above the failing occurrences of a scoped redo, or under a scope still quarantined, the build runs.
+        if memos.isInRedoScope(id) || memos.isInQuarantinedScope(id) { memos.graftRefusals.append("scopedRedo"); return nil }
         guard entry.quarantineUntil <= memos.buildSerial, !entry.observedChange, old.coverageComplete,
               old.contentSerial == entry.serial, graft.contentSerial == entry.serial, graft.key == key else {
             return nil

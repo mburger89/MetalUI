@@ -188,6 +188,7 @@ final class FrameWorkRecorder {
         pending.retainedPrepaintHits += work.retained.prepaintHits
         pending.retainedPrepaintIneligible += work.retained.prepaintIneligible
         pending.retainedRedos += work.retained.redos
+        pending.retainedRedoEscalations += work.retained.redoEscalations
         pending.retainedBackoffFrames += work.retained.backoffFrames
         pending.retainedTranslated += work.retained.translated
         pending.retainedTranslationRefused += work.retained.translationRefused

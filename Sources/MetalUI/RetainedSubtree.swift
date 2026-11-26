@@ -42,6 +42,8 @@ package struct RetainedCounters: Sendable, Equatable {
     package var prepaintIneligible = 0
     /// Frames redone because a replayed prepaint met a paint-only ambient that differed (`RK-D`, `RK-M`).
     package var redos = 0
+    /// Redos that asked for a redo again, so the frame was built a third time with every replay off and the window backed off (`RK-AM`): 0 across the suite.
+    package var redoEscalations = 0
     /// Builds that ran with prepaint replay suspended after a redo (`RK-D` item 3).
     package var backoffFrames = 0
     /// Occurrences replayed at a translated position (`RK-G`).

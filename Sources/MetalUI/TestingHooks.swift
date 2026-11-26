@@ -234,6 +234,8 @@ extension Window {
     /// The `@State` entries with their versions and liveness, sorted: compared across two windows by the graft's
     /// sweep differential (`RK-F`).
     package var testingStateEntries: [String] { stateTable.entryDigest }
+    /// How many failed occurrences are quarantined with what is under them (`RK-AN`).
+    package var testingQuarantinedScopes: Int { stateTable.contentMemos.quarantinedScopes.count }
     /// Whether a redo suspends prepaint replay window-wide for the next nine builds (`RK-D` item 3). Off: the redo's quarantine of the failing entry
     /// stays, the window keeps replaying. The differential tests run with it off to read what the backoff used to hide (record 419).
     package var testingRedoBackoff: Bool {

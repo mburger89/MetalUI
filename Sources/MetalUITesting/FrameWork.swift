@@ -72,6 +72,8 @@ public struct FrameWork: Sendable, Equatable {
     public var retainedPrepaintIneligible: Int
     /// Frames redone because a replayed prepaint met a paint-time ambient that differed (`RK-D`).
     public var retainedRedos: Int
+    /// Redos that asked for a redo again and were built a third time with every replay off (`RK-AM`); 0 across the suite.
+    public var retainedRedoEscalations: Int
     /// Builds that ran with prepaint replay suspended after a redo (`RK-D`).
     public var retainedBackoffFrames: Int
     /// Occurrences replayed at a translated position (`RK-G`).
@@ -177,7 +179,7 @@ public struct FrameWork: Sendable, Equatable {
                 retainedHits: Int = 0, retainedMisses: Int = 0, retainedIneligible: Int = 0,
                 retainedSkippedPrepaints: Int = 0, retainedSkippedPaints: Int = 0,
                 retainedLedgerSnapshots: Int = 0, retainedReplayedOps: Int = 0,
-                retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0,
+                retainedPrepaintHits: Int = 0, retainedPrepaintIneligible: Int = 0, retainedRedos: Int = 0, retainedRedoEscalations: Int = 0,
                 retainedBackoffFrames: Int = 0, retainedTranslated: Int = 0, retainedTranslationRefused: Int = 0,
                 retainedGrafts: Int = 0, retainedGraftIneligible: Int = 0, retainedSkippedRequests: Int = 0,
                 retainedGraftedNodes: Int = 0, retainedGraftCaptures: Int = 0, retainedGraftCapturesSkipped: Int = 0,
@@ -226,6 +228,7 @@ public struct FrameWork: Sendable, Equatable {
         self.retainedPrepaintHits = retainedPrepaintHits
         self.retainedPrepaintIneligible = retainedPrepaintIneligible
         self.retainedRedos = retainedRedos
+        self.retainedRedoEscalations = retainedRedoEscalations
         self.retainedBackoffFrames = retainedBackoffFrames
         self.retainedTranslated = retainedTranslated
         self.retainedTranslationRefused = retainedTranslationRefused
@@ -293,6 +296,7 @@ public struct FrameWork: Sendable, Equatable {
                   retainedPrepaintHits: l.retainedPrepaintHits + r.retainedPrepaintHits,
                   retainedPrepaintIneligible: l.retainedPrepaintIneligible + r.retainedPrepaintIneligible,
                   retainedRedos: l.retainedRedos + r.retainedRedos,
+                  retainedRedoEscalations: l.retainedRedoEscalations + r.retainedRedoEscalations,
                   retainedBackoffFrames: l.retainedBackoffFrames + r.retainedBackoffFrames,
                   retainedTranslated: l.retainedTranslated + r.retainedTranslated,
                   retainedTranslationRefused: l.retainedTranslationRefused + r.retainedTranslationRefused,

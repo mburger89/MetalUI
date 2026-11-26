@@ -253,6 +253,10 @@ nonisolated(unsafe) var rpRedoBackoff = true
 
     func redraw() {
         for w in [on, off] { w.window.setNeedsRedraw(); w.tick() }
+        // A redo whose second attempt asked again is built a third time and counted (`RK-AM`): nothing in the suite does that on its own.
+        if on.lastFrameWork.retainedRedoEscalations != 0, on.window.testingRedoFault != .secondAttemptAsksAgain {
+            Issue.record("a scoped redo escalated: \(on.lastFrameWork.retainedRedoEscalations)")
+        }
         frames.append(on.lastFrameWork)
         work += on.lastFrameWork
     }
@@ -354,13 +358,17 @@ enum RPAmbient: String, CaseIterable { case opacity, shadow, blur, compositingGr
 }
 
 /// 4 — an ancestor's paint-only value (an opacity, a shadow, a blur, a composited shadow) changes under a subtree
-/// that did not: the replayed prepaint cannot paint (`RK-C`), so the frame is redone once, with every prepaint
-/// replay off, and equals the retention-off frame. The neighbour (B) replays before and after. Mutations: the redo
-/// disabled (the subtree is painted from a record under the new ambient: the scene differs); the arm's ambient
-/// dropped from `AmbientKey` (the paint hit is taken: the scene differs).
-@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: RPAmbient.allCases) @MainActor
-func aChangedPaintOnlyAmbientRedoesTheFrameOnce(arm: RPAmbient) async throws {
+/// that did not: the replayed prepaint cannot paint (`RK-C`), so the frame is redone once and equals the retention-off
+/// frame. **Scoped** (`RK-AM`, record 423): the redo rebuilds the failing card only, so the neighbour (B) replays in the
+/// redo and in every build after it, the card's own quarantine keeps it off replay for eight builds, and no build is
+/// suspended. **Window-wide** (a channel the attempt wrote that no rollback undoes, `testingRedoFault`): every prepaint
+/// replay is off in the redo and the next eight builds (`RK-D`). Mutations: the redo disabled (the subtree is painted
+/// from a record under the new ambient: the scene differs); the arm's ambient dropped from `AmbientKey` (the paint hit
+/// is taken: the scene differs); `noteRedo` suspending replay when scoped (the scoped arm's backoff count).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: RPAmbient.allCases, [true, false]) @MainActor
+func aChangedPaintOnlyAmbientRedoesTheFrameOnce(arm: RPAmbient, windowWide: Bool) async throws {
     let pair = try RPPair(size: sz(200, 160), warm: 4) { rpAmbientRoot(arm, $0) }
+    if windowWide { pair.on.window.testingRedoFault = .unrestorableChannel }
     try pair.compare("warm")
     pair.redraw()
     try #require(pair.frames.last?.retainedPrepaintHits == 2, "both replay before the change: \(String(describing: pair.frames.last))")
@@ -369,19 +377,19 @@ func aChangedPaintOnlyAmbientRedoesTheFrameOnce(arm: RPAmbient) async throws {
     pair.redraw()
     let f = try #require(pair.frames.last)
     #expect(f.retainedRedos == 1, "the change redoes the frame once: \(f.retainedRedos)")
-    #expect(f.retainedPrepaintHits == 0, "the redo replays no prepaint: \(f.retainedPrepaintHits)")
+    #expect(f.retainedPrepaintHits == (windowWide ? 0 : 1), "the redo replays \(windowWide ? "no prepaint" : "the neighbour's"): \(f.retainedPrepaintHits)")
     try pair.compare("the changed ambient")
-    // Eight builds with prepaint replay suspended, then both replay again.
+    // Eight builds: window-wide, prepaint replay suspended; scoped, the failing card quarantined and its neighbour replaying.
     for index in 1...8 {
         pair.redraw()
         let g = try #require(pair.frames.last)
-        #expect(g.retainedPrepaintHits == 0 && g.retainedRedos == 0, "backoff build \(index): \(g.retainedPrepaintHits)/\(g.retainedRedos)")
-        #expect(g.retainedBackoffFrames == 1, "backoff build \(index) is counted: \(g.retainedBackoffFrames)")
-        try pair.compare("backoff build \(index)")
+        #expect(g.retainedPrepaintHits == (windowWide ? 0 : 1) && g.retainedRedos == 0, "build \(index): \(g.retainedPrepaintHits)/\(g.retainedRedos)")
+        #expect(g.retainedBackoffFrames == (windowWide ? 1 : 0), "build \(index): backoff \(g.retainedBackoffFrames)")
+        try pair.compare("build \(index)")
     }
     pair.redraw(); pair.redraw()
     #expect(pair.frames.last?.retainedPrepaintHits == 2, "replay resumes: \(String(describing: pair.frames.last))")
-    try pair.compare("after the backoff")
+    try pair.compare("after the quarantine")
 }
 
 // MARK: 5 — the redo consumes each window input once
@@ -656,13 +664,13 @@ private struct RPStateCard: Component, @MainActor Equatable {
 
 // MARK: Redo coverage added by the mutation batch (record 110 section 5)
 
-/// 6c — a redo suspends prepaint replay for **every** occurrence, not only the one that caused it (`RK-D` item 3): two cards
-/// under two different ancestors; the first ancestor's opacity changes (one redo), and in the next frame, inside the eight
-/// builds of backoff, the second's changes too: the second card's prepaint is not replayed, so its changed ambient meets a
-/// freshly prepainted card and costs no redo. Mutation: the window-wide suspension removed from `noteRedo` (the second
-/// card replays, meets its changed ambient and redoes the next frame too: `retainedRedos == 1` at step 2).
-@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor
-func aRedoSuspendsPrepaintReplayForEveryOccurrence() async throws {
+/// 6c — what a redo suspends (`RK-D` item 3, `RK-AM`): two cards under two different ancestors; the first ancestor's opacity changes (one redo), and in the next
+/// frame the second's changes too. **Window-wide** (`testingRedoFault`): prepaint replay is suspended for every occurrence for eight builds, the second card's
+/// prepaint is not replayed, so its changed ambient meets a freshly prepainted card and costs no redo. **Scoped**: only the first card is quarantined, the
+/// second replays, meets its changed ambient and is redone in its own right, once, with no build suspended. Mutations: the window-wide suspension removed from
+/// `noteRedo` (the window-wide arm's second card redoes, `retainedRedos == 1` at step 2); the scoped redo suspending (the scoped arm's backoff).
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read"), arguments: [true, false]) @MainActor
+func aRedoSuspendsPrepaintReplayForEveryOccurrence(windowWide: Bool) async throws {
     let pair = try RPPair(size: sz(220, 200), warm: 4) { side in
         let first = side.model.n % 2 == 1, second = side.model.tint % 2 == 1
         return VStack(spacing: 4) {
@@ -670,6 +678,7 @@ func aRedoSuspendsPrepaintReplayForEveryOccurrence() async throws {
             ZStack { RPCard(title: "B", shade: 2, log: side.log).equatable() }.opacity(second ? 0.5 : 1)
         }
     }
+    if windowWide { pair.on.window.testingRedoFault = .unrestorableChannel }
     pair.redraw()
     try #require(pair.frames.last?.retainedPrepaintHits == 2)
     pair.onSide.model.n += 1; pair.offSide.model.n += 1
@@ -681,8 +690,13 @@ func aRedoSuspendsPrepaintReplayForEveryOccurrence() async throws {
     await rsSettle()
     pair.redraw()
     let f = try #require(pair.frames.last)
-    #expect(f.retainedRedos == 0 && f.retainedPrepaintHits == 0, "inside the backoff the second change costs no redo: \(f.retainedRedos)/\(f.retainedPrepaintHits)")
-    try pair.compare("second change inside the backoff")
+    if windowWide {
+        #expect(f.retainedRedos == 0 && f.retainedPrepaintHits == 0, "inside the backoff the second change costs no redo: \(f.retainedRedos)/\(f.retainedPrepaintHits)")
+    } else {
+        #expect(f.retainedRedos == 1 && f.retainedBackoffFrames == 0 && f.retainedRedoEscalations == 0,
+                "the second card replays, meets its changed ambient and is redone alone: \(f.retainedRedos)/\(f.retainedBackoffFrames)")
+    }
+    try pair.compare("second change")
 }
 
 /// 5b — a redo with a **transition** inserted in the same frame equals a fresh frame (`RK-U`: `TransitionStore.claim` answers

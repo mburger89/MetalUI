@@ -227,7 +227,9 @@ private struct Work: Equatable, CustomStringConvertible {
     let (steady, moved) = try await steadyWork(equatable: true)
     print("OG-Q steady equatable: \(steady)")
     print("OG-Q moved equatable: \(moved)")
-    #expect(steady.description == "builds 1 requests 41 prepaints 42 paints 29 evaluations 0 measures 1 hits 13 misses 0", "\(steady)")
+    // Requests 41 to 40 and prepaints 42 to 41 (record 423): the first frame after the build's redo no longer rebuilds one occurrence the window-wide backoff kept off
+    // replay; the scoped redo quarantines only the occurrence that failed, so the one that did not replays at once.
+    #expect(steady.description == "builds 1 requests 40 prepaints 41 paints 29 evaluations 0 measures 1 hits 13 misses 0", "\(steady)")
     #expect(moved.description == "builds 1 requests 41 prepaints 42 paints 31 evaluations 0 measures 1 hits 11 misses 2", "\(moved)")
 }
 
@@ -299,7 +301,8 @@ private struct PaintLabel: Component, @MainActor Equatable {
     let (steady, moved, calls) = try await contentSteadyWork()
     print("OG-Q content steady: \(steady) calls \(calls.steady)")
     print("OG-Q content moved: \(moved) calls \(calls.moved)")
-    #expect(steady.description == "builds 1 requests 32 prepaints 33 paints 21 evaluations 0 measures 20 hits 15 misses 0"
+    // Requests 32 to 31 and prepaints 33 to 32 (record 423): as `P7b`, the scoped redo leaves one occurrence replaying that the window-wide backoff rebuilt.
+    #expect(steady.description == "builds 1 requests 31 prepaints 32 paints 21 evaluations 0 measures 20 hits 15 misses 0"
             && calls.steady == 11, "\(steady) calls \(calls.steady)")
     #expect(moved.description == "builds 1 requests 32 prepaints 33 paints 23 evaluations 0 measures 20 hits 13 misses 2"
             && calls.moved == 11, "\(moved) calls \(calls.moved)")

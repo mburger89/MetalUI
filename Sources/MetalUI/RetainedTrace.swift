@@ -188,6 +188,8 @@ package struct PrepaintInvalidation {
         /// A redo or its backoff turned prepaint replay off for this build.
         package var replayDisallowed = false
         package var quarantined = false
+        /// The occurrence is at, under or above a scope of the redo in progress (`RK-AM`).
+        package var scopedRedo = false
         package var hasRecord = true
         package var hasLedger = true
         package var observedChange = false
@@ -208,6 +210,7 @@ package struct PrepaintInvalidation {
         var out: [String] = []
         if inputs.replayDisallowed { out.append("replayDisallowed") }
         if inputs.quarantined { out.append("quarantine") }
+        if inputs.scopedRedo { out.append("scopedRedo") }
         if !inputs.hasRecord { out.append("noRecord") } else if !inputs.hasLedger { out.append("noLedger") }
         if inputs.observedChange { out.append("observed") }
         if inputs.hasRecord {

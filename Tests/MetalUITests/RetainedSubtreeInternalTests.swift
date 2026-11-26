@@ -50,6 +50,7 @@ private let frameChannels: [String: Channel] = [
     "positionTrackingDepth": .buildOnly, "scrollTargetDepth": .buildOnly, "scrollTargetNotes": .prepaintOnly,
     "pendingPositionKnown": .buildOnly, "forEachIdentityWork": .buildOnly, "listIdentityWork": .buildOnly, "lazyWork": .buildOnly, "codeWork": .buildOnly, "tableWork": .buildOnly,
     // Animation and lifecycle.
+    "unrestorableChannels": .frameLocal,   // `RK-AM`: a channel the attempt wrote that no rollback undoes makes the redo window-wide
     "wantsAnotherFrame": .ledger, "hasActiveAnimations": .ledger, "timeVaryingNotes": .ledger,
     "transactionTop": .keyed, "transactionDepth": .keyed, "lifecycleDepth": .buildOnly,
     "effectScopesPushed": .frameLocal, "compositeScopesPushed": .frameLocal,

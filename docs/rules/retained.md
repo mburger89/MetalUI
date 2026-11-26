@@ -205,4 +205,12 @@ miss** (`ContentMemoStore.Entry.needsObservation` also reads `record.contentSeri
 
 **An attempt's glyphs are forgotten with it, and so is every record that names them (`GL-K`, record 418).** `GlyphAtlas.beginAttempt/rollbackAttempt/acceptAttempt` bracket the same build as the state table's; a rollback removes the keys the attempt packed, rewinds the packer and the frame counter and zeroes the rectangles; the paint records the attempt made (`ContentMemoStore.attemptRecorded`) that name a glyph slot the rollback forgot are cleared, and `abandonFrame()` gives the text caches' epoch back. A new holder of atlas rectangles that outlives a frame owes the same: the redo tests read every scene glyph's slot back to its key.
 
+
+
+
+
 **Verify mode checks the rollback and the references held in state; a graft keys the scroll context its build read (`RK-AK`, `RK-AL`, record 419).** `METALUI_VERIFY_RETAINED=1` digests the table and the atlas before an attempt and after its rollback and traps naming the differing line (`rollback`); a framework class held in a state entry is `AttemptRestorable` or in `StateTable.classifiedReferences` (census test and verify trap). `Window.testingRedoBackoff = false` reads what the nine-build backoff hid. A layout that reads `LayoutPass.scrollContext` journals the read, and its graft stands only while that context is still the one in effect.
+
+**A redo is scoped to the occurrences that asked for it (`RK-AM`, `RK-AN`, record 423).** After the exact rollback, attempt 2 refuses graft and prepaint replay only at, under or above the failing occurrences and under a quarantined scope (`ContentMemoStore.redoScopes`, `quarantinedScopes`, at most 64); nothing suspends the window. A redo whose attempt 2 asks again escalates to a third build with every replay off and the nine-build backoff (`retainedRedoEscalations`, 0 across the suite); a channel declared unrestorable (`Frame.noteUnrestorable`), an occurrence with no identity and verify mode take that window-wide path directly. A new store written by a build that a rollback cannot undo owes `noteUnrestorable`.
+
+**A check added to the recursive build or prepaint path is out of line (record 423).** The 200-reply transcript test overflowed the main stack when two scope checks and a journal call were inlined into `graftRecord`, the prepaint decision and `LayoutPass.scrollContext`; they are `@inline(never)`.

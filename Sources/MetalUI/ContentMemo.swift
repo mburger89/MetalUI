@@ -230,6 +230,32 @@ package final class ContentMemoStore {
     var buildSerial = 0
     var prepaintSuspendedUntil = 0
     var redoInProgress = false
+    /// The occurrences a scoped redo rebuilds (`RK-AM`): the ids whose replayed prepaint or graft met a paint-time ambient that differed. Non-empty only
+    /// while attempt 2 builds; an occurrence at, under or above one neither grafts nor replays a prepaint, every other occurrence does as in attempt 1.
+    var redoScopes: [GlobalElementID] = []
+    /// A failed occurrence and its descendants stay out of graft and prepaint replay for a while after a scoped redo (`RK-AN`): the entry's own quarantine
+    /// does not reach the occurrences below it, which graft in the next frame and fail the same way one nesting level down (record 416).
+    struct QuarantinedScope {
+        let id: GlobalElementID
+        var until: Int
+    }
+    var quarantinedScopes: [QuarantinedScope] = []
+    /// Test hook (`Window.testingRedoFault`): the entry attempt 2 asks to redo, as an attempt 2 that met another ambient would, inside the frame's own abandon decision.
+    var testingEscalationEntry: Entry?
+    /// The most scopes kept; the soonest to expire goes first.
+    static let quarantinedScopeLimit = 64
+
+    /// Whether `id` is at, under or above a scope of the redo in progress.
+    @inline(never)   // called from the recursive build and prepaint: its locals stay out of their frames
+    func isInRedoScope(_ id: GlobalElementID) -> Bool {
+        redoScopes.contains { id.isOrDescends(from: $0) || $0.isOrDescends(from: id) }
+    }
+
+    /// Whether `id` is at or under a quarantined scope that has not expired.
+    @inline(never)
+    func isInQuarantinedScope(_ id: GlobalElementID) -> Bool {
+        quarantinedScopes.contains { $0.until > buildSerial && id.isOrDescends(from: $0.id) }
+    }
     /// The entries a paint record was made for while an attempt was open (`GL-K`): a rollback clears them, because the record holds the atlas
     /// slots of glyphs the attempt packed and the rollback forgets. Appended only while `recordsAttempt`; a new record is the rare case.
     var recordsAttempt = false

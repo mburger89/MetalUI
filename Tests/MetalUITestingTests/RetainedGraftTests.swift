@@ -544,14 +544,16 @@ private struct RGMoving: Component {
 }
 
 /// 20 — a graft that cannot paint (a paint-only ambient above it changed) or cannot prepaint (the occurrence moved: its rects are not
-/// the ledger's) asks the window to build the frame again with every graft and replay off: the redo's frame equals the
-/// retention-off frame in scene, tree, log and **state table**, counts one redo, grafts nothing in the redo, and the grafts resume
-/// after the backoff. **Red before:** `retainedRedos` reads 0 and the frame is wrong (a grafted occurrence cannot be drawn).
-/// **Mutations:** the redo's `graftAllowed` not suspended (a grafted redo asks for a redo: the assertion or the scene), the
+/// the ledger's) asks the window to build the frame again: the redo's frame equals the retention-off frame in scene, tree, log and **state
+/// table**, counts one redo, and the grafts resume. **Scoped** (`RK-AM`, record 423): the redo rebuilds the failing occurrence only and the
+/// neighbour grafts in the redo and every frame after it, no build suspended. **Window-wide** (`testingRedoFault`): the redo grafts nothing, nor
+/// do the eight builds after it (`RK-D`). **Red before:** `retainedRedos` reads 0 and the frame is wrong (a grafted occurrence cannot be drawn).
+/// **Mutations:** the window-wide redo's `graftAllowed` not suspended (a grafted redo asks for a redo: the assertion or the scene), the
 /// abandoned frame adopted (hitboxes), the checkpoint's animation entries not restored.
-@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: ["opacity above", "moved by a sibling"]) @MainActor
-func aRedoAfterAGraftMismatchRestoresEverything(arm: String) async throws {
+@Test(.enabled(if: !rsVerifying, verifyingNote), arguments: ["opacity above", "moved by a sibling"], [true, false]) @MainActor
+func aRedoAfterAGraftMismatchRestoresEverything(arm: String, windowWide: Bool) async throws {
     let pair = try RPPair(size: sz(220, 380), warm: 5) { side in VStack(spacing: 0) { RGMoving(side: side) } }
+    if windowWide { pair.on.window.testingRedoFault = .unrestorableChannel }
     try pair.compare("warm")
     pair.redraw()
     try #require((pair.frames.last?.retainedGrafts ?? 0) >= 1, "grafting before the change: \(String(describing: pair.frames.last))")
@@ -560,19 +562,23 @@ func aRedoAfterAGraftMismatchRestoresEverything(arm: String) async throws {
     pair.redraw()
     let f = try #require(pair.frames.last)
     #expect(f.retainedRedos == 1, "\(arm): the frame was redone once: \(f.retainedRedos)")
-    #expect(f.retainedGrafts == 0, "\(arm): the redo grafts nothing: \(f.retainedGrafts)")
+    // "moved by a sibling" moves both occurrences, so both fail and both are in the scope: nothing grafts for the quarantine, as window-wide.
+    let nothingGrafts = windowWide || arm == "moved by a sibling"
+    if nothingGrafts { #expect(f.retainedGrafts == 0, "\(arm): the redo grafts nothing: \(f.retainedGrafts)") }
+    else { #expect(f.retainedGrafts >= 1, "\(arm): the neighbour still grafts in the scoped redo: \(f.retainedGrafts)") }
     try pair.compare(arm)
     stateAgrees(pair, arm)
     for index in 1...8 {
         pair.redraw()
-        #expect(pair.frames.last?.retainedGrafts == 0, "\(arm): backoff build \(index)")
-        try pair.compare("\(arm), backoff build \(index)")
-        stateAgrees(pair, "\(arm), backoff build \(index)")
+        if nothingGrafts { #expect(pair.frames.last?.retainedGrafts == 0, "\(arm): build \(index)") }
+        else { #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "\(arm): build \(index)") }
+        #expect(pair.frames.last?.retainedBackoffFrames == (windowWide ? 1 : 0), "\(arm): build \(index): backoff")
+        try pair.compare("\(arm), build \(index)")
+        stateAgrees(pair, "\(arm), build \(index)")
     }
     pair.redraw(); pair.redraw()
-    #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "\(arm): the grafts resume after the backoff: \(String(describing: pair.frames.last))")
-    try pair.compare("\(arm), after the backoff")
-    #expect(pair.onSide.log.entries == pair.offSide.log.entries)
+    #expect((pair.frames.last?.retainedGrafts ?? 0) >= 1, "\(arm): the grafts resume: \(String(describing: pair.frames.last))")
+    try pair.compare("\(arm), after the quarantine")
 }
 
 // MARK: 20b — a graft the prepaint cannot replay

@@ -578,7 +578,8 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
 /// Every class type held in a state entry, across the demo windows, is `AttemptRestorable` (it journals its own writes) or classified as a cache
 /// or immutable (`RK-AJ`). A class the census finds that is neither fails here by name and entry path; verify mode traps on it
 /// (`StateTable.verifyReferencesAreClassified`). Adding a class to an entry owes a conformance or a row in `StateTable.classifiedReferences`.
-@Test @MainActor func everyReferenceHeldInStateIsClassified() async throws {
+@Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 keeps the demo windows drawing (they never idle); the classification is the same without it")) @MainActor
+func everyReferenceHeldInStateIsClassified() async throws {
     let demos: [(String, () async throws -> [String: String])] = [
         ("demo", { try await xrCensus { demoContent() } }), ("textInput", { try await xrCensus { textInputDemoContent() } }),
         ("table", { try await xrCensus { tableDemoContent() } }),
@@ -595,8 +596,14 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
         ("clipboard", { try await xrCensus { clipboardDemoContent() } }), ("tabs", { try await xrCensus { tabStripDemoContent() } }),
         ("accessibility", { try await xrCensus { accessibilityDisplayDemoContent() } })
     ]
+    // Not in a demo: an `OutlineGroup` in a lazy stack (found by verify mode's trap on `OutlineIndex`, record 423).
+    struct Node: Identifiable { let id: String; let kids: [Node]? }
+    let tree = [Node(id: "a", kids: [Node(id: "a1", kids: nil), Node(id: "a2", kids: nil)]), Node(id: "b", kids: nil)]
+    let outlined: [(String, () async throws -> [String: String])] = [("outlineGroup", {
+        try await xrCensus { ProposalScrollView { LazyVStack(alignment: .leading, spacing: Pixels(0)) { OutlineGroup(tree, children: \.kids) { ProposalText($0.id).frame(height: Pixels(20)) } } } }
+    })]
     var found: [String: String] = [:]
-    for (name, run) in demos {
+    for (name, run) in demos + outlined {
         for (type, held) in try await run() where found[type] == nil {
             let parts = held.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
             found[type] = "\(parts[0])|\(name): \(String(parts.last ?? "").suffix(60))"
@@ -614,7 +621,9 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
         }
     }
     // The classification table names no class nobody holds in any demo (it cannot rot), except Swift's key path subclasses.
-    let stale = StateTable.classifiedReferences.keys.filter { found[$0] == nil && !$0.hasSuffix("KeyPath") }.sorted()
+    // Rows for classes the census windows do not reach (found by verify mode over the whole suite: a `ShortcutRecorder`, a state holding an identity).
+    let outsideTheDemos: Set<String> = ["GlobalElementID", "RecordingEnd"]
+    let stale = StateTable.classifiedReferences.keys.filter { found[$0] == nil && !$0.hasSuffix("KeyPath") && !outsideTheDemos.contains($0) }.sorted()
     #expect(stale.isEmpty, "classified but held by no demo window: \(stale)")
     #expect(unclassified.isEmpty, "classes held in state with no classification: \(unclassified)")
 }
@@ -673,6 +682,20 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
         pair.redraw()
         try pair.compare("a frame after a scroll of \(delta)")
     }
+}
+
+/// A table's edit session is a class a build writes (its placement and the one-shot focus and seed flags, `TableBody`): found by verify mode's census (record 423).
+/// A rolled-back attempt gives its fields back, so a redo's second attempt requests the focus the first attempt consumed. Mutation: the rollback not restoring `needsFocus`.
+@Test @MainActor func aRolledBackTableEditSessionRequestsItsFocusAgain() {
+    let session = TableEditSession<Int>(cell: TableCell(row: 3, column: 1), text: "abc", position: 2)
+    let before = session.attemptContents
+    session.beginAttempt()
+    session.needsFocus = false; session.needsSeed = false; session.editorFocused = true; session.position = 7; session.lastFrame = (x: 1, y: 2, width: 3)
+    #expect(session.attemptContents != before)
+    session.rollbackAttempt()
+    #expect(session.attemptContents == before && session.needsFocus && session.needsSeed, "the fields are back: \(session.attemptContents)")
+    session.beginAttempt(); session.needsFocus = false; session.endAttempt()
+    #expect(!session.needsFocus, "an accepted attempt keeps its writes")
 }
 
 /// A record the attempt made names a glyph by its atlas rectangle, and the redo may pack a different glyph of the same size into the rectangle the rollback
