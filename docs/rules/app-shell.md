@@ -48,7 +48,7 @@ non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility
 role/request needs a row on both bridges**; a new `StyledElement` modifier
 cannot follow a legacy `.popover` (divergence 115).
 
-**Platform services (`SV-`, record §77).**
+**Platform services (`SV-`, record §77).** **A file dialog's starting directory is `.fileDialogDefaultDirectory(_:)` (an environment write read at the presenter, as the label and message) or the `directory:` argument of `FileDialogs.openFiles`/`saveFile` (the async calls read no environment); the seam carries it as `PlatformFileDialog.directory`, a path, `nil` for a non-file URL (`SV-AQ`, divergence 936).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one
 transparent `PresentationScope` (no node, no id level; the record lives in the
 window's registry keyed `$presentation<depth>`, never a `StateTable` slot; a

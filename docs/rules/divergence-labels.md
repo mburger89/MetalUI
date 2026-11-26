@@ -1,6 +1,6 @@
 # Divergence labels: reservations and use
 
-`docs/divergences.md` labels are stable ids: a retired label is never reused. **241 live, next label 250**
+`docs/divergences.md` labels are stable ids: a retired label is never reused. **242 live, next label 250**
 (also in `CLAUDE.md`). A milestone that expects divergences reserves a block of ten; a new divergence takes the
 next sequential label or the next unused label of its milestone's block. Update this list and `CLAUDE.md`'s
 "next label" in the commit that adds the row.
@@ -29,7 +29,7 @@ Moved verbatim from `CLAUDE.md` on 2026-11-18, one entry per item:
 - 945–947 used and 948–954 unused by PG
 - 915–916 used and 917–924 unused by SP
 - 925 used and 926–934 unused by GE
-- 935 used and 936–944 unused by SV-AO
+- 935 and 936 used and 937–944 unused by SV-AO (936 by `SV-AQ`: `fileDialogDefaultDirectory` on SDL)
 - 895–898 used and 899–904 unused by MG
 - 885–894 reserved by BY: 885 (retired) and 886 used, 887–894 unused
 - 207 never published and unused
