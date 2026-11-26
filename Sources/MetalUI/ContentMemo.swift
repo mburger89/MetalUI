@@ -237,6 +237,9 @@ package final class ContentMemoStore {
     /// Whether a window drives this store's frames and so builds an abandoned frame again (`RK-D`): a bare
     /// `Frame.render` has no one to redo it, so it never replays a prepaint.
     var windowRedoes = false
+    /// Whether a redo suspends prepaint replay window-wide for the next builds (`RK-D` item 3). Always true in the product; a package test switch
+    /// (`Window.testingRedoBackoff`) turns it off to read what the backoff hides (record 419).
+    var redoBackoff = true
     /// How many entries held a prepaint ledger at the last `endFrame`: with none, a build cannot replay a prepaint
     /// and so cannot be redone, and the window takes no checkpoint (`RK-M`).
     private(set) var ledgerEntries = 0

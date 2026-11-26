@@ -1287,6 +1287,17 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         scrollContextStack.last ?? nil
     }
 
+    /// How many scroll contexts (or absences) are pushed: a graft window's depth, to tell a read of a scroller outside the occurrence from one inside it.
+    var scrollContextDepth: Int { scrollContextStack.count }
+
+    /// A layout read the published scroll context: journalled with the depth it was read at, so a graft of the occurrence is refused when that
+    /// scroller's offset, viewport or end-pinning is no longer what the build windowed against (`graftDependenciesHold`). A lazy container,
+    /// a `List` and a table body windowed against an offset the key did not hold: a scroll step grafted the stale window.
+    func noteScrollContextRead() {
+        let journal = stateTable.contentMemos.journal
+        if journal.isRecording { journal.record(.scrollContextRead(activeScrollContext, scrollContextStack.count)) }
+    }
+
     /// Pushes a scroll context. Balanced by `popScrollContext`, reached only
     /// through `LayoutPass.withScrollContext`'s `defer`.
     func pushScrollContext(_ context: ScrollContext) {

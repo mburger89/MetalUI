@@ -2272,18 +2272,31 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         return true
     }
 
+    /// The digest the rollback is compared with (a test asked for it, or verify mode, which also traps on a class held in state that nobody classified, `RK-AK`).
+    private func rollbackDigestBeforeAttempt() -> [String]? {
+        if retainedVerifiesFromEnvironment { stateTable.verifyReferencesAreClassified() }
+        return testingRollbackDigests == nil && !retainedVerifiesFromEnvironment ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
+    }
+
     /// `RK-AI`: puts the state table back as the abandoned attempt found it; a test that asked records its digest before the attempt (`before`),
     /// as the attempt left it and after the rollback.
     @discardableResult
     private func rollBackAttempt(recordingFrom before: [String]?) -> Set<GlobalElementID> {
-        let during = before == nil ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
+        let during = testingRollbackDigests == nil || before == nil ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
         glyphAtlas.rollbackAttempt()   // `GL-K`
         let atlas = glyphAtlas
         let created = stateTable.rollbackAttempt { record in   // `GL-K`: a record the attempt made may name a glyph the rollback forgot
             record.glyphSlotsAre(packed: { !atlas.wasRolledBack(x: $0.origin.x, y: $0.origin.y, width: $0.size.width, height: $0.size.height) })
         }
-        if let before, let during {
-            testingRollbackDigests?.append((before: before, during: during, after: stateTable.attemptDigest + glyphAtlas.attemptDigest))
+        if let before {
+            let after = stateTable.attemptDigest + glyphAtlas.attemptDigest
+            // Verify mode's `rollback` channel (`RK-AI`): the table and the atlas after the rollback are the ones before the attempt.
+            if retainedVerifiesFromEnvironment, before != after {
+                let lines = Set(before).symmetricDifference(Set(after)).sorted()
+                let differing = lines.first { !$0.hasPrefix("marked:") } ?? lines.first ?? "a count"
+                preconditionFailure("METALUI_VERIFY_RETAINED: rollback: the rolled-back attempt left \(differing.prefix(240))")
+            }
+            if let during { testingRollbackDigests?.append((before: before, during: during, after: after)) }
         }
         return created
     }
@@ -2420,7 +2433,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         }
         // `RK-AI`: the attempt that may be abandoned logs its first write of each state, and rolls back with the checkpoint (verify mode
         // abandons every replayed frame, so it is always armed).
-        let rollbackBefore = testingRollbackDigests == nil ? nil : stateTable.attemptDigest + glyphAtlas.attemptDigest
+        let rollbackBefore = rollbackDigestBeforeAttempt()
         if checkpoint != nil || retainedVerifiesFromEnvironment { stateTable.beginAttempt(); glyphAtlas.beginAttempt() }
         let comparedWritesBefore = stateTable.comparedWriteIDs.count   // verify mode: where the replayed build's compared writes start
         var frame = buildFrame()
@@ -2451,7 +2464,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             // find: a `List`'s measured viewport, a scroller's extent, so its window bounds rows the first build's did not.
             // The attempt is rolled back (`RK-AI`, amends `RW-U`): entries it created are deleted, the ones it wrote restored,
             // and both builds start from the same table with the scene comparison on.
-            let recreated = rollBackAttempt(recordingFrom: nil)
+            let recreated = rollBackAttempt(recordingFrom: rollbackBefore)
             let firstFrame = frame
             memos.resetBuildCounters()
             scrollRequests.restore(pendingScrollRequests)
@@ -4277,4 +4290,10 @@ private final class ObservationChangeCount: @unchecked Sendable {
 /// actor (`Window.hop`).
 private struct WeakWindow: @unchecked Sendable {
     weak var window: Window?
+}
+
+extension Window {
+    /// Empties the glyph atlas between frames (`GL-A`), so a test that pinned its clock after the first frame can start the atlas again from the pinned frames (`RK-AD`).
+    /// Here, not in `TestingHooks.swift`: `Window.swift` is the one file allowed to call `reclaim()` (`theGlyphAtlasIsReclaimedOnlyAtTheTopOfADraw`).
+    package func testingReclaimAtlas() { glyphAtlas.reclaim() }
 }

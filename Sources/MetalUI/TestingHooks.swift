@@ -234,6 +234,14 @@ extension Window {
     /// The `@State` entries with their versions and liveness, sorted: compared across two windows by the graft's
     /// sweep differential (`RK-F`).
     package var testingStateEntries: [String] { stateTable.entryDigest }
+    /// Whether a redo suspends prepaint replay window-wide for the next nine builds (`RK-D` item 3). Off: the redo's quarantine of the failing entry
+    /// stays, the window keeps replaying. The differential tests run with it off to read what the backoff used to hide (record 419).
+    package var testingRedoBackoff: Bool {
+        get { stateTable.contentMemos.redoBackoff }
+        set { stateTable.contentMemos.redoBackoff = newValue }
+    }
+    /// The class types held in state entries and one entry path each (`RK-AJ`'s census).
+    package var testingStateReferenceClasses: [String: String] { stateTable.referenceClasses() }
     /// The glyph atlas's slot map and packer (`GL-K`).
     package var testingAtlasSlots: [String] { glyphAtlas.slotDigest }
     /// Keys the last atlas attempt held when it closed, and the doublings inside attempts that were rolled back.

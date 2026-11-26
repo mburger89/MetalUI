@@ -44,6 +44,9 @@ final class BuildJournal {
         case presentationNote(PresentationRecord)
         /// A window preference the build reported (`RW-X`): replayed through the same first-wins report.
         case windowPreference(WindowPreferenceReport)
+        /// The scroll context a layout read, and the depth of the context stack it was read at (record 419): checked by the graft against the
+        /// context in effect where the occurrence sits, for the reads made outside every scroller the occurrence itself opens.
+        case scrollContextRead(ScrollContext?, Int)
     }
 
     var events: [Event] = []
@@ -402,6 +405,7 @@ extension Frame {
                 animationStore.lifecycle.note(write, scope: scope, owner: owner, order: lifecycleBase + order)   // `RL-A`, `RL-C`
             case .presentationNote(let note): replayPresentationNote(note)   // `RW-V`
             case .windowPreference(let report): reportWindowPreference(report)   // `RW-X`
+            case .scrollContextRead: stateTable.contentMemos.journal.record(event)   // an enclosing window depends on it too
             }
         }
         animationStore.lifecycle.advanceOrder(by: lifecycleOrders)
@@ -416,6 +420,8 @@ extension Frame {
         for id in record.liveStates where !stateTable.hasEntry(id) { return false }
         for id in record.animationIDs where !animationStore.hasEntry(id) { return false }
         for (id, version) in record.stateReads where stateTable.entryVersion(id) != version { return false }
+        // A lazy container, a `List` or a table body read the scroller's offset while it windowed: the graft stands only while that scroller still says the same.
+        for case .scrollContextRead(let context, let depth) in record.events where depth <= scrollContextDepth && context != activeScrollContext { return false }
         // `RW-V`: a menu opened from code since the build (its binding turned true) is a presentation: the build runs.
         for note in record.presentationNotes where note.isPresented.wrappedValue != note.isShown { return false }
         return true
