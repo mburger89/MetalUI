@@ -4610,7 +4610,17 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         animationStore.rasters.beginFrame()
 
         var layoutPass = LayoutPass(frame: self)
-        let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
+        // Everything after the root's layout is in `renderAfterRootLayout` (`HP-O`): this frame is live under the whole tree's
+        // layout recursion, and a debug build gives each of the phases' locals below a slot of it.
+        let rooted = element.requestLayout(rootID, pass: &layoutPass)
+        renderAfterRootLayout(&element, rootID: rootID, laidOut: rooted, layoutPass: &layoutPass)
+    }
+
+    @inline(never)
+    private func renderAfterRootLayout<E: Element>(_ element: inout E, rootID: GlobalElementID,
+                                                   laidOut: (LayoutNodeID, E.LayoutState),
+                                                   layoutPass: inout LayoutPass) {
+        let (root, layoutState) = laidOut
         var state = layoutState
         reportUnconsumedLoweredItems(root: root)
         // The drawn toolbar strip (`MD-K`): requested after the root, whose

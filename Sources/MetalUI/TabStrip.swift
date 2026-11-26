@@ -104,6 +104,41 @@ enum TabStripMetrics {
     static let minTabWidth: Float = 96
     static let maxTabWidth: Float = 220
     static let closeSlot: Float = 18
+    /// The side of the close glyph's frame (`TabStripCloseSlot`).
+    static let closeGlyph: Float = 16
+    /// How far a shaped selected tab's fill is inset from its cell, above and below and at the sides (`TBS-M`).
+    static let fillInsetY: Float = 4
+    static let fillInsetX: Float = 3
+    /// The least distance the close glyph's frame keeps from a shaped fill's curve and edges (`TBS-R`).
+    static let closeClearance: Float = 2
+
+    /// The gap the close slot keeps from a cell's trailing edge for `shape` (`TBS-R`): the least whole number of points that
+    /// puts the whole close glyph frame inside the selected tab's fill with ``closeClearance`` to spare. The fill ends in a
+    /// corner of radius `r` (a capsule's is half its height). The glyph's frame is centred in the cell (on a whole point), so its corner lies
+    /// `dy` from the corner arc's centre and must stay within `r - clearance` of it: that fixes how far the frame's edge
+    /// may lie from the fill's edge (`r - sqrt((r - clearance)^2 - dy^2)`, never less than the clearance). A rectangle has no
+    /// fill to keep inside: 0, today's spacing.
+    static func closeTrailingInset(for shape: TabStripSelectionShape) -> Float {
+        let fillHeight = barHeight - 1 - 2 * fillInsetY
+        let radius: Float
+        switch shape.kind {
+        case .rectangle: return 0
+        case .capsule: radius = fillHeight / 2
+        case .roundedRectangle(let r): radius = Swift.min(r, fillHeight / 2)
+        }
+        // The glyph's frame sits on a whole-point row (7.5 rounds to 8 in a 31-point cell), so its nearer edge to the fill's
+        // top or bottom is the smaller of the two gaps; the corner on that side is the one nearest the arc.
+        let top = ((barHeight - 1 - closeGlyph) / 2).rounded()
+        let gap = Swift.min(top - fillInsetY, (barHeight - 1 - top - closeGlyph) - fillInsetY)
+        let cornerAboveArcCentre = radius - gap
+        var edge = closeClearance
+        if cornerAboveArcCentre > 0 {
+            let arc = radius - closeClearance
+            edge = Swift.max(edge, radius - (arc * arc - cornerAboveArcCentre * cornerAboveArcCentre).squareRoot())
+        }
+        // The glyph is centred in the slot, so the slot's own margin is part of the distance.
+        return (fillInsetX + edge - (closeSlot - closeGlyph) / 2).rounded(.up)
+    }
     static let iconSide: Float = 14
     /// A drag shorter than this begins nothing: a click stays a click.
     static let dragSlop: Float = 4
@@ -385,11 +420,15 @@ struct TabStripTab<ID: Hashable>: Component {
         let fill = isSelected ? selectedFill : (isHovered ? Color(.textPrimary).opacity(0.06) : Color.clear)
         let selectedMaterial = isSelected ? material : nil
         let shape = shape
+        let closeInset = TabStripMetrics.closeTrailingInset(for: shape)
         let row = HStack(spacing: Pixels(0)) {
             TabStripLabel(item: item, isSelected: isSelected, menu: menu, select: select)
             if item.isClosable || item.isDirty {
+                // A shaped strip insets the slot on every tab, so the glyph keeps its place when the selection moves (`TBS-R`);
+                // the full-bleed cell keeps the slot at its edge.
                 TabStripCloseSlot(item: item, showsClose: item.isClosable && (isHovered || isSelected),
-                                  showsDot: item.isDirty && !(item.isClosable && isHovered), close: close)
+                                  showsDot: item.isDirty && !(item.isClosable && isHovered), close: close,
+                                  trailingInset: closeInset)
             }
         }
         let cell = TabStripWidthLayout()() {
@@ -478,9 +517,12 @@ struct TabStripCloseSlot<ID: Hashable>: Component {
     let showsClose: Bool
     let showsDot: Bool
     let close: @MainActor () -> Void
+    /// The gap between the slot and the cell's trailing edge (`TBS-R`); 0 draws no padding.
+    let trailingInset: Float
     @State private var isHovered = false
 
     var content: some ElementGroup {
+        let trailingInset = trailingInset
         let showsClose = showsClose, showsDot = showsDot, isHovered = isHovered, item = item, close = close
         let hover = $isHovered
         let body = ZStack {
@@ -488,7 +530,7 @@ struct TabStripCloseSlot<ID: Hashable>: Component {
                 Circle().fill(Color(.textPrimary).opacity(0.7)).frame(width: Pixels(8), height: Pixels(8))
             } else if showsClose {
                 Image(systemName: "xmark")
-                    .frame(width: Pixels(16), height: Pixels(16))
+                    .frame(width: Pixels(TabStripMetrics.closeGlyph), height: Pixels(TabStripMetrics.closeGlyph))
                     .background(isHovered ? Color(.textPrimary).opacity(0.12) : Color.clear)
             }
         }
@@ -502,7 +544,12 @@ struct TabStripCloseSlot<ID: Hashable>: Component {
         .accessibilityHidden(!item.isClosable)
         .accessibilityAction { if item.isClosable { close() } }
         return VStack(spacing: Pixels(0)) {
-            if let identifier = item.closeAccessibilityIdentifier { body.accessibilityIdentifier(identifier) } else { body }
+            if trailingInset > 0 {
+                let padded = body.padding(Edges(top: Pixels(0), right: Pixels(trailingInset), bottom: Pixels(0), left: Pixels(0)))
+                if let identifier = item.closeAccessibilityIdentifier { padded.accessibilityIdentifier(identifier) } else { padded }
+            } else {
+                if let identifier = item.closeAccessibilityIdentifier { body.accessibilityIdentifier(identifier) } else { body }
+            }
         }
     }
 }
@@ -515,7 +562,8 @@ struct TabStripFill: Component {
 
     var content: some ElementGroup {
         let fill = fill, material = material
-        let inset = Edges(top: Pixels(4), right: Pixels(3), bottom: Pixels(4), left: Pixels(3))
+        let (insetX, insetY) = (Pixels(TabStripMetrics.fillInsetX), Pixels(TabStripMetrics.fillInsetY))
+        let inset = Edges(top: insetY, right: insetX, bottom: insetY, left: insetX)
         return VStack(spacing: Pixels(0)) {
             switch shape.kind {
             case .rectangle:

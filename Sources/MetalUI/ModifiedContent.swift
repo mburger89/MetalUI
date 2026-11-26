@@ -246,8 +246,16 @@ public struct ModifiedContent<Content: ElementGroup, Modifier: ModifierLayerKind
         // The content's own index space starts at 0 under the innermost layer,
         // as it does under a `Box`.
         var cursor = 0
-        let (contentNodes, contentLayout) = content.requestGroupLayout(under: innermostID,
-                                                                       at: &cursor, pass: &pass)
+        let laidOut = content.requestGroupLayout(under: innermostID, at: &cursor, pass: &pass)
+        return finishLayout(id, innermostID: innermostID, laidOut, pass: &pass)
+    }
+
+    /// `requestLayout`'s tail, out of its frame (`HP-O`): that frame is live under the whole subtree's layout.
+    @inline(never)
+    private mutating func finishLayout(_ id: GlobalElementID, innermostID: GlobalElementID,
+                                       _ laidOut: ([LayoutNodeID], Content.GroupLayout),
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        let (contentNodes, contentLayout) = laidOut
         let (node, placements) = wrapLayers(contentNodes, id: id, innermostID: innermostID, pass: &pass)
         return (node, Layout(node: node, inner: placements, content: contentLayout))
     }

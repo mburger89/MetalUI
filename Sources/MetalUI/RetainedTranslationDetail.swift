@@ -62,17 +62,19 @@ extension Frame {
             ("oldY", oldY, old.key.rects[1] * s, old.key.ambient.offset[1] * s),
             ("dx", dx, 0, 0), ("dy", dy, 0, 0)
         ]
-        for (name, value, origin, offsetPx) in gates where !isExactSixteenth(value) {
+        // An axis that does not move is not tested (`FS-W`), as `movedPaintRecord` does.
+        for (name, value, origin, offsetPx) in gates where !isExactSixteenth(value) && !(unmovedAxisIsFree && name.hasSuffix("X") && dx == 0)
+            && !(unmovedAxisIsFree && name.hasSuffix("Y") && dy == 0) {
             let who = !isExactSixteenth(offsetPx) ? "entryOffset" : !isExactSixteenth(origin) ? "layoutOrigin" : "sum"
             return "entry field=\(name) value=\(fmt(value)) fractional=\(who) entryOffsetPx=(\(fmt(newOffset.0)),\(fmt(newOffset.1)))"
         }
-        if newX != oldX + dx || newY != oldY + dy { return "entry field=sum fractional=sum" }
+        if shifted(oldX, by: dx) != newX || shifted(oldY, by: dy) != newY { return "entry field=sum fractional=sum" }
         guard key.ambient.clip.count >= 4, !key.ambient.depths.isEmpty else { return "unkeyedClip" }
         let tail = "move=(\(fmt(dx)),\(fmt(dy))) entryOffsetPx=(\(fmt(newOffset.0)),\(fmt(newOffset.1)))"
         for op in old.scene {
             for (group, _) in op.leaves {
                 for primitive in group {
-                    if let found = Self.firstInexact(in: primitive, dx: dx, dy: dy, role: "") { return found + " " + tail }
+                    if let found = Self.firstInexact(in: primitive, dx: dx, dy: dy, free: unmovedAxisIsFree, role: "") { return found + " " + tail }
                 }
             }
         }
@@ -81,10 +83,10 @@ extension Frame {
 
     /// The first inexact origin of `primitive` in `movedLeaf`'s order (group masks, then the leaf's own origin, then its content
     /// mask), or `nil` when every number passes.
-    static func firstInexact(in primitive: CapturedPrimitive, dx: Float, dy: Float, role: String) -> String? {
+    static func firstInexact(in primitive: CapturedPrimitive, dx: Float, dy: Float, free: Bool = false, role: String) -> String? {
         func fmt(_ v: Float) -> String { String(format: "%.9g", Double(v)) }   // enough digits to show a one-ulp error
         func check(_ kind: String, _ field: String, _ p: MUIPoint) -> String? {
-            for (axis, v, d) in [("x", p.x, dx), ("y", p.y, dy)] where !isExactSixteenth(v) || !isExactSixteenth(v + d) {
+            for (axis, v, d) in [("x", p.x, dx), ("y", p.y, dy)] where !isExactShift(v, by: d, free: free) {   // a zero shift passes (`FS-W`)
                 let who = isExactSixteenth(v) ? "sum" : "leaf"
                 return "leaf=\(role)\(kind) field=\(field).\(axis) value=\(fmt(v)) fractional=\(who)"
             }
@@ -92,7 +94,7 @@ extension Frame {
         }
         for k in primitive.groups.indices where primitive.groups[k].isMasked {
             for m in primitive.groups[k].mask.indices {
-                if let found = firstInexact(in: primitive.groups[k].mask[m], dx: dx, dy: dy, role: "groupMask.") { return found }
+                if let found = firstInexact(in: primitive.groups[k].mask[m], dx: dx, dy: dy, free: free, role: "groupMask.") { return found }
             }
         }
         switch primitive.kind {

@@ -37,6 +37,8 @@ struct PaintTranslation {
     var dx: Float, dy: Float
     var entryDepth: Int
     var fold: MaskFold?
+    /// `Frame.unmovedAxisIsFree` when the move was made (`FS-W`): whether a zero shift skips the sixteenth check of its axis.
+    var free = false
 }
 
 /// A prepaint ledger moved to the position the occurrence stands at now.
@@ -65,6 +67,18 @@ struct PaintTranslationMemo {
     let scaled = value * 16
     return scaled.rounded(.towardZero) == scaled
 }
+
+/// Whether `value` moved by `shift` is exact (`FS-W`): both are multiples of 1/16, or the shift is exactly zero and `free`, where the moved
+/// number is `value` itself (`shifted`) and no addition rounds. The axis that moves keeps both checks. `free` is `Frame.unmovedAxisIsFree`.
+@inline(__always) func isExactShift(_ value: Float, by shift: Float, free: Bool) -> Bool {
+    (free && shift == 0) || (isExactSixteenth(value) && isExactSixteenth(value + shift))
+}
+
+/// Whether a zero shift may skip its axis's check at `scale` (`FS-W`, `Frame.unmovedAxisIsFree`): a scale that is a multiple of 1/16.
+func isUnmovedAxisFree(scale: Float) -> Bool { let s = scale * 16; return s == s.rounded() }
+
+/// `value` moved by `shift`: `value` bit for bit when the shift is exactly zero (`FS-W`), else the sum.
+@inline(__always) func shifted(_ value: Float, by shift: Float) -> Float { shift == 0 ? value : value + shift }
 
 // MARK: - The key relation
 
@@ -240,6 +254,14 @@ extension Frame {
         return (folded, changed, crossed)
     }
 
+    /// Whether a zero shift skips the sixteenth check of its axis on this frame (`FS-W`): when the scale is a multiple of 1/16 every product of a
+    /// whole-point layout number and the scale is exact in `Float`, so the unmoved axis's numbers are the fresh frame's own. At another scale
+    /// (1.2) the unmoved axis's check was also the witness that device numbers are exact products, and it stays.
+    var unmovedAxisIsFree: Bool { isUnmovedAxisFree(scale: scaleFactor) }
+
+    /// `isExactShift` with this frame's `unmovedAxisIsFree`.
+    func exactShift(_ value: Float, by shift: Float) -> Bool { isExactShift(value, by: shift, free: unmovedAxisIsFree) }
+
     /// `old`'s leaves moved to the position `key` stands at (`FS-D`, `FS-M`), or the name of the gate that refused. `entryDepth` is the
     /// clip depth of the key and its ambient clip the clip in force at the entry: a primitive whose mask was read at the entry depth
     /// carries the entry clip, equal by the key, and is left alone; one read deeper carries a clip derived inside the occurrence, which
@@ -254,8 +276,9 @@ extension Frame {
         let oldX = (old.key.rects[0] + old.key.ambient.offset[0]) * s, oldY = (old.key.rects[1] + old.key.ambient.offset[1]) * s
         let dx = newX - oldX, dy = newY - oldY
         guard dx == dx.rounded(), dy == dy.rounded() else { return .refused("fractionalTranslation") }
-        guard isExactSixteenth(newX), isExactSixteenth(newY), isExactSixteenth(oldX), isExactSixteenth(oldY),
-              isExactSixteenth(dx), isExactSixteenth(dy), newX == oldX + dx, newY == oldY + dy
+        // An axis that does not move needs no sixteenth: `newX == oldX` bit for bit, and nothing is added (`FS-W`).
+        guard exactShift(oldX, by: dx), exactShift(oldY, by: dy), isExactSixteenth(dx), isExactSixteenth(dy),
+              shifted(oldX, by: dx) == newX, shifted(oldY, by: dy) == newY
         else { return .refused("inexactTranslation") }
         if old.innerScopes { return .refused("innerScope") }
         guard key.ambient.clip.count >= 4, !key.ambient.depths.isEmpty else { return .refused("unkeyedClip") }
@@ -267,7 +290,7 @@ extension Frame {
             case .moved(let folded): fold = folded
             }
         }
-        let translation = PaintTranslation(dx: dx, dy: dy, entryDepth: entryDepth, fold: fold)
+        let translation = PaintTranslation(dx: dx, dy: dy, entryDepth: entryDepth, fold: fold, free: unmovedAxisIsFree)
         if let reason = Self.moveOps(old, mode: .check, translation).reason { return .refused(reason) }
         return .moved(translation)
     }
@@ -349,7 +372,7 @@ extension Frame {
                 for member in 0..<size {
                     let primitive = old.scene[index].leaves[group].0[member]
                     let emitted = old.scene[index].leaves[group].1?[member] ?? opDepth
-                    switch movedLeaf(primitive, dx: move.dx, dy: move.dy, emittedAt: emitted,
+                    switch movedLeaf(primitive, dx: move.dx, dy: move.dy, free: move.free, emittedAt: emitted,
                                      entryDepth: move.entryDepth, fold: fold, push: current) {
                     case .refused(let reason): return (reason, [])
                     case .moved(let leaf):
@@ -377,13 +400,12 @@ extension Frame {
 
     /// One leaf moved by (`dx`, `dy`) device pixels, or the gate that refused. The allow-list is a rect, a glyph and an image
     /// (`FS-E`); every other kind refuses by its name.
-    private static func movedLeaf(_ primitive: CapturedPrimitive, dx: Float, dy: Float, emittedAt depth: Int,
+    private static func movedLeaf(_ primitive: CapturedPrimitive, dx: Float, dy: Float, free: Bool, emittedAt depth: Int,
                                   entryDepth: Int, fold: MaskFold?, push: Int) -> TranslationOutcome<CapturedPrimitive> {
         guard primitive.transform == nil else { return .refused("transformedPrimitive") }
         func exactMove(_ p: MUIPoint) -> MUIPoint? {
-            let x = p.x + dx, y = p.y + dy
-            guard isExactSixteenth(p.x), isExactSixteenth(p.y), isExactSixteenth(x), isExactSixteenth(y) else { return nil }
-            return MUIPoint(x: x, y: y)
+            guard isExactShift(p.x, by: dx, free: free), isExactShift(p.y, by: dy, free: free) else { return nil }
+            return MUIPoint(x: shifted(p.x, by: dx), y: shifted(p.y, by: dy))
         }
         /// The primitive's mask and its corner radii after the move: unchanged for the entry clip, the clip it was read under folded
         /// again at the new position for one derived inside (`FS-V`), once the fold at the old position gives what was recorded.
@@ -404,7 +426,7 @@ extension Frame {
                 case let .glyph(g): unbounded = g.contentMask.size.width >= PrimitiveTransform.unboundedThreshold
                 default: break
                 }
-                switch movedLeaf(out.groups[k].mask[m], dx: dx, dy: dy,
+                switch movedLeaf(out.groups[k].mask[m], dx: dx, dy: dy, free: free,
                                  emittedAt: unbounded ? entryDepth : out.groups[k].maskDepth,
                                  entryDepth: entryDepth, fold: fold, push: push) {
                 case .moved(let mask): out.groups[k].mask[m] = mask
@@ -543,13 +565,11 @@ extension Frame {
             return .refused("hitboxHandlers")
         }
         let b = hitbox.bounds
-        guard isExactSixteenth(hitbox.origin.x.value), isExactSixteenth(hitbox.origin.y.value),
-              isExactSixteenth(hitbox.origin.x.value + dx), isExactSixteenth(hitbox.origin.y.value + dy)
+        guard exactShift(hitbox.origin.x.value, by: dx), exactShift(hitbox.origin.y.value, by: dy)
         else { return .refused("inexactTranslation") }
         if hitbox.clipDepth == entryDepth, let u = hitbox.unclipped {
             // Cut by the ambient clip itself: the cut of the moved rect is recomputed, as `insertHitbox` computes it.
-            guard isExactSixteenth(u.origin.x.value), isExactSixteenth(u.origin.y.value),
-                  isExactSixteenth(u.origin.x.value + dx), isExactSixteenth(u.origin.y.value + dy)
+            guard exactShift(u.origin.x.value, by: dx), exactShift(u.origin.y.value, by: dy)
             else { return .refused("inexactTranslation") }
             let movedU = Bounds(origin: Point(x: Pixels(u.origin.x.value + dx), y: Pixels(u.origin.y.value + dy)), size: u.size)
             return .moved(hitbox.moved(dx: dx, dy: dy, bounds: Frame.intersect(c, movedU), unclipped: movedU))
@@ -558,8 +578,7 @@ extension Frame {
         // the ambient clip before and does not after.
         let moved = Bounds(origin: Point(x: Pixels(b.origin.x.value + dx), y: Pixels(b.origin.y.value + dy)), size: b.size)
         guard inside(b), inside(moved) else { return .refused("hitboxClipped") }
-        guard isExactSixteenth(b.origin.x.value), isExactSixteenth(b.origin.y.value),
-              isExactSixteenth(moved.origin.x.value), isExactSixteenth(moved.origin.y.value)
+        guard exactShift(b.origin.x.value, by: dx), exactShift(b.origin.y.value, by: dy)
         else { return .refused("inexactTranslation") }
         let movedU = hitbox.unclipped.map {
             Bounds(origin: Point(x: Pixels($0.origin.x.value + dx), y: Pixels($0.origin.y.value + dy)), size: $0.size)
@@ -612,8 +631,7 @@ extension Frame {
         var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
         elementBounds.reserveCapacity(ledger.elementBounds.count)
         for (id, b) in ledger.elementBounds {
-            guard isExactSixteenth(b.origin.x.value), isExactSixteenth(b.origin.y.value),
-                  isExactSixteenth(b.origin.x.value + ex), isExactSixteenth(b.origin.y.value + ey)
+            guard exactShift(b.origin.x.value, by: ex), exactShift(b.origin.y.value, by: ey)
             else { return .refused("inexactTranslation") }
             elementBounds.append((id, Bounds(origin: Point(x: Pixels(b.origin.x.value + ex), y: Pixels(b.origin.y.value + ey)),
                                              size: b.size)))
