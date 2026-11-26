@@ -390,14 +390,19 @@ extension Component {
         // not include the test fix round 1 itself had just added; see that
         // test's own doc and the practices doc's third record-mechanism,
         // "staleness is systematic, not local".)
-        let (nodes, contentLayout) =
-            materialized.requestGroupLayout(under: id, at: &innerCursor, pass: &pass)
+        let laidOut = materialized.requestGroupLayout(under: id, at: &innerCursor, pass: &pass)
+        return Self.sealedComponentLayout(materialized, laidOut)
+    }
 
-        // `nodes` returned UNCHANGED — this is layout transparency. Wrapping
-        // them, or replacing them with a node of the component's own, is what
-        // makes a component layout-opaque.
-        return (nodes, ComponentLayout(content: materialized,
-                                       contentLayout: contentLayout))
+    /// `finishComponent`'s tail, out of its frame (`HP-O`): the layout's `nodes` come back UNCHANGED — this is layout
+    /// transparency; wrapping them, or replacing them with a node of the component's own, is what makes a component
+    /// layout-opaque. The copies a debug build makes of the content and of its layout are in this frame, which is gone
+    /// before the next component's layout, not in `finishComponent`'s, which is live under the whole subtree's.
+    @inline(never)
+    static func sealedComponentLayout(_ materialized: Content,
+                                      _ laidOut: ([LayoutNodeID], Content.GroupLayout))
+        -> ([LayoutNodeID], ComponentLayout<Self>) {
+        (laidOut.0, ComponentLayout(content: materialized, contentLayout: laidOut.1))
     }
 
     public mutating func prepaintGroup(layout: inout ComponentLayout<Self>,

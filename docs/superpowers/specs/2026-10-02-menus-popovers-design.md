@@ -730,7 +730,7 @@ triggered.
 | `.contextMenu(forSelectionType:)`, `.contextMenu(menuItems:preview:)` | a selection-aware or previewed menu is a second design | none |
 | `.popover(attachmentAnchor:)`, `.presentationCompactAdaptation`, a drawn arrow (112) | not asked for; a look | none |
 | `.menuStyle`, `.menuIndicator`, `.menuOrder`, `Menu(primaryAction:)` | styles MetalUI does not model | none |
-| further `CommandGroupPlacement`s (`.saveItem`, `.printItem`, `.textFormatting`, `.toolbar`, `.sidebar`, `.importExport`, `.systemServices`, `.singleWindowList`), `.commandsRemoved()`, `FocusedValue`/`focusedSceneValue` | scene machinery MetalUI has none of | none |
+| further `CommandGroupPlacement`s (`.printItem`, `.textFormatting`, `.toolbar`, `.sidebar`, `.importExport`, `.systemServices`, `.singleWindowList`), `.commandsRemoved()`, `FocusedValue`/`focusedSceneValue` | scene machinery MetalUI has none of | none |
 | an in-window menu bar on Linux/Windows | SDL has no native bar; shortcuts already work | none |
 | a native tooltip on AppKit (113) | `MN-P` | none |
 | `.help(Text)`, `.help` on a menu item | small; not asked for | none |

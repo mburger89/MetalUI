@@ -13,7 +13,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `docs/superpowers/2026-10-01-metal-view-decisions.md`, next `MV-S`), `SC-` (scaffold, next `SC-K`;
   `2026-10-01-scaffold-decisions.md`), `GX-` (paths, shadows, transforms:
   `2026-10-02-paths-shadows-transforms-decisions.md`, next `GX-Z`), `MN-` (menus, popovers, tooltips:
-  `2026-10-02-menus-popovers-decisions.md`, next `MN-AT`), `CR-` (colour, colour scheme, palette:
+  `2026-10-02-menus-popovers-decisions.md`, next `MN-AU`), `CR-` (colour, colour scheme, palette:
   `2026-10-03-colour-decisions.md`, next `CR-AF`), `LC-` (lifecycle modifiers:
   `2026-10-03-lifecycle-decisions.md`, next `LC-W`), `SV-` (platform services:
   `2026-10-04-platform-services-decisions.md`, next `SV-AR`), `PE-` (controls in
@@ -53,7 +53,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
   `2026-10-13-incremental-invalidation-decisions.md`, next `IV-T`), `SB-` (retained subtrees:
   `2026-10-13-retained-subtrees-decisions.md`, next `SB-AH`), `RK-` (retained build skip, prepaint replay, the graft:
   `2026-10-13-retained-build-skip-decisions.md`, next `RK-AP`), `HP-` (hot paths:
-  `2026-10-13-hot-paths-decisions.md`, next `HP-O`), `CW-` (window chrome on SDL:
+  `2026-10-13-hot-paths-decisions.md`, next `HP-P`), `CW-` (window chrome on SDL:
   `2026-10-13-sdl-chrome-decisions.md`, next `CW-W`), `IB-` (public image decoding and orientation:
   `2026-10-13-image-decode-api-decisions.md`, next `IB-N`), `GA-` (SDL GPU for apps:
   `2026-10-14-sdl-gpu-compute-decisions.md`, next `GA-T`), `CB-` (clipboard beyond text:
@@ -137,7 +137,7 @@ history for each paragraph: record §69 (same heading), §19, §01; newer ones c
 
 **Suggestion overlay and image content types (`SOC-`, record 234).** Class `M`; Alloy requests, no divergence added; decisions `2026-11-07-suggestion-overlay-decisions.md`, next `SOC-I`. `SOC-A` `suggestionOverlay` and its placement, `SOC-B` not in the dismissal stack and no keys, `SOC-C` input and focus, `SOC-D` accessibility, `SOC-E` `ImageData`, `SOC-F` `ContentType.image/.png/.tiff/.jpeg`, `SOC-G` `Clipboard.readData(of:)` and the platforms, `SOC-H` drops.
 
-**Two-axis scrolling and wheel routing (`XS-`, records 236 and 237).** Class `A`; Alloy gap G5; PRs 1-3 built, no divergence added; decisions `2026-11-07-two-axis-scroll-decisions.md`, next `XS-V`. `XS-A` the API (`Axis.Set` init, `axes`), `XS-B` the kernel `both`/`neither` viewport, `XS-C`/`XS-D` the cross slot and one chrome core, `XS-E` the hitbox's `scrollAxes`/`scrollTakes`/`scrollRoom`, `XS-F` the per-axis chain (a two-axis scroller swallows at its edge), `XS-G` the lock, `XS-H` `along`, `XS-I` `scrollTo` per axis, `XS-J` the anchor per axis, `XS-K` `scrollPosition` on the primary axis, `XS-L` retained indices 10/11, `XS-M` accessibility carried, `XS-N` Markdown defaults (a `BM-` follow-up), `XS-O` the instrument, `XS-P` small content at (0, 0), `XS-Q` `[]`, `XS-R`/`XS-S` assumptions (momentum lock, thumbs), `XS-T` indicator geometry, `XS-U` no `wheelOffset` on the window path. Supersedes `SP-K`.
+**Two-axis scrolling and wheel routing (`XS-`, records 236 and 237).** Class `A`; Alloy gap G5; PRs 1-3 built, no divergence added; decisions `2026-11-07-two-axis-scroll-decisions.md`, next `XS-W`. `XS-A` the API (`Axis.Set` init, `axes`), `XS-B` the kernel `both`/`neither` viewport, `XS-C`/`XS-D` the cross slot and one chrome core, `XS-E` the hitbox's `scrollAxes`/`scrollTakes`/`scrollRoom`, `XS-F` the per-axis chain (a two-axis scroller swallows at its edge), `XS-G` the lock, `XS-H` `along`, `XS-I` `scrollTo` per axis, `XS-J` the anchor per axis, `XS-K` `scrollPosition` on the primary axis, `XS-L` retained indices 10/11, `XS-M` accessibility carried, `XS-N` Markdown defaults (a `BM-` follow-up), `XS-O` the instrument, `XS-P` small content at (0, 0), `XS-Q` `[]`, `XS-R`/`XS-S` assumptions (momentum lock, thumbs), `XS-T` indicator geometry, `XS-U` no `wheelOffset` on the window path, `XS-V` a `TextEditor` takes the vertical wheel only with room in its direction (record 430). Supersedes `SP-K`.
 
 **Tab strip (`TBS-`, record 238).** Class `M`; Alloy gap G4, no divergence added; decisions `2026-11-07-tab-strip-decisions.md`, next `TBS-S`. `TBS-A` the API, `TBS-B` structure and the width layout, `TBS-C` the strip owns the pointer and the app the data and keys, `TBS-D` the close slot and dirty dot, `TBS-E` reorder, `TBS-F` equality, `TBS-G` overflow, `TBS-H` accessibility, `TBS-I` look, `TBS-J` per-tab accessibility identifiers (record 246), `TBS-K` ink at 0.64 (record 257), `TBS-L` unselected ink follows `Theme.textSecondary` (record 262), `TBS-M` selected-tab shape (record 294), `TBS-N` bar and selected-tab paint (record 299), `TBS-O` per-tab context menu (record 323), `TBS-P` a menu-less strip adds no wrapper, `TBS-Q` nor does one with a menu (record 326), `TBS-R` the close X sits inside a shaped selected tab (record 429).
 

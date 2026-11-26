@@ -334,3 +334,74 @@ private let drawnFile = "File: Close [close], ---, Quit [quit]"
     #expect(describe(app.menuBarContent()) == [defaultApp, defaultFile, defaultEdit, defaultWindow],
             "the AppKit style is unchanged")
 }
+
+// MARK: - `MN-AT`: the `.saveItem` placement
+
+/// `MN-AT`. `.saveItem` holds the standard Close: an app that never names it
+/// gets the same File menu and the same ids in every arrangement.
+/// Mutation: build Close outside `group(.saveItem, …)` (the `before`/`after`/
+/// `replacing` tests below redden; this one stays green, which is the point).
+@MainActor
+@Test func theDefaultFileMenuIsUnchangedByTheSaveItemPlacement() throws {
+    let (app, _) = try fakeApp()
+    let model = app.evaluateMenuBar()
+    #expect(describe(model.menus) == [defaultApp, defaultFile, defaultEdit, defaultWindow])
+    let close = try #require(model.menus.first { $0.title == "File" }?.items.first)
+    #expect(close.id == 10 && close.standardAction == .close, "the id Close always had")
+    #expect(drawn(app) == [drawnFile, String(defaultEdit)])
+    let drawnClose = try #require(app.evaluateMenuBar(style: .drawn).menus.first?.items.first)
+    #expect(drawnClose.id == 1 && drawnClose.shortcut == nil)
+    app.commands { CommandGroup(after: .newItem) { Button("New Note") {} } }
+    #expect(describe(app.menuBarContent())[1] == "File: New Note, ---, Close ⌘w [close]")
+}
+
+/// `MN-AT`. `before:` and `after:` put the app's items around the standard
+/// Close; `replacing:` takes Close out (an empty replacement leaves no Close
+/// and no separator), in AppKit's arrangement and the drawn one.
+/// Mutation: drop the `group(.saveItem, …)` wrapping in either builder.
+@MainActor
+@Test func theSaveItemGroupTakesBeforeAfterAndReplacing() throws {
+    let (app, _) = try fakeApp()
+    app.commands {
+        CommandGroup(before: .saveItem) { Button("Before") {} }
+        CommandGroup(after: .saveItem) { Button("Save") {}.keyboardShortcut("s") }
+    }
+    #expect(describe(app.menuBarContent())[1] == "File: Before, Close ⌘w [close], Save ⌘s")
+    #expect(drawn(app).first == "File: Before, Close [close], Save ⌘s, ---, Quit [quit]")
+    app.commands {
+        CommandGroup(replacing: .saveItem) {
+            Button("Close Tab") {}.keyboardShortcut("w")
+            Button("Close Window") {}.keyboardShortcut("w", modifiers: [.command, .shift])
+            Button("Save") {}.keyboardShortcut("s")
+        }
+    }
+    #expect(describe(app.menuBarContent())[1] == "File: Close Tab ⌘w, Close Window ⇧⌘w, Save ⌘s")
+    #expect(drawn(app).first == "File: Close Tab ⌘w, Close Window ⇧⌘w, Save ⌘s, ---, Quit [quit]")
+    app.commands { CommandGroup(replacing: .saveItem) {} }
+    #expect(describe(app.menuBarContent())[1] == "File: ")
+    #expect(drawn(app).first == "File: Quit [quit]")
+}
+
+/// `MN-AT`. With Close replaced, ⌘W runs the app's item once and the standard
+/// Close is nowhere in the bar's shortcuts or actions; replaced by nothing,
+/// ⌘W is not claimed (the title-bar close is the window's own).
+/// Mutation: drop the wrapping (the standard Close stays beside the app's).
+@MainActor
+@Test func anAppItemOnCommandWRunsAndTheStandardCloseIsGone() throws {
+    let (app, platform) = try fakeApp()
+    let log = CLog()
+    app.commands {
+        CommandGroup(replacing: .saveItem) {
+            Button("Close Tab") { log.entries.append("tab") }.keyboardShortcut("w")
+        }
+    }
+    let (window, fake) = try open(app, platform) { Box().frame(width: px(10), height: px(10)) }
+    #expect(fake.simulateInput(key("w", .command)))
+    #expect(log.entries == ["tab"])
+    let items = app.menuBarContent().flatMap(\.items)
+    #expect(!items.contains { $0.standardAction == .close })
+    app.commands { CommandGroup(replacing: .saveItem) {} }
+    #expect(!fake.simulateInput(key("w", .command)), "no item, no claim")
+    #expect(!app.menuBarContent().flatMap(\.items).contains { $0.standardAction == .close })
+    withExtendedLifetime(window) {}
+}

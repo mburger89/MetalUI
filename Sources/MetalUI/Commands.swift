@@ -138,9 +138,9 @@ public struct CommandGroup<Content: MenuContent>: Commands {
 }
 
 /// A standard group of the menu bar a `CommandGroup` places its items against —
-/// SwiftUI's `CommandGroupPlacement`, the eleven groups MetalUI builds (`MN-I`
+/// SwiftUI's `CommandGroupPlacement`, the twelve groups MetalUI builds (`MN-I`
 /// item 2). `Hashable` where SwiftUI's is only `Sendable` — additive (`MN-X`
-/// item 3). Not offered, owner none: `.saveItem`, `.printItem`,
+/// item 3), and `.saveItem` (`MN-AT`). Not offered, owner none: `.printItem`,
 /// `.textFormatting`, `.toolbar`, `.sidebar`, `.importExport`,
 /// `.singleWindowList`.
 public struct CommandGroupPlacement: Sendable, Hashable {
@@ -168,6 +168,14 @@ public struct CommandGroupPlacement: Sendable, Hashable {
     /// The File menu's new-item group, empty by default (MetalUI has no scene
     /// to make a new window of).
     public static let newItem = CommandGroupPlacement("newItem")
+    /// The File menu's Close (`MN-AT`), after `.newItem`: SwiftUI's group of
+    /// "commands that save open documents and close windows". Its standard
+    /// content is the one Close item (⌘W on AppKit, no shortcut in the drawn
+    /// bar); MetalUI has no document, so Save, Save As and Revert are the app's
+    /// to add. `CommandGroup(replacing:)` swaps Close for the app's items (Close
+    /// Tab ⌘W, Close Window ⇧⌘W); with none, the menu has no Close and ⌘W does
+    /// nothing, the window's own close button still closes it.
+    public static let saveItem = CommandGroupPlacement("saveItem")
     /// The Edit menu's Undo and Redo.
     public static let undoRedo = CommandGroupPlacement("undoRedo")
     /// The Edit menu's Cut, Copy, Paste, Delete and Select All.
@@ -235,7 +243,8 @@ struct MenuBarModel {
                          group(.appTermination, quit)]
         appendMenu(appName, groups: appGroups)
         let newItem = group(.newItem, [])
-        let close = [standard("Close", .close, "w")]
+        // The standard Close is the `.saveItem` group's standard content (`MN-AT`).
+        let close = group(.saveItem, [standard("Close", .close, "w")])
         appendMenu("File", groups: [newItem, close])
         let undoRedo = [standard("Undo", .undo, "z"), standard("Redo", .redo, "z", [.primary, .shift])]
         let pasteboard = [standard("Cut", .cut, "x"), standard("Copy", .copy, "c"), standard("Paste", .paste, "v"),
@@ -277,7 +286,7 @@ struct MenuBarModel {
         // File ▸ Close and Quit/Exit (`SG-M`): the window's close (asks `onCloseRequest`) and
         // the app's terminate walk. No shortcut is shown: the drawn bar adds no shortcut path
         // (`SG-A` item 10). Numbered in menu order, close before quit.
-        let closeGroup = [standard("Close", .close)]
+        let closeGroup = group(.saveItem, [standard("Close", .close)])
         let quit = [standard(Self.drawnQuitTitle, .quit)]
         let termination = group(.appTermination, quit)
         appendMenu("File", groups: [newItem, settings, visibility, closeGroup, termination], dropsEmpty: true)

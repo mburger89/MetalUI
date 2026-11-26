@@ -150,8 +150,16 @@ extension Element {
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
         let id = GlobalElementID.enteringGroupMember(self, name: elementID, under: parent,
                                                      at: &cursor, pass: &pass)
-        let (node, state) = requestLayout(id, pass: &pass)
-        return ([node], SingleElementLayout(id: id, node: node, state: state))
+        // The laid-out pair is passed on whole to a helper that wraps it (`HP-O`): a debug build gives a destructure, an argument
+        // copy and the wrapper each a stack slot of this frame, and this frame stays live under the whole subtree's layout.
+        return Self.singleGroupLayout(id, requestLayout(id, pass: &pass))
+    }
+
+    /// `requestGroupLayout`'s tail, out of its frame (`HP-O`). The frame it uses is gone before the next element's layout.
+    @inline(never)
+    static func singleGroupLayout(_ id: GlobalElementID, _ laidOut: (LayoutNodeID, LayoutState))
+        -> ([LayoutNodeID], SingleElementLayout<Self>) {
+        ([laidOut.0], SingleElementLayout(id: id, node: laidOut.0, state: laidOut.1))
     }
 
     /// **`nil` for an element in an unchosen `ViewThatFits` candidate** (`VF-C`): it and everything below it registers
