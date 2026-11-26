@@ -143,3 +143,29 @@ func theStreamingTranscriptRefusesOnlyAtACornerZone() async throws {
     #expect(reasons.keys.allSatisfy { ["maskCrossingChanged", "innerScope", "maskCrossed"].contains($0) }, "only the corner zone refuses: \(reasons)")
     #expect(mean < 20, "mean requests a streamed word \(mean) (24.85 before)")
 }
+
+/// A moved record is written over in place (`FS-V`): the arrays of its scene are the same buffers after a scroll step, and the step's translations copy nothing a
+/// record already holds (record 424: the six copies of a redo frame, the large requests of the G51 ceilings). Mutation: the move written to a new array again.
+@Test(.enabled(if: !rsVerifying, mrVerifyingNote)) @MainActor
+func aMovedRecordIsWrittenOverInPlace() async throws {
+    let pair = try mrPair(nested: false)
+    func buffers() -> [ObjectIdentifier: [UnsafeRawPointer?]] {
+        var out: [ObjectIdentifier: [UnsafeRawPointer?]] = [:]
+        for record in pair.on.window.testingRetainedRecords() {
+            var pointers: [UnsafeRawPointer?] = [record.scene.withUnsafeBufferPointer { UnsafeRawPointer($0.baseAddress) }]
+            for index in record.scene.indices {
+                pointers.append(record.scene[index].leaves.withUnsafeBufferPointer { UnsafeRawPointer($0.baseAddress) })
+                pointers.append(record.scene[index].leaves[0].0.withUnsafeBufferPointer { UnsafeRawPointer($0.baseAddress) })
+            }
+            out[ObjectIdentifier(record)] = pointers
+        }
+        return out
+    }
+    let before = buffers()
+    let f = await mrScroll(pair, by: 10)
+    try #require(f.retainedTranslated >= 3, "the step translates: \(f.retainedTranslated)")
+    let after = buffers()
+    #expect(after.count == before.count)
+    for (id, pointers) in before { #expect(after[id] == pointers, "a record's scene was copied by the move") }
+    try pair.compare("in place")
+}

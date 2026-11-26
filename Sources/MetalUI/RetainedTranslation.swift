@@ -29,14 +29,14 @@ enum TranslationOutcome<Value> {
     case refused(String)
 }
 
-/// A paint record moved to the position the occurrence stands at now.
+/// A paint record's move to the position the occurrence stands at now, **checked and not yet made** (`FS-V`): the device pixels the leaves move by and the
+/// fold of the clips the record pushed. Prepaint asks whether the record can move (a refusal there asks for a redo) and builds nothing; the paint decision
+/// that takes the hit makes the move in place (`applyPaintTranslation`), so an abandoned attempt copies nothing.
 struct PaintTranslation {
-    /// The device pixels the leaves moved by.
+    /// The device pixels the leaves move by.
     var dx: Float, dy: Float
-    var scene: [RetainLog.SceneOp]
-    /// The record's final stream moved too, when no paint scope is open around the occurrence (its leaves are then the
-    /// final primitives); `nil` otherwise.
-    var finalScene: [RetainLog.SceneOp]?
+    var entryDepth: Int
+    var fold: MaskFold?
 }
 
 /// A prepaint ledger moved to the position the occurrence stands at now.
@@ -267,19 +267,28 @@ extension Frame {
             case .moved(let folded): fold = folded
             }
         }
-        switch Self.movedOps(old.scene, dx: dx, dy: dy, entryDepth: entryDepth, fold: fold) {
-        case .refused(let reason): return .refused(reason)
-        case .moved(let ops):
-            var final: [RetainLog.SceneOp]?
-            if let stream = old.finalScene, key.ambient.scopes.isEmpty {
-                if old.finalIsScene {
-                    final = ops   // the same ops as the scene: moved once (`SB-AG`)
-                } else if fold == nil, case .moved(let movedStream) = Self.movedOps(stream, dx: dx, dy: dy, entryDepth: entryDepth, fold: nil) {
-                    final = movedStream
-                }
-            }
-            return .moved(PaintTranslation(dx: dx, dy: dy, scene: ops, finalScene: final))
-        }
+        let translation = PaintTranslation(dx: dx, dy: dy, entryDepth: entryDepth, fold: fold)
+        if let reason = Self.moveOps(old, mode: .check, translation).reason { return .refused(reason) }
+        return .moved(translation)
+    }
+
+    /// The move made, **in place**: the record's leaves, key and final stream are what a fresh paint at `key` makes. The record is the only holder of its
+    /// scene (the final stream, which shares it, is let go first and taken again after), so the arrays are written through and nothing is copied.
+    /// Only after `movedPaintRecord` answered `.moved` for the same record and key.
+    func applyPaintTranslation(_ translation: PaintTranslation, to old: RetainedRecord, key: ReplayKey) {
+        let shared = old.finalIsScene
+        if shared { old.finalScene = nil }
+        _ = Self.moveOps(old, mode: .inPlace, translation)
+        old.key = key
+        // The final stream moved only where this key holds no outer scope: `movedPaintRecord` may have answered a prepaint's key (its ambient never holds the
+        // paint scopes), and a stream moved by the delta alone is the final stream of no effect that scales (`EL-L`).
+        old.finalScene = shared && key.ambient.scopes.isEmpty ? old.scene : nil
+        old.finalIsScene = old.finalScene != nil
+    }
+
+    /// The leaves of `old` as moved, in a new array, for verify mode (the record it compares against stays as it is).
+    func copiedPaintTranslation(_ translation: PaintTranslation, of old: RetainedRecord) -> [RetainLog.SceneOp] {
+        Self.moveOps(old, mode: .copy, translation).ops
     }
 
     /// The fold of the clips `old` pushed, at the position it was made and at `key`'s (`FS-V`), or the refusal. The entry clip is
@@ -310,13 +319,18 @@ extension Frame {
         return .moved(MaskFold(clips: clips, old: was.folded, new: now.folded))
     }
 
-    private static func movedOps(_ source: [RetainLog.SceneOp], dx: Float, dy: Float, entryDepth: Int,
-                                 fold: MaskFold?) -> TranslationOutcome<[RetainLog.SceneOp]> {
-        var ops: [RetainLog.SceneOp] = []
-        ops.reserveCapacity(source.count)
+    private enum MoveMode { case check, inPlace, copy }
+
+    /// Walks the record's leaves once: `check` only reads (what a refusal needs), `inPlace` writes each moved leaf over its old one, `copy` builds the moved
+    /// ops in a new array. The record's arrays are reached by index and never held, so an in-place write meets a unique buffer.
+    private static func moveOps(_ old: RetainedRecord, mode: MoveMode, _ move: PaintTranslation) -> (reason: String?, ops: [RetainLog.SceneOp]) {
+        let count = old.scene.count
+        var copied: [RetainLog.SceneOp] = []
+        if mode == .copy { copied.reserveCapacity(count) }
+        let fold = move.fold
         // The innermost clip pushed that is open at each op, found by walking the clips' ranges as the ops go by (`FS-V`).
         var current = -1, next = 0
-        for (index, op) in source.enumerated() {
+        for index in 0..<count {
             if let fold {
                 while current >= 0, Int(fold.clips[current].hi) <= index { current = Int(fold.clips[current].parent) }
                 while next < fold.clips.count, Int(fold.clips[next].lo) <= index {
@@ -324,23 +338,33 @@ extension Frame {
                     next += 1
                 }
             }
+            let opDepth = old.scene[index].depth
+            let groups = old.scene[index].leaves.count
             var leaves: [([CapturedPrimitive], [Int]?)] = []
-            leaves.reserveCapacity(op.leaves.count)
-            for (group, depths) in op.leaves {
-                var moved: [CapturedPrimitive] = []
-                moved.reserveCapacity(group.count)
-                for member in group.indices {
-                    switch movedLeaf(group[member], dx: dx, dy: dy, emittedAt: depths?[member] ?? op.depth,
-                                     entryDepth: entryDepth, fold: fold, push: current) {
-                    case .moved(let primitive): moved.append(primitive)
-                    case .refused(let reason): return .refused(reason)
+            if mode == .copy { leaves.reserveCapacity(groups) }
+            for group in 0..<groups {
+                let size = old.scene[index].leaves[group].0.count
+                var movedGroup: [CapturedPrimitive] = []
+                if mode == .copy { movedGroup.reserveCapacity(size) }
+                for member in 0..<size {
+                    let primitive = old.scene[index].leaves[group].0[member]
+                    let emitted = old.scene[index].leaves[group].1?[member] ?? opDepth
+                    switch movedLeaf(primitive, dx: move.dx, dy: move.dy, emittedAt: emitted,
+                                     entryDepth: move.entryDepth, fold: fold, push: current) {
+                    case .refused(let reason): return (reason, [])
+                    case .moved(let leaf):
+                        switch mode {
+                        case .check: break
+                        case .inPlace: old.scene[index].leaves[group].0[member] = leaf
+                        case .copy: movedGroup.append(leaf)
+                        }
                     }
                 }
-                leaves.append((moved, depths))
+                if mode == .copy { leaves.append((movedGroup, old.scene[index].leaves[group].1)) }
             }
-            ops.append(RetainLog.SceneOp(boundary: op.boundary, leaves: leaves, depth: op.depth))
+            if mode == .copy { copied.append(RetainLog.SceneOp(boundary: old.scene[index].boundary, leaves: leaves, depth: opDepth)) }
         }
-        return .moved(ops)
+        return (nil, copied)
     }
 
     /// Whether a recorded mask and radii are exactly what the clip was folded to where the record stood.

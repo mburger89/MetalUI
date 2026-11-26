@@ -118,7 +118,7 @@ final class RetainLog {
     /// process, counting from the outermost), and the clip depth they were emitted at (`SB-T`).
     struct SceneOp {
         let boundary: Int
-        let leaves: [([CapturedPrimitive], [Int]?)]
+        var leaves: [([CapturedPrimitive], [Int]?)]
         let depth: Int
     }
 
@@ -1027,19 +1027,15 @@ extension Frame {
                 if translated { memos.retained.translated += 1; phase.translatedPaint = true }
                 if phase.replayed != nil { entry.redoExponent = 0 }
                 if let moved {
-                    phase.translatedScene = moved.scene
-                    // The record is made over at the new position, so the frames that follow replay it as an exact hit
-                    // (verify mode keeps the record it compares against).
-                    if !retainedVerifiesFromEnvironment {
-                        // The final stream moved only where this key holds no outer scope: `movedPaintRecord` may have answered a prepaint's
-                        // key (its ambient never holds the paint scopes), and a stream moved by the delta alone is the final stream of
-                        // no effect that scales (`EL-L`).
-                        old.key = key; old.scene = moved.scene; old.finalScene = key.ambient.scopes.isEmpty ? moved.finalScene : nil
-                        old.finalIsScene = old.finalIsScene && old.finalScene != nil
-                    }
-                    // Verify mode compares the fresh run with the record as moved (`SB-W`).
-                    if retainedVerifiesFromEnvironment, phase.replayed == nil {
-                        return .record(SubtreeRecorder(), key, old: old.moved(to: moved.scene))
+                    if retainedVerifiesFromEnvironment {
+                        // Verify mode keeps the record it compares against and compares the fresh run with the record as moved (`SB-W`).
+                        let ops = copiedPaintTranslation(moved, of: old)
+                        phase.translatedScene = ops
+                        if phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old.moved(to: ops)) }
+                    } else {
+                        // The record is made over at the new position, in place (`FS-V`: nothing is copied), so the frames that follow replay
+                        // it as an exact hit.
+                        applyPaintTranslation(moved, to: old, key: key)
                     }
                     return .hit(old)
                 }
