@@ -1225,18 +1225,33 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`.
     func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
                  radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+        let atEntry = atFlatteningEntry
+        let pushed = Self.pushedClip(bounds, offset: offset, radii: radii, activeClip: activeClip,
+                                     activeRadii: activeClipRadii, activeOffset: activeOffset, atFlatteningEntry: atEntry)
+        clipStack.append((pushed.clip, pushed.offset, pushed.radii))
+        retainLog?.notePush(bounds: bounds, offset: offset, radii: radii, crosses: pushed.crosses, atFlatteningEntry: atEntry,
+                            depth: clipStack.count)
+    }
+
+    /// The level `pushClip` pushes onto the clip in force (`FS-V`): **the one copy of its arithmetic**, which a moved paint
+    /// record folds again from the clips it recorded (`RetainedTranslation`), so the fold and a fresh frame cannot differ by an
+    /// expression. `crosses` is the intersection's own report (`intersectReportingCrossing`): the pair took the square-box fallback.
+    static func pushedClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>,
+                           activeClip: Bounds<Pixels>, activeRadii: Corners<Pixels>, activeOffset: Point<Pixels>,
+                           atFlatteningEntry: Bool)
+        -> (clip: Bounds<Pixels>, radii: Corners<Pixels>, offset: Point<Pixels>, crosses: Bool) {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
         // The first push inside a flattening effect intersects nothing outside
         // it (`GX-X`): `activeClip` there is the entry clip, in another space.
-        let (clip, clipRadii) = atFlatteningEntry
-            ? (translated, radii)
-            : Self.intersect(activeClip, radii: activeClipRadii, translated, radii: radii)
+        let result = atFlatteningEntry
+            ? (bounds: translated, radii: radii, crosses: false)
+            : intersectReportingCrossing(activeClip, radii: activeRadii, translated, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
                              y: Pixels(activeOffset.y.value + offset.y.value))
-        clipStack.append((clip, composed, clipRadii))
+        return (result.bounds, result.radii, composed, result.crosses)
     }
 
     /// Pops one level pushed by `pushClip` (or `pushRootClip` below —
@@ -1244,7 +1259,10 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// popped). Callers reach this only through `clipped(to:offsetBy:)`'s or
     /// `deferred`'s `defer`, which is what keeps the stack balanced — see
     /// those methods' doc comments.
-    func popClip() { clipStack.removeLast() }
+    func popClip() {
+        clipStack.removeLast()
+        retainLog?.notePop()
+    }
 
     /// Pushes a clip covering the whole surface with **no accumulated
     /// offset** — `Deferred`'s escape, as opposed to `pushClip`'s intersect-
@@ -1257,6 +1275,9 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         clipStack.append((Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize),
                           Point(x: Pixels(0), y: Pixels(0)),
                           Corners(all: Pixels(0))))
+        retainLog?.notePush(bounds: Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize),
+                            offset: Point(x: Pixels(0), y: Pixels(0)), radii: Corners(all: Pixels(0)), crosses: false,
+                            atFlatteningEntry: false, depth: clipStack.count, root: true)
     }
 
     /// The innermost active `ScrollView`'s ambient context.
@@ -1456,8 +1477,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     }
 
     /// ``intersect(_:radii:_:radii:)`` and whether it fell to the square box between two clips of which one is rounded.
-    private static func intersectReportingCrossing(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
-                                                   _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
+    static func intersectReportingCrossing(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
+                                           _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
         -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>, crosses: Bool) {
         let bounds = intersect(outer, inner)
 

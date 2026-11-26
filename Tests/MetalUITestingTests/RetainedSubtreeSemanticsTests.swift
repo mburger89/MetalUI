@@ -837,7 +837,12 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
     let f = on.lastFrameWork
     let reaction = f.retainedMisses + f.retainedIneligible
     #expect(f.retainedHits + reaction == 2)
-    if arm == .offsetEffect || arm == .rotation {
+    if arm == .scroll {
+        // `FS-V`: the probe card is cut by the viewport edge and its rounded clip is folded again at the new offset, so the move
+        // replays translated instead of missing; the separating pin is the differential below (a scroll offset that was not part of
+        // the key replays the old pixels).
+        if !rsVerifying { #expect(reaction == 0 && f.retainedTranslated >= 1, "scroll: hits \(f.retainedHits) translated \(f.retainedTranslated) misses \(f.retainedMisses)") }
+    } else if arm == .offsetEffect || arm == .rotation {
         // `RK-S`: the translation of an outer effect no longer separates; the probe replays at its new place (translated) and
         // the scene equals the fresh one (the differential below). Since C14-i (`RZ-B`) the same holds for an affine change of
         // the effect, a rotation from 5 to 3 degrees here: the live scopes are entered with the new map.

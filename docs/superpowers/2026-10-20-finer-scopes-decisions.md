@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-V`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-W`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -384,3 +384,29 @@ computed once, not twice, in the decision.
 live blocks 72283 to 69976; a steady frame allocates 3 fewer blocks (`aNonAnimatableComponentAllocatesWhatItDid` 397 to 394).
 **Pins.** `aTranslatedFrameConstructsNoLedgerAndNoFingerprintBox`, `theFingerprintSlotsAreBoundedAndExact`, `aSharedFingerprintEqualsExactlyWhatTheFingerprintEquals`,
 `everyAmbientFieldButTheOffsetSeparates`; each mutation reddens (record 409).
+
+## FS-V - A moved paint record folds the clips its occurrence pushed instead of moving their masks (record 424; amends FS-E, FS-M)
+
+**Ruling.** (1) While a recorder is open every `pushClip` and `pushRootClip` deeper than its entry notes an `InnerClip`: `pushClip`'s own arguments (the layout
+bounds before `activeOffset` is added, the `offset`, the radii), the index of the clip it was pushed inside, the clip depth, the range of the record's scene ops
+emitted while it was open (counted per recorder at its entry height, so the range indexes `record.scene`), and flags (the intersection's own `crosses`
+report, `atFlatteningEntry`, root, inexact). A record keeps them (`innerClips`, `nil` when the occurrence pushed none) with the bounds **relative to the first
+top node's layout origin**, so a made-over record needs no rewrite. A replayed record inside another recording notes its clips into the recorders open around
+it, between its ops, at the origin it stands at now (`replayOps`): an outer record that holds an inner one's leaves holds its clips.
+(2) A moved record (`movedPaintRecord`) folds every clip again from the key's entry clip, radii and offset with `Frame.pushedClip`, **the function `pushClip` now
+calls** (one copy of the arithmetic, `intersectReportingCrossing` included), at the position it was made and at the new one; a leaf read at a depth deeper than
+the entry takes the mask and the corner radii of the clip it was read under (a group mask primitive, the clip on the leaf's chain at its `maskDepth`). The fold at
+the old position must reproduce the recorded mask and radii bit for bit, else the record refuses (`maskNotFolded`, `maskUnmapped`): a clip the record did not
+note cannot be moved by a wrong fold. (3) `maskStraddlesEntryClip` is retired. A clip that holds leaves and whose `crosses` differs from the recorded one refuses
+`maskCrossingChanged` (the viewport edge now cuts a row inside a corner zone: under 16 pt of it left, or within 8 pt of its far edge, `CM-J`'s square-box
+fallback and, when a corner is reached, a mask scope, which is `innerScope`); one that crosses in both refuses `maskCrossed`. A root clip (`Deferred`) refuses
+`rootClip`, an entry clip that differs `entryClipChanged`, and every number the fold adds is a multiple of 1/16 (`inexactTranslation`).
+**In place.** The move is checked, not made, where prepaint asks (`PaintTranslation` is `dx`, `dy` and the fold: no arrays), and made **in place** where the paint
+decision takes the hit (`applyPaintTranslation`: the final stream that shares the scene is let go, the leaves are written over their old ones, the stream is
+taken again), so an abandoned attempt copies nothing and a hit copies nothing; verify mode keeps the old record and moves a copy. A record whose scene is also
+held by an outer recording (a replay's `SceneOp`) copies on write, as any Swift array does.
+**Cost.** `MemoryLayout<InnerClip>.stride` = 60 bytes per clip pushed inside a record, nothing for an occurrence that pushes none (the field is `nil`, the
+recorder's arrays stay empty); a recorder allocates its array on its first push, a record copies it once at its end. One `notePop` and one `notePush` per push
+when a recorder is open, a nil check otherwise. A move folds each clip twice (old, new), no allocation beyond the two arrays.
+**Verify mode** compares `innerClips` of the moved record with the fresh run's.
+**Mutations.** Radii not re-folded and the old move in place of the fold each redden `aRoundedRowAtTheViewportEdgeReplaysTranslated` (record 424).

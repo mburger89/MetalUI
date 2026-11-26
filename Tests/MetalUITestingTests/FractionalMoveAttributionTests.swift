@@ -127,7 +127,7 @@ func theRefusalDetailIsBuiltOnlyWhileSomethingListens() async throws {
 
 /// The transcript fixture of record 416 (`ChromeTranscriptFixture`) streams one word a frame under a bottom anchor: its rows move by whole device
 /// pixels from whole-point offsets (layout rounds to whole points, divergence 77, a fractional bottom margin included), so **none of its refusals
-/// is a fractional one**: over 12 steps they are `maskStraddlesEntryClip` and `innerScope` only (record 425). A fractional offset reaches a
+/// is a fractional one**: over 12 steps they were `maskStraddlesEntryClip` and `innerScope` only (record 425); since `FS-V` (record 424) those rows move and the 12 steps refuse none. A fractional offset reaches a
 /// retained record only from a wheel or trackpad delta or a fractional scale, never from the stream itself. Mutation: a fractional margin
 /// leaking into the offset (a `contentMargins` of 40.3 not rounded) would put `inexactTranslation` here.
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a replayed frame twice: the refusal counts are not its to read"))
@@ -135,9 +135,13 @@ func theRefusalDetailIsBuiltOnlyWhileSomethingListens() async throws {
 func theTranscriptFixtureRefusesNoFractionalMoveWhileItStreams() async throws {
     let pair = try ctPair()
     var reasons: [String: Int] = [:]
+    var translated = 0
     for _ in 0..<12 {
-        for f in await ctStep(pair) { reasons.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +) }
+        for f in await ctStep(pair) {
+            reasons.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +)
+            translated += f.retainedTranslated
+        }
     }
-    try #require(!reasons.isEmpty, "the fixture refuses something, or the test reads nothing")
+    try #require(translated > 0 || !reasons.isEmpty, "the fixture moves or refuses records, or the test reads nothing")
     #expect(reasons["inexactTranslation", default: 0] == 0 && reasons["fractionalTranslation", default: 0] == 0, "streaming: \(reasons)")
 }

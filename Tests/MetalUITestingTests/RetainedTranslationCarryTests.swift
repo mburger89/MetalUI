@@ -398,7 +398,7 @@ func aLayoutShiftReplaysAccessibilityRecordsRecomputed(arm: RCAXArm) async throw
         cut += try pair.on.accessibilityTree.geometry.values.filter { $0.visibleFrame != $0.frame }.count
     }
     #expect(refused == 0, "no accessibilityRecords refusal: \(refused)")
-    // A clip derived inside each card is a paint-record refusal (`maskStraddlesEntryClip`) that asks for no prepaint: the tree compare is the pin.
+    // A clip derived inside each card is a paint-record refusal (`maskCrossingChanged`) that asks for no prepaint: the tree compare is the pin.
     if !arm.inner {
         #expect(hits > 0, "the prepaints replay: \(hits)")
         // Every step replays: a record the rebased ledger lost (`axNodeLocals`) refuses the next shift by name `accessibilityUnrecorded`.

@@ -7,7 +7,7 @@ import Testing
 // The fixture of record 416 and 422 (`RK-AM`): Alloy's transcript. `ScrollView(.defaultScrollAnchor(.bottom)) > LazyVStack > ForEach` of `.equatable()`
 // rows, each a tinted rounded chrome (`BlockChrome`'s `.background(tint).cornerRadius(8)`) around nested `.equatable()` paragraphs and a button, the last
 // row streaming one word a frame, in a 420 x 600 window at scale 2. The bottom anchor moves the rows by a few points every frame; a row cut by the
-// viewport edge cannot translate its paint record (`maskStraddlesEntryClip`, `inexactTranslation`), a grafted row cannot prepaint, and the frame is redone.
+// viewport edge cannot translate its paint record (`maskCrossingChanged`, `inexactTranslation`), a grafted row cannot prepaint, and the frame is redone.
 
 /// A paragraph: the nested occurrence under a row. `==` on its text.
 struct CTParagraph: Component, @MainActor Equatable {
