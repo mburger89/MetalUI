@@ -187,6 +187,11 @@ func snappingAddsNoAllocationsAndNoElementRequestsToIdleAndScrolledFrames() thro
         return (allocations, w.lastFrameWork.elementRequests, w.window.stateTable.entryVersion(region.id) &- before)
     }
     let a = try idle(still), b = try idle(residual)
-    #expect(a.allocations == b.allocations && a.requests == b.requests && a.allocations == 1562 && a.requests == 43, "idle: \(a) against \(b)")
+    #if canImport(Darwin)
+    let pinnedAllocations = 1562
+    #else
+    let pinnedAllocations = 0   // allocations are counted only where `countAllocations` can (Darwin's malloc zones)
+    #endif
+    #expect(a.allocations == b.allocations && a.requests == b.requests && a.allocations == pinnedAllocations && a.requests == 43, "idle: \(a) against \(b)")
     #expect(a.version == 0 && b.version == 0, "an idle scroller writes nothing: \(a.version) \(b.version)")
 }
