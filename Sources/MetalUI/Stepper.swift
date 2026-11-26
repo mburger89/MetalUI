@@ -53,25 +53,25 @@ public struct Stepper: Element, StyledElement {
     /// A literal title is parsed as inline Markdown (`SR-C`); a `String` value takes the disfavoured verbatim overload.
     public init<V: Strideable>(_ titleKey: LocalizedStringKey, value: Binding<V>, in bounds: ClosedRange<V>,
                                step: V.Stride = 1) {
-        self.init(Text(titleKey), value: value, bounds: bounds, step: step)
+        self = Self.valued(Text(titleKey), value: value, bounds: bounds, step: step)
     }
 
     /// A stepper titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
     @_disfavoredOverload
     public init<V: Strideable, S: StringProtocol>(_ title: S, value: Binding<V>, in bounds: ClosedRange<V>,
                                                   step: V.Stride = 1) {
-        self.init(Text(verbatim: String(title)), value: value, bounds: bounds, step: step)
+        self = Self.valued(Text(verbatim: String(title)), value: value, bounds: bounds, step: step)
     }
 
     /// An unbounded stepper (SwiftUI's `Stepper(_:value:step:)`): no clamp.
     public init<V: Strideable>(_ titleKey: LocalizedStringKey, value: Binding<V>, step: V.Stride = 1) {
-        self.init(Text(titleKey), value: value, bounds: nil, step: step)
+        self = Self.valued(Text(titleKey), value: value, bounds: nil, step: step)
     }
 
     /// An unbounded stepper titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
     @_disfavoredOverload
     public init<V: Strideable, S: StringProtocol>(_ title: S, value: Binding<V>, step: V.Stride = 1) {
-        self.init(Text(verbatim: String(title)), value: value, bounds: nil, step: step)
+        self = Self.valued(Text(verbatim: String(title)), value: value, bounds: nil, step: step)
     }
 
     /// A stepper that runs a closure per direction (SwiftUI's
@@ -79,17 +79,22 @@ public struct Stepper: Element, StyledElement {
     /// direction. It publishes no value.
     public init(_ titleKey: LocalizedStringKey, onIncrement: (@MainActor () -> Void)?,
                 onDecrement: (@MainActor () -> Void)?) {
-        self.init(label: Text(titleKey), increment: onIncrement, decrement: onDecrement, valueText: nil)
+        self = Self.make(label: Text(titleKey), increment: onIncrement, decrement: onDecrement, valueText: nil)
     }
 
     /// The closure form titled by the `StringProtocol` value `title`, shown verbatim (`SR-C`).
     @_disfavoredOverload
     public init<S: StringProtocol>(_ title: S, onIncrement: (@MainActor () -> Void)?,
                                    onDecrement: (@MainActor () -> Void)?) {
-        self.init(label: Text(verbatim: String(title)), increment: onIncrement, decrement: onDecrement, valueText: nil)
+        self = Self.make(label: Text(verbatim: String(title)), increment: onIncrement, decrement: onDecrement, valueText: nil)
     }
 
-    private init<V: Strideable>(_ title: Text, value: Binding<V>, bounds: ClosedRange<V>?, step: V.Stride) {
+    /// **Every public initialiser is `self = Self.valued(…)` or `self = Self.make(…)`, not a chain of `self.init`s** (`HP-O`): a
+    /// debug build gives an initialiser's frame about four times the size of the value it makes (a `Stepper` is 10 KiB), and
+    /// each delegation was one more such frame, live under the whole `content` getter chain that built the stepper.
+    @inline(never)
+    private static func valued<V: Strideable>(_ title: Text, value: Binding<V>, bounds: ClosedRange<V>?,
+                                              step: V.Stride) -> Stepper {
         func stepper(_ direction: ControlKeys.Direction) -> @MainActor () -> Void {
             {
                 if let next = ValueStepping.stepped(value.wrappedValue, in: bounds, step: step, direction) {
@@ -97,25 +102,42 @@ public struct Stepper: Element, StyledElement {
                 }
             }
         }
-        self.init(label: title, increment: stepper(.forward), decrement: stepper(.backward),
-                  valueText: {
-                      let current = value.wrappedValue
-                      return String(describing: bounds.map { ValueStepping.clamp(current, $0) } ?? current)
-                  })
+        return make(label: title, increment: stepper(.forward), decrement: stepper(.backward),
+                    valueText: {
+                        let current = value.wrappedValue
+                        return String(describing: bounds.map { ValueStepping.clamp(current, $0) } ?? current)
+                    })
     }
 
-    private init(label: Text, increment: (@MainActor () -> Void)?, decrement: (@MainActor () -> Void)?,
-                 valueText: (@MainActor () -> String)?) {
+    @inline(never)
+    private static func make(label: Text, increment: (@MainActor () -> Void)?, decrement: (@MainActor () -> Void)?,
+                             valueText: (@MainActor () -> String)?) -> Stepper {
         var style = Style()
         style.flexDirection = .row
         style.alignItems = .center
         style.gap = Axes(both: .pixels(Pixels(8)))
+        let box = body(style: style, label: label)
+        return Stepper(style: style, box: box, label: label, increment: increment, decrement: decrement,
+                       valueText: valueText)
+    }
+
+    /// The last step, after the body is built and its frames are gone.
+    private init(style: Style, box: Body, label: Text, increment: (@MainActor () -> Void)?,
+                 decrement: (@MainActor () -> Void)?, valueText: (@MainActor () -> String)?) {
         self.style = style
         self.increment = increment
         self.decrement = decrement
         self.valueText = valueText
         self.label = label
-        self.box = Body(style: style, content: Pair(OptionalGroup(label), Self.control()))
+        self.box = box
+    }
+
+    /// The title and the control in their row. **Its own function, as are `control()`'s parts** (`HP-O`): a debug build
+    /// gives every temporary a stack slot for the whole function, and an initialiser's frame is live under the whole
+    /// `content` getter chain that built the stepper (a 10 KiB value held ten times over, 256 KB in all, before).
+    @inline(never)
+    private static func body(style: Style, label: Text) -> Body {
+        Body(style: style, content: Pair(OptionalGroup(label), control()))
     }
 
     private static func sized(_ width: Float, _ height: Float) -> Style {
@@ -125,27 +147,52 @@ public struct Stepper: Element, StyledElement {
     }
 
     /// The 20×24 control: two 20×12 halves, each centring its mark.
+    @inline(never)
     private static func control() -> Control {
-        var half = sized(20, 12)
-        half.flexDirection = .row
-        half.alignItems = .center
-        half.justifyContent = .center
-        let ink = Decoration(background: .textPrimary)
-        let plus = Plus(alignment: .center) {
-            Mark(style: sized(7, 1.5), decoration: ink)
-            Mark(style: sized(1.5, 7), decoration: ink)
-        }
-        let up = Up(style: half, content: plus)
-        let down = Down(style: half,
-                        decoration: Decoration(border: BorderStyle(.separator,
-                                                                   widths: Edges(top: Pixels(1), right: Pixels(0),
-                                                                                 bottom: Pixels(0), left: Pixels(0)))),
-                        content: Mark(style: sized(7, 1.5), decoration: ink))
         var column = sized(20, 24)
         column.flexDirection = .column
         return Control(style: column,
                        decoration: Decoration(background: .surfaceSecondary, cornerRadius: Pixels(5)),
-                       content: Pair(up, down))
+                       content: Pair(upperHalf(), lowerHalf()))
+    }
+
+    /// A 20×12 half centring its content.
+    private static func half() -> Style {
+        var half = sized(20, 12)
+        half.flexDirection = .row
+        half.alignItems = .center
+        half.justifyContent = .center
+        return half
+    }
+
+    /// A glyph-free mark, `width`×`height`, in the control's ink.
+    @inline(never)
+    private static func mark(_ width: Float, _ height: Float) -> Mark {
+        Mark(style: sized(width, height), decoration: Decoration(background: .textPrimary))
+    }
+
+    /// The increment half: a plus, a bar crossed by a bar.
+    @inline(never)
+    private static func upperHalf() -> Up {
+        Up(style: half(), content: plus())
+    }
+
+    @inline(never)
+    private static func plus() -> Plus {
+        Plus(alignment: .center) {
+            mark(7, 1.5)
+            mark(1.5, 7)
+        }
+    }
+
+    /// The decrement half: a bar under the separator hairline.
+    @inline(never)
+    private static func lowerHalf() -> Down {
+        Down(style: half(),
+             decoration: Decoration(border: BorderStyle(.separator,
+                                                        widths: Edges(top: Pixels(1), right: Pixels(0),
+                                                                      bottom: Pixels(0), left: Pixels(0)))),
+             content: mark(7, 1.5))
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)

@@ -80,51 +80,105 @@ struct ControlsDemo: Component {
 
     var content: some ElementGroup {
         Row(gap: Pixels(32)) {
-            Column(gap: Pixels(14)) {
-                Text("Controls").font(size: 22)
-                Row(gap: Pixels(12)) {
-                    Button("Press me") { presses += 1 }
-                    Text("pressed \(presses) times")
-                }
-                Toggle("Wi-Fi", isOn: $wifi)
-                Row(gap: Pixels(12)) {
-                    Slider(value: $volume, in: 0...1, step: 0.1)
-                        .frame(width: Pixels(220))
-                    Text("volume \(Int((volume * 10).rounded()))")
-                }
-                Stepper("Quantity \(quantity)", value: $quantity, in: 0...10)
-                Picker("Flavor", selection: $flavor) {
-                    Text("Vanilla").tag(DemoFlavor.vanilla)
-                    Text("Chocolate").tag(DemoFlavor.chocolate)
-                    Text("Strawberry").tag(DemoFlavor.strawberry)
-                }.pickerStyle(.segmented)
-                Picker("Size", selection: $size) {
-                    Text("Small").tag(0)
-                    Text("Medium").tag(1)
-                    Text("Large").tag(2)
-                }
-                .pickerStyle(.radioGroup)
-                Row(gap: Pixels(24)) {
-                    Column(gap: Pixels(4)) {
-                        ForEach($chores) { $chore in
-                            Toggle(chore.title, isOn: $chore.done)
-                        }
-                    }
-                    .alignItems(.flexStart)
-                    ScrollView {
-                        List((0..<40).map { DemoRow(id: $0) }, selection: $picked, rowHeight: Pixels(24)) { row in
-                            Text("Row \(row.id)")
-                        }
-                    }
-                    .frame(width: Pixels(200), height: Pixels(120))
-                    .background(.surfaceSecondary)
+            ControlsColumn(presses: $presses, wifi: $wifi, volume: $volume, quantity: $quantity, flavor: $flavor,
+                           size: $size, chores: $chores, picked: $picked)
+            SwiftUIVocabulary(name: $name, enabled: $enabled, speed: $speed, flavor: $flavor, quantity: $quantity)
+        }
+        .alignItems(.flexStart)
+    }
+}
+
+/// The demo's left column, **a `Component` of its own** (`HP-O`, ruling `PE-K`): built inline in `ControlsDemo.content` the
+/// two halves of the row were one `content` getter's temporaries, and a debug build gives each of them, and every
+/// `Row`, `Column` and modifier that holds them, a stack slot (the whole getter chain was 590 KB, the demo's first frame
+/// 1.44 MB against the 1 MiB a Windows thread has, `theCensusDemosLayOutBelowOneMebibyte`). The state stays the demo's:
+/// the column holds its bindings, as `swiftUIVocabularySection` always did.
+struct ControlsColumn: Component {
+    let presses: Binding<Int>
+    let wifi: Binding<Bool>
+    let volume: Binding<Double>
+    let quantity: Binding<Int>
+    let flavor: Binding<DemoFlavor>
+    let size: Binding<Int>
+    let chores: Binding<[DemoChore]>
+    let picked: Binding<Set<Int>>
+
+    var content: some ElementGroup {
+        Column(gap: Pixels(14)) {
+            Text("Controls").font(size: 22)
+            Row(gap: Pixels(12)) {
+                Button("Press me") { presses.wrappedValue += 1 }
+                Text("pressed \(presses.wrappedValue) times")
+            }
+            Toggle("Wi-Fi", isOn: wifi)
+            Row(gap: Pixels(12)) {
+                Slider(value: volume, in: 0...1, step: 0.1)
+                    .frame(width: Pixels(220))
+                Text("volume \(Int((volume.wrappedValue * 10).rounded()))")
+            }
+            Stepper("Quantity \(quantity.wrappedValue)", value: quantity, in: 0...10)
+            ControlsPickers(flavor: flavor, size: size)
+            ControlsListRow(chores: chores, picked: picked)
+        }
+        .alignItems(.flexStart)
+    }
+}
+
+/// The two pickers of `ControlsColumn`, a `Component` of their own (`HP-O`).
+struct ControlsPickers: Component {
+    let flavor: Binding<DemoFlavor>
+    let size: Binding<Int>
+
+    var content: some ElementGroup {
+        Picker("Flavor", selection: flavor) {
+            Text("Vanilla").tag(DemoFlavor.vanilla)
+            Text("Chocolate").tag(DemoFlavor.chocolate)
+            Text("Strawberry").tag(DemoFlavor.strawberry)
+        }.pickerStyle(.segmented)
+        Picker("Size", selection: size) {
+            Text("Small").tag(0)
+            Text("Medium").tag(1)
+            Text("Large").tag(2)
+        }
+        .pickerStyle(.radioGroup)
+    }
+}
+
+/// The chores and the selectable list of `ControlsColumn`, a `Component` of its own (`HP-O`).
+struct ControlsListRow: Component {
+    let chores: Binding<[DemoChore]>
+    let picked: Binding<Set<Int>>
+
+    var content: some ElementGroup {
+        Row(gap: Pixels(24)) {
+            Column(gap: Pixels(4)) {
+                ForEach(chores) { $chore in
+                    Toggle(chore.title, isOn: $chore.done)
                 }
             }
             .alignItems(.flexStart)
-            swiftUIVocabularySection(name: $name, enabled: $enabled, speed: $speed,
-                                     flavor: $flavor, quantity: $quantity)
+            ScrollView {
+                List((0..<40).map { DemoRow(id: $0) }, selection: picked, rowHeight: Pixels(24)) { row in
+                    Text("Row \(row.id)")
+                }
+            }
+            .frame(width: Pixels(200), height: Pixels(120))
+            .background(.surfaceSecondary)
         }
-        .alignItems(.flexStart)
+    }
+}
+
+/// The SwiftUI-vocabulary section as a `Component` (`HP-O`): its own `content` getter, so its trees are not held by
+/// `ControlsDemo.content`'s frame.
+struct SwiftUIVocabulary: Component {
+    let name: Binding<String>
+    let enabled: Binding<Bool>
+    let speed: Binding<Double>
+    let flavor: Binding<DemoFlavor>
+    let quantity: Binding<Int>
+
+    var content: some ElementGroup {
+        swiftUIVocabularySection(name: name, enabled: enabled, speed: speed, flavor: flavor, quantity: quantity)
     }
 }
 

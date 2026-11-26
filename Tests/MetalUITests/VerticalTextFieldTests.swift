@@ -333,17 +333,18 @@ private func wheel(_ platform: FakePlatformWindow, over hit: Hitbox, _ dy: Float
     #expect(near(stays, 192), "the field stays at its end: \(stays)")
 }
 
-/// **15** (`VT-E`): a `TextEditor` keeps swallowing the wheel, with room or not, focused or not (`TI-H`).
+/// **15** (`VT-E`, `XS-V`): a `TextEditor` with room keeps swallowing the wheel, focused or not (`TI-H`); with none it passes it on
+/// (`TextEditorWheelPassthroughTests`).
 ///
-/// Mutation M15: the field's rule applied to the editor (`verticalField: true` on its target) reddens it (an unfocused editor with
-/// no room passes the wheel on).
+/// Mutation M15: the field's focus gate applied to the editor (`verticalField: true` on its target) reddens it (an unfocused editor
+/// with room passes the wheel on).
 @Test @MainActor func aTextEditorStillSwallowsTheWheel() throws {
     let (window, platform) = try open {
         Box {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Color.clear.frame(width: Pixels(200), height: Pixels(100))
-                    TextEditor("", text: "short", onChange: { _ in }).frame(width: Pixels(200), height: Pixels(100))
+                    TextEditor("", text: lines(20), onChange: { _ in }).frame(width: Pixels(200), height: Pixels(100))
                     Color.clear.frame(width: Pixels(200), height: Pixels(800))
                 }
             }

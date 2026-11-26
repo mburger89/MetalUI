@@ -669,3 +669,50 @@ struct InlineStackShell12: Component {
         }
     }
 }
+
+// MARK: - The stack one nesting level of layout costs (`HP-O`, record 427)
+
+/// One level of a recursion of `Component`s over a `Column` of six `Button`s: its `content` is 24 KB, so every frame of the layout recursion that holds a
+/// copy of it, of its layout or of its result shows in the per-level figure.
+private struct StackFatLevel: Component {
+    var depth: Int
+    var content: some ElementGroup {
+        Column(gap: Pixels(4)) {
+            Button("a") {}; Button("b") {}; Button("c") {}; Button("d") {}; Button("e") {}; Button("f") {}
+            if depth > 0 { StackFatLevel(depth: depth - 1) }
+        }
+    }
+}
+
+/// A level with a small `content`: a `Column` of a `Text` and the next level.
+private struct StackThinLevel: Component {
+    var depth: Int
+    var content: some ElementGroup {
+        Column(gap: Pixels(4)) {
+            Text("level")
+            if depth > 0 { StackThinLevel(depth: depth - 1) }
+        }
+    }
+}
+
+/// The stack a layout recursion costs per nesting level in a debug build stays at or below a ceiling: the delta between four and eight nested `Component` levels, over four.
+/// A debug build gives every temporary of a function a slot, and the frames of `Element.requestGroupLayout`, `Component.finishComponent`, `Box.requestLayout`
+/// and `ModifiedContent.requestLayout` are live under the whole subtree, so each copy of a subtree's layout they held cost the depth of the tree
+/// (`HP-O`: their tails are `@inline(never)` helpers whose frames are gone before the next level). Measured on macOS arm64, debug, per level:
+/// the fat level 114 176 bytes before, 79 904 after (ceiling 88 000); the thin level 12 912 before, 8 624 after (ceiling 10 000). The two ceilings are
+/// 10% and 16% over the readings, under the 114 176 and 12 912 the frames cost before, so each separates the two on its own.
+/// Mutation: `Component.finishComponent`'s tail inline again (`let (nodes, contentLayout) = …`, the `ComponentLayout` built in `finishComponent`) reads 104 336 on the fat level and
+/// 10 544 on the thin one, both over; `Element.requestGroupLayout`'s wrapper inline again alone reads 83 792 and 8 768, under both (the ceiling holds the two reductions' sum, not each).
+@Test(.enabled(if: StackMeter.isEnabled, "StackMeter measures debug builds only"))
+@MainActor func aNestingLevelOfLayoutCostsAtMostItsCeilingOfDebugStack() {
+    let fatFour = stackHighWater { StackFatLevel(depth: 4) }.bytes
+    let fatEight = stackHighWater { StackFatLevel(depth: 8) }.bytes
+    let thinFour = stackHighWater { StackThinLevel(depth: 4) }.bytes
+    let thinEight = stackHighWater { StackThinLevel(depth: 8) }.bytes
+    let fat = (fatEight - fatFour) / 4
+    let thin = (thinEight - thinFour) / 4
+    print("STACK-METER per level fat \(fat), thin \(thin) (fat 4 \(fatFour), 8 \(fatEight); thin 4 \(thinFour), 8 \(thinEight))")
+    #expect(fat > 0 && thin > 0, "the meter measured nothing")
+    #expect(fat <= 88_000, "a fat level costs \(fat) bytes of stack")
+    #expect(thin <= 10_000, "a thin level costs \(thin) bytes of stack")
+}
