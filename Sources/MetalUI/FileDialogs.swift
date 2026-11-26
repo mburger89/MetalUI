@@ -69,14 +69,20 @@ public struct FileDialogs {
     /// type: `[.folder]` chooses folders only (directory URLs), a folder beside
     /// a file type both on AppKit (ruling `SV-AM`).
     ///
+    /// `directory` is where the dialog starts (ruling `SV-AQ`): a file URL, else
+    /// — `nil`, or a URL that is not a file URL — the system's own choice. A
+    /// call has no view environment, so `.fileDialogDefaultDirectory(_:)` does
+    /// not reach it; pass the directory here.
+    ///
     /// - Throws: `FileDialogError` (`.noWindow`, `.unavailable`, `.busy`,
     ///   `.platform`), or `CancellationError` when the awaiting task is
     ///   cancelled.
     public func openFiles(allowedContentTypes: [ContentType],
-                          allowsMultipleSelection: Bool = false) async throws -> [URL] {
+                          allowsMultipleSelection: Bool = false,
+                          directory: URL? = nil) async throws -> [URL] {
         guard let window else { throw FileDialogError.noWindow }
         switch try await window.runFileDialog(kind: .open(allowsMultipleSelection: allowsMultipleSelection),
-                                              types: allowedContentTypes) {
+                                              types: allowedContentTypes, directory: directory) {
         case .chosen(let paths):
             return chosenURLs(paths, directoriesOnly: ContentType.choosesDirectoriesOnly(allowedContentTypes))
         case .cancelled: return []
@@ -88,10 +94,16 @@ public struct FileDialogs {
     /// field holding `defaultFilename`, and returns the chosen URL — MetalUI
     /// writes nothing — or `nil` when the user cancels.
     ///
-    /// - Throws: as `openFiles(allowedContentTypes:allowsMultipleSelection:)`.
-    public func saveFile(contentTypes: [ContentType] = [], defaultFilename: String? = nil) async throws -> URL? {
+    /// `directory` is where the dialog starts, as for
+    /// `openFiles(allowedContentTypes:allowsMultipleSelection:directory:)`
+    /// (ruling `SV-AQ`) — for Save As, the folder of the file being saved.
+    ///
+    /// - Throws: as `openFiles(allowedContentTypes:allowsMultipleSelection:directory:)`.
+    public func saveFile(contentTypes: [ContentType] = [], defaultFilename: String? = nil,
+                         directory: URL? = nil) async throws -> URL? {
         guard let window else { throw FileDialogError.noWindow }
-        switch try await window.runFileDialog(kind: .save(defaultFilename: defaultFilename), types: contentTypes) {
+        switch try await window.runFileDialog(kind: .save(defaultFilename: defaultFilename), types: contentTypes,
+                                              directory: directory) {
         case .chosen(let paths): return paths.first.map { URL(fileURLWithPath: $0) }
         case .cancelled: return nil
         case .failed(let message): throw FileDialogError.platform(message)
@@ -110,10 +122,11 @@ extension Window {
     /// continuation resumed from input (`handleFileDialogResult`), a cancelled
     /// task dismissing the dialog.
     func runFileDialog(kind: PlatformFileDialog.Kind,
-                       types: [ContentType]) async throws -> FileDialogResultEvent.Outcome {
+                       types: [ContentType], directory: URL? = nil) async throws -> FileDialogResultEvent.Outcome {
         guard presentations.inFlight == nil else { throw FileDialogError.busy }
         let token = presentations.makeToken()
-        let dialog = PlatformFileDialog(token: token, kind: kind, allowedTypes: types.map(\.platformFileType))
+        let dialog = PlatformFileDialog(token: token, kind: kind, allowedTypes: types.map(\.platformFileType),
+                                        directory: platformDirectoryPath(directory))
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<FileDialogResultEvent.Outcome, Error>) in
                 if Task.isCancelled {
@@ -153,6 +166,7 @@ extension Window {
 /// sees a change (`EE-F`).
 private enum FileDialogConfirmationLabelKey: EnvironmentKey { static let defaultValue: String? = nil }
 private enum FileDialogMessageKey: EnvironmentKey { static let defaultValue: String? = nil }
+private enum FileDialogDefaultDirectoryKey: EnvironmentKey { static let defaultValue: URL? = nil }
 
 extension EnvironmentValues {
     /// The confirming button's title a file dialog presented below shows (`nil`:
@@ -168,6 +182,21 @@ extension EnvironmentValues {
         get { self[FileDialogMessageKey.self] }
         set { self[FileDialogMessageKey.self] = newValue }
     }
+
+    /// The directory a file dialog presented below starts in (`nil`: the
+    /// system's), written by `.fileDialogDefaultDirectory(_:)` (ruling `SV-AQ`).
+    var fileDialogDefaultDirectory: URL? {
+        get { self[FileDialogDefaultDirectoryKey.self] }
+        set { self[FileDialogDefaultDirectoryKey.self] = newValue }
+    }
+}
+
+/// The seam's directory for `url` (ruling `SV-AQ`): its path when it is a file
+/// URL, else `nil` — the platform's own starting directory.
+func platformDirectoryPath(_ url: URL?) -> String? {
+    guard let url, url.isFileURL else { return nil }
+    let path = url.path
+    return path.isEmpty ? nil : path
 }
 
 extension ElementGroup {
@@ -199,6 +228,20 @@ extension ElementGroup {
     /// dialog's title (divergence 935).
     public func fileDialogMessage(_ message: Text) -> EnvironmentScope<Self> {
         environment(\.fileDialogMessage, message.string)
+    }
+
+    /// The directory the file dialogs presented by `.fileImporter`/`.fileExporter`
+    /// **above** this content start in — SwiftUI's
+    /// `fileDialogDefaultDirectory(_:)` (ruling `SV-AQ`), read exactly as
+    /// `fileDialogConfirmationLabel(_:)` is. A file URL; `nil`, or a URL that is
+    /// not a file URL, leaves the system's own starting directory. A directory
+    /// that does not exist is passed on and the platform falls back. AppKit
+    /// sets `NSSavePanel.directoryURL`; SDL passes the path as the dialog's
+    /// default location, which some Linux and Windows dialogs ignore
+    /// (divergence 936). For a menu command, which has no view
+    /// environment, pass `directory:` to `FileDialogs.openFiles` or `saveFile`.
+    public func fileDialogDefaultDirectory(_ defaultDirectory: URL?) -> EnvironmentScope<Self> {
+        environment(\.fileDialogDefaultDirectory, defaultDirectory)
     }
 
     /// `fileDialogMessage(_:)` with a plain string.

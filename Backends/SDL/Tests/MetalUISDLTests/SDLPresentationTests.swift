@@ -313,3 +313,28 @@ func sdlDialogWithLabelsInTheLinuxImageAnswersItsRecordedOutcome() throws {
     #expect(pump(platform) { !fileResults(events).isEmpty })
     #expect(fileResults(events) == [FileDialogResultEvent(token: 45, outcome: .chosen(["/tmp/late.json"]))])
 }
+
+/// **1.12d** (`SV-AQ` item 3, divergence 936). The request's directory becomes
+/// SDL's `default_location`: an open dialog's with a trailing separator; a save
+/// dialog's joined with the default filename (SDL3 documents the location as
+/// "the default folder or file"), the directory alone with no name, the bare
+/// filename as before when there is no directory; `nil` for an open dialog
+/// with none.
+///
+/// Mutations **M1.12d-a**: `dialogLocation` returns the filename only for a
+/// save; **M1.12d-b**: it drops the directory of an open dialog.
+@Test func sdlDialogLocationIsTheDirectoryAndTheSuggestedName() {
+    func open(_ directory: String?) -> PlatformFileDialog {
+        PlatformFileDialog(token: 1, kind: .open(allowsMultipleSelection: false), directory: directory)
+    }
+    func save(_ name: String?, _ directory: String?) -> PlatformFileDialog {
+        PlatformFileDialog(token: 1, kind: .save(defaultFilename: name), directory: directory)
+    }
+    #expect(SDLWindow.dialogLocation(open("/work/project")) == "/work/project/")
+    #expect(SDLWindow.dialogLocation(open("/work/project/")) == "/work/project/")
+    #expect(SDLWindow.dialogLocation(open(nil)) == nil)
+    #expect(SDLWindow.dialogLocation(save("a.json", "/work/project")) == "/work/project/a.json")
+    #expect(SDLWindow.dialogLocation(save(nil, "/work/project")) == "/work/project/")
+    #expect(SDLWindow.dialogLocation(save("a.json", nil)) == "a.json")
+    #expect(SDLWindow.dialogLocation(save(nil, nil)) == nil)
+}

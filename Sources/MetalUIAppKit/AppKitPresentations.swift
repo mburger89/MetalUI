@@ -66,6 +66,7 @@ extension AppKitWindow {
             panel.isExtensionHidden = true
             panel.allowedContentTypes = Self.contentTypes(dialog.allowedTypes)
         }
+        if let directoryURL = Self.directoryURL(dialog) { panel.directoryURL = directoryURL }
         let texts = Self.panelTexts(dialog)
         if let title = texts.title { panel.title = title }
         if let prompt = texts.prompt { panel.prompt = prompt }
@@ -92,6 +93,15 @@ extension AppKitWindow {
     nonisolated static func panelTexts(_ dialog: PlatformFileDialog)
         -> (title: String?, prompt: String?, message: String?) {
         (dialog.title, dialog.prompt, dialog.message)
+    }
+
+    /// The directory a panel for `dialog` starts in (ruling `SV-AQ`): the
+    /// seam's `directory` path as a directory file URL, `nil` for the system's
+    /// own. A path that does not exist is returned as is — `NSSavePanel` falls
+    /// back to its own directory. Factored from ``presentFileDialog(_:)`` so a
+    /// test reads it without a panel.
+    nonisolated static func directoryURL(_ dialog: PlatformFileDialog) -> URL? {
+        dialog.directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
     }
 
     /// What an open panel for `dialog` may choose (ruling `SV-AM`, amending

@@ -79,16 +79,24 @@ public struct PlatformFileDialog: Sendable, Equatable {
     /// `NSSavePanel.message` on AppKit; SDL has no such field and shows it in
     /// the dialog's title (divergence 935).
     public var message: String?
+    /// The directory the dialog starts in, as a file-system path; `nil` for
+    /// the system's own (ruling `SV-AQ`). What `.fileDialogDefaultDirectory(_:)`
+    /// and the `directory:` argument of `FileDialogs` set: `NSSavePanel.directoryURL`
+    /// on AppKit, SDL's `default_location` elsewhere. A path that does not
+    /// exist is passed through; the platform falls back.
+    public var directory: String?
 
     /// A request `token` for a dialog of `kind` offering `allowedTypes`.
     public init(token: Int, kind: Kind, allowedTypes: [PlatformFileType] = [],
-                title: String? = nil, prompt: String? = nil, message: String? = nil) {
+                title: String? = nil, prompt: String? = nil, message: String? = nil,
+                directory: String? = nil) {
         self.token = token
         self.kind = kind
         self.allowedTypes = allowedTypes
         self.title = title
         self.prompt = prompt
         self.message = message
+        self.directory = directory
     }
 
     /// Whether the dialog chooses directories (ruling `SV-AM`): an open

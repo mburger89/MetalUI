@@ -146,6 +146,9 @@ struct PresentationRecord {
     /// file dialog is presented.
     let fileDialogLabel: String?
     let fileDialogMessage: String?
+    /// The environment's `fileDialogDefaultDirectory` at the scope's position
+    /// (`SV-AQ`): a value copied in layout, turned into a path when presented.
+    let fileDialogDirectory: URL?
 }
 
 extension Frame {
@@ -175,7 +178,8 @@ extension Frame {
             key: key, owner: owner,
             isPresented: isPresented, isShown: isPresented.wrappedValue, request: request,
             fileDialogLabel: environmentTop.fileDialogConfirmationLabel,
-            fileDialogMessage: environmentTop.fileDialogMessage)
+            fileDialogMessage: environmentTop.fileDialogMessage,
+            fileDialogDirectory: environmentTop.fileDialogDefaultDirectory)
         presentationRecords.append(record)
         // `RW-V`: a closed scope (a code-driven menu, an alert, a dialog, a file dialog) is an anchor, not a presentation: a graft window journals it (and checks the
         // binding is still closed when it grafts) instead of refusing by the `presentation` channel.
@@ -195,7 +199,8 @@ extension Frame {
         presentationRecords.append(PresentationRecord(
             key: PresentationRecord.Key(scope: scope, occurrence: occurrence), owner: note.owner,
             isPresented: note.isPresented, isShown: note.isShown, request: note.request,
-            fileDialogLabel: note.fileDialogLabel, fileDialogMessage: note.fileDialogMessage))
+            fileDialogLabel: note.fileDialogLabel, fileDialogMessage: note.fileDialogMessage,
+            fileDialogDirectory: note.fileDialogDirectory))
         let journal = stateTable.contentMemos.journal
         if journal.isRecording {
             journal.record(.presentationNote(note))
@@ -293,7 +298,8 @@ extension Window {
         case .fileDialog(let kind, let types, let title, let prompt, let complete):
             let dialog = PlatformFileDialog(token: token, kind: kind, allowedTypes: types.map(\.platformFileType),
                                             title: title, prompt: record.fileDialogLabel ?? prompt,
-                                            message: record.fileDialogMessage)
+                                            message: record.fileDialogMessage,
+                                            directory: platformDirectoryPath(record.fileDialogDirectory))
             if presentFileDialogOnPlatform(dialog) {
                 presentations.inFlight = .scope(key: record.key, token: token, record: record, alert: nil)
             } else {
