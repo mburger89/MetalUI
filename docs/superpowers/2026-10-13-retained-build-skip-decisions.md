@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AO`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AP`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -594,3 +594,13 @@ Per grafted outermost occurrence: **60.5 µs of build stood for, 10.7 µs of gra
 **Ruling.** `ContentMemoStore.quarantinedScopes` holds `(id, until)`, at most 64 (expired ones go first, then the soonest to expire); `until` is the entry's own `quarantineUntil`, so the doubling (8 << exponent, exponent reset when the occurrence replays) is the entry's. An occurrence at or under a scope with `until > buildSerial` neither grafts nor replays a prepaint (`graftRecord`, `retainedPrepaintDecisionInner`'s `quarantined`). The test is an ancestor walk per decision, and the list is empty in a window that has not redone.
 
 **Cost if wrong.** A repeating redo in consecutive frames: `aRedoDoesNotCascadeIntoTheRowsDescendants`.
+
+## RK-AO — A refused translation says which number is fractional and whose (record 425)
+
+**Question.** Record 416 named `inexactTranslation` as one of the two reasons a grafted row's paint record cannot follow the scroll move, and proposed two cures (snap the painted offset like SwiftUI, or recompute the moved leaves). Which cure applies depends on whose number is fractional: the scroll offset the occurrence paints under, the layout origin, or a leaf's own origin. The trace said only the reason.
+
+**Ruling.** `paintTranslation`'s trace line (`METALUI_TRACE_RETAINED=1`, `RetainedTrace.sink`) is followed, for `fractionalTranslation` and `inexactTranslation`, by a bracket built by `Frame.describeFractionalMove`: `[entry field=<dx|dy|newX|newY|oldX|oldY> value=<device pixels> fractional=<entryOffset|layoutOrigin|both|sum> ...]` for the gate on the first top node's device origin (with the layout and offset deltas, or the entry offset, in device pixels), or `[leaf=<rect|glyph|image, groupMask. when a mask> field=<bounds|contentMask>.origin.<x|y> value=<v> fractional=<leaf|sum> move=(dx,dy) entryOffsetPx=(x,y)]` for the first leaf the move cannot add exactly. The description is an autoclosure's: it is built only while something listens (`RetainedTrace.detailsBuilt` stays 0, pinned), reads the gates in their order and decides nothing. The counters keep their one name (`retainedTranslationRefusedReasons`).
+
+**Evidence.** Record 425: a 0.3 pt wheel step at scale 2 is `fractionalTranslation ... fractional=entryOffset layoutDeltaPx=(0,0) offsetDeltaPx=(0,-0.6)`, the next whole-pixel step `inexactTranslation [entry field=newY ... fractional=entryOffset entryOffsetPx=(0,-1.6)]`; scale 1.2 names `layoutOrigin`; the transcript fixture streams with no fractional refusal at all.
+
+**Cost if wrong.** A trace line that misnames who is fractional sends the next fix the wrong way: `aFractionalScrollIsRefusedWithItsFieldAndWhoIsFractional`, `anInexactLayoutOriginIsNamedAsTheLayoutOrigin`, `aLeafWithAFractionalOriginIsNamedByKindAndField`.
