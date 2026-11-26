@@ -35,7 +35,7 @@ key), the tooltip's appearance and delay (H7), and the key-window order of a
 shortcut both a menu item and a window `Button` claim (the commands probe ran
 with `keyWindow=nil`).
 
-Prefix **`MN-`**, lettered. **Next unused: `MN-AT`.** (This line moves in the
+Prefix **`MN-`**, lettered. **Next unused: `MN-AU`.** (This line moves in the
 commit that appends a ruling; read the last `## MN-` heading.)
 
 Branch `feat/menus-popovers` from `b9da519` (master: paths, shadows and
@@ -1523,4 +1523,15 @@ an extra `.accessibilityLabel` wrapper reddens the cost literal.
 
 **Test.** `dismissingAPopoverReturnsFocusToThePresenter` (`RestoresFocusTests`). It flips PR #373's `focusAfterDismissIsNil` (`CodeViewTextAnchorTests`), if that branch is merged first: its last arm then expects the view.
 
-Next unused: `MN-AT`.
+## MN-AT — `CommandGroupPlacement.saveItem` holds File's Close (Alloy request; record 433; class `A`, no divergence)
+
+**Ruling.**
+
+1. `.saveItem` is offered (the twelfth placement; the spec's "not offered" list loses it). Its standard content is the one standard Close item, after `.newItem`: AppKit `Close ⌘W`, the drawn bar `Close` with no shortcut (`SG-A` item 10, `SG-M`). SwiftUI's group also holds Save, Save As, Duplicate and Revert; MetalUI has no document, so those are the app's to add with `before:` / `after:` / `replacing:`.
+2. `before:` and `after:` put the app's items around the standard Close, `replacing:` instead of it, in declaration order, exactly as every other placement (`group(.saveItem, [standard Close])` in `buildAppKit` and `buildDrawn`, the only two builders: SDL draws the drawn arrangement, so the portable menu is the second).
+3. Default menus are unchanged: the standard item is still numbered where it was (the AppKit File Close is id 10, the drawn one id 1), so ids, order and separators are the same for an app that never names `.saveItem`.
+4. **With Close replaced** the standard Close has no menu item. Nothing else routes `performClose`: ⌘W is bound only through the menu item's key equivalent, so with no app item ⌘W is not claimed (SwiftUI: no Close, ⌘W does nothing). The window's close button and `Window.close()` are not menu-routed and still close it. An app item on ⌘W is the only ⌘W binding, so it fires once and never the standard Close.
+
+**Tests** (`CommandsTests`): `theDefaultFileMenuIsUnchangedByTheSaveItemPlacement`, `theSaveItemGroupTakesBeforeAfterAndReplacing`, `anAppItemOnCommandWRunsAndTheStandardCloseIsGone`. **Mutation:** building Close outside `group(.saveItem, …)` reddens the second and third.
+
+Next unused: `MN-AU`.

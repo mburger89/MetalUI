@@ -2664,3 +2664,8 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **PSN1.** (`DSA-J`) On a Retina Mac run `/usr/bin/swift docs/probes/swiftui-scroll-offset-pixel-snap.swift 2>&1 | grep -v 'warning:\|^ *[0-9]* |\|^ *|\|note:\|WARNING: Application performed a reentrant\|Connection\]'`. The first line should say `backingScaleFactor=2.0`. In arm `F4a`, does `scrollPosition.y=100.3` report `clip=100.500` (half-point steps, which MetalUI's grid gives) or `clip=100.000` (whole points)? Does the bottom anchor of arm `F1` over 399.5 report `99.5` or `99.0`? If whole points, change `ScrollChrome.snap`'s grid for the scroll position to whole points at every scale (one function) and say so in `DSA-J`. **Observed:**
 - [ ] **PSN2.** (`DSA-J`) `swift run MetalUIDemo` on a Retina Mac, a scroller with rows and a trackpad: scroll slowly (a few pixels at a time) and then flick. Rows should never look blurred between scroll steps, and a slow scroll must still move. In SwiftUI the same scroll gives crisp rows. **Observed:**
 
+## MSI. `CommandGroup(replacing: .saveItem)` (record 433; ruling `MN-AT`)
+
+*An agent cannot: the tests read the model's menus, not the real `NSApp.mainMenu` or a key event the window server routes.*
+
+- [ ] **MSI1.** (`MN-AT`) On macOS, an app whose `commands` replace `.saveItem` with Close Tab ⌘W, Close Window ⇧⌘W and Save ⌘S: File shows exactly those three; each key runs its own action once, and the standard Close never runs. Replace `.saveItem` with nothing: File has no Close, ⌘W does nothing, and the title-bar close button still closes the window.
