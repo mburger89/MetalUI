@@ -333,7 +333,8 @@ extension Frame {
         let outcome = movedPaintRecord(old, to: key)
         phase.paintTranslationMemo = PaintTranslationMemo(record: old, shift: shift, outcome: outcome)
         if case .refused(let reason) = outcome {
-            RetainedTrace.emit("retained paint translation refused \(RetainedTrace.path(phase.build.key.id)): \(reason)")
+            RetainedTrace.emit("retained paint translation refused \(RetainedTrace.path(phase.build.key.id)): \(reason)"
+                + describeFractionalMove(reason, of: old, to: key))
             stateTable.contentMemos.retained.noteTranslationRefused(reason: reason)
         }
         return outcome
