@@ -276,7 +276,8 @@ extension Frame {
         }
         let cause = phase.prepaintInvalidation.contains("observed") || phase.prepaintInvalidation.contains("serial")
             ? RetainedTrace.causeSuffix(of: phase.entry) : ""
-        return "retained prepaint miss \(RetainedTrace.path(phase.build.key.id)) reasons=[\(why.joined(separator: ", "))]\(cause) frame: grafted=\(phase.grafted)"
+        let owner = phase.prepaintInvalidation.contains("quarantine") ? " quarantinedBy: \(stateTable.contentMemos.quarantineOwner(of: phase.entry, id: phase.build.key.id))" : ""
+        return "retained prepaint miss \(RetainedTrace.path(phase.build.key.id)) reasons=[\(why.joined(separator: ", "))]\(cause)\(owner) frame: grafted=\(phase.grafted)"
     }
 
     /// Names why a prepaint that passed its guard still runs (trace only).
@@ -559,8 +560,12 @@ extension Frame {
     // MARK: The redo
 
     /// A replayed prepaint cannot paint under this frame's ambient: the frame is abandoned after paint (`RK-C`).
-    func requestRedo(_ entry: ContentMemoStore.Entry) {
+    func requestRedo(_ entry: ContentMemoStore.Entry, site: String, phase: RetainedPhase) {
         redoEntries.append(entry)
+        // `RK-AP`: the line that names the cause (built only while something listens): the site that could not replay, then what the prepaint and paint decisions found.
+        RetainedTrace.emit("retained redo requested \(RetainedTrace.path(phase.build.key.id)) at \(site) because "
+            + "prepaint [\((phase.prepaintInvalidation + [phase.prepaintNote].compactMap { $0 }).joined(separator: ", "))] "
+            + "paint [\(phase.paintNote ?? "none")] grafted=\(phase.grafted) replayed=\(phase.replayed != nil)")
     }
 
     /// A channel this attempt wrote that a rollback cannot undo (`RK-AM`): the redo is window-wide, every replay off, as before. Nothing declares one
@@ -588,6 +593,8 @@ extension ContentMemoStore {
         var seen = Set<ObjectIdentifier>()
         for entry in entries where seen.insert(ObjectIdentifier(entry)).inserted {
             entry.quarantineUntil = serial + 1 + (8 << entry.redoExponent)
+            RetainedTrace.emit("retained redo quarantine \(entry.id.map { RetainedTrace.path($0) } ?? "unkeyed") for \(entry.quarantineUntil - serial - 1) builds "
+                + "until build \(entry.quarantineUntil) exponent \(entry.redoExponent) scoped=\(scoped && entry.id != nil)")
             if scoped, let id = entry.id { quarantine(id, until: entry.quarantineUntil) }
             entry.redoExponent = min(entry.redoExponent + 1, 5)
         }
@@ -595,6 +602,15 @@ extension ContentMemoStore {
         resetBuildCounters()
         carriedEvaluations = evaluated
         retained.redos = 1
+    }
+
+    /// Trace only: who holds `id` in quarantine, as `self until build N` or the scope's path (`RK-AP`).
+    func quarantineOwner(of entry: Entry, id: GlobalElementID) -> String {
+        if entry.quarantineUntil > buildSerial { return "self until build \(entry.quarantineUntil)" }
+        if let scope = quarantinedScopes.first(where: { $0.until > buildSerial && id.isOrDescends(from: $0.id) }) {
+            return "\(RetainedTrace.path(scope.id)) until build \(scope.until)"
+        }
+        return "none"
     }
 
     /// Keeps `id` and everything under it out of graft and prepaint replay until `until` (`RK-AN`): at most 64 scopes, the soonest to expire dropped first.
