@@ -301,6 +301,9 @@ package final class ContentMemoStore {
     func noteRefusal() { refusals += 1 }
 
     /// The memo entry of an occurrence, or `nil` (retained subtrees, `SB-`).
+    /// Every paint record the store holds (test support: the clips a record stores, `FS-V`).
+    var records: [RetainedRecord] { entries.values.compactMap(\.record) }
+
     func entry(for key: Key) -> Entry? {
         if !firedIDs.isEmpty { flagAncestorsOfFires() }
         return entries[key]

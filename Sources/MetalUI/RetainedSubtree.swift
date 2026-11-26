@@ -169,7 +169,47 @@ final class RetainLog {
         for recorder in recorders where recorder.entryHeight < boundary { recorder.passedInnerScope = true }
         for recorder in recorders where recorder.entryHeight == boundary || boundary == 0 {
             scene.append(SceneOp(boundary: boundary, leaves: leaves, depth: depth))
+            // The op's index in each recorder's own scene (`FS-V`): the ops at the recorder's entry height.
+            for owner in recorders where owner.entryHeight == boundary { owner.opCount += 1 }
             return
+        }
+    }
+
+    /// A clip pushed while the recorders are open (`FS-V`): each notes it, deeper than its entry, with the ops its scene held
+    /// when it opened. `bounds` and `offset` are `pushClip`'s own arguments, before `activeOffset` is added.
+    func notePush(bounds: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>, crosses: Bool, atFlatteningEntry: Bool,
+                  depth: Int, root: Bool = false) {
+        var flags: UInt8 = 0
+        if crosses { flags |= InnerClip.crossesFlag }
+        if atFlatteningEntry { flags |= InnerClip.flatteningEntryFlag }
+        if root { flags |= InnerClip.rootFlag }
+        for recorder in recorders {
+            recorder.clips.append(InnerClip(
+                x: bounds.origin.x.value, y: bounds.origin.y.value, width: bounds.size.width.value, height: bounds.size.height.value,
+                offsetX: offset.x.value, offsetY: offset.y.value,
+                topLeft: radii.topLeft.value, topRight: radii.topRight.value,
+                bottomRight: radii.bottomRight.value, bottomLeft: radii.bottomLeft.value,
+                parent: recorder.openClips.last ?? -1, depth: Int32(depth),
+                lo: Int32(recorder.opCount), hi: Int32(recorder.opCount), flags: flags))
+            recorder.openClips.append(Int32(recorder.clips.count - 1))
+        }
+    }
+
+    /// A clip of a replayed record (`FS-V`), with its bounds already at the position it stands at.
+    func notePush(clip: InnerClip) {
+        for recorder in recorders {
+            var copy = clip
+            copy.parent = recorder.openClips.last ?? -1
+            copy.lo = Int32(recorder.opCount); copy.hi = copy.lo
+            recorder.clips.append(copy)
+            recorder.openClips.append(Int32(recorder.clips.count - 1))
+        }
+    }
+
+    /// The clip on top of the open ones is popped: every recorder closes its range here.
+    func notePop() {
+        for recorder in recorders {
+            if let top = recorder.openClips.popLast() { recorder.clips[Int(top)].hi = Int32(recorder.opCount) }
         }
     }
 
@@ -202,6 +242,47 @@ final class SubtreeRecorder {
     var rangesFrom = 0
     var sequenceFrom = 0
     var matchedFrom = 0
+    /// The clips pushed inside the occurrence, in push order, with absolute layout bounds (`FS-V`); the record keeps them
+    /// relative to its first node. Empty for an occurrence that pushes none, which then allocates nothing.
+    var clips: [InnerClip] = []
+    /// The indices in `clips` of the pushes not yet popped, innermost last.
+    var openClips: [Int32] = []
+    /// The ops this recorder's scene holds so far (those at its entry height): what a push's range counts.
+    var opCount = 0
+}
+
+/// One clip pushed inside a recorded occurrence, as `Frame.pushClip` was given it (`FS-V`): what a moved record folds again from the
+/// clip in force where the occurrence now stands, so a leaf's mask is the one a fresh paint computes and not a moved copy of the old
+/// cut. In a record the bounds are relative to the first top node's layout origin (they move with the occurrence); while recording
+/// and in a replay's merge they are absolute.
+struct InnerClip: Equatable {
+    static let crossesFlag: UInt8 = 1, flatteningEntryFlag: UInt8 = 2, rootFlag: UInt8 = 4, inexactFlag: UInt8 = 8
+    /// `pushClip`'s `bounds` (layout points, before the offset is added).
+    var x: Float, y: Float, width: Float, height: Float
+    /// `pushClip`'s `offset` argument.
+    var offsetX: Float, offsetY: Float
+    var topLeft: Float, topRight: Float, bottomRight: Float, bottomLeft: Float
+    /// The index of the clip this one was pushed inside (an earlier one), or -1 for a push at the entry depth.
+    var parent: Int32
+    /// The clip depth after the push: what a leaf's emission depth names.
+    var depth: Int32
+    /// The ops of the record's scene emitted while the push was open, `lo..<hi` (those of the clips pushed inside it included).
+    var lo: Int32, hi: Int32
+    var flags: UInt8
+
+    var crosses: Bool { flags & Self.crossesFlag != 0 }
+    var atFlatteningEntry: Bool { flags & Self.flatteningEntryFlag != 0 }
+    var isRoot: Bool { flags & Self.rootFlag != 0 }
+    /// Whether the relative bounds do not add back to the layout bounds they were made from (not a multiple of 1/16).
+    var isInexact: Bool { flags & Self.inexactFlag != 0 }
+
+    /// The same clip with its bounds moved by (`dx`, `dy`) points, flagged inexact when the move does not undo exactly.
+    func moved(byX dx: Float, y dy: Float) -> InnerClip {
+        var copy = self
+        copy.x += dx; copy.y += dy
+        if copy.x - dx != x || copy.y - dy != y { copy.flags |= Self.inexactFlag }
+        return copy
+    }
 }
 
 // MARK: - The ledger
@@ -421,6 +502,8 @@ final class RetainedRecord {
     var matched: [(key: GlobalElementID, range: Range<Int>)] = []
     /// Whether a leaf of the occurrence passed a paint scope opened inside it: such a record is not moved by an add (`FS-D`).
     var innerScopes = false
+    /// The clips the occurrence pushed, relative to its first top node (`FS-V`); `nil` when it pushed none.
+    var innerClips: [InnerClip]?
     /// Whether the build, prepaint and paint windows were all observed when the record was made
     /// (`SB-V`). A record made on a frame that skipped the build and prepaint sessions (the frame a
     /// valid record missed on) covers only its paint, so it is not replayed: the next frame observes
@@ -777,7 +860,8 @@ extension Frame {
         return true
     }
 
-    func replayPaint(_ r: RetainedRecord, translated: Bool = false, scene movedScene: [RetainLog.SceneOp]? = nil) {
+    func replayPaint(_ r: RetainedRecord, translated: Bool = false, scene movedScene: [RetainLog.SceneOp]? = nil,
+                     layoutOrigin: (x: Float, y: Float)? = nil) {
         let sequenceBase = scene.nextEmissionSequence
         // A record replayed at a translated position goes through the live scopes (`RK-S`): the final stream holds
         // the old translation in its coordinates.
@@ -789,7 +873,12 @@ extension Frame {
                 if op.leaves.count == 1 { insertLeaves(op.leaves[0].0) } else { insertLeaves(op.leaves.flatMap(\.0)) }
             }
         } else {
-            for op in movedScene ?? r.scene { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
+            let ops = movedScene ?? r.scene
+            if let clips = r.innerClips, let log = retainLog, let origin = layoutOrigin {
+                replayOps(ops, clips: clips, origin: origin, log: log)
+            } else {
+                for op in ops { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
+            }
         }
         for id in r.marks { stateTable.mark(id) }
         for id in r.lives { stateTable.touchLive(id); retainLog?.lives.append(id); prepaintLog?.lives.append(id) }
@@ -806,6 +895,37 @@ extension Frame {
         }
         stateTable.contentMemos.retained.skippedPaints += r.paintWork
         stateTable.contentMemos.retained.replayedOps += r.scene.count
+    }
+
+    /// `ops` into the open recorders, with the clips the record pushed noted between them as a fresh paint would (`FS-V`): an
+    /// outer record that holds this occurrence's leaves holds the clips their masks came from. The clips are made absolute at
+    /// `origin`, where the occurrence stands now; each push opens before the first op it covers and pops after the last.
+    private func replayOps(_ ops: [RetainLog.SceneOp], clips: [InnerClip], origin: (x: Float, y: Float), log: RetainLog) {
+        var cursor = 0
+        var open: [Int] = []
+        func advance(to target: Int) {
+            while cursor < target && cursor < ops.count {
+                processScopes(ops[cursor].leaves, from: ops[cursor].boundary, depth: ops[cursor].depth)
+                cursor += 1
+            }
+        }
+        for index in clips.indices {
+            let clip = clips[index]
+            while let top = open.last, Int32(top) != clip.parent {
+                advance(to: Int(clips[top].hi))
+                log.notePop()
+                open.removeLast()
+            }
+            advance(to: Int(clip.lo))
+            let at = clip.moved(byX: origin.x, y: origin.y)
+            log.notePush(clip: at)
+            open.append(index)
+        }
+        while let top = open.popLast() {
+            advance(to: Int(clips[top].hi))
+            log.notePop()
+        }
+        advance(to: ops.count)
     }
 
     // MARK: Decision and recording
@@ -1035,6 +1155,12 @@ extension Frame {
             }
         }
         record.innerScopes = recorder.passedInnerScope
+        if !recorder.clips.isEmpty, key.rects.count >= 2 {
+            // Relative to the first top node: a moved record's clips move with it and the record keeps its clips as it moves.
+            var relative = recorder.clips
+            for index in relative.indices { relative[index] = relative[index].moved(byX: -key.rects[0], y: -key.rects[1]) }
+            record.innerClips = relative
+        }
         if log.recorders.isEmpty { retainLog = nil }
         let memos = stateTable.contentMemos
         if let old {
@@ -1078,6 +1204,7 @@ extension RetainedRecord {
         copy.marks = marks; copy.touches = touches; copy.lives = lives; copy.surfaces = surfaces
         copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
+        copy.innerClips = innerClips
         copy.ranges = ranges; copy.emitted = emitted; copy.matched = matched
         return copy
     }
@@ -1087,6 +1214,7 @@ extension RetainedRecord {
     /// element work the record stands for.
     func differences(from other: RetainedRecord, ignoringFinalStream: Bool = false) -> String? {
         if scene.count != other.scene.count { return "scene.count \(scene.count) vs \(other.scene.count)" }
+        if innerClips != other.innerClips { return "innerClips \(String(describing: innerClips)) vs \(String(describing: other.innerClips))" }
         func kindDescription(_ kind: CapturedPrimitive.Kind) -> String {
             switch kind {
             case .image(let i, let t): return "image \(i) \(ObjectIdentifier(t))"

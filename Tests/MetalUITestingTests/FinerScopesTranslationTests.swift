@@ -178,7 +178,7 @@ func aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale(arm: RPScaleArm) async
         pair.redraw()   // the settle frame
         try pair.compare("step \(index) settled")
     }
-    let allowed: Set<String> = ["accessibilityUnderEffect", "accessibilityClipped", "pressOnly", "geometryUnderEffect", "geometryNamedSpace", "contextMenus", "inexactTranslation", "fractionalTranslation", "hitboxClipped", "maskStraddlesEntryClip",
+    let allowed: Set<String> = ["accessibilityUnderEffect", "accessibilityClipped", "pressOnly", "geometryUnderEffect", "geometryNamedSpace", "contextMenus", "inexactTranslation", "fractionalTranslation", "hitboxClipped", "maskCrossingChanged", "maskCrossed",
                            "innerScope"]   // a rounded card straddling the scroller's edge is a masked crossing group (`CM-B`): an inner mask scope
     // Under `METALUI_VERIFY_RETAINED=1` the differential still runs (every hit is also compared with a fresh run), but a hit is
     // painted as a miss, so the counts are not its to read.
