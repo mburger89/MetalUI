@@ -103,7 +103,7 @@ func aRecordPaysOnlyForTheClipsItsOccurrencePushed() async throws {
     }
     let rounded = try mrPair(nested: false)
     func records(_ pair: RPPair<some Element>) -> [RetainedRecord] { pair.on.window.testingRetainedRecords() }
-    let plainRecords = records(plain).filter { $0.scene.count > 0 }, roundedRecords = records(rounded).filter { $0.scene.count > 0 }
+    let plainRecords = records(plain).filter { !$0.scene.isEmpty }, roundedRecords = records(rounded).filter { !$0.scene.isEmpty }
     try #require(!plainRecords.isEmpty && !roundedRecords.isEmpty)
     #expect(plainRecords.allSatisfy { $0.innerClips == nil }, "no clip pushed, none stored")
     #expect(roundedRecords.contains { ($0.innerClips?.count ?? 0) == 1 }, "one rounded clip a row")
@@ -122,14 +122,16 @@ private struct MRPlain: Component, @MainActor Equatable {
 func theStreamingTranscriptRefusesOnlyAtACornerZone() async throws {
     let pair = try ctPair()
     var reasons: [String: Int] = [:]
-    var requests: [Int] = []
+    var requests: [Int] = [], perStep: [String] = []
     for step in 0..<40 {
         let f = await ctStep(pair).reduce(FrameWork(), +)
         reasons.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +)
+        if !f.retainedTranslationRefusedReasons.isEmpty { perStep.append("\(step): \(f.retainedTranslationRefusedReasons) redos \(f.retainedRedos)") }
         requests.append(f.elementRequests)
         try pair.compare("step \(step)")
     }
     let mean = Double(requests.reduce(0, +)) / Double(requests.count)
+    print("MR transcript: mean requests \(mean), refusals \(reasons), by step \(perStep), requests \(requests)")
     #expect(reasons["maskStraddlesEntryClip"] == nil && reasons["maskNotFolded"] == nil && reasons["maskUnmapped"] == nil, "refusals: \(reasons)")
     #expect(reasons.keys.allSatisfy { ["maskCrossingChanged", "innerScope", "maskCrossed"].contains($0) }, "only the corner zone refuses: \(reasons)")
     #expect(mean < 20, "mean requests a streamed word \(mean) (24.85 before)")

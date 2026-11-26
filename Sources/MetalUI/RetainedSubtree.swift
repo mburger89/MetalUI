@@ -170,7 +170,11 @@ final class RetainLog {
         for recorder in recorders where recorder.entryHeight == boundary || boundary == 0 {
             scene.append(SceneOp(boundary: boundary, leaves: leaves, depth: depth))
             // The op's index in each recorder's own scene (`FS-V`): the ops at the recorder's entry height.
-            for owner in recorders where owner.entryHeight == boundary { owner.opCount += 1 }
+            var owner = 0
+            while owner < recorders.count {   // indexed: a `for` over the array allocates on this path
+                if recorders[owner].entryHeight == boundary { recorders[owner].opCount += 1 }
+                owner += 1
+            }
             return
         }
     }
@@ -183,7 +187,10 @@ final class RetainLog {
         if crosses { flags |= InnerClip.crossesFlag }
         if atFlatteningEntry { flags |= InnerClip.flatteningEntryFlag }
         if root { flags |= InnerClip.rootFlag }
-        for recorder in recorders {
+        var index = 0
+        while index < recorders.count {   // indexed, as in `noteBoundary`
+            let recorder = recorders[index]
+            index += 1
             recorder.clips.append(InnerClip(
                 x: bounds.origin.x.value, y: bounds.origin.y.value, width: bounds.size.width.value, height: bounds.size.height.value,
                 offsetX: offset.x.value, offsetY: offset.y.value,
@@ -197,7 +204,10 @@ final class RetainLog {
 
     /// A clip of a replayed record (`FS-V`), with its bounds already at the position it stands at.
     func notePush(clip: InnerClip) {
-        for recorder in recorders {
+        var index = 0
+        while index < recorders.count {
+            let recorder = recorders[index]
+            index += 1
             var copy = clip
             copy.parent = recorder.openClips.last ?? -1
             copy.lo = Int32(recorder.opCount); copy.hi = copy.lo
@@ -208,7 +218,10 @@ final class RetainLog {
 
     /// The clip on top of the open ones is popped: every recorder closes its range here.
     func notePop() {
-        for recorder in recorders {
+        var index = 0
+        while index < recorders.count {
+            let recorder = recorders[index]
+            index += 1
             if let top = recorder.openClips.popLast() { recorder.clips[Int(top)].hi = Int32(recorder.opCount) }
         }
     }

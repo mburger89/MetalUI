@@ -101,7 +101,7 @@ public struct FrameWork: Sendable, Equatable {
     /// three times. Empty when nothing was refused (`RW-M`).
     public var retainedIneligibleReasons: [String: Int]
     /// ``retainedTranslationRefused`` summed by the name of the gate that refused (`FS-F`): `accessibilityRecords`,
-    /// `hitboxes`, `inexactTranslation`, `fractionalTranslation`, `maskStraddlesEntryClip`, `unlistedKind:<kind>`, ...
+    /// `hitboxes`, `inexactTranslation`, `fractionalTranslation`, `maskCrossingChanged`, `unlistedKind:<kind>`, ...
     /// One entry per refusal; empty when nothing was refused (`FS-J`).
     public var retainedTranslationRefusedReasons: [String: Int]
     /// Units (children) the build's lazy containers realised: a `LazyVStack` or `LazyHStack` in a scroller

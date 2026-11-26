@@ -50,7 +50,7 @@ func aStreamedFrameOfAScopedTranscriptStaysUnderItsCeilings() async throws {
 }
 
 /// The redo frame and the one after it reserve what master's did (record 417): the abandoned attempt's storage is not dropped and reserved again
-/// beyond the one capture scope reserve the redo has always repeated. Profiled per frame: the frame that redoes makes at most 16 requests of 128 KiB or
+/// beyond the one capture scope reserve the redo has always repeated. Profiled per frame: the frame that redoes makes at most 22 requests (16 until record 424: attempt 1 now translates the rows the edge cuts before the abandon) of 128 KiB or
 /// more (6 for a quiet streamed frame, master 16), the frame after it at most 15 (master 9: the six translated records, above). Mutation: a second
 /// scene reserve in the redo (the first number), the redo's fresh frame reserving from no hint (the second).
 @Test(.enabled(if: !rsVerifying, g51Verifying)) @MainActor
@@ -67,7 +67,7 @@ func aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid() async throws {
         perFrame.append((p.large, w.lastFrameWork.retainedRedos))
     }
     let redone = try #require(perFrame.firstIndex { $0.redos > 0 }, "the fixture redoes: \(perFrame)")
-    #expect(perFrame[redone].large <= 16, "the redo frame: \(perFrame[redone].large) large requests, \(perFrame)")
+    #expect(perFrame[redone].large <= 22, "the redo frame: \(perFrame[redone].large) large requests, \(perFrame)")
     #expect(perFrame[redone + 1].large <= 15, "the frame after the redo: \(perFrame[redone + 1].large)")
     #expect(perFrame.enumerated().allSatisfy { $0.offset == redone || $0.offset == redone + 1 || $0.element.large <= 7 }, "a quiet streamed frame: \(perFrame)")
     #endif
@@ -103,8 +103,12 @@ private let g51ByteCeiling = 20_650_000.0
 // the anchor put them and the next frame moved nothing; the rollback makes the redo a fresh frame, which applies the anchor's adjustment one
 // frame later, as every non-redo wrap frame does. The copy is the translation's own (a record's ops are rebuilt at the new offset), not storage the
 // abandoned attempt dropped: the redo frame itself costs the 16 master's does (`aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid`).
-private let g51LargeCeiling = 7.9
+// Record 424 (`FS-V`): 8.0, up 0.4 on the 7.58 master reads. The rounded rows cut by the viewport edge no longer refuse and rebuild: their paint records move
+// (`Frame.movedOps`, the same 239 392-byte copy as above, now for the rows the edge cuts as well), and the redo frame translates them in attempt 1 before the
+// abandon. The whole frame allocates less for it: 159 760 allocations against 172 977 on master (the allocations ceiling falls with it) and 20.20 MB against
+// 20.52 MB. A move in place of the copy (the old ops are dropped the moment the record is made over) is the lever that would take the requests back.
+private let g51LargeCeiling = 8.2
 // Record 422 (`HP-N`): the scene's arrays reserve a size class, up to an eighth over, so the large bytes read 7.07 MB (the bytes are
 // not the lever there, the sizes are: `G52StreamingCapacityTests`).
-private let g51LargeByteCeiling = 7_250_000.0
-private let g51AllocationCeiling = 176_500.0
+private let g51LargeByteCeiling = 7_700_000.0   // 7.52 MB measured (record 424: 7.19 MB on master), 2.5 % over
+private let g51AllocationCeiling = 163_800.0   // 159 760 measured, 2.5 % over (record 424; was 176 500 over master's 172 977)

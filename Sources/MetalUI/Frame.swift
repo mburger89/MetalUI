@@ -1478,7 +1478,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
 
     /// ``intersect(_:radii:_:radii:)`` and whether it fell to the square box between two clips of which one is rounded.
     static func intersectReportingCrossing(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
-                                                   _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
+                                           _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
         -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>, crosses: Bool) {
         let bounds = intersect(outer, inner)
 
