@@ -109,8 +109,16 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // has visited. `prepaintGroup` and `paintGroup` need no cursor — each
         // member stored its id during this call.
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let laidOut = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        return finishLayout(id, laidOut, pass: &pass)
+    }
+
+    /// `requestLayout`'s tail, out of its frame (`HP-O`): this frame is live under the whole subtree's layout, and a debug
+    /// build gives every temporary of the tail a slot of its own.
+    @inline(never)
+    private mutating func finishLayout(_ id: GlobalElementID, _ laidOut: ([LayoutNodeID], Content.GroupLayout),
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        let (children, contentLayout) = laidOut
         // M4 spec 3 §5: substitutes any animatable field mid-transition,
         // storing the result back on `self` — `paint` reads `self.decoration`
         // later in this same frame, so this is what makes `cornerRadius`
