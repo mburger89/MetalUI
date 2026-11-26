@@ -572,9 +572,9 @@ func theRecord416FixturesHoldWithTheRedoBackoffOff() async throws {
     return w.window.testingStateReferenceClasses
 }
 
-/// The census leaves out the controls and looks demos: their first layout needs 1.54 MB and 1.18 MB of stack in a debug build on macOS arm64 (the same on master, `StackMeter`),
-/// over the 1 MiB a Windows worker thread has, and `everyReferenceHeldInStateIsClassified` overflowed it there. Neither held a class the other demos do not (the set of types is the same
-/// with and without them). `theCensusDemosLayOutBelowOneMebibyte` keeps the rest below 1 MiB.
+/// The census lays out every demo, the controls and looks demos too: their first frame needed 1.54 MB and 1.18 MB of stack in a debug build on macOS arm64
+/// (`StackMeter`), over the 1 MiB a Windows worker thread has, and `everyReferenceHeldInStateIsClassified` overflowed it there (record 419); it needs 0.85 MB and
+/// 0.79 MB since record 427 (`HP-O`), and `theCensusDemosLayOutBelowOneMebibyte` holds every demo below 1 MiB.
 /// Every class type held in a state entry, across the demo windows, is `AttemptRestorable` (it journals its own writes) or classified as a cache
 /// or immutable (`RK-AJ`). A class the census finds that is neither fails here by name and entry path; verify mode traps on it
 /// (`StateTable.verifyReferencesAreClassified`). Adding a class to an entry owes a conformance or a row in `StateTable.classifiedReferences`.
@@ -587,6 +587,7 @@ func everyReferenceHeldInStateIsClassified() async throws {
         ("outline", { try await xrCensus { outlineDemoContent() } }), ("codeView", { try await xrCensus { codeViewDemoContent() } }),
         ("markdown", { try await xrCensus { markdownDemoContent() } }), ("richText", { try await xrCensus { richTextDemoContent() } }),
         ("selection", { if #available(macOS 15, *) { return try await xrCensus { selectionDemoContent() } } else { return [:] } }), ("textSelection", { if #available(macOS 15, *) { return try await xrCensus { textSelectionDemoContent() } } else { return [:] } }),
+        ("controls", { try await xrCensus { controlsDemoContent() } }), ("looks", { try await xrCensus { looksDemoContent() } }),
         ("menus", { try await xrCensus { menusDemoContent() } }), ("overlays", { try await xrCensus { overlaysDemoContent() } }),
         ("appShell", { try await xrCensus { appShellDemoContent() } }), ("chrome", { try await xrCensus { chromeDemoContent() } }),
         ("glass", { try await xrCensus { liquidGlassDemoContent() } }),
@@ -744,14 +745,17 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
 }
 
 /// Every demo the census lays out stays below 1 MiB of main-thread stack for its first frame in a debug build (`StackMeter`, a no-op in release): a Windows worker thread
-/// has 1 MiB, and the census overflowed it on the controls demo (1.54 MB on macOS arm64, master's figure within 150 bytes of this branch's). The largest left is the menus demo at about 0.89 MB.
-/// Mutation: the controls demo added to the list reads 1.54 MB and fails.
+/// has 1 MiB, and the census overflowed it on the controls demo (1.54 MB on macOS arm64; the looks demo read 1.18 MB, the menus demo 0.89 MB). Since record 427
+/// (`HP-O`) the controls demo reads 0.85 MB, the looks demo 0.79 MB and the menus demo 0.70 MB. Mutations, read on macOS arm64: the controls demo's column and vocabulary section
+/// held inline again (`ControlsDemo.content` as before) reads 1 445 184 bytes and the looks demo's lifecycle row inline again 1 007 152, so the controls demo fails the 1 MiB and
+/// both fail the 900 000; `Stepper`'s chain of delegating initialisers as before reads 907 984 on the controls demo, over the 900 000.
 @Test @MainActor func theCensusDemosLayOutBelowOneMebibyte() throws {
     var measured = [try xrMeasuredDemo("demo") { demoContent() }, try xrMeasuredDemo("textInput") { textInputDemoContent() },
                     try xrMeasuredDemo("table") { tableDemoContent() }, try xrMeasuredDemo("lazy") { lazyContainersDemoContent() },
                     try xrMeasuredDemo("variableList") { variableListDemoContent() }, try xrMeasuredDemo("outline") { outlineDemoContent() },
                     try xrMeasuredDemo("codeView") { codeViewDemoContent() }, try xrMeasuredDemo("markdown") { markdownDemoContent() },
                     try xrMeasuredDemo("richText") { richTextDemoContent() }, try xrMeasuredDemo("menus") { menusDemoContent() },
+                    try xrMeasuredDemo("controls") { controlsDemoContent() }, try xrMeasuredDemo("looks") { looksDemoContent() },
                     try xrMeasuredDemo("overlays") { overlaysDemoContent() }, try xrMeasuredDemo("appShell") { appShellDemoContent() },
                     try xrMeasuredDemo("chrome") { chromeDemoContent() }, try xrMeasuredDemo("glass") { liquidGlassDemoContent() }]
     measured += [try xrMeasuredDemo("canvas") { canvasDemoContent() }, try xrMeasuredDemo("dragAndDrop") { dragAndDropDemoContent() },
@@ -760,4 +764,10 @@ private struct G49LazyRow2: Component, @MainActor Equatable {
                  try xrMeasuredDemo("clipboard") { clipboardDemoContent() }, try xrMeasuredDemo("tabs") { tabStripDemoContent() },
                  try xrMeasuredDemo("accessibility") { accessibilityDisplayDemoContent() }]
     for (name, bytes) in measured { #expect(bytes < 1024 * 1024, "\(name): \(bytes) bytes of stack for its first frame") }
+    #if os(macOS)
+    // The two deepest demos keep their headroom under the 1 MiB (macOS arm64's frames; the other platforms' are pinned by the 1 MiB above).
+    for (name, bytes) in measured where name == "controls" || name == "looks" {
+        #expect(bytes < 900_000, "\(name): \(bytes) bytes of stack for its first frame")
+    }
+    #endif
 }
