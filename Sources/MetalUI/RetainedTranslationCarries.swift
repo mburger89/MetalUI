@@ -46,8 +46,7 @@ extension Frame {
         for note in notes {
             guard note.chain.steps.count == base else { return .refused("geometryUnderEffect") }
             let o = note.moved.origin
-            guard isExactSixteenth(o.x.value), isExactSixteenth(o.y.value),
-                  isExactSixteenth(o.x.value + dx), isExactSixteenth(o.y.value + dy) else { return .refused("inexactTranslation") }
+            guard exactShift(o.x.value, by: dx), exactShift(o.y.value, by: dy) else { return .refused("inexactTranslation") }
             let moved = Bounds(origin: Point(x: Pixels(o.x.value + dx), y: Pixels(o.y.value + dy)), size: note.moved.size)
             var spaces = note.namedSpaces
             for index in spaces.indices {
@@ -121,8 +120,8 @@ extension Frame {
         }
         func exactly(_ b: Bounds<Pixels>) -> Bounds<Pixels>? {
             let x = b.origin.x.value, y = b.origin.y.value
-            guard isExactSixteenth(x), isExactSixteenth(y), isExactSixteenth(x + dx), isExactSixteenth(y + dy) else { return nil }
-            return Bounds(origin: Point(x: Pixels(x + dx), y: Pixels(y + dy)), size: b.size)
+            guard exactShift(x, by: dx), exactShift(y, by: dy) else { return nil }
+            return Bounds(origin: Point(x: Pixels(shifted(x, by: dx)), y: Pixels(shifted(y, by: dy))), size: b.size)
         }
         var result = AXTranslation(emissions: ledger.axEmissions, nodes: ledger.axNodes)
         for index in result.emissions.indices {
@@ -224,8 +223,7 @@ extension Frame {
         var elementBounds: [(GlobalElementID, Bounds<Pixels>)] = []
         elementBounds.reserveCapacity(ledger.elementBounds.count)
         for (id, b) in ledger.elementBounds {
-            guard isExactSixteenth(b.origin.x.value), isExactSixteenth(b.origin.y.value),
-                  isExactSixteenth(b.origin.x.value + ex), isExactSixteenth(b.origin.y.value + ey)
+            guard exactShift(b.origin.x.value, by: ex), exactShift(b.origin.y.value, by: ey)
             else { return .refused("inexactTranslation") }
             elementBounds.append((id, Bounds(origin: Point(x: Pixels(b.origin.x.value + ex), y: Pixels(b.origin.y.value + ey)),
                                              size: b.size)))
@@ -244,8 +242,8 @@ extension Frame {
         let base = ledger.key.extras.effects.count
         func exactly(_ b: Bounds<Pixels>) -> Bounds<Pixels>? {
             let x = b.origin.x.value, y = b.origin.y.value
-            guard isExactSixteenth(x), isExactSixteenth(y), isExactSixteenth(x + dx), isExactSixteenth(y + dy) else { return nil }
-            return Bounds(origin: Point(x: Pixels(x + dx), y: Pixels(y + dy)), size: b.size)
+            guard exactShift(x, by: dx), exactShift(y, by: dy) else { return nil }
+            return Bounds(origin: Point(x: Pixels(shifted(x, by: dx)), y: Pixels(shifted(y, by: dy))), size: b.size)
         }
         let copy = ledger.rebased(to: ledger.key, LedgerTranslation(hitboxes: ledger.hitboxes, elementBounds: ledger.elementBounds,
                                                                       accessibility: nil, geometry: nil))
@@ -291,8 +289,7 @@ extension Frame {
             guard note.chain.steps.count == base else { return .refused("effectAndLayoutInner") }
             guard note.namedSpaces.isEmpty else { return .refused("geometryNamedSpace") }
             let o = note.moved.origin
-            guard isExactSixteenth(o.x.value), isExactSixteenth(o.y.value),
-                  isExactSixteenth(o.x.value + dx), isExactSixteenth(o.y.value + dy) else { return .refused("inexactTranslation") }
+            guard exactShift(o.x.value, by: dx), exactShift(o.y.value, by: dy) else { return .refused("inexactTranslation") }
             let moved = Bounds(origin: Point(x: Pixels(o.x.value + dx), y: Pixels(o.y.value + dy)), size: note.moved.size)
             out.append(remade(note, moved: moved, composed: ambient.composed, namedSpaces: []))
         }
