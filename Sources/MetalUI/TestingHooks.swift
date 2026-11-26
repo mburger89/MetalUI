@@ -234,6 +234,8 @@ extension Window {
     /// The `@State` entries with their versions and liveness, sorted: compared across two windows by the graft's
     /// sweep differential (`RK-F`).
     package var testingStateEntries: [String] { stateTable.entryDigest }
+    /// The paint records the window holds, for a test of what a record stores (`FS-V`).
+    func testingRetainedRecords() -> [RetainedRecord] { stateTable.contentMemos.records }
     /// How many failed occurrences are quarantined with what is under them (`RK-AN`).
     package var testingQuarantinedScopes: Int { stateTable.contentMemos.quarantinedScopes.count }
     /// Whether a redo suspends prepaint replay window-wide for the next nine builds (`RK-D` item 3). Off: the redo's quarantine of the failing entry

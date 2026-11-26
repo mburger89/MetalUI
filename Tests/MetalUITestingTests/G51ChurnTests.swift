@@ -50,8 +50,8 @@ func aStreamedFrameOfAScopedTranscriptStaysUnderItsCeilings() async throws {
 }
 
 /// The redo frame and the one after it reserve what master's did (record 417): the abandoned attempt's storage is not dropped and reserved again
-/// beyond the one capture scope reserve the redo has always repeated. Profiled per frame: the frame that redoes makes at most 16 requests of 128 KiB or
-/// more (6 for a quiet streamed frame, master 16), the frame after it at most 15 (master 9: the six translated records, above). Mutation: a second
+/// beyond the one capture scope reserve the redo has always repeated. Profiled per frame: the frame that redoes makes at most 13 requests of 128 KiB or
+/// more (6 for a quiet streamed frame, master 16, 12 measured since record 424), the frame after it at most 7 (master 9, 6 measured: the six translated records are moved in place, `FS-V`). Mutation: a second
 /// scene reserve in the redo (the first number), the redo's fresh frame reserving from no hint (the second).
 @Test(.enabled(if: !rsVerifying, g51Verifying)) @MainActor
 func aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid() async throws {
@@ -67,8 +67,8 @@ func aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid() async throws {
         perFrame.append((p.large, w.lastFrameWork.retainedRedos))
     }
     let redone = try #require(perFrame.firstIndex { $0.redos > 0 }, "the fixture redoes: \(perFrame)")
-    #expect(perFrame[redone].large <= 16, "the redo frame: \(perFrame[redone].large) large requests, \(perFrame)")
-    #expect(perFrame[redone + 1].large <= 15, "the frame after the redo: \(perFrame[redone + 1].large)")
+    #expect(perFrame[redone].large <= 13, "the redo frame: \(perFrame[redone].large) large requests, \(perFrame)")
+    #expect(perFrame[redone + 1].large <= 7, "the frame after the redo: \(perFrame[redone + 1].large)")
     #expect(perFrame.enumerated().allSatisfy { $0.offset == redone || $0.offset == redone + 1 || $0.element.large <= 7 }, "a quiet streamed frame: \(perFrame)")
     #endif
 }
@@ -97,14 +97,16 @@ func aLongerTranscriptCostsTheSameStreamedFrame() async throws {
 // Measured on this fixture in a debug build (`--build-system native`), 12 streamed frames of 40 rows: 20.13 MB, 172342 allocations,
 // 7.08 requests of 128 KiB or more (6.85 MB) a frame; on the tree before record 420 (bytes and large requests, measured by the probe
 // at 20 and 100 rows) 39 and 44 MB, 28 and 30 large requests. The ceilings sit about 2.5 % over.
-private let g51ByteCeiling = 20_650_000.0
+private let g51ByteCeiling = 20_400_000.0   // 19.89 MB measured (record 424; master 20.52 MB)
 // 7.4 plus 0.5 (record 417 on #434): the frame after the profile's one redo translates the six moved rows' paint records again, `Frame.movedOps`,
 // six requests of 239 392 bytes in 12 frames. Master's redo ran its layout over the attempt's own scroll writes, so its rows were already where
 // the anchor put them and the next frame moved nothing; the rollback makes the redo a fresh frame, which applies the anchor's adjustment one
 // frame later, as every non-redo wrap frame does. The copy is the translation's own (a record's ops are rebuilt at the new offset), not storage the
 // abandoned attempt dropped: the redo frame itself costs the 16 master's does (`aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid`).
-private let g51LargeCeiling = 7.9
+// Record 424 (`FS-V`): 6.5 measured, 6.8 ceiling, down from 7.9 (master reads 7.58). The six translated records of the frame after the redo are no longer
+// copied: the move is made in place in the paint decision (`applyPaintTranslation`), and prepaint's check of an abandoned attempt builds nothing.
+private let g51LargeCeiling = 6.8
 // Record 422 (`HP-N`): the scene's arrays reserve a size class, up to an eighth over, so the large bytes read 7.07 MB (the bytes are
 // not the lever there, the sizes are: `G52StreamingCapacityTests`).
 private let g51LargeByteCeiling = 7_250_000.0
-private let g51AllocationCeiling = 176_500.0
+private let g51AllocationCeiling = 165_100.0   // 161 081 measured (record 424; master 172 977, the ceiling was 176 500)

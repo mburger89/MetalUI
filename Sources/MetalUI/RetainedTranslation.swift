@@ -29,14 +29,14 @@ enum TranslationOutcome<Value> {
     case refused(String)
 }
 
-/// A paint record moved to the position the occurrence stands at now.
+/// A paint record's move to the position the occurrence stands at now, **checked and not yet made** (`FS-V`): the device pixels the leaves move by and the
+/// fold of the clips the record pushed. Prepaint asks whether the record can move (a refusal there asks for a redo) and builds nothing; the paint decision
+/// that takes the hit makes the move in place (`applyPaintTranslation`), so an abandoned attempt copies nothing.
 struct PaintTranslation {
-    /// The device pixels the leaves moved by.
+    /// The device pixels the leaves move by.
     var dx: Float, dy: Float
-    var scene: [RetainLog.SceneOp]
-    /// The record's final stream moved too, when no paint scope is open around the occurrence (its leaves are then the
-    /// final primitives); `nil` otherwise.
-    var finalScene: [RetainLog.SceneOp]?
+    var entryDepth: Int
+    var fold: MaskFold?
 }
 
 /// A prepaint ledger moved to the position the occurrence stands at now.
@@ -184,12 +184,67 @@ extension PrepaintKey {
 
 // MARK: - Moving a paint record
 
+/// A clip a record pushed, folded at one position: the mask and the mask's corner radii a leaf read under it carries, in device pixels.
+struct FoldedClip {
+    var mask: MUIBounds
+    var radii: MUICorners
+}
+
+/// The clips of a record folded where it stood and where it moves (`FS-V`), and the walk a leaf takes to the clip it read.
+struct MaskFold {
+    let clips: [InnerClip]
+    let old: [FoldedClip]
+    let new: [FoldedClip]
+
+    /// The clip at `depth` on the chain of `push` (itself or the clips it was pushed inside), or `nil`.
+    func ancestor(of push: Int, at depth: Int) -> Int? {
+        var index = push
+        while index >= 0 {
+            let at = Int(clips[index].depth)
+            if at == depth { return index }
+            if at < depth { return nil }
+            index = Int(clips[index].parent)
+        }
+        return nil
+    }
+}
+
 extension Frame {
-    /// `old`'s leaves moved to the position `key` stands at (`FS-D`, `FS-M`), or the name of the gate that refused. `entryClip` and
-    /// `entryDepth` are the ambient clip (points) and clip depth of the key: a primitive whose mask was read at the entry depth
-    /// carries the entry clip, equal by the key, and is left alone; one read deeper carries a clip derived inside the occurrence,
-    /// which moves with it only if it lies strictly inside the entry clip before and after (a mask that touches the entry's edge
-    /// may have been cut by it, and the cut of a moved mask is not the moved cut: `maskStraddlesEntryClip`).
+    /// The clips `clips` pushed, folded again from the clip in force at the entry (`entryClip`, `entryRadii`, `entryOffset`) with the
+    /// first top node's layout origin at `origin`: `pushClip`'s own arithmetic (`Frame.pushedClip`), one push after another. Also
+    /// whether the cut of a clip that holds leaves is not the one it was recorded with (`crossingChanged`, `FS-V`).
+    static func foldedClips(_ clips: [InnerClip], entryClip: Bounds<Pixels>, entryRadii: Corners<Pixels>, entryOffset: Point<Pixels>,
+                            origin: (x: Float, y: Float), scale: Float)
+        -> (folded: [FoldedClip], crossingChanged: Bool, crossed: Bool) {
+        var states: [(clip: Bounds<Pixels>, radii: Corners<Pixels>, offset: Point<Pixels>)] = []
+        states.reserveCapacity(clips.count)
+        var folded: [FoldedClip] = []
+        folded.reserveCapacity(clips.count)
+        var changed = false, crossed = false
+        for clip in clips {
+            let parent: (clip: Bounds<Pixels>, radii: Corners<Pixels>, offset: Point<Pixels>) =
+                clip.parent >= 0 ? states[Int(clip.parent)] : (entryClip, entryRadii, entryOffset)
+            let bounds = Bounds(origin: Point(x: Pixels(clip.x + origin.x), y: Pixels(clip.y + origin.y)),
+                                size: Size(width: Pixels(clip.width), height: Pixels(clip.height)))
+            let radii = Corners(topLeft: Pixels(clip.topLeft), topRight: Pixels(clip.topRight),
+                                bottomRight: Pixels(clip.bottomRight), bottomLeft: Pixels(clip.bottomLeft))
+            let pushed = pushedClip(bounds, offset: Point(x: Pixels(clip.offsetX), y: Pixels(clip.offsetY)), radii: radii,
+                                    activeClip: parent.clip, activeRadii: parent.radii, activeOffset: parent.offset,
+                                    atFlatteningEntry: clip.atFlatteningEntry)
+            if clip.lo < clip.hi {
+                if pushed.crosses != clip.crosses { changed = true } else if clip.crosses { crossed = true }
+            }
+            states.append((pushed.clip, pushed.radii, pushed.offset))
+            folded.append(FoldedClip(mask: MUIBounds(pushed.clip.scaled(by: scale)), radii: MUICorners(pushed.radii.scaled(by: scale))))
+        }
+        return (folded, changed, crossed)
+    }
+
+    /// `old`'s leaves moved to the position `key` stands at (`FS-D`, `FS-M`), or the name of the gate that refused. `entryDepth` is the
+    /// clip depth of the key and its ambient clip the clip in force at the entry: a primitive whose mask was read at the entry depth
+    /// carries the entry clip, equal by the key, and is left alone; one read deeper carries a clip derived inside the occurrence, which
+    /// is **folded again** from the clips the record pushed (`FS-V`): the cut of a moved mask is not the moved cut, so the mask and
+    /// its radii are what a fresh paint computes at the new position, by `pushClip`'s own arithmetic.
     func movedPaintRecord(_ old: RetainedRecord, to key: ReplayKey) -> TranslationOutcome<PaintTranslation> {
         let s = scaleFactor
         guard key.rects.count >= 2, old.key.rects.count >= 2, key.ambient.offset.count == 2,
@@ -204,72 +259,139 @@ extension Frame {
         else { return .refused("inexactTranslation") }
         if old.innerScopes { return .refused("innerScope") }
         guard key.ambient.clip.count >= 4, !key.ambient.depths.isEmpty else { return .refused("unkeyedClip") }
-        let clip = key.ambient.clip
-        let entry = MUIBounds(origin: MUIPoint(x: clip[0] * s, y: clip[1] * s),
-                              size: MUISize(width: clip[2] * s, height: clip[3] * s))
         let entryDepth = key.ambient.depths[0]
-        switch Self.movedOps(old.scene, dx: dx, dy: dy, entryDepth: entryDepth, entry: entry) {
-        case .refused(let reason): return .refused(reason)
-        case .moved(let ops):
-            var final: [RetainLog.SceneOp]?
-            if let stream = old.finalScene, key.ambient.scopes.isEmpty {
-                if old.finalIsScene {
-                    final = ops   // the same ops as the scene: moved once (`SB-AG`)
-                } else if case .moved(let movedStream) = Self.movedOps(stream, dx: dx, dy: dy, entryDepth: entryDepth, entry: entry) {
-                    final = movedStream
-                }
+        var fold: MaskFold?
+        if let clips = old.innerClips {
+            switch foldedRecord(old, clips: clips, to: key, scale: s) {
+            case .refused(let reason): return .refused(reason)
+            case .moved(let folded): fold = folded
             }
-            return .moved(PaintTranslation(dx: dx, dy: dy, scene: ops, finalScene: final))
         }
+        let translation = PaintTranslation(dx: dx, dy: dy, entryDepth: entryDepth, fold: fold)
+        if let reason = Self.moveOps(old, mode: .check, translation).reason { return .refused(reason) }
+        return .moved(translation)
     }
 
-    private static func movedOps(_ source: [RetainLog.SceneOp], dx: Float, dy: Float, entryDepth: Int,
-                                 entry: MUIBounds) -> TranslationOutcome<[RetainLog.SceneOp]> {
-        var ops: [RetainLog.SceneOp] = []
-        ops.reserveCapacity(source.count)
-        for op in source {
+    /// The move made, **in place**: the record's leaves, key and final stream are what a fresh paint at `key` makes. The record is the only holder of its
+    /// scene (the final stream, which shares it, is let go first and taken again after), so the arrays are written through and nothing is copied.
+    /// Only after `movedPaintRecord` answered `.moved` for the same record and key.
+    func applyPaintTranslation(_ translation: PaintTranslation, to old: RetainedRecord, key: ReplayKey) {
+        let shared = old.finalIsScene
+        if shared { old.finalScene = nil }
+        _ = Self.moveOps(old, mode: .inPlace, translation)
+        old.key = key
+        // The final stream moved only where this key holds no outer scope: `movedPaintRecord` may have answered a prepaint's key (its ambient never holds the
+        // paint scopes), and a stream moved by the delta alone is the final stream of no effect that scales (`EL-L`).
+        old.finalScene = shared && key.ambient.scopes.isEmpty ? old.scene : nil
+        old.finalIsScene = old.finalScene != nil
+    }
+
+    /// The leaves of `old` as moved, in a new array, for verify mode (the record it compares against stays as it is).
+    func copiedPaintTranslation(_ translation: PaintTranslation, of old: RetainedRecord) -> [RetainLog.SceneOp] {
+        Self.moveOps(old, mode: .copy, translation).ops
+    }
+
+    /// The fold of the clips `old` pushed, at the position it was made and at `key`'s (`FS-V`), or the refusal. The entry clip is
+    /// equal by the key (a layout move or a scroll changes neither the viewport nor its rounding); the layout origins and every
+    /// recorded bound are multiples of 1/16, so the origin added back is the layout a fresh frame computes (`FS-D`).
+    private func foldedRecord(_ old: RetainedRecord, clips: [InnerClip], to key: ReplayKey, scale s: Float)
+        -> TranslationOutcome<MaskFold> {
+        guard old.key.ambient.clip == key.ambient.clip else { return .refused("entryClipChanged") }
+        guard isExactSixteenth(key.rects[0]), isExactSixteenth(key.rects[1]),
+              isExactSixteenth(old.key.rects[0]), isExactSixteenth(old.key.rects[1]) else { return .refused("inexactTranslation") }
+        for clip in clips {
+            if clip.isRoot { return .refused("rootClip") }
+            guard !clip.isInexact, isExactSixteenth(clip.x), isExactSixteenth(clip.y) else { return .refused("inexactTranslation") }
+        }
+        let c = key.ambient.clip
+        let entryClip = Bounds(origin: Point(x: Pixels(c[0]), y: Pixels(c[1])), size: Size(width: Pixels(c[2]), height: Pixels(c[3])))
+        let entryRadii = c.count >= 8
+            ? Corners(topLeft: Pixels(c[4]), topRight: Pixels(c[5]), bottomRight: Pixels(c[6]), bottomLeft: Pixels(c[7]))
+            : Corners(all: Pixels(0))
+        let entryOffset = Point(x: Pixels(key.ambient.offset[0]), y: Pixels(key.ambient.offset[1]))
+        let oldOffset = Point(x: Pixels(old.key.ambient.offset[0]), y: Pixels(old.key.ambient.offset[1]))
+        let was = Self.foldedClips(clips, entryClip: entryClip, entryRadii: entryRadii, entryOffset: oldOffset,
+                                   origin: (old.key.rects[0], old.key.rects[1]), scale: s)
+        let now = Self.foldedClips(clips, entryClip: entryClip, entryRadii: entryRadii, entryOffset: entryOffset,
+                                   origin: (key.rects[0], key.rects[1]), scale: s)
+        if now.crossingChanged { return .refused("maskCrossingChanged") }
+        if now.crossed { return .refused("maskCrossed") }
+        return .moved(MaskFold(clips: clips, old: was.folded, new: now.folded))
+    }
+
+    private enum MoveMode { case check, inPlace, copy }
+
+    /// Walks the record's leaves once: `check` only reads (what a refusal needs), `inPlace` writes each moved leaf over its old one, `copy` builds the moved
+    /// ops in a new array. The record's arrays are reached by index and never held, so an in-place write meets a unique buffer.
+    private static func moveOps(_ old: RetainedRecord, mode: MoveMode, _ move: PaintTranslation) -> (reason: String?, ops: [RetainLog.SceneOp]) {
+        let count = old.scene.count
+        var copied: [RetainLog.SceneOp] = []
+        if mode == .copy { copied.reserveCapacity(count) }
+        let fold = move.fold
+        // The innermost clip pushed that is open at each op, found by walking the clips' ranges as the ops go by (`FS-V`).
+        var current = -1, next = 0
+        for index in 0..<count {
+            if let fold {
+                while current >= 0, Int(fold.clips[current].hi) <= index { current = Int(fold.clips[current].parent) }
+                while next < fold.clips.count, Int(fold.clips[next].lo) <= index {
+                    if Int(fold.clips[next].hi) > index { current = next }
+                    next += 1
+                }
+            }
+            let opDepth = old.scene[index].depth
+            let groups = old.scene[index].leaves.count
             var leaves: [([CapturedPrimitive], [Int]?)] = []
-            leaves.reserveCapacity(op.leaves.count)
-            for (group, depths) in op.leaves {
-                var moved: [CapturedPrimitive] = []
-                moved.reserveCapacity(group.count)
-                for index in group.indices {
-                    switch movedLeaf(group[index], dx: dx, dy: dy, emittedAt: depths?[index] ?? op.depth,
-                                     entryDepth: entryDepth, entry: entry) {
-                    case .moved(let primitive): moved.append(primitive)
-                    case .refused(let reason): return .refused(reason)
+            if mode == .copy { leaves.reserveCapacity(groups) }
+            for group in 0..<groups {
+                let size = old.scene[index].leaves[group].0.count
+                var movedGroup: [CapturedPrimitive] = []
+                if mode == .copy { movedGroup.reserveCapacity(size) }
+                for member in 0..<size {
+                    let primitive = old.scene[index].leaves[group].0[member]
+                    let emitted = old.scene[index].leaves[group].1?[member] ?? opDepth
+                    switch movedLeaf(primitive, dx: move.dx, dy: move.dy, emittedAt: emitted,
+                                     entryDepth: move.entryDepth, fold: fold, push: current) {
+                    case .refused(let reason): return (reason, [])
+                    case .moved(let leaf):
+                        switch mode {
+                        case .check: break
+                        case .inPlace: old.scene[index].leaves[group].0[member] = leaf
+                        case .copy: movedGroup.append(leaf)
+                        }
                     }
                 }
-                leaves.append((moved, depths))
+                if mode == .copy { leaves.append((movedGroup, old.scene[index].leaves[group].1)) }
             }
-            ops.append(RetainLog.SceneOp(boundary: op.boundary, leaves: leaves, depth: op.depth))
+            if mode == .copy { copied.append(RetainLog.SceneOp(boundary: old.scene[index].boundary, leaves: leaves, depth: opDepth)) }
         }
-        return .moved(ops)
+        return (nil, copied)
     }
 
-    private static func strictlyInside(_ m: MUIBounds, _ e: MUIBounds) -> Bool {
-        m.origin.x > e.origin.x && m.origin.y > e.origin.y
-            && m.origin.x + m.size.width < e.origin.x + e.size.width
-            && m.origin.y + m.size.height < e.origin.y + e.size.height
+    /// Whether a recorded mask and radii are exactly what the clip was folded to where the record stood.
+    private static func same(_ clip: FoldedClip, _ mask: MUIBounds, _ radii: MUICorners) -> Bool {
+        clip.mask.origin.x == mask.origin.x && clip.mask.origin.y == mask.origin.y
+            && clip.mask.size.width == mask.size.width && clip.mask.size.height == mask.size.height
+            && clip.radii.topLeft == radii.topLeft && clip.radii.topRight == radii.topRight
+            && clip.radii.bottomRight == radii.bottomRight && clip.radii.bottomLeft == radii.bottomLeft
     }
 
     /// One leaf moved by (`dx`, `dy`) device pixels, or the gate that refused. The allow-list is a rect, a glyph and an image
     /// (`FS-E`); every other kind refuses by its name.
     private static func movedLeaf(_ primitive: CapturedPrimitive, dx: Float, dy: Float, emittedAt depth: Int,
-                                  entryDepth: Int, entry: MUIBounds) -> TranslationOutcome<CapturedPrimitive> {
+                                  entryDepth: Int, fold: MaskFold?, push: Int) -> TranslationOutcome<CapturedPrimitive> {
         guard primitive.transform == nil else { return .refused("transformedPrimitive") }
         func exactMove(_ p: MUIPoint) -> MUIPoint? {
             let x = p.x + dx, y = p.y + dy
             guard isExactSixteenth(p.x), isExactSixteenth(p.y), isExactSixteenth(x), isExactSixteenth(y) else { return nil }
             return MUIPoint(x: x, y: y)
         }
-        /// The primitive's mask after the move: unchanged for the entry clip, moved for one derived inside.
-        func movedMask(_ mask: MUIBounds) -> TranslationOutcome<MUIBounds> {
-            guard depth > entryDepth else { return .moved(mask) }
-            guard strictlyInside(mask, entry) else { return .refused("maskStraddlesEntryClip") }
-            guard let origin = exactMove(mask.origin) else { return .refused("inexactTranslation") }
-            let moved = MUIBounds(origin: origin, size: mask.size)
-            return strictlyInside(moved, entry) ? .moved(moved) : .refused("maskStraddlesEntryClip")
+        /// The primitive's mask and its corner radii after the move: unchanged for the entry clip, the clip it was read under folded
+        /// again at the new position for one derived inside (`FS-V`), once the fold at the old position gives what was recorded.
+        func movedMask(_ mask: MUIBounds, _ radii: MUICorners) -> TranslationOutcome<(MUIBounds, MUICorners)> {
+            guard depth > entryDepth else { return .moved((mask, radii)) }
+            guard let fold, let clip = fold.ancestor(of: push, at: depth) else { return .refused("maskUnmapped") }
+            guard same(fold.old[clip], mask, radii) else { return .refused("maskNotFolded") }
+            return .moved((fold.new[clip].mask, fold.new[clip].radii))
         }
         var out = primitive
         for k in out.groups.indices where out.groups[k].isMasked {
@@ -284,7 +406,7 @@ extension Frame {
                 }
                 switch movedLeaf(out.groups[k].mask[m], dx: dx, dy: dy,
                                  emittedAt: unbounded ? entryDepth : out.groups[k].maskDepth,
-                                 entryDepth: entryDepth, entry: entry) {
+                                 entryDepth: entryDepth, fold: fold, push: push) {
                 case .moved(let mask): out.groups[k].mask[m] = mask
                 case .refused(let reason): return .refused(reason)
                 }
@@ -293,24 +415,24 @@ extension Frame {
         switch primitive.kind {
         case .rect(var r):
             guard let origin = exactMove(r.bounds.origin) else { return .refused("inexactTranslation") }
-            switch movedMask(r.contentMask) {
-            case .moved(let mask): r.contentMask = mask
+            switch movedMask(r.contentMask, r.maskCornerRadii) {
+            case .moved(let (mask, radii)): r.contentMask = mask; r.maskCornerRadii = radii
             case .refused(let reason): return .refused(reason)
             }
             r.bounds.origin = origin
             out.kind = .rect(r)
         case .glyph(var g):
             guard let origin = exactMove(g.bounds.origin) else { return .refused("inexactTranslation") }
-            switch movedMask(g.contentMask) {
-            case .moved(let mask): g.contentMask = mask
+            switch movedMask(g.contentMask, g.maskCornerRadii) {
+            case .moved(let (mask, radii)): g.contentMask = mask; g.maskCornerRadii = radii
             case .refused(let reason): return .refused(reason)
             }
             g.bounds.origin = origin
             out.kind = .glyph(g)
         case .image(var i, let texture):
             guard let origin = exactMove(i.bounds.origin) else { return .refused("inexactTranslation") }
-            switch movedMask(i.contentMask) {
-            case .moved(let mask): i.contentMask = mask
+            switch movedMask(i.contentMask, i.maskCornerRadii) {
+            case .moved(let (mask, radii)): i.contentMask = mask; i.maskCornerRadii = radii
             case .refused(let reason): return .refused(reason)
             }
             i.bounds.origin = origin

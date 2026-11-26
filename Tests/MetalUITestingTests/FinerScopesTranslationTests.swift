@@ -178,7 +178,7 @@ func aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale(arm: RPScaleArm) async
         pair.redraw()   // the settle frame
         try pair.compare("step \(index) settled")
     }
-    let allowed: Set<String> = ["accessibilityUnderEffect", "accessibilityClipped", "pressOnly", "geometryUnderEffect", "geometryNamedSpace", "contextMenus", "inexactTranslation", "fractionalTranslation", "hitboxClipped", "maskStraddlesEntryClip",
+    let allowed: Set<String> = ["accessibilityUnderEffect", "accessibilityClipped", "pressOnly", "geometryUnderEffect", "geometryNamedSpace", "contextMenus", "inexactTranslation", "fractionalTranslation", "hitboxClipped", "maskCrossingChanged", "maskCrossed",
                            "innerScope"]   // a rounded card straddling the scroller's edge is a masked crossing group (`CM-B`): an inner mask scope
     // Under `METALUI_VERIFY_RETAINED=1` the differential still runs (every hit is also compared with a fresh run), but a hit is
     // painted as a miss, so the counts are not its to read.
@@ -356,14 +356,13 @@ func aShiftThatAlsoResizesTheOccurrenceMisses() async throws {
 // MARK: every refusal has a name (2.7)
 
 enum FSRefusal: CaseIterable, CustomStringConvertible {
-    case gradient, path, backdrop, innerScope, maskStraddle
+    case gradient, path, backdrop, innerScope
     var description: String {
         switch self {
         case .gradient: "gradient"
         case .path: "path"
         case .backdrop: "backdrop"
         case .innerScope: "innerScope"
-        case .maskStraddle: "maskStraddle"
         }
     }
     var reason: String {
@@ -372,7 +371,6 @@ enum FSRefusal: CaseIterable, CustomStringConvertible {
         case .path: "unlistedKind:path"
         case .backdrop: "unlistedKind:backdrop"
         case .innerScope: "innerScope"
-        case .maskStraddle: "maskStraddlesEntryClip"
         }
     }
 }
@@ -403,8 +401,6 @@ private struct FSRefusalCard: Component, @MainActor Equatable {
             Color.clear.frame(width: Pixels(60), height: Pixels(20)).background(.regularMaterial)
         case .innerScope:
             Color.red.frame(width: Pixels(60), height: Pixels(20)).offset(x: Pixels(2), y: Pixels(1))
-        case .maskStraddle:
-            Text("card \(index)").frame(width: Pixels(60), height: Pixels(20))
         }
     }
 }
@@ -413,25 +409,16 @@ private struct FSRefusalRoot: Component {
     let side: RPSide
     let kind: FSRefusal
     var content: some ElementGroup {
-        if kind == .maskStraddle {
-            ScrollView(.vertical) {
-                VStack(spacing: 2) {
-                    ForEach(Array(0..<6), id: \.self) { k in RPCard(title: "c\(k)", shade: k, log: side.log).equatable() }
-                }
-            }
-            .frame(width: Pixels(300), height: Pixels(150))
-        } else {
-            VStack(spacing: 2) {
-                Box().frame(height: Pixels(10 + side.inputs.offset))
-                ForEach(Array(0..<3), id: \.self) { k in FSRefusalCard(kind: kind, index: k).equatable() }
-            }
+        VStack(spacing: 2) {
+            Box().frame(height: Pixels(10 + side.inputs.offset))
+            ForEach(Array(0..<3), id: \.self) { k in FSRefusalCard(kind: kind, index: k).equatable() }
         }
     }
 }
 
 /// 2.7 — each thing a translation cannot carry refuses by its own name and the frame still equals a fresh window: a gradient, a
-/// path and a backdrop (kinds off the allow-list), a paint scope opened inside the occurrence, a mask that may have been cut by
-/// the entry clip (a rounded clip at the viewport's edge). Accessibility records no longer refuse a layout shift (`RL-H`); the refusal that remains, a record made under an effect, is pinned by `RetainedTranslationCarryTests` 18. Mutation: the
+/// path and a backdrop (kinds off the allow-list), a paint scope opened inside the occurrence (the mask cut by the entry clip is folded now, `FS-V`:
+/// `MovableRoundedMasksTests`). Accessibility records no longer refuse a layout shift (`RL-H`); the refusal that remains, a record made under an effect, is pinned by `RetainedTranslationCarryTests` 18. Mutation: the
 /// allow-list widened to `true` (the three kind arms stop refusing; the differential differs on the gradient and path).
 @Test(.enabled(if: !rsVerifying, fsTranslationVerifyingNote), arguments: FSRefusal.allCases) @MainActor
 func everyUntranslatableKindRefusesByName(kind: FSRefusal) async throws {
@@ -442,11 +429,7 @@ func everyUntranslatableKindRefusesByName(kind: FSRefusal) async throws {
     var refusals: [String: Int] = [:], translated = 0, redos = 0
     for index in 0..<3 {
         pair.on.resetFrameWork()
-        if kind == .maskStraddle {
-            for w in [pair.on, pair.off] { w.scroll(at: pt(150, 80), byDeltaX: 0, deltaY: -30) }
-        } else {
-            for side in [pair.onSide, pair.offSide] { side.inputs.offset += 4 }
-        }
+        for side in [pair.onSide, pair.offSide] { side.inputs.offset += 4 }
         await rsSettle()
         pair.redraw()
         let f = pair.stepWork
@@ -457,7 +440,7 @@ func everyUntranslatableKindRefusesByName(kind: FSRefusal) async throws {
     // The prepaint is not replayed when the paint record cannot follow, so no frame is redone for it.
     #expect(redos == 0, "no redo: \(redos)")
     #expect(refusals[kind.reason, default: 0] > 0, "\(kind) refuses as \(kind.reason): \(refusals)")
-    if kind != .maskStraddle { #expect(translated == 0, "nothing of a \(kind) occurrence translates: \(translated)") }
+    #expect(translated == 0, "nothing of a \(kind) occurrence translates: \(translated)")
 }
 
 // MARK: a scrolled List (2.4)
