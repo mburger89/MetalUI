@@ -401,6 +401,10 @@ note cannot be moved by a wrong fold. (3) `maskStraddlesEntryClip` is retired. A
 `maskCrossingChanged` (the viewport edge now cuts a row inside a corner zone: under 16 pt of it left, or within 8 pt of its far edge, `CM-J`'s square-box
 fallback and, when a corner is reached, a mask scope, which is `innerScope`); one that crosses in both refuses `maskCrossed`. A root clip (`Deferred`) refuses
 `rootClip`, an entry clip that differs `entryClipChanged`, and every number the fold adds is a multiple of 1/16 (`inexactTranslation`).
+**In place.** The move is checked, not made, where prepaint asks (`PaintTranslation` is `dx`, `dy` and the fold: no arrays), and made **in place** where the paint
+decision takes the hit (`applyPaintTranslation`: the final stream that shares the scene is let go, the leaves are written over their old ones, the stream is
+taken again), so an abandoned attempt copies nothing and a hit copies nothing; verify mode keeps the old record and moves a copy. A record whose scene is also
+held by an outer recording (a replay's `SceneOp`) copies on write, as any Swift array does.
 **Cost.** `MemoryLayout<InnerClip>.stride` = 60 bytes per clip pushed inside a record, nothing for an occurrence that pushes none (the field is `nil`, the
 recorder's arrays stay empty); a recorder allocates its array on its first push, a record copies it once at its end. One `notePop` and one `notePush` per push
 when a recorder is open, a nil check otherwise. A move folds each clip twice (old, new), no allocation beyond the two arrays.

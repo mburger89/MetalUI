@@ -124,7 +124,7 @@ private struct MRPlain: Component, @MainActor Equatable {
 }
 
 /// The transcript fixture of records 416 and 423, streaming 40 words: rows cut by the viewport edge no longer refuse, so the requests a streamed word costs
-/// drop (mean 24.85 on `fix/exact-redo-verify`'s scoped redo, record 423). The redos that remain are the corner-zone crossings (`maskCrossingChanged`).
+/// drop (mean 24.9 on master, record 423 measured 24.85). The redos that remain are the corner-zone crossings (`maskCrossingChanged`).
 @Test(.enabled(if: !rsVerifying, mrVerifyingNote)) @MainActor
 func theStreamingTranscriptRefusesOnlyAtACornerZone() async throws {
     let pair = try ctPair()

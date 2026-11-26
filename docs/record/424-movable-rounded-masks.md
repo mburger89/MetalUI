@@ -19,30 +19,37 @@ Record 416 attributed Alloy's 423 element requests per streamed delta to two ref
 
 ## Numbers
 
-`ChromeTranscriptFixture` (the record 416/423 transcript, 40 streamed words, scale 2; element requests per streamed word, release-independent):
+**Transcript fixture** (`ChromeTranscriptFixture`, 40 streamed words, scale 2, element requests per word; master re-measured in a detached worktree off `ef42c1b9`, release build, three runs, identical counts):
 
-| | mean requests | redos in 40 | refusals |
-|---|---|---|---|
-| master (record 423) | 24.85 | 3 | `maskStraddlesEntryClip` and `innerScope` each step a row is cut |
-| this branch | 15.95 | 1 | `maskCrossingChanged` once (step 29), `innerScope` once (step 36) |
+| | requests / word (40 words) | requests / word (120 words) | redos in 40 / 120 | refusals in 40 |
+|---|---|---|---|---|
+| master `ef42c1b9` | 24.90 | 30.26 | 3 / 18 | `maskStraddlesEntryClip`, `innerScope` |
+| this branch | 15.95 | 19.31 | 3 / 10 | `maskCrossingChanged` once, `innerScope` once |
 
-The refusal that remains is the corner-zone crossing: a row recorded while the viewport edge is inside its corner zone is made inside a mask scope (`paintClipped`'s `CM-B` crossing group), so its record is `innerScope`, and a row that moves into the zone refuses `maskCrossingChanged`. Both come from the same mechanism (an inner clip pushing a mask scope) and are about 16 pt of scroll per row edge; not widened here. `inexactTranslation` is never refused by this fixture.
+The refusals that remain are the corner-zone crossing: a row recorded while the viewport edge is inside its corner zone is made inside a mask scope (`paintClipped`'s `CM-B` crossing group), so its record is `innerScope`, and a row that moves into the zone refuses `maskCrossingChanged`. Same mechanism (an inner clip pushing a mask scope), about 16 pt of scroll per row edge; not widened here. `inexactTranslation` is never refused by this fixture.
 
-`G51ChurnTests` (debug, 12 streamed frames, 40 rows; master -> branch): bytes 20.52 -> 20.20 MB, allocations 172 977 -> 159 760, large requests 7.58 -> 8.0 and large bytes 7.19 -> 7.52 MB. The large requests rise because the rows the edge cuts now move (`Frame.movedOps` copies a 239 392-byte leaf group) where they used to refuse and rebuild; the redo frame translates them in attempt 1 before the abandon (21 against 16). Ceilings: allocations 176 500 -> 163 800 (lowered); large requests 7.9 -> 8.2, large bytes 7.25 -> 7.7 MB, the redo frame's 16 -> 22 (raised, with the reason in the test). A move in place of the copy is the lever for the large requests. `g51LargeCeiling` is not removable: it was never only the redo's.
+**`phys_footprint`** (release, `-enable-testing`, `task_vm_info`, the same probe file in both trees, 120 words after 50, runs interleaved): master 26, 29, 29 MiB at the start and 27, 30, 30 MiB at the end; branch 27, 29, 27 and 28, 30, 28. +1 MiB over the run on both; the 1 MiB resolution and the run-to-run spread (26 to 30) hide any difference: **no measurable delta**. Median step (both windows of the pair): master 1.15, 1.16, 1.23 ms; branch 1.10, 1.07, 1.05 ms.
+
+**`G51ChurnTests`** (debug, 12 streamed frames, 40 rows), master to branch: bytes 20.52 to 19.89 MB, allocations 172 977 to 161 071, large requests 7.58 to 6.5, large bytes 7.19 to 7.16 MB; the redo frame 16 to 12 large requests and the frame after it 9 to 6. G47 churn step 66 133 to 65 352 allocations, redraw 57 789 to 57 812 (the +6 000 the first draft added to the redraw was a `for` loop over the recorders inside `noteBoundary`; indexed loops removed it).
+
+**In place.** The first draft built a new ops array for every moved record (a 239 392-byte leaf group a record: 8.0 large requests, a redo frame of 21) and raised the G51 ceilings. A move is now **checked** where prepaint asks (`PaintTranslation` is `dx`, `dy` and the fold: no arrays, `moveOps(.check)`) and **made in place** where the paint decision takes the hit (`applyPaintTranslation`, `moveOps(.inPlace)`: the final stream that shares the scene is let go, the leaves are written over their old ones, the stream is taken again). An attempt that is abandoned never made a move (prepaint copies nothing; the occurrences that painted before the abandon were made over in place, as before, with no copy); a record whose scene an outer recording also holds copies on write, as any Swift array. Verify mode keeps the old record and moves a copy. The check and the move walk the leaves twice, with no allocation either time.
+
+Ceilings: `g51LargeCeiling` 7.9 to **6.8**, `g51ByteCeiling` 20.65 to **20.4 MB**, `g51AllocationCeiling` 176 500 to **165 100**, `g51LargeByteCeiling` 7.25 MB unchanged, the redo frame's 16 to **13** and the frame after it's 15 to **7**. Nothing was raised.
 
 ## Tests (`MovableRoundedMasksTests.swift`) and mutations
 
-`aRoundedRowAtTheViewportEdgeReplaysTranslated` (two arms: plain rows, and rows whose outer occurrence is re-made from a replay of a nested rounded one), `aRowWhoseCornerZoneCrossesTheEdgeRefusesByName`, `aRecordPaysOnlyForTheClipsItsOccurrencePushed`, `theStreamingTranscriptRefusesOnlyAtACornerZone`. Mutations, each reddens:
+`aRoundedRowAtTheViewportEdgeReplaysTranslated` (two arms: plain rows, and rows whose outer occurrence is re-made from a replay of a nested rounded one), `aRowWhoseCornerZoneCrossesTheEdgeRefusesByName`, `aRecordPaysOnlyForTheClipsItsOccurrencePushed`, `theStreamingTranscriptRefusesOnlyAtACornerZone`, `aMovedRecordIsWrittenOverInPlace` (the scene's buffers are the same after a scroll step). Mutations, each reddens:
 
 | mutation | reddened |
 |---|---|
 | radii not re-folded (the old radii kept on the folded mask) | `aRoundedRowAtTheViewportEdgeReplaysTranslated` (both arms: the differential and the refusal count), `aRowWhoseCornerZoneCrossesTheEdgeRefusesByName` |
 | the old move in place of the fold (master's `RetainedTranslation.swift`) | `aRoundedRowAtTheViewportEdgeReplaysTranslated`, `aRowWhoseCornerZoneCrossesTheEdgeRefusesByName` |
 | a replay does not note its clips into the open recorders | the nested arm (`maskUnmapped`), only after the arm retinted the outer so that its record is made from a replay (the first version of the arm survived) |
+| the move written to a new array again (`old.scene = ...copy`) | `aMovedRecordIsWrittenOverInPlace`, `aStreamedFrameOfAScopedTranscriptStaysUnderItsCeilings` (large requests and bytes), `aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid` (both limits) |
 | the crossing check off | `aRowWhoseCornerZoneCrossesTheEdgeRefusesByName` and the transcript test (the differential) |
 
 ## Pins that moved
 
-`everyKeyComponentSeparates` scroll arm now reads a translated hit (the probe card is cut by the viewport; the differential stays the separating pin), `everyUntranslatableKindRefusesByName` loses its `maskStraddle` arm (covered here), `aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale`'s allowed names, the G51 ceilings above, comments naming `maskStraddlesEntryClip`.
+`everyKeyComponentSeparates` scroll arm now reads a translated hit (the probe card is cut by the viewport; the differential stays the separating pin), `everyUntranslatableKindRefusesByName` loses its `maskStraddle` arm (covered here), `aTranslatedLayoutReplayEqualsAFreshFrameAtEveryScale`'s allowed names, the G51 ceilings above (all at or below master's), comments naming `maskStraddlesEntryClip`.
 
 Counts and the full run are in `CLAUDE.md`.
