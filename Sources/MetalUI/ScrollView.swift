@@ -34,6 +34,11 @@ public struct ScrollState: Sendable {
     /// How far the content is scrolled, in points from its start.
     public var offset: Double = 0
 
+    /// What input added to the raw offset that the device-pixel grid did not take (`DSA-J`): `offset + residue` is
+    /// the raw position, `offset` the one presented. A slow scroll of repeated sub-pixel deltas accumulates here
+    /// until it makes a pixel; any programmatic position (a `scrollTo`, an anchor, the clamp at an end) resets it.
+    var residue = 0.0
+
     /// The most recent scroll's instant, on the same clock as
     /// `PaintPass.timestamp` (both trace to `mach_absolute_time`) but sourced
     /// from the input event itself rather than the display link's last tick.
@@ -89,6 +94,7 @@ public struct ScrollState: Sendable {
 /// (`lastScrollTime` stays shared, one stamp lights both thumbs).
 struct ScrollAxisSlot: Sendable, Equatable {
     var offset = 0.0
+    var residue = 0.0
     var viewportExtent = 0.0
     var glide: ScrollGlide?
     var anchor = ScrollAnchorMemory()
@@ -337,7 +343,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         var lastViewportExtent: Double = 0
         // A read, not a write (`RW-H`): the version moves only when an input or the prepaint clamp changes the entry.
         let scrollState = pass.readState(id, initial: ScrollState())
-        rawOffset = ScrollChrome.currentOffset(scrollState, now: pass.frame.timestamp)
+        rawOffset = ScrollChrome.layoutOffset(scrollState, now: pass.frame.timestamp, scale: pass.frame.scaleFactor)   // `DSA-J`
         lastViewportExtent = scrollState.viewportExtent
 
         var cursor = 0
@@ -351,7 +357,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // straight out with no local IUO to hoist it through.
         var context = ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
         context.followsEnd = chrome.layoutFollowsEnd(scrollState, raw: rawOffset)   // `DSA-C`
-        if chrome.crossAxis { context.cross = chrome.crossContext(scrollState, now: pass.frame.timestamp) }   // `XS-H`
+        if chrome.crossAxis { context.cross = chrome.crossContext(scrollState, now: pass.frame.timestamp, scale: pass.frame.scaleFactor) }   // `XS-H`
         let (children, inner) = pass.withScrollContext(context) {
             content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }

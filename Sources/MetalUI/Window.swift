@@ -3023,7 +3023,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             } else {
                 $0.glide = nil   // the user's wheel ends an animated `scrollTo` where it stands (`SP-F`)
                 $0.offset += signed
-                moved = $0.offset
+                moved = ScrollChrome.snap($0.offset + $0.residue, scale: platformWindow.scaleFactor)   // `DSA-J`: the position prepaint will present
             }
             // Stamped from the EVENT's own timestamp, not `lastTick`. The
             // display link pauses while the window is clean (spec §4.4), so

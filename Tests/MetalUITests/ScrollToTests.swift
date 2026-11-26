@@ -114,13 +114,13 @@ private func namedRowsWindow(_ proxies: Proxies, count: Int = 20,
 }
 
 /// **3.6 (T1–T3, T9).** With an anchor, the target's anchor point lands at the
-/// viewport's: `.top` 300, `.center` 265, `.bottom` 230, `y: 0.25` 282.5 — and
+/// viewport's: `.top` 300, `.center` 265, `.bottom` 230, `y: 0.25` 282.5 raw and 283 presented (`DSA-J`, record 426: the offset is on the device-pixel grid, a tie goes up, probe `F4a`) — and
 /// `scrollTo` dirties the window. **M3f**: the formula uses the target's
 /// `maxY` (reads 330, 295, 260, 312.5).
 @Test @MainActor
 func scrollToAnAnchorLandsTheTargetAtTheAnchor() throws {
     let cases: [(UnitPoint, Double)] = [(.top, 300), (.center, 265), (.bottom, 230),
-                                         (UnitPoint(x: 0, y: 0.25), 282.5)]
+                                         (UnitPoint(x: 0, y: 0.25), 283)]
     for (anchor, expected) in cases {
         let proxies = Proxies()
         let window = try namedRowsWindow(proxies)

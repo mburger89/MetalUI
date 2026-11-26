@@ -80,14 +80,14 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         var lastViewportExtent: Double = 0
         // A read, not a write (`RW-H`): the version moves only when an input or the prepaint clamp changes the entry.
         let scrollState = pass.readState(id, initial: ScrollState())
-        rawOffset = ScrollChrome.currentOffset(scrollState, now: pass.frame.timestamp)   // `SP-F`
+        rawOffset = ScrollChrome.layoutOffset(scrollState, now: pass.frame.timestamp, scale: pass.frame.scaleFactor)   // `SP-F`, `DSA-J`
         lastViewportExtent = scrollState.viewportExtent
         var cursor = 0
         position?.beginLayout(id, pass: &pass)   // `SP-A`
         defer { position?.endLayout(pass: &pass) }
         var context = ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
         context.followsEnd = chrome.layoutFollowsEnd(scrollState, raw: rawOffset)   // `DSA-C`
-        if chrome.crossAxis { context.cross = chrome.crossContext(scrollState, now: pass.frame.timestamp) }   // `XS-H`
+        if chrome.crossAxis { context.cross = chrome.crossContext(scrollState, now: pass.frame.timestamp, scale: pass.frame.scaleFactor) }   // `XS-H`
         let (children, contentLayout) = pass.withScrollContext(context) {
             content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
         }
