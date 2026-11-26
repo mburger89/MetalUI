@@ -27,19 +27,21 @@ private struct MRRow: Component, @MainActor Equatable {
 /// clips too (`FS-V`: a replayed record's clips are noted into the recorders open around it).
 private struct MRNested: Component, @MainActor Equatable {
     let id: Int
+    let tint: Int
     var content: some ElementGroup {
         VStack(spacing: 0) { MRRow(id: id).equatable() }
-            .background(Color.green.opacity(0.1)).cornerRadius(Pixels(8))
+            .background(Color.green.opacity(0.1 + 0.05 * Double(tint % 3))).cornerRadius(Pixels(8))
     }
 }
 
 private struct MRRoot: Component {
+    let side: RPSide
     let nested: Bool
     var content: some ElementGroup {
         ScrollView(.vertical) {
             VStack(spacing: 0) {
                 ForEach(Array(0..<8), id: \.self) { k in
-                    if nested { MRNested(id: k).equatable() } else { MRRow(id: k).equatable() }
+                    if nested { MRNested(id: k, tint: Int(side.inputs.offset)).equatable() } else { MRRow(id: k).equatable() }
                 }
             }
         }
@@ -48,11 +50,16 @@ private struct MRRoot: Component {
 }
 
 @MainActor private func mrPair(nested: Bool) throws -> RPPair<some Element> {
-    try RPPair(size: sz(320, 300), scale: 2, warm: 16, accessibility: false, graft: false) { _ in VStack(spacing: 0) { MRRoot(nested: nested) } }
+    try RPPair(size: sz(320, 300), scale: 2, warm: 16, accessibility: false, graft: false) { side in VStack(spacing: 0) { MRRoot(side: side, nested: nested) } }
 }
 
 /// Scrolls both windows of the pair by `delta` points and answers the retaining window's work.
-@MainActor private func mrScroll(_ pair: RPPair<some Element>, by delta: Float) async -> FrameWork {
+@MainActor private func mrScroll(_ pair: RPPair<some Element>, by delta: Float, retint: Bool = false) async -> FrameWork {
+    if retint {
+        // The outer occurrence misses (its tint changed) while the nested one hits: the outer record is made from a replay, which must hand it the clips.
+        pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
+        await rsSettle(); pair.redraw(); await rsSettle(); pair.redraw()
+    }
     pair.on.resetFrameWork()
     for w in [pair.on, pair.off] { w.scroll(at: pt(150, 150), byDeltaX: 0, deltaY: -delta) }
     await rsSettle()
@@ -69,7 +76,7 @@ func aRoundedRowAtTheViewportEdgeReplaysTranslated(nested: Bool) async throws {
     try pair.compare("warm")
     var translated = 0
     for step in 0..<3 {
-        let f = await mrScroll(pair, by: 10)
+        let f = await mrScroll(pair, by: 10, retint: nested)
         translated += f.retainedTranslated
         #expect(f.retainedTranslationRefusedReasons.isEmpty, "step \(step): refused \(f.retainedTranslationRefusedReasons)")
         #expect(f.retainedRedos == 0)
