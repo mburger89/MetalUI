@@ -46,7 +46,7 @@ a model-driven one, asked in input per pointer move, restarting the delay when t
 accessibility. **Image and `Label` items (`MN-AP`, A, divergence 242): `Button(_:systemImage:)`, `Button { } label: { Label(…) }`, `Toggle(_:systemImage:)` and `Menu(_:systemImage:)` are menu items through the closed `MenuItemLabel`; the symbol rides `MenuNode.image` into `PlatformMenuItem.image` (AppKit `NSMenuItem.image`: a template, or the palette-tinted non-template under `.tint`; the drawn menu: a bundled icon in a column). `.tint` colours it, `.foregroundStyle` does not (SwiftUI's menu ignores it, probe L3-L5).** **A menu `Button`'s (or `Toggle`'s) `.accessibilityIdentifier` and `.help` ride `MenuNode` into `PlatformMenuItem.accessibilityIdentifier`/`help`** (AppKit `toolTip` + identifier, drawn row AX `identifier`/`hint` + the tick-timed tooltip, a disabled item keeps its help; `MN-AL`, record 253). **An empty `.help("")` is no help** (nil tooltip, nil `PlatformMenuItem.help`/toolbar help and AppKit `toolTip`, no hint; `MN-AM`, record 258). The new handler member `contextual` is
 non-opaque and sits inside the `allowsHitTesting` gate; **a new accessibility
 role/request needs a row on both bridges**; a new `StyledElement` modifier
-cannot follow a legacy `.popover` (divergence 115).
+cannot follow a legacy `.popover` (divergence 115). **`CommandGroupPlacement.saveItem` (`MN-AT`, A, record 433) holds File's standard Close, wrapped in `group(.saveItem, …)` in both builders; `replacing:` removes it and ⌘W then does nothing unless an app item takes it.**
 
 **Platform services (`SV-`, record §77).**
 `.fileImporter`/`.fileExporter`/`.alert`/`.confirmationDialog` are one

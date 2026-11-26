@@ -2670,3 +2670,8 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 
 - [ ] **XSV1.** (`XS-V`) `swift run MetalUIDemo` with a `ScrollView` holding a short `TextEditor` (a few lines), a trackpad: start a two-finger scroll with the pointer over the editor and flick. The page should scroll as if the editor were not there, momentum included, and never stick when the editor passes under the pointer. Then use an editor with many lines: a scroll begun over it moves its lines; once it is at its end, does the rest of the same gesture move the page (MetalUI's rule, as for a nested `ScrollView`) or does AppKit's `NSTextView` in a scroll view keep it on the editor until you lift? **Observed:** (not run).
 
+## MSI. `CommandGroup(replacing: .saveItem)` (record 433; ruling `MN-AT`)
+
+*An agent cannot: the tests read the model's menus, not the real `NSApp.mainMenu` or a key event the window server routes.*
+
+- [ ] **MSI1.** (`MN-AT`) On macOS, an app whose `commands` replace `.saveItem` with Close Tab ⌘W, Close Window ⇧⌘W and Save ⌘S: File shows exactly those three; each key runs its own action once, and the standard Close never runs. Replace `.saveItem` with nothing: File has no Close, ⌘W does nothing, and the title-bar close button still closes the window.
