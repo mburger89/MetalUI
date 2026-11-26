@@ -2664,3 +2664,9 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 - [ ] **PSN1.** (`DSA-J`) On a Retina Mac run `/usr/bin/swift docs/probes/swiftui-scroll-offset-pixel-snap.swift 2>&1 | grep -v 'warning:\|^ *[0-9]* |\|^ *|\|note:\|WARNING: Application performed a reentrant\|Connection\]'`. The first line should say `backingScaleFactor=2.0`. In arm `F4a`, does `scrollPosition.y=100.3` report `clip=100.500` (half-point steps, which MetalUI's grid gives) or `clip=100.000` (whole points)? Does the bottom anchor of arm `F1` over 399.5 report `99.5` or `99.0`? If whole points, change `ScrollChrome.snap`'s grid for the scroll position to whole points at every scale (one function) and say so in `DSA-J`. **Observed:**
 - [ ] **PSN2.** (`DSA-J`) `swift run MetalUIDemo` on a Retina Mac, a scroller with rows and a trackpad: scroll slowly (a few pixels at a time) and then flick. Rows should never look blurred between scroll steps, and a slow scroll must still move. In SwiftUI the same scroll gives crisp rows. **Observed:**
 
+## XSV. Text editor wheel passthrough (record 430; ruling `XS-V`; decisions `docs/superpowers/2026-11-07-two-axis-scroll-decisions.md`)
+
+*An agent cannot: a real trackpad gesture with momentum, and how AppKit's own text view behaves, are not injectable.*
+
+- [ ] **XSV1.** (`XS-V`) `swift run MetalUIDemo` with a `ScrollView` holding a short `TextEditor` (a few lines), a trackpad: start a two-finger scroll with the pointer over the editor and flick. The page should scroll as if the editor were not there, momentum included, and never stick when the editor passes under the pointer. Then use an editor with many lines: a scroll begun over it moves its lines; once it is at its end, does the rest of the same gesture move the page (MetalUI's rule, as for a nested `ScrollView`) or does AppKit's `NSTextView` in a scroll view keep it on the editor until you lift? **Observed:** (not run).
+
