@@ -864,7 +864,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         surfaceRedraw.now = { [weak self] in
             guard let self else { return Date() }
             let timeline = self.animationStore.timeline
-            // The harness's clock is the frame's timestamp (`TW-A`); an app's is the wall clock, which the
+            // The harness's clock is the frame's timestamp (`XS-V`); an app's is the wall clock, which the
             // timeline's anchored dates track.
             return timeline.isSimulated ? timeline.date(at: self.lastTick) : Date()
         }
@@ -2923,7 +2923,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
             // scroller around it.
             // A vertical `TextField` takes the vertical wheel only while it is focused and has room in the wheel's
             // direction; at its edge, or unfocused, the wheel continues up the chain (`VT-E`, `XS-F`'s one-axis rule),
-            // where a `TextEditor` keeps swallowing it.
+            // where a `TextEditor` follows the same rule without the focus gate (`XS-V`).
             if id == cover.id, let target = cover.handlers.textInput, target.verticalField {
                 let scroll = editState(cover.id).scrollY
                 let grows = event.delta.y.value < 0
@@ -2936,7 +2936,10 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
                     }
                     return true
                 }
-            } else if id == cover.id, let target = cover.handlers.textInput, target.lines != nil, axis != .horizontal {
+            } else if id == cover.id, let target = cover.handlers.textInput, target.lines != nil, axis != .horizontal,
+                      event.delta.y.value < 0 ? editState(cover.id).scrollY < target.maxScrollY : editState(cover.id).scrollY > 0 {
+                // `XS-V`: a `TextEditor` takes the vertical wheel only while it has room in the wheel's direction, as a
+                // one-axis scroller does (`XS-F`, probe `N8`); with none, or at its edge, the wheel continues up the chain.
                 stateTable.withState(cover.id, initial: TextEditState()) {
                     $0.scrollY = ScrollChrome.wheelOffset(x: 0, y: $0.scrollY, delta: event.delta,
                                                           maximum: (0, target.maxScrollY)).y   // `CV-O`
