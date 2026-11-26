@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-W`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-X`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -410,3 +410,22 @@ recorder's arrays stay empty); a recorder allocates its array on its first push,
 when a recorder is open, a nil check otherwise. A move folds each clip twice (old, new), no allocation beyond the two arrays.
 **Verify mode** compares `innerClips` of the moved record with the fresh run's.
 **Mutations.** Radii not re-folded and the old move in place of the fold each redden `aRoundedRowAtTheViewportEdgeReplaysTranslated` (record 424).
+
+## FS-W - An axis whose move is exactly zero skips the sixteenth check on that axis (record 428; amends FS-D, FS-F)
+
+**Ruling.** The sixteenth checks of a translation guard the Float addition `old + shift`. On an axis whose shift is exactly `0` there is no addition: the moved
+coordinate is the old value **bit for bit** (`shifted(_:by:)` returns it, it does not compute `old + 0`), so that axis is not tested (`isExactShift(_:by:free:)`:
+`(free && shift == 0) || (old and old + shift both sixteenths)`). The axis that moves keeps both checks. Applied in `movedPaintRecord`'s entry gate, `movedLeaf`'s
+`exactMove`, `movedHitbox`, the element bounds of both ledger moves, the geometry notes' origin, and the accessibility frames (`movedAccessibility`,
+`shiftedLocals`). The trace detail (`RK-AO`) skips the unmoved axis too, so a remaining refusal names a number that really failed.
+**Left as it was.** `foldedRecord` (the layout origins and clip numbers are the fold's own inputs, checked bit for bit by `same`, not shifts), the named-space
+`tx`/`ty` and linear part (`geometryNamedSpace`: the translation is rebuilt with `a * dx + c * dy`), the transform checks (`hasDyadicLinearPart`), and the
+`dx`/`dy` themselves (zero passes already).
+**Why sound, and where it stops.** A fresh frame at the new position computes the leaf from the same inputs on the unmoved axis, so it holds the same bits;
+verify mode compares. But the unmoved axis's sixteenth check was also, on a scale that is not a multiple of 1/16, the witness that device numbers are exact
+products `pt * scale`: with it skipped at scale 1.2 `METALUI_VERIFY_RETAINED=1` trapped in `anInexactCoordinateIsRefusedNotApproximated` (moved y -30.0, fresh
+-30.000002, the moving axis's own checks passing by luck on the old end). So the skip is made only where `isUnmovedAxisFree(scale:)` holds, a scale that is a multiple of 1/16
+(1, 1.125, 1.5, 2, 3; `Frame.unmovedAxisIsFree`, carried in `PaintTranslation.free` to the leaf), and at 1.2, 1.1 or 4/3 the old two-axis check stays. A retina or
+1x display is on the free side; Alloy's text-measured x is the case it opens.
+**Cost.** None: one compare against zero per number, no allocation, no cache.
+**Mutation.** The old two-sided check in `exactMove` reddens `aLeafAtAFractionalXIsMovedByAVerticalScroll` (record 428).
