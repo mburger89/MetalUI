@@ -228,4 +228,3 @@ func aRegistrationUnderARootClipStillRefuses() throws {
     #expect(fold(2) == nil, "a clip at a flattening entry")
     #expect(fold(3) == Bounds(origin: Point(x: Pixels(14), y: Pixels(24)), size: Size(width: Pixels(100), height: Pixels(40))), "an ordinary clip folds")
 }
-
