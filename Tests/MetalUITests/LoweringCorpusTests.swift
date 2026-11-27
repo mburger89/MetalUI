@@ -538,12 +538,14 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
     // Ids. Every `.frame` layer is an identity level (`LR-ES`'s R7): the frame
     // takes the element's slot and the element moves one level down.
     let outerLayer = child(rootID, 0), outerColumn = child(outerLayer, 0)
-    let headerFrame = child(outerColumn, 0), headerPad = child(headerFrame, 0), headerRow = child(headerPad, 0)
+    // Since record 435 (`HP-P`) the header, sidebar, main pane and scroll box are `Component`s, each one identity level
+    // (`Component` is opaque to identity): the element takes the component's slot's first child. No rect moved.
+    let headerFrame = child(child(outerColumn, 0), 0), headerPad = child(headerFrame, 0), headerRow = child(headerPad, 0)
     let avatar = child(headerRow, 0), avatarBox = child(avatar, 0), bar = child(headerRow, 1)
     let body = child(outerColumn, 2)
-    let sidebarFrame = child(body, 0), sidebarPad = child(sidebarFrame, 0), sidebar = child(sidebarPad, 0)
-    let mainLayer = child(body, 1), main = child(mainLayer, 0)
-    let scrollerFrame = child(main, 4), scrollerGreedy = child(scrollerFrame, 0)
+    let sidebarFrame = child(child(body, 0), 0), sidebarPad = child(sidebarFrame, 0), sidebar = child(sidebarPad, 0)
+    let mainLayer = child(child(body, 1), 0), main = child(mainLayer, 0)
+    let scrollerFrame = child(child(main, 4), 0), scrollerGreedy = child(scrollerFrame, 0)
     let scrollerBox = child(scrollerGreedy, 0), scroll = child(scrollerBox, 0)
 
     // Text, from the shaping cache.
