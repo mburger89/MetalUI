@@ -49,17 +49,25 @@ struct ScrollChrome {
     var contentInset: (start: Double, end: Double) = (0, 0)
     /// The scroll-indicator margins along this axis (`CMG-C`): the thumb's track is the viewport minus them.
     var indicatorInset: (start: Double, end: Double) = (0, 0)
+    /// How far the thumb sits inside the viewport's trailing side, across the scroll axis (`CMG-G`): the scroll-indicator
+    /// margin on that side (`trailing` for a vertical thumb, `bottom` for a horizontal one). Positive moves the thumb
+    /// inward, negative outward, as SwiftUI's `contentMargins(_:_:for: .scrollIndicators)` moves the scroller (probe `N1`..`N8`).
+    var indicatorAcross: Double = 0
     /// `contentInset` and `indicatorInset` of the horizontal axis of a two-axis scroller.
     var crossContentInset: (start: Double, end: Double) = (0, 0)
     var crossIndicatorInset: (start: Double, end: Double) = (0, 0)
+    /// `indicatorAcross` of the horizontal axis of a two-axis scroller.
+    var crossIndicatorAcross: Double = 0
 
     /// Reads the environment's content margins (`CMG-A`): each axis' start and end insets, for content and indicators.
     mutating func resolveMargins(_ margins: ContentMargins) {
         contentInset = margins.scrollContent.along(axis)
         indicatorInset = margins.scrollIndicators.along(axis)
+        indicatorAcross = margins.scrollIndicators.across(axis)
         if crossAxis {
             crossContentInset = margins.scrollContent.along(.horizontal)
             crossIndicatorInset = margins.scrollIndicators.along(.horizontal)
+            crossIndicatorAcross = margins.scrollIndicators.across(.horizontal)
         }
     }
 
@@ -94,6 +102,7 @@ struct ScrollChrome {
         chrome.crossMirrored = false
         chrome.contentInset = crossContentInset
         chrome.indicatorInset = crossIndicatorInset
+        chrome.indicatorAcross = crossIndicatorAcross
         return chrome
     }
 
@@ -460,13 +469,13 @@ struct ScrollChrome {
         switch axis {
         case .vertical:
             return Bounds(
-                origin: Point(x: Pixels(bounds.origin.x.value + bounds.size.width.value - 5),
+                origin: Point(x: Pixels(bounds.origin.x.value + bounds.size.width.value - 5 - Float(indicatorAcross)),
                               y: Pixels(bounds.origin.y.value + Float(travel))),
                 size: Size(width: Pixels(3), height: Pixels(Float(thumb))))
         case .horizontal:
             return Bounds(
                 origin: Point(x: Pixels(startX),
-                              y: Pixels(bounds.origin.y.value + bounds.size.height.value - 5)),
+                              y: Pixels(bounds.origin.y.value + bounds.size.height.value - 5 - Float(indicatorAcross))),
                 size: Size(width: Pixels(Float(thumb)), height: Pixels(3)))
         }
     }
