@@ -208,6 +208,7 @@ private let masterStreamRedos = [false: 0, true: 2]
     if focused { #expect(pair.on.window.focusedElement == pair.off.window.focusedElement) }
 }
 
+#if canImport(Darwin)   // `countAllocations` counts Darwin's malloc zones only
 /// Records the fixture's counts for the record (`FS-AA`): printed, never asserted.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_PRINT_FENCE_BASELINES"] == "1"), arguments: [false, true], [false, true])
 @MainActor func printTheFenceBaselines(focused: Bool, graft: Bool) async throws {
@@ -232,3 +233,4 @@ private let masterStreamRedos = [false: 0, true: 2]
     print("BASE focused=\(focused) graft=\(graft) stream: hitboxScrolls=\(s.retainedTranslationRefusedReasons["hitboxScrolls"] ?? 0) redos=\(s.retainedRedos) requests=\(s.elementRequests) allocations=\(allocations) translated=\(s.retainedTranslated) misses=\(s.retainedMisses)")
     print("BASE focused=\(focused) graft=\(graft) wheel: hitboxScrolls=\(w.retainedTranslationRefusedReasons["hitboxScrolls"] ?? 0) redos=\(w.retainedRedos) requests=\(w.elementRequests) allocations=\(wheelAllocations) translated=\(w.retainedTranslated) misses=\(w.retainedMisses)")
 }
+#endif
