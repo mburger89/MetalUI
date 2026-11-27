@@ -151,13 +151,18 @@ private struct FKTwoFields: Component, @MainActor Equatable {
 /// **6** The field is blurred: the chain repaints once, never redoes, and replays after. With the graft on, no graft is taken from a record made
 /// under a focus (the frame after the blur builds). **Mutation:** the graft's `focusedUnder` check removed (a redo).
 @Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func focusLeavingTheChainRepaintsOnceAndNeverRedoes() throws {
-    let pair = try atPair(focused: true, graft: true)
-    for _ in 0..<3 { pair.redraw() }
+    // The grafts are captured with nothing focused; the field then takes the focus (no graft under it, the records are made under it), and the blur
+    // finds a graft whose record was made under a focus: it must not be taken (it would be redone).
+    let pair = try atPair(focused: false, graft: true)
+    for w in [pair.on, pair.off] { w.click(at: pt(60, 580)) }
+    for w in [pair.on, pair.off] { w.exitPointer() }
+    for _ in 0..<4 { pair.redraw() }
+    #expect(pair.on.window.focusedElement != nil, "the click focused the field")
+    pair.frames = []
     pair.on.resetFrameWork()
     for w in [pair.on, pair.off] { w.window.focus(nil) }
     for _ in 0..<4 { pair.redraw() }
-    let frames = pair.on.frameWork
-    #expect(sum(frames, \.retainedRedos) == 0 && sum(pair.frames, \.retainedRedos) == 0, "the blur redoes nothing")
+    #expect(sum(pair.on.frameWork, \.retainedRedos) == 0 && sum(pair.frames, \.retainedRedos) == 0, "the blur redoes nothing: \(sum(pair.frames, \.retainedRedos))")
     #expect(sum(pair.frames, \.retainedMisses) >= 1, "the chain repaints for the blur")
     #expect(pair.frames.last?.retainedMisses == 0, "and replays after")
     try pair.compare("blurred")
@@ -206,8 +211,10 @@ private struct FKTapCard: Component, @MainActor Equatable {
     for _ in 0..<3 { pair.redraw() }
     let target = try #require(pair.on.window.lastHitboxes.first { !$0.handlers.isFocusable && $0.handlers.isPointerTarget }?.id)
     pair.on.resetFrameWork()
-    for w in [pair.on, pair.off] { w.window.focus(target); w.window.setNeedsRedraw(); w.tick() }
-    for _ in 0..<3 { pair.redraw() }
+    for _ in 0..<3 {   // asked again each frame: a ledger made with the request in force is met by the request again
+        for w in [pair.on, pair.off] { w.window.focus(target); w.window.setNeedsRedraw(); w.tick() }
+        pair.redraw()
+    }
     #expect(pair.on.window.focusedElement == nil && pair.off.window.focusedElement == nil, "the boundary cleared the request in both windows")
     #expect(sum(pair.on.frameWork, \.retainedRedos) == 0 && sum(pair.frames, \.retainedRedos) == 0, "nothing is redone")
     try pair.compare("a focus request")
