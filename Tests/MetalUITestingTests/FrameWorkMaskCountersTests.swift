@@ -87,3 +87,52 @@ import Testing
     #expect(c == sum)
     #expect(FrameWork().maskScopesPushed == 0 && FrameWork().groupsMasked == 0)
 }
+
+// MARK: - A square scroll viewport inside a rounded island (Alloy's case)
+
+/// A 566 x 744 island clipped to radius 10 holding an `HStack` of a `left` point stripe, a `ScrollView` of a few 31 point rows
+/// (a viewport clips to its own bounds, zero radii) and a `right` point stripe. The viewport spans `left` to `566 - right`
+/// at full height. By `Frame.boxReachesACornerCut` a square box 4 points in overlaps the corner square (10 x 10, centre 10
+/// points in): its far corner is sqrt(6^2 + 10^2) = 11.7 from that centre, past r = 10, so it crosses; at 10 points the box
+/// touches the square along its side only, and does not.
+@MainActor private func scrollIsland(left: Int, right: Int) -> some Element {
+    HStack(spacing: Pixels(0)) {
+        Color(.separator).frame(width: Pixels(Float(left)), height: Pixels(744))
+        ScrollView {
+            LazyVStack(spacing: Pixels(0)) {
+                ForEach(0..<6) { i in Color(.accent).opacity(i.isMultiple(of: 2) ? 1 : 0.5).frame(height: Pixels(31)) }
+            }
+        }
+        Color(.separator).frame(width: Pixels(Float(right)), height: Pixels(744))
+    }
+    .frame(width: Pixels(566), height: Pixels(744))
+    .clipShape(RoundedRectangle(cornerRadius: Pixels(10)))
+}
+
+@MainActor private func settledScroll(left: Int, right: Int, scale: Float) async throws -> TestWindow {
+    let w = try harnessWindow(size: sz(566, 744), scaleFactor: scale) { scrollIsland(left: left, right: right) }
+    try await w.runUntilIdle()
+    w.window.setNeedsRedraw(); w.tick()
+    return w
+}
+
+/// **M5** A square viewport 4 pt inside the island's left edge opens a mask scope on an idle frame, at scale 1 and 2.
+/// Observed values are printed and pinned below. Mutation: `maskScopesPushed` wired to 0 in `testingOnFrameAdopted`.
+@Test(arguments: [Float(1), Float(2)]) @MainActor
+func aSquareViewportFourPointsInsideTheIslandOpensAMaskScope(scale: Float) async throws {
+    let w = try await settledScroll(left: 4, right: 0, scale: scale)
+    let f = w.lastFrameWork
+    print("FrameWork mask counters, viewport 4 in, scale \(scale): scopes \(f.maskScopesPushed) groups \(f.groupsMasked)")
+    #expect(f.maskScopesPushed >= 1, "scopes \(f.maskScopesPushed)")
+    #expect(f.maskScopesPushed == 1 && f.groupsMasked == 1,
+            "scopes \(f.maskScopesPushed) groups \(f.groupsMasked)")
+}
+
+/// **M6** The viewport 10 pt inside both edges touches the corner squares along a side only: no scope, no group.
+@Test(arguments: [Float(1), Float(2)]) @MainActor
+func aSquareViewportTenPointsInsideBothEdgesOpensNoMaskScope(scale: Float) async throws {
+    let w = try await settledScroll(left: 10, right: 10, scale: scale)
+    let f = w.lastFrameWork
+    print("FrameWork mask counters, viewport 10 in, scale \(scale): scopes \(f.maskScopesPushed) groups \(f.groupsMasked)")
+    #expect(f.maskScopesPushed == 0 && f.groupsMasked == 0, "scopes \(f.maskScopesPushed) groups \(f.groupsMasked)")
+}
