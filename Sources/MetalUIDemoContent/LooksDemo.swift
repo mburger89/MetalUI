@@ -861,14 +861,7 @@ struct LooksLifecycle: Component {
     var content: some ElementGroup {
         Column(gap: Pixels(6)) {
             Text("T1–T2 · onAppear, onDisappear, onChange").font(size: 15)
-            Row(gap: Pixels(8)) {
-                Button("Toggle tile") { shown.toggle() }
-                Button("Toggle fading tile") {
-                    withAnimation(.easeInOut(duration: 0.8)) { fadingShown.toggle() }
-                }
-                Stepper("Value \(value)", value: $value, in: 0...99)
-                    .onChange(of: value) { changes += 1 }
-            }
+            LooksLifecycleControls(shown: $shown, fadingShown: $fadingShown, value: $value, changes: $changes)
             Row(gap: Pixels(8)) {
                 Stack {
                     Box().frame(width: Pixels(120), height: Pixels(28)).background(.surfaceSecondary)
@@ -907,6 +900,27 @@ struct LooksLifecycle: Component {
             .alignItems(.flexStart)
         }
         .alignItems(.flexStart)
+    }
+}
+
+/// The section's two buttons and its stepper, **a `Component` of their own** (`HP-O`): held in `LooksLifecycle.content`, the stepper's
+/// 10 KiB value and the row around it were temporaries of that getter, and a debug build gives each one a stack slot (the
+/// getter chain was 262 KB of the looks demo's first frame, which a 1 MiB Windows thread could not hold).
+struct LooksLifecycleControls: Component {
+    let shown: Binding<Bool>
+    let fadingShown: Binding<Bool>
+    let value: Binding<Int>
+    let changes: Binding<Int>
+
+    var content: some ElementGroup {
+        Row(gap: Pixels(8)) {
+            Button("Toggle tile") { shown.wrappedValue.toggle() }
+            Button("Toggle fading tile") {
+                withAnimation(.easeInOut(duration: 0.8)) { fadingShown.wrappedValue.toggle() }
+            }
+            Stepper("Value \(value.wrappedValue)", value: value, in: 0...99)
+                .onChange(of: value.wrappedValue) { changes.wrappedValue += 1 }
+        }
     }
 }
 

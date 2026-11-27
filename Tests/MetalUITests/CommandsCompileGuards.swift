@@ -44,7 +44,7 @@ func theCommandsSpellingsCompileFromAPlainImport() throws {
                 CommandGroup(replacing: .pasteboard) { Button("Paste") {} }
             })
             let placements: [CommandGroupPlacement] = [.appInfo, .appVisibility, .appTermination, .newItem,
-                                                       .undoRedo, .pasteboard, .windowSize,
+                                                       .saveItem, .undoRedo, .pasteboard, .windowSize,
                                                        .windowArrangement, .help]
             _ = Set(placements)
         }

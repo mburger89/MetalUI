@@ -700,6 +700,14 @@ here it returns `TransitionContent` built with `content.opacity(_:)`, `.scaleEff
 only effects a transition has (898): rewrite `content.scaleEffect(phase.isIdentity ? 1 : 0.5)` as is, and drop any other
 modifier (a blur, a rotation, a background). `contentTransition`, `.blurReplace` and `.modifier(active:identity:)` do not
 compile (`MG-H`).
+### A file dialog's starting directory (`SV-AQ`, record 432)
+
+`PlatformFileDialog` gains a **stored `directory: String?`** (an `init` parameter defaulting to `nil`; a conformer that
+shows a file dialog sets its starting folder from it where it can, and may ignore it). New API (additive):
+`.fileDialogDefaultDirectory(_:)`, and a trailing `directory: URL? = nil` on `FileDialogs.openFiles` and `saveFile`
+(existing calls compile). `fileDialogDefaultDirectory` was in the list of SwiftUI file-dialog modifiers MetalUI did not
+build; `fileMover` and `fileExporter(document:)` still are.
+
 ### Dialog and alert extras (`SV-AO`, record 179)
 
 `PlatformFileDialog` gains a **stored `message: String?`** (an `init` parameter defaulting to `nil`, so existing calls

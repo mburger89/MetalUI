@@ -1042,7 +1042,7 @@ menu closing) writes `false`; a click on the label writes `true`; writing `false
 cannot open (disabled, empty) writes `false` back. SwiftUI has no such API. A `Menu` used as a submenu item ignores it.
 
 **Menu bar (A / M).** `App.commands { CommandMenu("Name") { }; CommandGroup(after:/before:/replacing:) { } }`
-with `CommandGroupPlacement` (`.appInfo`, `.appSettings` (empty by default), `.systemServices` (the Services submenu), `.newItem`, `.undoRedo`, `.pasteboard`, …).
+with `CommandGroupPlacement` (`.appInfo`, `.appSettings` (empty by default), `.systemServices` (the Services submenu), `.newItem`, `.saveItem` (File ▸ Close; replace it to supply Close Tab, Close Window, Save), `.undoRedo`, `.pasteboard`, …).
 Every AppKit app installs the standard main menu (About, Hide, Quit, File ▸ Close,
 Edit, Window); Edit reaches a focused `TextField`/`TextEditor` as its keys.
 `Platform.setMenuBar(_:)` and `PlatformMenuBar` are the seam (M). SDL's `setMenuBar` answers
@@ -1107,7 +1107,17 @@ nothing, as in SwiftUI); the label replaces an exporter's own "Export".
 `PlatformFileDialog.message` (M) is the new seam field beside `prompt`. AppKit
 sets `NSSavePanel.prompt`/`message`; SDL shows the message as the dialog's
 title and passes the label as its accept label. The async `FileDialogs` calls
-read neither.
+read neither. **Starting directory** (`SV-AQ`, record 432; probe
+`swiftui-file-dialog-directory.swift` `D1`–`D7`; D 936):
+`.fileDialogDefaultDirectory(_ defaultDirectory: URL?)` (A, on `ElementGroup`,
+an environment write read at the presenter like the label: a writer above it
+reaches it, one inside does not, the nearest wins) sets where every importer or
+exporter below it starts; `nil` or a non-file URL leaves the system's choice.
+For a menu command, which has no view environment, `FileDialogs.openFiles` and
+`saveFile` take a trailing `directory: URL? = nil` (M; the modifier does not
+reach them). `PlatformFileDialog.directory` (M) is the seam's path. AppKit sets
+`NSSavePanel.directoryURL`; SDL passes it as `default_location` (a save dialog
+with a name passes `<directory>/<name>`), which a desktop's dialog may ignore.
 
 **Alerts** (`SV-I`, `SV-X`, `SV-Y`; probes `swiftui-platform-services.swift`
 `A1`–`A9`, `C1` and `swiftui-alert-presenting.swift` `R0`–`R4`, `K0`–`K3`; A):
