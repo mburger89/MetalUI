@@ -138,6 +138,8 @@ final class RetainLog {
     /// The tags of the two ops a seen-through crossing scope adds to the log (`FS-Z`): a leaf that enters the scope belongs to the recorders' scenes only, and
     /// the merged leaf that leaves it to their final streams only. A record keeps neither tag: both are made boundary 0 when the op is copied into it.
     static let seenOnlyTag = -2, finalOnlyTag = -1
+    /// The most elements either scratch array keeps between frames.
+    static let scratchLimit = 4096
 
     /// The crossing mask scope the recorders at paint height 0 are seeing through now (`FS-Z`), `nil` otherwise.
     var seenScope: PaintScope?
@@ -262,7 +264,7 @@ final class RetainLog {
 
     /// A seen-through scope opens (`FS-Z`).
     func noteSeenOpen(_ scope: PaintScope, rangeCount: Int, matchedCount: Int) {
-        if !virtualActive { virtualActive = true; virtualFirst = rangeCount; virtualRanges.reserveCapacity(128) }   // one allocation, not a doubling run
+        if !virtualActive { virtualActive = true; virtualFirst = rangeCount }   // one allocation, not a doubling run
         seenScope = scope
         matchedAtSeen = matchedCount
     }
@@ -1070,7 +1072,13 @@ extension Frame {
     // MARK: Windows
 
     func openRecorderWindow(_ recorder: SubtreeRecorder) {
-        if retainLog == nil { retainLog = RetainLog() }
+        if retainLog == nil {
+            // The log's two arrays are the store's, kept between frames with their capacity (`FS-Z`): a log is made every frame and its arrays grow by doubling.
+            let log = RetainLog(), memos = stateTable.contentMemos
+            log.scene = memos.logSceneScratch; memos.logSceneScratch = []
+            log.virtualRanges = memos.logRangesScratch; memos.logRangesScratch = []
+            retainLog = log
+        }
         guard let log = retainLog else { preconditionFailure("the log was made above when absent") }
         recorder.entryHeight = paintScopes.count
         recorder.readLow = stateTable.readJournal.count
@@ -1082,6 +1090,20 @@ extension Frame {
         recorder.matchedFrom = animationStore.matched.noted.count
         stateTable.contentMemos.retained.ledgerSnapshots += 1
         log.recorders.append(recorder)
+    }
+
+    /// The last recorder closed: the log goes, its arrays back to the store emptied with their capacity, unless they grew past what a frame needs (`FS-Z`).
+    func releaseRetainLog(_ log: RetainLog) {
+        retainLog = nil
+        let memos = stateTable.contentMemos
+        if log.scene.capacity <= RetainLog.scratchLimit {
+            log.scene.removeAll(keepingCapacity: true)
+            memos.logSceneScratch = log.scene
+        }
+        if log.virtualRanges.capacity <= RetainLog.scratchLimit {
+            log.virtualRanges.removeAll(keepingCapacity: true)
+            memos.logRangesScratch = log.virtualRanges
+        }
     }
 
     /// Closes the recorder's window and returns what it covered.
@@ -1477,7 +1499,7 @@ extension Frame {
         // would replay the hole in the redo and every later frame, and verify mode would compare it with a complete fresh
         // run. Nothing is stored or compared (a standing record stays); the redo records the occurrence whole.
         if recorder.redoHole {
-            if log.recorders.isEmpty { retainLog = nil }
+            if log.recorders.isEmpty { releaseRetainLog(log) }
             return
         }
         let from = recorder.from, before = recorder.before
@@ -1584,7 +1606,7 @@ extension Frame {
             for index in relative.indices { relative[index] = relative[index].moved(byX: -key.rects[0], y: -key.rects[1]) }
             record.innerClips = relative
         }
-        if log.recorders.isEmpty { retainLog = nil }
+        if log.recorders.isEmpty { releaseRetainLog(log) }
         let memos = stateTable.contentMemos
         if let old {
             // Verify mode: the record made now must equal the one a replay would have used.

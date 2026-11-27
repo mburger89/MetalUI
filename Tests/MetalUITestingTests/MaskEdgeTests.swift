@@ -2,8 +2,10 @@ import Foundation
 @testable import MetalUI
 import MetalUIScene
 import MetalUITesting
+#if canImport(Darwin)
 import MetalUITestSupport
 import ObjectiveC
+#endif
 import Testing
 
 // Record 437 (`FS-Z`): the canonical crossing record. See `MaskEdgeFixture.swift`.
@@ -78,7 +80,9 @@ func aRecordThatNeverCrossesPaysNothing(scale: Float) async throws {
     #expect(MemoryLayout<InnerClip>.stride == 60 && MemoryLayout<InnerClip>.size <= 60)
     #expect(MemoryLayout<CapturedPrimitive>.stride <= 280)
     #expect(MemoryLayout<UnitRange>.stride == 24)
+    #if canImport(Darwin)
     #expect(class_getInstanceSize(RetainedRecord.self) == 248, "RetainedRecord \(class_getInstanceSize(RetainedRecord.self))")
+    #endif
     let pair = try meFixedPair(radius: 8, scale: scale)
     await meScroll(pair, by: 8)   // row 0's cut at its radius: no crossing
     let records = pair.on.window.testingRetainedRecords().filter { !$0.scene.isEmpty }
@@ -89,7 +93,9 @@ func aRecordThatNeverCrossesPaysNothing(scale: Float) async throws {
     }
     let step = try await meInsideStep(scale: scale)
     if !rsVerifying {
+        #if canImport(Darwin)
         #expect(step.allocations == 3975, "a translated non-crossing step allocates \(step.allocations)")
+        #endif
         #expect(step.work.retainedRedos == 0)
     }
 }
@@ -103,7 +109,7 @@ func anIdleFrameOfTheIslandTranscriptIsUnchanged(scale: Float) async throws {
     for _ in 0..<14 { pair.redraw() }
     for _ in 0..<4 {
         pair.off.window.setNeedsRedraw(); pair.off.tick()
-        let allocations = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
+        let allocations = meCountAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }
         #expect(allocations <= 2450 && pair.on.lastFrameWork.elementRequests == 10, "idle: \(allocations) allocations, \(pair.on.lastFrameWork.elementRequests) requests")
         #expect(pair.on.lastFrameWork.retainedRedos == 0)
     }
@@ -120,7 +126,7 @@ func anIdleFrameOfTheIslandTranscriptIsUnchanged(scale: Float) async throws {
     for w in [pair.on, pair.off] { w.scroll(at: pt(150, 120), byDeltaX: 0, deltaY: -1) }
     await rsSettle()
     pair.off.window.setNeedsRedraw(); pair.off.tick()
-    let allocations = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
+    let allocations = meCountAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }
     return (allocations, pair.on.frameWork.reduce(FrameWork(), +))
 }
 
@@ -292,7 +298,7 @@ func aCrossingRowWithUncountableContentStillReplaysUnmoved(kind: MERowKind, scal
     for frame in 0..<3 {
         pair.on.resetFrameWork()
         pair.off.window.setNeedsRedraw(); pair.off.tick()
-        let allocations = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
+        let allocations = meCountAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }
         let f = pair.on.lastFrameWork
         if !rsVerifying {
             #expect(f.retainedMisses == 0 && f.retainedIneligible == 0 && f.retainedRedos == 0, "\(kind) idle frame \(frame): misses \(f.retainedMisses) ineligible \(f.retainedIneligible) \(f.retainedIneligibleReasons)")
@@ -347,9 +353,9 @@ func aRecorderOpenedAfterACrossingClosedIsNotTaintedByAMatchedGroup() async thro
 }
 
 /// A streamed transcript whose rows carry an icon a record cannot count (a path: every bundled symbol is one; a gradient) redoes no more than master does and
-/// replays unmoved when idle (`FS-Z`): the rows that cross record as master recorded them. Master (`9aec1177`, scale 2): 5 redos, 1654 requests, 621,808 and
-/// 594,074 allocations over the 40 steps, idle 21 requests and 3095 / 2902 allocations. The streamed allocations here are 0.1% above master's (about 14 a
-/// step: the ops a scope seen through notes before the recorder falls back, not found to the allocation), the ceilings are what is measured; requests, redos and idle are master's or better.
+/// replays unmoved when idle (`FS-Z`): the rows that cross record as master recorded them. Ceilings are master's (`9aec1177`, scale 2, same harness): 5 redos,
+/// 1654 requests, 621,808 and 594,074 allocations over the 40 steps (the branch measures 621,489 and 593,627: the recorder log's arrays are kept between frames),
+/// idle 21 requests and 3095 / 2902 allocations. Mutation: the arrays not given back (the allocations rise above master's).
 @Test(.enabled(if: !rsVerifying, meVerifyingNote), arguments: [MEIcon.path, .gradient]) @MainActor
 func aStreamedTranscriptWithUncountableIconsIsNoWorseThanMaster(icon: MEIcon) async throws {
     let pair = try mePair(arm: .island, scale: 2, icon: icon)
@@ -362,11 +368,11 @@ func aStreamedTranscriptWithUncountableIconsIsNoWorseThanMaster(icon: MEIcon) as
         meCompareDeep(pair, "step \(step)")
     }
     #expect(redos <= 5 && requests <= 1654, "redos \(redos) requests \(requests)")
-    #expect(allocations <= (icon == .path ? 622_600 : 594_800), "allocations \(allocations)")
+    #expect(allocations <= (icon == .path ? 621_808 : 594_074), "allocations \(allocations)")
     for _ in 0..<14 { pair.redraw() }
     for _ in 0..<3 {
         pair.off.window.setNeedsRedraw(); pair.off.tick()
-        let idle = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
+        let idle = meCountAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }
         let f = pair.on.lastFrameWork
         #expect(f.retainedMisses == 0 && f.retainedIneligible == 0 && f.retainedRedos == 0 && f.retainedHits >= 1, "idle: misses \(f.retainedMisses) ineligible \(f.retainedIneligible)")
         #expect(f.elementRequests <= 21 && idle <= (icon == .path ? 3100 : 2910), "idle: \(f.elementRequests) requests, \(idle) allocations")

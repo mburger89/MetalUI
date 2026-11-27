@@ -312,6 +312,10 @@ package final class ContentMemoStore {
     /// `Frame`, so a frame, made every draw, holds no word for it.
     var finalTap: [RetainLog.SceneOp]?
 
+    /// The recorder log's op and virtual-range arrays between frames, emptied, capacity kept and bounded (`FS-Z`).
+    var logSceneScratch: [RetainLog.SceneOp] = []
+    var logRangesScratch: [UnitRange] = []
+
     /// Forgets every paint record, so the next frame makes them again where the occurrences stand (test support, `FS-Z`).
     func dropRecords() { for entry in entries.values { entry.record = nil } }
 

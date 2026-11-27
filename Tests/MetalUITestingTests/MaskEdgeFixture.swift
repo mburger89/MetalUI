@@ -2,7 +2,9 @@ import Foundation
 @testable import MetalUI
 import MetalUIScene
 import MetalUITesting
+#if canImport(Darwin)
 import MetalUITestSupport
+#endif
 import Testing
 
 // The fixture of record 437 (`FS-Z`): Alloy's streaming transcript in its island. A scroll viewport inset 10 pt from the island's rounded clip (so its corners
@@ -232,13 +234,24 @@ struct MERoot: Component {
     return pair.on.frameWork
 }
 
+/// The allocations `body` made where they can be counted (Darwin's malloc zones, as `ScrollOffsetPixelSnapTests`); elsewhere `body` runs and the answer is 0,
+/// so the ceilings hold and a test's other assertions still run.
+@MainActor func meCountAllocations(_ body: () -> Void) -> Int {
+    #if canImport(Darwin)
+    return countAllocations(body) ?? 0
+    #else
+    body()
+    return 0
+    #endif
+}
+
 /// ``meStep`` with the retaining window's allocations of its draw counted (the off window draws first, outside the count).
 @MainActor func meStepCounted(_ pair: RPPair<some Element>) async -> (frames: [FrameWork], allocations: Int) {
     pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
     pair.on.resetFrameWork()
     await rsSettle()
     pair.off.window.setNeedsRedraw(); pair.off.tick()
-    let allocations = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
+    let allocations = meCountAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }
     pair.frames.append(pair.on.lastFrameWork)
     return (pair.on.frameWork, allocations)
 }
