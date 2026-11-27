@@ -134,15 +134,13 @@ private let frameChannels: [String: Channel] = [
     // Retained subtrees' own.
     "elementRequests": .frameLocal, "elementPrepaints": .frameLocal, "elementPaints": .frameLocal,
     "retainLog": .frameLocal,
-    // `FS-Z`: the ops that reach the scene while `replayPaint` captures the final stream of a record that crosses; set and cleared inside it, never replayed.
-    "finalTap": .frameLocal,
     // R4-3 PR B1 (`XF-F`): the ghost anchors. `pendingGhostAnchors`/`ghostAnchorSeen` are set by `afterLayout` and read once
     // between prepaint and paint; `hasGhostAnchors` is read by the paint hooks, and an occurrence that draws a ghost taints its
     // recorders (`ghostInRun`), so no record ever stands for one.
     "pendingGhostAnchors": .frameLocal, "ghostAnchorSeen": .frameLocal, "hasGhostAnchors": .frameLocal,
     // C14b-2 (`RK-E`, `RK-D`): the prepaint journal is open only inside a recorder's window; the redo list is
     // read by `Frame.render` after the root's paint and by the window, never replayed.
-    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "verifySnapshot": .frameLocal,
+    "prepaintLog": .frameLocal, "redoEntries": .frameLocal, "verifySnapshotBox": .frameLocal,
     "verifyAbandoned": .frameLocal,
     // C14-g (`AT-G`): the open effects as steps, a cache dropped whenever the stack changes.
     "axEffectChain": .frameLocal,

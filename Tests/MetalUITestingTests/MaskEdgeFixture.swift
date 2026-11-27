@@ -17,14 +17,25 @@ enum MEArm: String, CaseIterable, CustomStringConvertible, Sendable {
     var description: String { rawValue }
 }
 
+/// What a block's icon draws: a rect, a path (every bundled symbol is one), a gradient.
+enum MEIcon: String, CaseIterable, CustomStringConvertible, Sendable {
+    case rect, path, gradient
+    var description: String { rawValue }
+}
+
 /// A tool block: 31 pt tall, an icon, a title and two conditionals inside the clip, tinted chrome with a rounded clip.
 struct MEBlock: Component, @MainActor Equatable {
     let id: Int
     let radius: Float
     let trailing: Bool
+    var icon: MEIcon = .rect
     var content: some ElementGroup {
         HStack(spacing: 6) {
-            Color.accent.opacity(0.6).frame(width: Pixels(12), height: Pixels(12))   // an icon: a rect leaf (an image's texture is a new object each paint, which verify mode refuses to equate)
+            switch icon {
+            case .rect: Color.accent.opacity(0.6).frame(width: Pixels(12), height: Pixels(12))
+            case .path: MEWedge().fill(Color.red).frame(width: Pixels(12), height: Pixels(12))
+            case .gradient: Rectangle().fill(LinearGradient(colors: [.red, .blue], startPoint: .top, endPoint: .bottom)).frame(width: Pixels(12), height: Pixels(12))
+            }   // an icon: a rect leaf (an image's texture is a new object each paint, which verify mode refuses to equate)
             Text("tool call \(id)")
             if trailing { Text("done") }
             if id.isMultiple(of: 2) { Text("+") }
@@ -88,7 +99,7 @@ struct MEIsland<Viewport: ElementGroup>: Component {
 /// What row 0 of the fixed scroller is (`FS-Z` test 7): a plain block, a block holding a second rounded clip that crosses the first, or a block holding a
 /// stroked shape (a path leaf, which a record cannot count one emission for).
 enum MERowKind: String, CaseIterable, CustomStringConvertible, Sendable {
-    case plain, nested, shape, matched
+    case plain, nested, shape, matched, gradient, faded
     var description: String { rawValue }
 }
 
@@ -118,6 +129,21 @@ struct MEOddRow: Component, @MainActor Equatable {
             MEBlock(id: 0, radius: radius, trailing: toggled)
         case .nested:
             VStack(spacing: 0) { MEBlock(id: 0, radius: 4, trailing: toggled) }.cornerRadius(Pixels(radius))
+        case .gradient:
+            HStack(spacing: 6) {
+                Rectangle().fill(LinearGradient(colors: [.red, .blue], startPoint: .top, endPoint: .bottom)).frame(width: Pixels(10), height: Pixels(10))
+                Text("gradient \(toggled ? "on" : "off")")
+            }
+            .padding(Edges(all: Pixels(8)))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: Pixels(31))
+            .background(Color.accent.opacity(0.2)).cornerRadius(Pixels(radius))
+        case .faded:
+            HStack(spacing: 6) { Text("faded \(toggled ? "on" : "off")").compositingGroup().opacity(0.9) }
+                .padding(Edges(all: Pixels(8)))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: Pixels(31))
+                .background(Color.accent.opacity(0.2)).cornerRadius(Pixels(radius))
         case .matched:
             HStack(spacing: 6) { Text("matched \(toggled ? "on" : "off")").matchedGeometryEffect(id: 1, in: meSpace) }
                 .padding(Edges(all: Pixels(8)))
@@ -175,13 +201,14 @@ struct MEFixedRoot: Component {
 struct MERoot: Component {
     let side: RPSide
     let arm: MEArm
+    var icon: MEIcon = .rect
     var content: some ElementGroup {
         MEIsland(arm: arm, viewport: (
             ScrollViewReader { _ in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: Pixels(10)) {
                         ForEach(Array(0..<60), id: \.self) { k in
-                            if k.isMultiple(of: 3) { MEBubble(id: k).equatable() } else { MEBlock(id: k, radius: 8, trailing: k.isMultiple(of: 4)).equatable() }
+                            if k.isMultiple(of: 3) { MEBubble(id: k).equatable() } else { MEBlock(id: k, radius: 8, trailing: k.isMultiple(of: 4), icon: icon).equatable() }
                         }
                         MEStream(lines: Int(side.inputs.offset)).equatable()
                     }.padding(Edges(top: Pixels(12), right: Pixels(16), bottom: Pixels(12), left: Pixels(16)))
@@ -192,8 +219,8 @@ struct MERoot: Component {
     }
 }
 
-@MainActor func mePair(arm: MEArm = .island, scale: Float, accessibility: Bool = false, warm: Int = 8) throws -> RPPair<some Element> {
-    try RPPair(size: sz(1100, 840), scale: scale, warm: warm, accessibility: accessibility) { side in VStack(spacing: 0) { MERoot(side: side, arm: arm) } }
+@MainActor func mePair(arm: MEArm = .island, scale: Float, accessibility: Bool = false, warm: Int = 8, icon: MEIcon = .rect) throws -> RPPair<some Element> {
+    try RPPair(size: sz(1100, 840), scale: scale, warm: warm, accessibility: accessibility) { side in VStack(spacing: 0) { MERoot(side: side, arm: arm, icon: icon) } }
 }
 
 /// One streamed step on both sides, settled, one frame each; the retaining window's frames of the step.
@@ -254,4 +281,22 @@ func meDeepDifference(_ a: [Data], _ b: [Data]) -> String? {
 @MainActor func meCompareDeep(_ pair: RPPair<some Element>, _ step: String) {
     let difference = meDeepDifference(meDeepSnapshot(pair.on.scene), meDeepSnapshot(pair.off.scene))
     #expect(difference == nil, "deep scene after \(step): \(difference ?? "")")
+}
+
+/// 300 empty builder units (`ForEach`) and then three rounded rows, all under one `.equatable()` occurrence: more unit ranges before a painted clip than its
+/// `rangesBefore` byte holds (`FS-Z`).
+struct MEMany: Component, @MainActor Equatable {
+    let removed: Int
+    var content: some ElementGroup {
+        VStack(spacing: 0) {
+            ForEach(Array(0..<300).filter { $0 != removed }, id: \.self) { _ in Color.clear.frame(width: Pixels(1), height: Pixels(0)) }
+            ForEach(Array(0..<3), id: \.self) { k in MEBlock(id: k, radius: 8, trailing: false) }
+        }
+    }
+}
+
+@MainActor func meManyPair() throws -> RPPair<some Element> {
+    try RPPair(size: sz(200, 400), scale: 1, warm: 3, accessibility: false) { side in
+        VStack(spacing: 0) { MEMany(removed: side.inputs.showExtra ? 5 : -1).equatable() }
+    }
 }

@@ -212,11 +212,11 @@ final class RetainLog {
     private func noteSeen(_ leaves: [([CapturedPrimitive], [Int]?)], _ depth: Int, scope: PaintScope) {
         var added = 0
         if leaves.count == 1, leaves[0].1 == nil {
-            for primitive in leaves[0].0 {
-                if !Self.isCountable(primitive) { scope.inexact = true }
-                scene.append(SceneOp(boundary: Self.seenOnlyTag, leaves: [([primitive], nil)], depth: depth))
-                added += 1
-            }
+            // One op for the leaf as it came: a record that can count it splits it into one op a primitive when it is made (`finishRetainedPaint`), so a
+            // record that cannot (`fallback`) pays nothing for the split.
+            for primitive in leaves[0].0 where !Self.isCountable(primitive) { scope.inexact = true; break }
+            scene.append(SceneOp(boundary: Self.seenOnlyTag, leaves: leaves, depth: depth))
+            added = leaves[0].0.count
         } else {
             scope.inexact = true
             scene.append(SceneOp(boundary: Self.seenOnlyTag, leaves: leaves, depth: depth))
@@ -240,7 +240,11 @@ final class RetainLog {
 
     /// Whether a recorder at paint height 0 that can still leave a record is open: a crossing scope opened now is seen through (`FS-Z`).
     var seesThroughAtZero: Bool {
-        for recorder in recorders where recorder.taint == nil && recorder.entryHeight == 0 { return true }
+        var index = 0
+        while index < recorders.count {   // indexed: a `for` over the array allocates on this path
+            if recorders[index].taint == nil, recorders[index].entryHeight == 0 { return true }
+            index += 1
+        }
         return false
     }
 
@@ -258,7 +262,7 @@ final class RetainLog {
 
     /// A seen-through scope opens (`FS-Z`).
     func noteSeenOpen(_ scope: PaintScope, rangeCount: Int, matchedCount: Int) {
-        if !virtualActive { virtualActive = true; virtualFirst = rangeCount }
+        if !virtualActive { virtualActive = true; virtualFirst = rangeCount; virtualRanges.reserveCapacity(128) }   // one allocation, not a doubling run
         seenScope = scope
         matchedAtSeen = matchedCount
     }
@@ -267,14 +271,30 @@ final class RetainLog {
     func noteSeenClose(_ scope: PaintScope, captured: Int, emitted: Int, matchedCount: Int) {
         virtualDelta += captured - emitted
         seenScope = nil
-        if scope.inexact { taint("crossingUncounted") }
+        // A scope that collected what is not exactly one emission a primitive (a path, a gradient, an inner group, a nested record's ranges) leaves its recorders
+        // the record master made: no canonical form, so no move across a crossing change, but it still replays unmoved (`FS-Z`).
+        if scope.inexact {
+            var index = 0
+            while index < recorders.count {
+                if recorders[index].entryHeight == 0 { recorders[index].fallback = true }
+                index += 1
+            }
+        }
         if matchedCount != matchedAtSeen { taint("crossingMatchedGroup") }
     }
 
-    /// A matched-geometry group noted its sequences (`FS-Z`): the true ones inside a seen-through scope, or after one that emitted otherwise than it collected,
-    /// are not the sequences a record made with no scope holds.
+    /// A matched-geometry group noted its sequences (`FS-Z`): the true ones are not the sequences a record made with no scope holds for a recorder whose
+    /// distance between the true and the virtual sequence is not what it was when it opened (a scope closed inside its window, or is open now). A recorder
+    /// opened after the scope closed keeps one distance throughout and is consistent.
     func noteMatchedGroup() {
-        if seenScope != nil || (virtualActive && virtualDelta != 0) { taint("crossingMatchedGroup") }
+        guard virtualActive else { return }
+        let distance = virtualDelta + (seenScope?.captures.count ?? 0)
+        var index = 0
+        while index < recorders.count {
+            let recorder = recorders[index]
+            index += 1
+            if recorder.entryHeight == 0, recorder.taint == nil, recorder.virtualFrom - recorder.sequenceFrom != distance { recorder.taint = "crossingMatchedGroup" }
+        }
     }
 
     /// The virtual range at index `index` of the true ranges, `nil` while the virtual sequence was not yet active (`FS-Z`).
@@ -385,6 +405,8 @@ final class SubtreeRecorder {
     var passedInnerScope = false
     /// Whether an occurrence nested in this one returned from paint without emitting (`RK-AF`): the record would hold a hole.
     var redoHole = false
+    /// A scope this recorder saw through could not be counted (`FS-Z`): its record is made as master made it, the true stream as the scene, `innerScopes` set.
+    var fallback = false
     var from = RetainLog.Marks()
     var before = LedgerSnapshot()
     /// `TransitionStore.ranges.count` and the scene's emission sequence where the paint window opened (`XF-H` item 8).
@@ -446,6 +468,16 @@ struct InnerClip: Equatable {
         var index = 0
         while index < clips.count {
             if clips[index].hasScope { return true }
+            index += 1
+        }
+        return false
+    }
+
+    /// Whether a clip that opens a scope saturated its range counts: its record cannot convert ranges across a crossing (`FS-Z`).
+    static func anyUncountedScope(in clips: [InnerClip]) -> Bool {
+        var index = 0
+        while index < clips.count {
+            if clips[index].hasScope, clips[index].isUncounted { return true }
             index += 1
         }
         return false
@@ -883,10 +915,9 @@ final class RetainedPhase {
     var prepaintReads: Range<Int> = 0..<0
     /// Whether the paint decision replayed the record at a translated position (`RK-G`, `RK-S`).
     var translatedPaint = false
-    /// The paint record moved to this frame's position, when the decision replays it translated (`FS-D`).
-    var translatedScene: [RetainLog.SceneOp]?
-    /// The clips of the record as moved (`FS-Z`): the flags of the position, in verify mode, where the record itself stays as it was.
-    var translatedClips: [InnerClip]?
+    /// The paint record moved to this frame's position (its leaves and the clips with the flags of the position, `FS-D`, `FS-Z`), when verify mode replays a copy
+    /// and keeps the record. One reference, so a phase, made for every occurrence every frame, holds one word for both.
+    var translatedCopy: MovedPaintCopy?
     /// The attempt to move the record, kept between prepaint and paint (`FS-D`).
     var paintTranslationMemo: PaintTranslationMemo?
     /// Whether this occurrence's prepaint already counted the refusal of a combined layout and effect move (`EL-C`), so the paint does not.
@@ -907,6 +938,13 @@ final class RetainedPhase {
         self.prepaintObserved = prepaintObserved
         self.changesAtStart = entry.flags.changes
     }
+}
+
+/// A moved copy of a record for verify mode (`FS-D`, `FS-Z`).
+final class MovedPaintCopy {
+    let scene: [RetainLog.SceneOp]
+    let clips: [InnerClip]?
+    init(scene: [RetainLog.SceneOp], clips: [InnerClip]?) { self.scene = scene; self.clips = clips }
 }
 
 /// What paint does with an occurrence (`SB-AA`).
@@ -1092,10 +1130,10 @@ extension Frame {
             if let clips, let origin = layoutOrigin, retainLog != nil || flagged {
                 // A record whose clip opens a scope here and has no final stream yet takes the stream this replay makes (once per move, `FS-Z`).
                 let captures = flagged && r.finalScene == nil && movedScene == nil && movedClips == nil && paintScopes.isEmpty
-                if captures { finalTap = [] }
+                if captures { stateTable.contentMemos.finalTap = [] }
                 crossings = replayOps(ops, clips: clips, origin: origin, log: retainLog, rangeBase: rangeBase)
-                if captures, let tapped = finalTap { r.finalScene = tapped; r.finalIsScene = false }
-                finalTap = nil
+                if captures, let tapped = stateTable.contentMemos.finalTap { r.finalScene = tapped; r.finalIsScene = false }
+                stateTable.contentMemos.finalTap = nil
             } else {
                 for op in ops { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
             }
@@ -1111,7 +1149,7 @@ extension Frame {
         let emittedNow = scene.nextEmissionSequence - sequenceBase
         var shrink = 0
         for crossing in crossings { shrink += crossing.captured - crossing.emitted }
-        if !r.ranges.isEmpty, emittedNow == r.emitted - shrink, !InnerClip.anyUncounted(in: clips) {
+        if !r.ranges.isEmpty, emittedNow == r.emitted - shrink, !Self.crossingsUncounted(crossings, in: clips) {
             if crossings.isEmpty {
                 animationStore.transitions.renoteRanges(r.ranges, base: sequenceBase)
             } else if let clips {
@@ -1129,6 +1167,13 @@ extension Frame {
         }
         stateTable.contentMemos.retained.skippedPaints += r.paintWork
         stateTable.contentMemos.retained.replayedOps += r.scene.count
+    }
+
+    /// Whether a scope the replay crossed has clip counts that saturated: the ranges cannot be converted (`FS-Z`). Clips that open no scope are not read.
+    static func crossingsUncounted(_ crossings: [CrossingMeasure], in clips: [InnerClip]?) -> Bool {
+        guard let clips else { return false }
+        for crossing in crossings where clips[crossing.clip].isUncounted { return true }
+        return false
     }
 
     /// What one replayed crossing scope collected (`captured`), what its close emitted, and the true sequence it opened at (`FS-Z`), for the clip at `clip`.
@@ -1361,8 +1406,7 @@ extension Frame {
                     if retainedVerifiesFromEnvironment {
                         // Verify mode keeps the record it compares against and compares the fresh run with the record as moved (`SB-W`).
                         let (ops, clips) = copiedPaintTranslation(moved, of: old)
-                        phase.translatedScene = ops
-                        phase.translatedClips = clips
+                        phase.translatedCopy = MovedPaintCopy(scene: ops, clips: clips)
                         if phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old.moved(to: ops, clips: clips)) }
                     } else {
                         // The record is made over at the new position, in place (`FS-V`: nothing is copied), so the frames that follow replay
@@ -1466,12 +1510,24 @@ extension Frame {
         // At paint height 0 the ops a crossing mask scope seen through added (`FS-Z`) are the scene's leaves before the mask and its merged leaf the final
         // stream's: the record keeps both as boundary 0 ops, the record a paint with no scope around it makes.
         let atZero = recorder.entryHeight == 0
+        // A recorder that saw through a scope it could not count keeps master's record (`FS-Z`): the merged leaf as an op of the scene, the true count and ranges.
+        let fallback = atZero && (recorder.fallback || InnerClip.anyUncountedScope(in: recorder.clips))
+        if fallback { recorder.passedInnerScope = true }
         var sawScope = false
         for op in ops {
-            if op.boundary == recorder.entryHeight {
+            if fallback {
+                if op.boundary == 0 || op.boundary == RetainLog.finalOnlyTag {
+                    record.scene.append(RetainLog.SceneOp(boundary: 0, leaves: op.leaves, depth: op.depth))
+                }
+            } else if op.boundary == recorder.entryHeight {
                 record.scene.append(op)
             } else if atZero, op.boundary == RetainLog.seenOnlyTag {
-                record.scene.append(RetainLog.SceneOp(boundary: 0, leaves: op.leaves, depth: op.depth))
+                if op.leaves.count == 1, op.leaves[0].1 == nil, op.leaves[0].0.count > 1 {
+                    // A text draw's glyphs, one leaf because a scope was open, are one op a glyph again (`FS-Z`).
+                    for primitive in op.leaves[0].0 { record.scene.append(RetainLog.SceneOp(boundary: 0, leaves: [([primitive], nil)], depth: op.depth)) }
+                } else {
+                    record.scene.append(RetainLog.SceneOp(boundary: 0, leaves: op.leaves, depth: op.depth))
+                }
                 sawScope = true
             }
         }
@@ -1502,14 +1558,15 @@ extension Frame {
         record.touches = Array(log.touches[from.touches..<to.touches])
         record.paintWork = after.work - before.work
         // A record at paint height 0 keeps its count and ranges on the virtual sequence (`FS-Z`): what a paint with no crossing scope around it counts.
-        let base = atZero ? recorder.virtualFrom : recorder.sequenceFrom
-        record.emitted = (atZero ? log.virtualSequence(scene.nextEmissionSequence) : scene.nextEmissionSequence) - base
+        let virtual = atZero && !fallback
+        let base = virtual ? recorder.virtualFrom : recorder.sequenceFrom
+        record.emitted = (virtual ? log.virtualSequence(scene.nextEmissionSequence) : scene.nextEmissionSequence) - base
         let noted = animationStore.transitions.ranges
         if recorder.rangesFrom < noted.count {
             var ranges: [UnitRange] = []
             ranges.reserveCapacity(noted.count - recorder.rangesFrom)
             for index in recorder.rangesFrom..<noted.count {
-                let range = atZero ? log.virtualRange(at: index) ?? noted[index] : noted[index]
+                let range = virtual ? log.virtualRange(at: index) ?? noted[index] : noted[index]
                 ranges.append(UnitRange(unit: range.unit, start: range.start - base, end: range.end - base))
             }
             record.ranges = ranges
@@ -1521,7 +1578,7 @@ extension Frame {
             }
         }
         record.innerScopes = recorder.passedInnerScope
-        if !recorder.clips.isEmpty, key.rects.count >= 2 {
+        if !recorder.clips.isEmpty, key.rects.count >= 2, !fallback {
             // Relative to the first top node: a moved record's clips move with it and the record keeps its clips as it moves.
             var relative = recorder.clips
             for index in relative.indices { relative[index] = relative[index].moved(byX: -key.rects[0], y: -key.rects[1]) }

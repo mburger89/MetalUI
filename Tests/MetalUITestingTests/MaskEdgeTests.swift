@@ -49,7 +49,7 @@ func aCrossingUnderAnOuterScopeStillRefusesByName(scale: Float) async throws {
 
 /// Alloy's streaming transcript in its island, 40 steps at both scales, with and without an accessibility client: no mask refusal and the redos master makes (`FS-Z`; 7 on master, 5 at the corner zones and one for the
 /// row whose clip crosses as a recorded `innerScope`, steps 0 and 1 the first sight of the streaming row), every frame equal to a retention-off window's, deep.
-/// Allocations are the ceiling master measured (546,500 and 547,500 at scales 1 and 2; 570,500 and 571,500 with an accessibility client).
+/// Allocations are the ceiling master measured (554,500 and 555,500 at scales 1 and 2; 570,500 and 571,500 with an accessibility client).
 @Test(arguments: [Float(1), 2], [false, true]) @MainActor
 func anIslandTranscriptStreamsWithoutAMaskRedo(scale: Float, accessibility: Bool) async throws {
     let pair = try mePair(arm: .island, scale: scale, accessibility: accessibility)
@@ -67,12 +67,12 @@ func anIslandTranscriptStreamsWithoutAMaskRedo(scale: Float, accessibility: Bool
     // geometry redos of rows realised as the lazy window grows, which a mask has nothing to do with (steps 1, 17 and 33 on master too).
     #expect(reasons.isEmpty, "no mask or innerScope refusal: \(reasons)")
     #expect(redos <= 3, "redos \(redos)")
-    let ceiling = accessibility ? (scale == 1 ? 570_500 : 571_500) : (scale == 1 ? 546_500 : 547_500)
+    let ceiling = accessibility ? (scale == 1 ? 570_500 : 571_500) : (scale == 1 ? 554_500 : 555_500)
     #expect(allocations <= ceiling, "allocations \(allocations)")
 }
 
 /// What a record that never crosses pays (`FS-Z`): the same bytes and the same allocations as before. The structs are the sizes master has, the record is the
-/// size master's is, no clip of a non-crossing record carries a scope bit, and a step that translates a record without crossing allocates what it did (3645).
+/// size master's is, no clip of a non-crossing record carries a scope bit, and a step that translates a record without crossing allocates what it did (3975).
 @Test(arguments: [Float(1), 2]) @MainActor
 func aRecordThatNeverCrossesPaysNothing(scale: Float) async throws {
     #expect(MemoryLayout<InnerClip>.stride == 60 && MemoryLayout<InnerClip>.size <= 60)
@@ -89,12 +89,12 @@ func aRecordThatNeverCrossesPaysNothing(scale: Float) async throws {
     }
     let step = try await meInsideStep(scale: scale)
     if !rsVerifying {
-        #expect(step.allocations == 3645, "a translated non-crossing step allocates \(step.allocations)")
+        #expect(step.allocations == 3975, "a translated non-crossing step allocates \(step.allocations)")
         #expect(step.work.retainedRedos == 0)
     }
 }
 
-/// An idle frame of the island transcript costs what it did (`FS-Z`): at most 2360 allocations (master measures 2353 to 2357, by the order the suite runs in) and
+/// An idle frame of the island transcript costs what it did (`FS-Z`): at most 2450 allocations (master at `9aec1177` measures 2438 to 2441) and
 /// 10 element requests, at both scales, after 30 streamed steps.
 @Test(.enabled(if: !rsVerifying, meVerifyingNote), arguments: [Float(1), 2]) @MainActor
 func anIdleFrameOfTheIslandTranscriptIsUnchanged(scale: Float) async throws {
@@ -104,7 +104,7 @@ func anIdleFrameOfTheIslandTranscriptIsUnchanged(scale: Float) async throws {
     for _ in 0..<4 {
         pair.off.window.setNeedsRedraw(); pair.off.tick()
         let allocations = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
-        #expect(allocations <= 2360 && pair.on.lastFrameWork.elementRequests == 10, "idle: \(allocations) allocations, \(pair.on.lastFrameWork.elementRequests) requests")
+        #expect(allocations <= 2450 && pair.on.lastFrameWork.elementRequests == 10, "idle: \(allocations) allocations, \(pair.on.lastFrameWork.elementRequests) requests")
         #expect(pair.on.lastFrameWork.retainedRedos == 0)
     }
 }
@@ -257,4 +257,118 @@ func eachCrossingThatCannotBeCanonicalRefusesByName(kind: MERowKind) async throw
     }
     let named = kind == .nested ? "maskNested" : kind == .matched ? "maskMatchedGroups" : "maskNotCanonical"
     if !rsVerifying { #expect(reasons[named, default: 0] >= 1, "\(kind): refusals \(reasons)") }
+}
+
+// MARK: Review follow-ups (record 437)
+
+/// A record that never crosses still re-notes its unit ranges on every replay (`FS-Z`): 300 builder units under rounded clips push a painted clip past the 255
+/// ranges a clip's `rangesBefore` holds, and the replay dropped every range of a record holding such a clip, so the next removal lost its default fade.
+/// Mutation: the uncounted gate back on every replay.
+@Test(arguments: [0, 1]) @MainActor
+func aRecordThatNeverCrossesReNotesAllItsUnitRanges(removal: Int) async throws {
+    let pair = try meManyPair()
+    for frame in 0..<3 {
+        pair.on.window.setNeedsRedraw(); pair.off.window.setNeedsRedraw(); pair.on.tick(); pair.off.tick()
+        #expect(pair.on.window.testingUnitRanges == pair.off.window.testingUnitRanges, "frame \(frame): unit ranges \(pair.on.window.testingUnitRanges.count) vs \(pair.off.window.testingUnitRanges.count)")
+    }
+    #expect(pair.off.window.testingUnitRanges.count >= 300, "the fixture notes a range a row")
+    if removal == 1 {
+        pair.onSide.inputs.showExtra = true; pair.offSide.inputs.showExtra = true
+        await rsSettle(); pair.redraw()
+        try pair.compare("removal")
+        meCompareDeep(pair, "removal")
+    }
+}
+
+/// A crossing row whose content a record cannot count one emission for (a path, a gradient, an inner opacity group) still records and replays unmoved, as on
+/// master (`FS-Z`): idle frames hit, nothing is ineligible, nothing redoes, and every frame equals a retention-off window's. Mutation: the fallback off (the
+/// record tainted `crossingUncounted`: a miss and a repaint every frame).
+@Test(arguments: [MERowKind.shape, .gradient, .faded], [Float(1), 2]) @MainActor
+func aCrossingRowWithUncountableContentStillReplaysUnmoved(kind: MERowKind, scale: Float) async throws {
+    let pair = try meFixedPair(radius: 8, scale: scale, kind: kind)
+    await meScroll(pair, by: 3)   // row 0 crosses
+    for _ in 0..<3 { pair.redraw() }
+    #expect(!pair.on.scene.groups.isEmpty, "a masked group: the row crosses")
+    for frame in 0..<3 {
+        pair.on.resetFrameWork()
+        pair.off.window.setNeedsRedraw(); pair.off.tick()
+        let allocations = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
+        let f = pair.on.lastFrameWork
+        if !rsVerifying {
+            #expect(f.retainedMisses == 0 && f.retainedIneligible == 0 && f.retainedRedos == 0, "\(kind) idle frame \(frame): misses \(f.retainedMisses) ineligible \(f.retainedIneligible) \(f.retainedIneligibleReasons)")
+            #expect(f.retainedHits >= 1)
+            // What master measures for the same frame (`9aec1177`): the row recorded and replayed unmoved there too.
+            let ceiling: (requests: Int, allocations: Int) = kind == .shape ? (16, 5280) : kind == .gradient ? (16, 4270) : (14, 4040)
+            #expect(f.elementRequests <= ceiling.requests && allocations <= ceiling.allocations, "\(kind) idle: \(f.elementRequests) requests, \(allocations) allocations")
+        }
+        try pair.compare("\(kind) idle \(frame)")
+        meCompareDeep(pair, "\(kind) idle \(frame)")
+    }
+    var at: Float = 3
+    for hidden in [Float(5), 3, 12, 4] {
+        await meScroll(pair, by: hidden - at); at = hidden
+        try pair.compare("\(kind) hidden \(hidden)")
+        meCompareDeep(pair, "\(kind) hidden \(hidden)")
+        #expect(pair.on.window.testingUnitRanges == pair.off.window.testingUnitRanges, "\(kind) hidden \(hidden): unit ranges")
+    }
+}
+
+/// A record that stopped crossing in a move is replayed from its scene again (`FS-Z`): at paint height 0 with no scope-opening clip the scene is the final
+/// stream, so the record shares it and the next unmoved replay takes the fast path. Mutation: the stream left nil after the move.
+@Test(.enabled(if: !rsVerifying, meVerifyingNote)) @MainActor
+func aRecordThatStoppedCrossingReplaysItsSharedFinalStream() async throws {
+    let pair = try meFixedPair(radius: 8, scale: 2)
+    await meScroll(pair, by: 3)
+    pair.on.window.testingDropRetainedRecords()
+    pair.redraw(); pair.redraw()
+    let record = try #require(pair.on.window.testingRetainedRecords().first { $0.opensCrossingScope && $0.key.rects[1] == 0 })
+    #expect(!record.finalIsScene)
+    await meScroll(pair, by: 5)   // hidden 8: no crossing, the record moves in place
+    try #require(record.key.rects[1] == 0 && !record.opensCrossingScope, "the record moved and no longer crosses")
+    pair.redraw()
+    #expect(record.finalIsScene && record.finalScene != nil, "the final stream is the scene again")
+}
+
+/// A matched-geometry group noted after a crossing scope closed taints a recorder that opened after the close no more than it would without the scope (`FS-Z`).
+@Test(.enabled(if: !rsVerifying, meVerifyingNote)) @MainActor
+func aRecorderOpenedAfterACrossingClosedIsNotTaintedByAMatchedGroup() async throws {
+    let log = RetainLog()
+    let before = SubtreeRecorder(), after = SubtreeRecorder()
+    log.recorders = [before]
+    before.sequenceFrom = 0; before.virtualFrom = 0
+    log.noteSeenOpen(PaintScope(kind: .composite, effect: .identity, entryClipDepth: 0), rangeCount: 0, matchedCount: 0)
+    log.noteSeenClose(log.seenScope ?? PaintScope(kind: .composite, effect: .identity, entryClipDepth: 0), captured: 5, emitted: 1, matchedCount: 0)
+    #expect(log.virtualDelta == 4)
+    after.sequenceFrom = 1; after.virtualFrom = log.virtualSequence(1)
+    log.recorders = [before, after]
+    log.noteMatchedGroup()
+    #expect(before.taint == "crossingMatchedGroup", "the recorder the scope closed inside is tainted")
+    #expect(after.taint == nil, "the recorder opened after it is consistent")
+}
+
+/// A streamed transcript whose rows carry an icon a record cannot count (a path: every bundled symbol is one; a gradient) redoes no more than master does and
+/// replays unmoved when idle (`FS-Z`): the rows that cross record as master recorded them. Master (`9aec1177`, scale 2): 5 redos, 1654 requests, 621,808 and
+/// 594,074 allocations over the 40 steps, idle 21 requests and 3095 / 2902 allocations. The streamed allocations here are 0.1% above master's (about 14 a
+/// step: the ops a scope seen through notes before the recorder falls back, not found to the allocation), the ceilings are what is measured; requests, redos and idle are master's or better.
+@Test(.enabled(if: !rsVerifying, meVerifyingNote), arguments: [MEIcon.path, .gradient]) @MainActor
+func aStreamedTranscriptWithUncountableIconsIsNoWorseThanMaster(icon: MEIcon) async throws {
+    let pair = try mePair(arm: .island, scale: 2, icon: icon)
+    var redos = 0, requests = 0, allocations = 0
+    for step in 0..<40 {
+        let (frames, counted) = await meStepCounted(pair)
+        let f = frames.reduce(FrameWork(), +)
+        redos += f.retainedRedos; requests += f.elementRequests; allocations += counted
+        try pair.compare("step \(step)")
+        meCompareDeep(pair, "step \(step)")
+    }
+    #expect(redos <= 5 && requests <= 1654, "redos \(redos) requests \(requests)")
+    #expect(allocations <= (icon == .path ? 622_600 : 594_800), "allocations \(allocations)")
+    for _ in 0..<14 { pair.redraw() }
+    for _ in 0..<3 {
+        pair.off.window.setNeedsRedraw(); pair.off.tick()
+        let idle = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } ?? 0
+        let f = pair.on.lastFrameWork
+        #expect(f.retainedMisses == 0 && f.retainedIneligible == 0 && f.retainedRedos == 0 && f.retainedHits >= 1, "idle: misses \(f.retainedMisses) ineligible \(f.retainedIneligible)")
+        #expect(f.elementRequests <= 21 && idle <= (icon == .path ? 3100 : 2910), "idle: \(f.elementRequests) requests, \(idle) allocations")
+    }
 }

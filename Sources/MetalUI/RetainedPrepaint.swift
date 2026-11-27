@@ -716,12 +716,19 @@ extension ContentMemoStore {
 /// What a frame holds after the root's paint, as comparable values (`RK-N`): the scene's arrays byte for byte, every
 /// hitbox's fingerprint in order, the Tab order and focus registrations' effect, the accessibility records, the tallies
 /// and the registrations of context menus, press-only actions and element bounds.
+final class VerifySnapshotBox {
+    let value: RetainedVerifySnapshot
+    init(_ value: RetainedVerifySnapshot) { self.value = value }
+}
+
 struct RetainedVerifySnapshot {
     let rects: [MUIRect], glyphs: [MUIGlyph], images: [MUIImage], backdrops: [MUIBackdrop], transforms: [MUITransform]
     let counts: [Int]
     /// The scene's groups, recursively (`FS-Z`): per group the quad, its filter, and the bytes of its mask scene's and its content scene's rects, glyphs and images.
     /// The arrays above are the top level only, and under a clip that crosses the whole transcript is one group quad.
     let groups: [String]
+    /// The unit ranges the frame noted (`animationStore.transitions.ranges`, `XF-H`): a replay that drops them loses the default fade of the next removal (`FS-Z`).
+    let unitRanges: [String]
     let hitboxes: [String]
     let tabOrder: [GlobalElementID]
     let accessibility: [String]
@@ -760,6 +767,11 @@ struct RetainedVerifySnapshot {
             let pairs = Array(zip(groups, other.groups))
             let at = pairs.firstIndex { $0.0 != $0.1 }.map { (offset: $0, element: pairs[$0]) }
             return "scene groups (\(groups.count) vs \(other.groups.count)) first difference \(String(describing: at))"
+        }
+        if unitRanges != other.unitRanges {
+            let pairs = Array(zip(unitRanges, other.unitRanges))
+            let at = pairs.firstIndex { $0.0 != $0.1 }.map { (offset: $0, element: pairs[$0]) }
+            return "unit ranges (\(unitRanges.count) vs \(other.unitRanges.count)) first difference \(String(describing: at))"
         }
         if hitboxes != other.hitboxes {
             let first = zip(hitboxes.indices, zip(hitboxes, other.hitboxes)).first { $0.1.0 != $0.1.1 }
@@ -826,6 +838,7 @@ extension Frame {
             rects: s.rects, glyphs: s.glyphs, images: s.images, backdrops: s.backdrops, transforms: s.transforms,
             counts: [s.rects.count, s.glyphs.count, s.images.count, s.surfaces.count, s.textures.count, s.drawList.count],
             groups: Self.groupDigest(of: s, path: ""),
+            unitRanges: animationStore.transitions.ranges.map { "\(sbPath($0.unit)) \($0.start) \($0.end)" },
             hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder,
             accessibility: axEmissions(from: 0).map {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"

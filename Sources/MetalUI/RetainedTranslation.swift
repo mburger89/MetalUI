@@ -349,8 +349,8 @@ extension Frame {
     /// scene (the final stream, which shares it, is let go first and taken again after), so the arrays are written through and nothing is copied.
     /// Only after `movedPaintRecord` answered `.moved` for the same record and key.
     func applyPaintTranslation(_ translation: PaintTranslation, to old: RetainedRecord, key: ReplayKey) {
-        let shared = old.finalIsScene
-        if shared { old.finalScene = nil }
+        // The stream is let go first (a unique scene is written in place): a record that no longer crosses shares its scene again, at paint height 0 it is the stream.
+        old.finalScene = nil
         _ = Self.moveOps(old, mode: .inPlace, translation)
         old.key = key
         // The clips that cross where the record stands now (`FS-Z`): the flags are the ones a fresh paint there notes.
@@ -362,7 +362,7 @@ extension Frame {
         // The final stream moved only where this key holds no outer scope: `movedPaintRecord` may have answered a prepaint's key (its ambient never holds the
         // paint scopes), and a stream moved by the delta alone is the final stream of no effect that scales (`EL-L`). A record with a crossing scope here has the
         // stream its next replay captures (`FS-Z`).
-        old.finalScene = shared && key.ambient.scopes.isEmpty && !old.opensCrossingScope ? old.scene : nil
+        old.finalScene = key.ambient.scopes.isEmpty && !old.opensCrossingScope ? old.scene : nil
         old.finalIsScene = old.finalScene != nil
     }
 

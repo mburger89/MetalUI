@@ -123,7 +123,12 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// Verify mode (`RK-N`, `METALUI_VERIFY_RETAINED=1`): what this frame held after the root's paint, taken only
     /// when a prepaint was replayed, and whether the frame was abandoned there so the window builds it again with
     /// every replay off and compares the two.
-    var verifySnapshot: RetainedVerifySnapshot?
+    var verifySnapshot: RetainedVerifySnapshot? {
+        get { verifySnapshotBox?.value }
+        set { verifySnapshotBox = newValue.map(VerifySnapshotBox.init) }
+    }
+    /// The snapshot boxed (`FS-Z`): a frame is made every draw and the snapshot, a struct of many words, is set only in verify mode.
+    var verifySnapshotBox: VerifySnapshotBox?
     var verifyAbandoned = false
 
     /// Where a ``ScrollViewProxy`` built in this frame enqueues its
@@ -4223,7 +4228,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
             leaves = next
         }
         retainLog?.noteBoundary(0, leaves, depth, closing: closing)
-        finalTap?.append(RetainLog.SceneOp(boundary: 0, leaves: leaves, depth: depth))
+        stateTable.contentMemos.finalTap?.append(RetainLog.SceneOp(boundary: 0, leaves: leaves, depth: depth))
         // One group of leaves (the common case) goes straight in: no flattened copy.
         if leaves.count == 1 { insertLeaves(leaves[0].0) } else { insertLeaves(leaves.flatMap(\.0)) }
     }
@@ -4503,9 +4508,6 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         }
         return false
     }
-
-    /// The ops that reach the scene while a replay captures its final stream (`FS-Z`): `nil` except inside `replayPaint`.
-    var finalTap: [RetainLog.SceneOp]?
 
     /// The glyphs of the text draw in progress, while a paint scope is open —
     /// `nil` otherwise (`GX-J`: a text draw is one leaf, SH4/SH5e).
