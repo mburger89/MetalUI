@@ -37,8 +37,17 @@ struct PaintTranslation {
     var dx: Float, dy: Float
     var entryDepth: Int
     var fold: MaskFold?
+    /// The entry clip's mask before and after, when the entry clip changed (`FS-Y`); `nil` when it is the same.
+    var entry: EntryClipChange?
     /// `Frame.unmovedAxisIsFree` when the move was made (`FS-W`): whether a zero shift skips the sixteenth check of its axis.
     var free = false
+}
+
+/// The entry clip of a moved record, folded as a leaf's mask where it stood and where it moves to (`FS-Y`): a leaf read at the entry depth
+/// carries exactly `was` and takes `now`.
+struct EntryClipChange {
+    var was: FoldedClip
+    var now: FoldedClip
 }
 
 /// A prepaint ledger moved to the position the occurrence stands at now.
@@ -84,9 +93,9 @@ func isUnmovedAxisFree(scale: Float) -> Bool { let s = scale * 16; return s == s
 
 enum RetainedShape {
     /// The shift of the first top node's origin and of where it lands in window points, or `nil` when the shape differs or
-    /// nothing moved (`FS-D`): same node count, same relative signature, same sizes, same origins relative to the first.
+    /// nothing moved (`FS-D`; `allowZero` answers a zero shift, for an occurrence whose entry clip changed instead, `FS-Y`): same node count, same relative signature, same sizes, same origins relative to the first.
     static func shift(newRects: [Float], newNodeCount: Int, newShape: Int, newOffset: [Float],
-                      oldRects: [Float], oldNodeCount: Int, oldShape: Int, oldOffset: [Float]) -> LayoutShift? {
+                      oldRects: [Float], oldNodeCount: Int, oldShape: Int, oldOffset: [Float], allowZero: Bool = false) -> LayoutShift? {
         guard newNodeCount == oldNodeCount, newShape == oldShape, newRects.count == oldRects.count,
               newRects.count >= 4, newRects.count % 4 == 0,
               newOffset.count == 2, oldOffset.count == 2 else { return nil }
@@ -102,7 +111,7 @@ enum RetainedShape {
         let shift = LayoutShift(layoutX: ox - px, layoutY: oy - py,
                                 windowX: (ox + newOffset[0]) - (px + oldOffset[0]),
                                 windowY: (oy + newOffset[1]) - (py + oldOffset[1]))
-        guard shift.layoutX != 0 || shift.layoutY != 0 || shift.windowX != 0 || shift.windowY != 0 else { return nil }
+        guard allowZero || shift.layoutX != 0 || shift.layoutY != 0 || shift.windowX != 0 || shift.windowY != 0 else { return nil }
         return shift
     }
 }
@@ -126,12 +135,23 @@ extension ReplayKey {
         return ambient.equalsIgnoringOffset(old.ambient) ? shift : nil
     }
 
+    /// How far this (the new) key's occurrence moved from `old`'s, **possibly not at all**, when the entry clip differs and nothing else but the
+    /// origin and the scroll offset does (`FS-Y`); `nil` otherwise, so where `shift(from:)` answers this stays silent.
+    func clippedShift(from old: ReplayKey) -> LayoutShift? {
+        guard ambient.clip != old.ambient.clip, ambient.clip.count == old.ambient.clip.count else { return nil }
+        guard let shift = RetainedShape.shift(newRects: rects, newNodeCount: nodeCount, newShape: shapeInterior,
+                                              newOffset: ambient.offset, oldRects: old.rects,
+                                              oldNodeCount: old.nodeCount, oldShape: old.shapeInterior,
+                                              oldOffset: old.ambient.offset, allowZero: true) else { return nil }
+        return ambient.equalsIgnoringOffsetAndClip(old.ambient) ? shift : nil
+    }
+
     /// The layout move and the change of the outer render effects found together (`EL-C`). With equal effect scopes this is
     /// `shift(from:)`, so the layout arm cannot move; with scopes that differ only in effect scopes (the shape half is
     /// `RetainedShape.shift`, untouched) `effect` is the relation of the scopes, a named refusal included. `nil` when nothing moved,
     /// or anything but the origin, the scroll offset and effect scopes differs.
     func shiftAndEffects(from old: ReplayKey) -> CombinedShift<EffectRelation>? {
-        if let shift = shift(from: old) { return CombinedShift(shift: shift, effect: nil) }
+        if let shift = shift(from: old) ?? clippedShift(from: old) { return CombinedShift(shift: shift, effect: nil) }
         guard let shift = RetainedShape.shift(newRects: rects, newNodeCount: nodeCount, newShape: shapeInterior,
                                               newOffset: ambient.offset, oldRects: old.rects,
                                               oldNodeCount: old.nodeCount, oldShape: old.shapeInterior,
@@ -172,6 +192,17 @@ extension PrepaintKey {
                                               newOffset: new.ambient.offset, oldRects: rects, oldNodeCount: nodeCount,
                                               oldShape: shapeInterior, oldOffset: ambient.offset) else { return nil }
         guard new.ambient.equalsIgnoringOffset(ambient), extras.equalIgnoringScrollOffset(new.extras) else { return nil }
+        return shift
+    }
+
+    /// How far the occurrence moved from this ledger's key to `new`, possibly not at all, when the entry clip differs and nothing else but
+    /// the origin and the scroll offset does (`FS-Y`); `nil` otherwise.
+    func clippedShift(to new: PrepaintKey) -> LayoutShift? {
+        guard new.ambient.clip != ambient.clip, new.ambient.clip.count == ambient.clip.count else { return nil }
+        guard let shift = RetainedShape.shift(newRects: new.rects, newNodeCount: new.nodeCount, newShape: new.shapeInterior,
+                                              newOffset: new.ambient.offset, oldRects: rects, oldNodeCount: nodeCount,
+                                              oldShape: shapeInterior, oldOffset: ambient.offset, allowZero: true) else { return nil }
+        guard new.ambient.equalsIgnoringOffsetAndClip(ambient), extras.equalIgnoringScrollOffset(new.extras) else { return nil }
         return shift
     }
 
@@ -283,6 +314,12 @@ extension Frame {
         if old.innerScopes { return .refused("innerScope") }
         guard key.ambient.clip.count >= 4, !key.ambient.depths.isEmpty else { return .refused("unkeyedClip") }
         let entryDepth = key.ambient.depths[0]
+        var entry: EntryClipChange?
+        if old.key.ambient.clip != key.ambient.clip {
+            // The entry clip changed and nothing else did (`FS-Y`): a leaf read at the entry depth is cut by the new clip, one read deeper is folded from it.
+            guard old.key.ambient.clip.count == key.ambient.clip.count else { return .refused("unkeyedClip") }
+            entry = EntryClipChange(was: Self.entryMask(old.key.ambient.clip, scale: s), now: Self.entryMask(key.ambient.clip, scale: s))
+        }
         var fold: MaskFold?
         if let clips = old.innerClips {
             switch foldedRecord(old, clips: clips, to: key, scale: s) {
@@ -290,7 +327,7 @@ extension Frame {
             case .moved(let folded): fold = folded
             }
         }
-        let translation = PaintTranslation(dx: dx, dy: dy, entryDepth: entryDepth, fold: fold, free: unmovedAxisIsFree)
+        let translation = PaintTranslation(dx: dx, dy: dy, entryDepth: entryDepth, fold: fold, entry: entry, free: unmovedAxisIsFree)
         if let reason = Self.moveOps(old, mode: .check, translation).reason { return .refused(reason) }
         return .moved(translation)
     }
@@ -314,26 +351,35 @@ extension Frame {
         Self.moveOps(old, mode: .copy, translation).ops
     }
 
-    /// The fold of the clips `old` pushed, at the position it was made and at `key`'s (`FS-V`), or the refusal. The entry clip is
-    /// equal by the key (a layout move or a scroll changes neither the viewport nor its rounding); the layout origins and every
-    /// recorded bound are multiples of 1/16, so the origin added back is the layout a fresh frame computes (`FS-D`).
+    /// The clip in force at the entry as a leaf carries it: `fill`'s own expression, `activeClip.scaled(by: scaleFactor)` and its radii (`FS-Y`).
+    private static func entryMask(_ clip: [Float], scale s: Float) -> FoldedClip {
+        let (bounds, radii) = entryClipState(clip)
+        return FoldedClip(mask: MUIBounds(bounds.scaled(by: s)), radii: MUICorners(radii.scaled(by: s)))
+    }
+
+    /// The entry clip a key holds (`ambient.clip`: the rect, then four corner radii when there are eight numbers) as `pushedClip` reads it.
+    static func entryClipState(_ c: [Float]) -> (Bounds<Pixels>, Corners<Pixels>) {
+        (Bounds(origin: Point(x: Pixels(c[0]), y: Pixels(c[1])), size: Size(width: Pixels(c[2]), height: Pixels(c[3]))),
+         c.count >= 8 ? Corners(topLeft: Pixels(c[4]), topRight: Pixels(c[5]), bottomRight: Pixels(c[6]), bottomLeft: Pixels(c[7]))
+                      : Corners(all: Pixels(0)))
+    }
+
+    /// The fold of the clips `old` pushed, at the position it was made (from the entry clip it was made under) and at `key`'s (from `key`'s), or
+    /// the refusal (`FS-V`, `FS-Y`); the layout origins and every recorded bound are multiples of 1/16, so the origin added back is the layout a
+    /// fresh frame computes (`FS-D`).
     private func foldedRecord(_ old: RetainedRecord, clips: [InnerClip], to key: ReplayKey, scale s: Float)
         -> TranslationOutcome<MaskFold> {
-        guard old.key.ambient.clip == key.ambient.clip else { return .refused("entryClipChanged") }
         guard isExactSixteenth(key.rects[0]), isExactSixteenth(key.rects[1]),
               isExactSixteenth(old.key.rects[0]), isExactSixteenth(old.key.rects[1]) else { return .refused("inexactTranslation") }
         for clip in clips {
             if clip.isRoot { return .refused("rootClip") }
             guard !clip.isInexact, isExactSixteenth(clip.x), isExactSixteenth(clip.y) else { return .refused("inexactTranslation") }
         }
-        let c = key.ambient.clip
-        let entryClip = Bounds(origin: Point(x: Pixels(c[0]), y: Pixels(c[1])), size: Size(width: Pixels(c[2]), height: Pixels(c[3])))
-        let entryRadii = c.count >= 8
-            ? Corners(topLeft: Pixels(c[4]), topRight: Pixels(c[5]), bottomRight: Pixels(c[6]), bottomLeft: Pixels(c[7]))
-            : Corners(all: Pixels(0))
+        let (entryClip, entryRadii) = Self.entryClipState(key.ambient.clip)
+        let (oldEntryClip, oldEntryRadii) = Self.entryClipState(old.key.ambient.clip)
         let entryOffset = Point(x: Pixels(key.ambient.offset[0]), y: Pixels(key.ambient.offset[1]))
         let oldOffset = Point(x: Pixels(old.key.ambient.offset[0]), y: Pixels(old.key.ambient.offset[1]))
-        let was = Self.foldedClips(clips, entryClip: entryClip, entryRadii: entryRadii, entryOffset: oldOffset,
+        let was = Self.foldedClips(clips, entryClip: oldEntryClip, entryRadii: oldEntryRadii, entryOffset: oldOffset,
                                    origin: (old.key.rects[0], old.key.rects[1]), scale: s)
         let now = Self.foldedClips(clips, entryClip: entryClip, entryRadii: entryRadii, entryOffset: entryOffset,
                                    origin: (key.rects[0], key.rects[1]), scale: s)
@@ -373,7 +419,7 @@ extension Frame {
                     let primitive = old.scene[index].leaves[group].0[member]
                     let emitted = old.scene[index].leaves[group].1?[member] ?? opDepth
                     switch movedLeaf(primitive, dx: move.dx, dy: move.dy, free: move.free, emittedAt: emitted,
-                                     entryDepth: move.entryDepth, fold: fold, push: current) {
+                                     entryDepth: move.entryDepth, fold: fold, entry: move.entry, push: current) {
                     case .refused(let reason): return (reason, [])
                     case .moved(let leaf):
                         switch mode {
@@ -401,7 +447,7 @@ extension Frame {
     /// One leaf moved by (`dx`, `dy`) device pixels, or the gate that refused. The allow-list is a rect, a glyph and an image
     /// (`FS-E`); every other kind refuses by its name.
     private static func movedLeaf(_ primitive: CapturedPrimitive, dx: Float, dy: Float, free: Bool, emittedAt depth: Int,
-                                  entryDepth: Int, fold: MaskFold?, push: Int) -> TranslationOutcome<CapturedPrimitive> {
+                                  entryDepth: Int, fold: MaskFold?, entry: EntryClipChange?, push: Int) -> TranslationOutcome<CapturedPrimitive> {
         guard primitive.transform == nil else { return .refused("transformedPrimitive") }
         func exactMove(_ p: MUIPoint) -> MUIPoint? {
             guard isExactShift(p.x, by: dx, free: free), isExactShift(p.y, by: dy, free: free) else { return nil }
@@ -410,7 +456,12 @@ extension Frame {
         /// The primitive's mask and its corner radii after the move: unchanged for the entry clip, the clip it was read under folded
         /// again at the new position for one derived inside (`FS-V`), once the fold at the old position gives what was recorded.
         func movedMask(_ mask: MUIBounds, _ radii: MUICorners) -> TranslationOutcome<(MUIBounds, MUICorners)> {
-            guard depth > entryDepth else { return .moved((mask, radii)) }
+            guard depth > entryDepth else {
+                // Read at the entry depth: the entry clip, cut again where it changed (`FS-Y`) once the old one is what was recorded.
+                guard let entry else { return .moved((mask, radii)) }
+                guard same(entry.was, mask, radii) else { return .refused("maskNotFolded") }
+                return .moved((entry.now.mask, entry.now.radii))
+            }
             guard let fold, let clip = fold.ancestor(of: push, at: depth) else { return .refused("maskUnmapped") }
             guard same(fold.old[clip], mask, radii) else { return .refused("maskNotFolded") }
             return .moved((fold.new[clip].mask, fold.new[clip].radii))
@@ -428,7 +479,7 @@ extension Frame {
                 }
                 switch movedLeaf(out.groups[k].mask[m], dx: dx, dy: dy, free: free,
                                  emittedAt: unbounded ? entryDepth : out.groups[k].maskDepth,
-                                 entryDepth: entryDepth, fold: fold, push: push) {
+                                 entryDepth: entryDepth, fold: fold, entry: entry, push: push) {
                 case .moved(let mask): out.groups[k].mask[m] = mask
                 case .refused(let reason): return .refused(reason)
                 }
@@ -554,13 +605,9 @@ extension Frame {
     /// One hitbox moved by (`dx`, `dy`) in its own (pre-effect) space (`FS-F`, shared with the combined move, `EL-B`): the refusals of
     /// the layout arm (content shape, scroll, a handler whose closure holds a position, an inexact number, a clip the move may
     /// change) by name, the cut by the ambient clip itself recomputed. The transform is not looked at.
-    func movedHitbox(_ hitbox: Hitbox, dx: Float, dy: Float, clip c: Bounds<Pixels>, entryDepth: Int, index: Int = 0,
+    func movedHitbox(_ hitbox: Hitbox, dx: Float, dy: Float, clip c: Bounds<Pixels>, oldClip: Bounds<Pixels>? = nil, entryDepth: Int, index: Int = 0,
                      fold: inout PrepaintClipFold?) -> TranslationOutcome<Hitbox> {
-        func inside(_ b: Bounds<Pixels>) -> Bool {
-            b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
-                && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
-                && b.origin.y.value + b.size.height.value < c.origin.y.value + c.size.height.value
-        }
+        func inside(_ b: Bounds<Pixels>, _ clip: Bounds<Pixels>) -> Bool { lies(b, strictlyInside: clip) }
         if hitbox.shape != nil { return .refused("hitboxShape") }
         if hitbox.scroll != nil { return .refused("hitboxScrolls") }
         let h = hitbox.handlers
@@ -583,7 +630,8 @@ extension Frame {
         let movedU = hitbox.unclipped.map {
             Bounds(origin: Point(x: Pixels($0.origin.x.value + dx), y: Pixels($0.origin.y.value + dy)), size: $0.size)
         }
-        guard inside(b), inside(moved) else {
+        // The rect before the move is tested against the clip it was made under, the moved rect against the clip now (`FS-Y`).
+        guard inside(b, oldClip ?? c), inside(moved, c) else {
             // Cut by the viewport's edge as well as by a clip the occurrence opened: the clips are folded again (`FS-X`).
             guard fold != nil, let u = hitbox.unclipped, let movedU else { return .refused("hitboxClipped") }
             guard exactShift(u.origin.x.value, by: dx), exactShift(u.origin.y.value, by: dy)
@@ -614,11 +662,14 @@ extension Frame {
         guard isExactSixteenth(dx), isExactSixteenth(dy) else { return .refused("inexactTranslation") }
         let c = Bounds(origin: Point(x: Pixels(clip[0]), y: Pixels(clip[1])),
                        size: Size(width: Pixels(clip[2]), height: Pixels(clip[3])))
+        // The clip the ledger was made under: it differs from `clip` when the entry clip changed with the move (`FS-Y`).
+        let o = ledger.key.ambient.clip
+        let oldClip = o.count >= 4 ? Bounds(origin: Point(x: Pixels(o[0]), y: Pixels(o[1])), size: Size(width: Pixels(o[2]), height: Pixels(o[3]))) : c
         // Accessibility records are recomputed (`RL-H`, was `AT-C`'s refusal) and geometry notes made again (`RL-E`, was `RG-C`'s).
         var fold = key.flatMap { PrepaintClipFold(of: ledger, to: $0) }
         var accessibility: AXTranslation?
         if !ledger.axEmissions.isEmpty || !ledger.axNodes.isEmpty {
-            switch movedAccessibility(of: ledger, dx: dx, dy: dy, clip: c, entryDepth: entryDepth, fold: &fold) {
+            switch movedAccessibility(of: ledger, dx: dx, dy: dy, clip: c, oldClip: oldClip, entryDepth: entryDepth, fold: &fold) {
             case .refused(let reason): return .refused(reason)
             case .moved(let translation): accessibility = translation
             }
@@ -634,7 +685,7 @@ extension Frame {
         hitboxes.reserveCapacity(ledger.hitboxes.count)
         for (index, hitbox) in ledger.hitboxes.enumerated() {
             if hitbox.transform != nil { return .refused("hitboxUnderEffect") }
-            switch movedHitbox(hitbox, dx: dx, dy: dy, clip: c, entryDepth: entryDepth, index: index, fold: &fold) {
+            switch movedHitbox(hitbox, dx: dx, dy: dy, clip: c, oldClip: oldClip, entryDepth: entryDepth, index: index, fold: &fold) {
             case .refused(let reason): return .refused(reason)
             case .moved(let moved): hitboxes.append(moved)
             }

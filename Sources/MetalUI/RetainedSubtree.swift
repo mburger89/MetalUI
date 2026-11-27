@@ -367,6 +367,15 @@ struct AmbientKey: Equatable {
             && atlasGeneration == other.atlasGeneration && clip == other.clip && layerOpacityScale == other.layerOpacityScale
             && depths == other.depths && scopes == other.scopes && shared == other.shared
     }
+
+    /// `self == other` with `offset` and `clip` set aside, the clips having the same count (`FS-Y`): the relation of an occurrence that moved
+    /// **and** whose entry clip changed. **Every stored field but `offset` and `clip` is here** (`everyAmbientFieldButTheOffsetAndClipSeparates`).
+    func equalsIgnoringOffsetAndClip(_ other: AmbientKey) -> Bool {
+        clip.count == other.clip.count && snappingTransaction == other.snappingTransaction
+            && disablesAnimations == other.disablesAnimations && atlasGeneration == other.atlasGeneration
+            && layerOpacityScale == other.layerOpacityScale && depths == other.depths && scopes == other.scopes
+            && shared == other.shared
+    }
 }
 
 extension AmbientKey {

@@ -111,13 +111,8 @@ extension Frame {
     /// ambient clip itself is cut again against it and one cut by a clip derived inside the occurrence moves only if it stays
     /// strictly inside the ambient clip before and after (the hitbox rule of `movedPrepaintLedger`). A record made under an effect
     /// refuses by name (`accessibilityUnderEffect`): the effect translation owns it (`AT-A`).
-    func movedAccessibility(of ledger: PrepaintLedger, dx: Float, dy: Float, clip c: Bounds<Pixels>, entryDepth: Int,
-                            fold: inout PrepaintClipFold?) -> TranslationOutcome<AXTranslation> {
-        func inside(_ b: Bounds<Pixels>) -> Bool {
-            b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
-                && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
-                && b.origin.y.value + b.size.height.value < c.origin.y.value + c.size.height.value
-        }
+    func movedAccessibility(of ledger: PrepaintLedger, dx: Float, dy: Float, clip c: Bounds<Pixels>, oldClip: Bounds<Pixels>? = nil,
+                            entryDepth: Int, fold: inout PrepaintClipFold?) -> TranslationOutcome<AXTranslation> {
         func exactly(_ b: Bounds<Pixels>) -> Bounds<Pixels>? {
             let x = b.origin.x.value, y = b.origin.y.value
             guard exactShift(x, by: dx), exactShift(y, by: dy) else { return nil }
@@ -133,7 +128,8 @@ extension Frame {
                 visible = Self.intersect(c, frame)
             } else {
                 let old = emission.geometry.visibleFrame
-                if inside(old), let moved = exactly(old), inside(moved) {
+                // The rect before the move against the clip it was made under, the moved rect against the clip now (`FS-Y`).
+                if lies(old, strictlyInside: oldClip ?? c), let moved = exactly(old), lies(moved, strictlyInside: c) {
                     visible = moved
                 } else if fold != nil {
                     // Cut by the viewport's edge as well as by a clip the occurrence opened: the clips are folded again (`FS-X`).
@@ -163,7 +159,7 @@ extension Frame {
 // MARK: - A layout move under a changed effect (`EL-B`..`EL-G`, FS-O)
 
 /// Whether `b` lies strictly inside `c` (the rule every moved clipped rect obeys: a rect touching the clip's edge may have been cut).
-private func lies(_ b: Bounds<Pixels>, strictlyInside c: Bounds<Pixels>) -> Bool {
+func lies(_ b: Bounds<Pixels>, strictlyInside c: Bounds<Pixels>) -> Bool {
     b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
         && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
         && b.origin.y.value + b.size.height.value < c.origin.y.value + c.size.height.value
@@ -328,6 +324,9 @@ struct PrepaintClipFold {
     private let clips: [PrepaintClip]
     private let entryClip: Bounds<Pixels>
     private let entryRadii: Corners<Pixels>
+    /// The entry clip the ledger was made under (`FS-Y`): the one its old position folds from; equal to `entryClip` unless that changed.
+    private let oldEntryClip: Bounds<Pixels>
+    private let oldEntryRadii: Corners<Pixels>
     private let oldOffset: Point<Pixels>, newOffset: Point<Pixels>
     private let oldOrigin: (x: Float, y: Float), newOrigin: (x: Float, y: Float)
     /// Whether an origin or a recorded bound is not a multiple of 1/16 (`FS-V`'s guard): the fold then refuses `inexactTranslation`.
@@ -355,11 +354,9 @@ struct PrepaintClipFold {
         guard let clips = ledger.innerClips, key.rects.count >= 2, ledger.key.rects.count >= 2, key.ambient.clip.count >= 4,
               key.ambient.offset.count == 2, ledger.key.ambient.offset.count == 2 else { return nil }
         self.clips = clips
-        let c = key.ambient.clip
-        entryClip = Bounds(origin: Point(x: Pixels(c[0]), y: Pixels(c[1])), size: Size(width: Pixels(c[2]), height: Pixels(c[3])))
-        entryRadii = c.count >= 8
-            ? Corners(topLeft: Pixels(c[4]), topRight: Pixels(c[5]), bottomRight: Pixels(c[6]), bottomLeft: Pixels(c[7]))
-            : Corners(all: Pixels(0))
+        guard ledger.key.ambient.clip.count >= 4, ledger.key.ambient.clip.count == key.ambient.clip.count else { return nil }
+        (entryClip, entryRadii) = Frame.entryClipState(key.ambient.clip)
+        (oldEntryClip, oldEntryRadii) = Frame.entryClipState(ledger.key.ambient.clip)
         oldOffset = Point(x: Pixels(ledger.key.ambient.offset[0]), y: Pixels(ledger.key.ambient.offset[1]))
         newOffset = Point(x: Pixels(key.ambient.offset[0]), y: Pixels(key.ambient.offset[1]))
         oldOrigin = (ledger.key.rects[0], ledger.key.rects[1])
@@ -414,7 +411,7 @@ struct PrepaintClipFold {
         let found = emissions ? emissionCursor.innermost(at: index, in: clips, emissions: true)
                               : hitboxCursor.innermost(at: index, in: clips, emissions: false)
         guard found >= 0, Int(clips[found].clip.depth) == depth else { return .refused(unmapped) }
-        guard let was = Self.foldedClipRect(clips, at: found, entryClip: entryClip, entryRadii: entryRadii, entryOffset: oldOffset,
+        guard let was = Self.foldedClipRect(clips, at: found, entryClip: oldEntryClip, entryRadii: oldEntryRadii, entryOffset: oldOffset,
                                             origin: oldOrigin),
               let now = Self.foldedClipRect(clips, at: found, entryClip: entryClip, entryRadii: entryRadii, entryOffset: newOffset,
                                             origin: newOrigin)

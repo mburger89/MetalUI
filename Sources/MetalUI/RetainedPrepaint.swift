@@ -394,8 +394,9 @@ extension Frame {
                 return .replay(ledger, moved: nil)
             }
             // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
-            // are replayed moved by the add, unless one cannot be moved exactly (refused by name).
-            let layoutShift = ledger.key.shift(to: key)
+            // are replayed moved by the add, unless one cannot be moved exactly (refused by name). The entry clip may have changed with the move
+            // (`FS-Y`, a zero move included): the same add, every cut made again from the new clip.
+            let layoutShift = ledger.key.shift(to: key) ?? ledger.key.clippedShift(to: key)
             if layoutShift == nil {
                 noteRun(phase, ledger.key.describeDifference(from: key).joined(separator: ", "))
             }
@@ -526,10 +527,12 @@ extension Frame {
     /// How far the paint record stands from where the occurrence is now, when only its origin or scroll offset differ (`FS-D`):
     /// the geometric part of the paint key's relation, which is all a prepaint can read (the paint-only ambient is open later).
     func recordShiftAtPrepaint(_ old: RetainedRecord, phase: RetainedPhase, key: PrepaintKey) -> LayoutShift? {
-        guard old.key.ambient.clip == key.ambient.clip else { return nil }
+        // A changed entry clip of the same count relates too, and a zero move with it (`FS-Y`): the paint record is cut again from the new clip.
+        let clipChanged = old.key.ambient.clip != key.ambient.clip
+        guard !clipChanged || old.key.ambient.clip.count == key.ambient.clip.count else { return nil }
         return RetainedShape.shift(newRects: phase.rects, newNodeCount: phase.nodeCount, newShape: phase.shapeInterior,
                                    newOffset: key.ambient.offset, oldRects: old.key.rects, oldNodeCount: old.key.nodeCount,
-                                   oldShape: old.key.shapeInterior, oldOffset: old.key.ambient.offset)
+                                   oldShape: old.key.shapeInterior, oldOffset: old.key.ambient.offset, allowZero: clipChanged)
     }
 
     /// The position part of a replay key for a record that is only being asked whether it can move (`FS-D`).
