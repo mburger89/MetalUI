@@ -202,13 +202,6 @@ extension PrepaintKey {
 struct FoldedClip {
     var mask: MUIBounds
     var radii: MUICorners
-    /// The mask of the crossing scope `Frame.paintClipped` opens for the clip at this position (`FS-Y`), `nil` when it opens none, or when the clip was
-    /// not pushed by `paintClipped`.
-    var crossing: CapturedPrimitive?
-    /// Whether the pair takes `intersect`'s square fallback here, `InnerClip.crossesFlag`.
-    var crosses: Bool
-    /// Whether a clip that opens a crossing scope encloses this one: its scope would be an inner one (`FS-Y`).
-    var underCrossing: Bool
 }
 
 /// The clips of a record folded where it stood and where it moves (`FS-V`), and the walk a leaf takes to the clip it read.
@@ -232,18 +225,16 @@ struct MaskFold {
 
 extension Frame {
     /// The clips `clips` pushed, folded again from the clip in force at the entry (`entryClip`, `entryRadii`, `entryOffset`) with the
-    /// first top node's layout origin at `origin`: `pushClip`'s own arithmetic (`Frame.pushedClip`), one push after another. A clip pushed by `paintClipped`
-    /// also folds its crossing mask (`Frame.crossingMask`, `layer` the layer the occurrence paints in): the scope a move into or out of a corner zone opens
-    /// or drops (`FS-Y`). Also whether the cut of any other clip that holds leaves is not the one it was recorded with (`crossingChanged`, `FS-V`), and whether
-    /// a clip that holds leaves opens a crossing scope inside another's (`nested`).
+    /// first top node's layout origin at `origin`: `pushClip`'s own arithmetic (`Frame.pushedClip`), one push after another. Also
+    /// whether the cut of a clip that holds leaves is not the one it was recorded with (`crossingChanged`, `FS-V`).
     static func foldedClips(_ clips: [InnerClip], entryClip: Bounds<Pixels>, entryRadii: Corners<Pixels>, entryOffset: Point<Pixels>,
-                            origin: (x: Float, y: Float), scale: Float, layer: Int)
-        -> (folded: [FoldedClip], crossingChanged: Bool, crossed: Bool, nested: Bool) {
+                            origin: (x: Float, y: Float), scale: Float)
+        -> (folded: [FoldedClip], crossingChanged: Bool, crossed: Bool) {
         var states: [(clip: Bounds<Pixels>, radii: Corners<Pixels>, offset: Point<Pixels>)] = []
         states.reserveCapacity(clips.count)
         var folded: [FoldedClip] = []
         folded.reserveCapacity(clips.count)
-        var changed = false, crossed = false, nested = false
+        var changed = false, crossed = false
         for clip in clips {
             let parent: (clip: Bounds<Pixels>, radii: Corners<Pixels>, offset: Point<Pixels>) =
                 clip.parent >= 0 ? states[Int(clip.parent)] : (entryClip, entryRadii, entryOffset)
@@ -254,43 +245,13 @@ extension Frame {
             let pushed = pushedClip(bounds, offset: Point(x: Pixels(clip.offsetX), y: Pixels(clip.offsetY)), radii: radii,
                                     activeClip: parent.clip, activeRadii: parent.radii, activeOffset: parent.offset,
                                     atFlatteningEntry: clip.atFlatteningEntry)
-            let crossing = clip.isPainted
-                ? crossingMask(bounds, radii: radii, activeClip: parent.clip, activeRadii: parent.radii, activeOffset: parent.offset,
-                               atFlatteningEntry: clip.atFlatteningEntry, scale: scale, layer: layer)
-                : nil
-            let under = clip.parent >= 0 && (folded[Int(clip.parent)].underCrossing || folded[Int(clip.parent)].crossing != nil)
             if clip.lo < clip.hi {
-                if clip.isPainted {
-                    if crossing != nil, under { nested = true }
-                } else if pushed.crosses != clip.crosses {
-                    changed = true
-                } else if clip.crosses {
-                    crossed = true
-                }
+                if pushed.crosses != clip.crosses { changed = true } else if clip.crosses { crossed = true }
             }
             states.append((pushed.clip, pushed.radii, pushed.offset))
-            folded.append(FoldedClip(mask: MUIBounds(pushed.clip.scaled(by: scale)), radii: MUICorners(pushed.radii.scaled(by: scale)),
-                                     crossing: crossing, crosses: pushed.crosses, underCrossing: under))
+            folded.append(FoldedClip(mask: MUIBounds(pushed.clip.scaled(by: scale)), radii: MUICorners(pushed.radii.scaled(by: scale))))
         }
-        return (folded, changed, crossed, nested)
-    }
-
-    /// The clips of a fold as they stand where it moved to, and the crossing masks of those that open a scope there, in clip order (`FS-Y`): each clip's
-    /// crossing bit is the new push's own report, and its scope bit is set when the pair crosses and no clip that crosses encloses it. `nil` masks for none.
-    static func scopeState(of fold: MaskFold) -> (clips: [InnerClip], masks: [CapturedPrimitive]?) {
-        var clips = fold.clips
-        var masks: [CapturedPrimitive] = []
-        for index in clips.indices {
-            let now = fold.new[index]
-            var flags = clips[index].flags & ~(InnerClip.crossesFlag | InnerClip.scopeFlag)
-            if now.crosses { flags |= InnerClip.crossesFlag }
-            if let crossing = now.crossing, !now.underCrossing {
-                flags |= InnerClip.scopeFlag
-                masks.append(crossing)
-            }
-            clips[index].flags = flags
-        }
-        return (clips, masks.isEmpty ? nil : masks)
+        return (folded, changed, crossed)
     }
 
     /// Whether a zero shift skips the sixteenth check of its axis on this frame (`FS-W`): when the scale is a multiple of 1/16 every product of a
@@ -329,12 +290,6 @@ extension Frame {
             case .moved(let folded): fold = folded
             }
         }
-        // The emission count of a masked group is not the sum of its leaves' (`insertMaskedGroup`), so the unit ranges and matched groups, which are in
-        // emission numbers, cannot follow a move of a record that crosses before or after (`FS-Y`).
-        if let fold, !old.ranges.isEmpty || !old.matched.isEmpty {
-            let crossesNow = Self.scopeState(of: fold).masks != nil, crossedBefore = old.crossingMasks != nil
-            if crossesNow || crossedBefore { return .refused(crossesNow && crossedBefore ? "maskCrossed" : "maskCrossingChanged") }
-        }
         let translation = PaintTranslation(dx: dx, dy: dy, entryDepth: entryDepth, fold: fold, free: unmovedAxisIsFree)
         if let reason = Self.moveOps(old, mode: .check, translation).reason { return .refused(reason) }
         return .moved(translation)
@@ -344,44 +299,19 @@ extension Frame {
     /// scene (the final stream, which shares it, is let go first and taken again after), so the arrays are written through and nothing is copied.
     /// Only after `movedPaintRecord` answered `.moved` for the same record and key.
     func applyPaintTranslation(_ translation: PaintTranslation, to old: RetainedRecord, key: ReplayKey) {
-        // A record made with no scope around it holds one array for its scene and its final stream, or derives the final stream from the scene (`FS-Y`): let it
-        // go first, so the scene is written through, and make it again after.
-        let atRoot = old.finalScene != nil && old.key.ambient.scopes.isEmpty
-        if atRoot { old.finalScene = nil }
+        let shared = old.finalIsScene
+        if shared { old.finalScene = nil }
         _ = Self.moveOps(old, mode: .inPlace, translation)
-        if let fold = translation.fold {
-            let state = Self.scopeState(of: fold)
-            for index in state.clips.indices where old.innerClips?[index].flags != state.clips[index].flags {
-                old.innerClips?[index].flags = state.clips[index].flags
-            }
-            if old.crossingMasks != nil || state.masks != nil { old.emittedIsStale = true }
-            old.crossingMasks = state.masks
-        }
         old.key = key
         // The final stream moved only where this key holds no outer scope: `movedPaintRecord` may have answered a prepaint's key (its ambient never holds the
         // paint scopes), and a stream moved by the delta alone is the final stream of no effect that scales (`EL-L`).
-        if atRoot, key.ambient.scopes.isEmpty {
-            if let masks = old.crossingMasks, let clips = old.innerClips {
-                old.finalScene = Self.finalStream(of: old.scene, clips: clips, masks: masks)
-                old.finalIsScene = false
-            } else {
-                old.finalScene = old.scene
-                old.finalIsScene = true
-            }
-        } else {
-            old.finalScene = nil
-            old.finalIsScene = false
-        }
+        old.finalScene = shared && key.ambient.scopes.isEmpty ? old.scene : nil
+        old.finalIsScene = old.finalScene != nil
     }
 
-    /// The leaves of `old` as moved, in a new array, for verify mode (the record it compares against stays as it is), with its clips and crossing masks as they
-    /// stand at the new position (`FS-Y`).
-    func copiedPaintTranslation(_ translation: PaintTranslation, of old: RetainedRecord)
-        -> (ops: [RetainLog.SceneOp], clips: [InnerClip]?, masks: [CapturedPrimitive]?, emittedIsStale: Bool) {
-        let ops = Self.moveOps(old, mode: .copy, translation).ops
-        guard let fold = translation.fold else { return (ops, old.innerClips, old.crossingMasks, false) }
-        let state = Self.scopeState(of: fold)
-        return (ops, state.clips, state.masks, old.crossingMasks != nil || state.masks != nil)
+    /// The leaves of `old` as moved, in a new array, for verify mode (the record it compares against stays as it is).
+    func copiedPaintTranslation(_ translation: PaintTranslation, of old: RetainedRecord) -> [RetainLog.SceneOp] {
+        Self.moveOps(old, mode: .copy, translation).ops
     }
 
     /// The fold of the clips `old` pushed, at the position it was made and at `key`'s (`FS-V`), or the refusal. The entry clip is
@@ -403,22 +333,12 @@ extension Frame {
             : Corners(all: Pixels(0))
         let entryOffset = Point(x: Pixels(key.ambient.offset[0]), y: Pixels(key.ambient.offset[1]))
         let oldOffset = Point(x: Pixels(old.key.ambient.offset[0]), y: Pixels(old.key.ambient.offset[1]))
-        // The layer the occurrence paints in is part of the key; the crossing masks carry it (`FS-Y`).
-        let layers = key.ambient.layerOpacityScale
-        guard !layers.isEmpty || !clips.contains(where: { $0.isPainted }) else { return .refused("unkeyedClip") }
-        let layer = layers.isEmpty ? 0 : Int(layers[0])
         let was = Self.foldedClips(clips, entryClip: entryClip, entryRadii: entryRadii, entryOffset: oldOffset,
-                                   origin: (old.key.rects[0], old.key.rects[1]), scale: s, layer: layer)
+                                   origin: (old.key.rects[0], old.key.rects[1]), scale: s)
         let now = Self.foldedClips(clips, entryClip: entryClip, entryRadii: entryRadii, entryOffset: entryOffset,
-                                   origin: (key.rects[0], key.rects[1]), scale: s, layer: layer)
+                                   origin: (key.rects[0], key.rects[1]), scale: s)
         if now.crossingChanged { return .refused("maskCrossingChanged") }
         if now.crossed { return .refused("maskCrossed") }
-        if now.nested { return .refused("maskNested") }
-        // The scope the record opens is the one the fold finds where it was made: a clip it opened none for crosses nowhere (`FS-Y`).
-        for index in clips.indices where clips[index].isPainted && clips[index].lo < clips[index].hi
-            && (was.folded[index].crossing != nil && !was.folded[index].underCrossing) != clips[index].hasScope {
-            return .refused("maskNotFolded")
-        }
         return .moved(MaskFold(clips: clips, old: was.folded, new: now.folded))
     }
 

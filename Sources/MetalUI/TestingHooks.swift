@@ -236,8 +236,6 @@ extension Window {
     package var testingStateEntries: [String] { stateTable.entryDigest }
     /// The paint records the window holds, for a test of what a record stores (`FS-V`).
     func testingRetainedRecords() -> [RetainedRecord] { stateTable.contentMemos.records }
-    /// Forgets every paint record, so the next frames make them fresh at the position the occurrences stand at (`FS-Y`).
-    func testingDropRetainedRecords() { stateTable.contentMemos.dropRecords() }
     /// How many failed occurrences are quarantined with what is under them (`RK-AN`).
     package var testingQuarantinedScopes: Int { stateTable.contentMemos.quarantinedScopes.count }
     /// Whether a redo suspends prepaint replay window-wide for the next nine builds (`RK-D` item 3). Off: the redo's quarantine of the failing entry

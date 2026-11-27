@@ -181,7 +181,6 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         switch frame.retainedPaintDecision(phase) {
         case .hit(let record):
             frame.replayPaint(record, translated: phase.translatedPaint, scene: phase.translatedScene,
-                              clips: phase.translatedClips, masks: phase.translatedMasks,
                               layoutOrigin: phase.rects.count >= 2 ? (phase.rects[0], phase.rects[1]) : nil)
         case .plain:
             if phase.replayed != nil || phase.grafted {
