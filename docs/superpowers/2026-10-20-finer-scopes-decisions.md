@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-X`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-Y`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -429,3 +429,25 @@ products `pt * scale`: with it skipped at scale 1.2 `METALUI_VERIFY_RETAINED=1` 
 1x display is on the free side; Alloy's text-measured x is the case it opens.
 **Cost.** None: one compare against zero per number, no allocation, no cache.
 **Mutation.** The old two-sided check in `exactMove` reddens `aLeafAtAFractionalXIsMovedByAVerticalScroll` (record 428).
+
+## FS-X - A ledger's registrations cut by a clip their occurrence pushed fold it again at the move (record 434; amends FS-F, FS-V)
+
+**Ruling.** (1) While a prepaint recorder is open every `pushClip`, `pushRootClip` and `popClip` is journalled on `PrepaintLog` (`clips`, one `PrepaintClip` each: the `InnerClip` of `FS-V`
+plus `axLo`/`axHi`; the frame's hitbox count and accessibility-emission count where it opened and closed are its ranges; one shared open-clip index, no second array). A ledger keeps
+the slice of its window as `innerClips`, **only when some hitbox or emission sits at a clip depth other than its entry's** (else `nil`): bounds relative to `key.rects[0..1]`, ranges
+relative to the recorder's low marks, parents remapped, so a rebase or a move rewrites nothing. A replayed ledger re-notes its clips into an open log at the position it stands at
+(`layoutOrigin`, the new key's when verify mode replays the old ledger with moved hitboxes), so an enclosing occurrence holds them too. (2) Where the strictly-inside rule would
+refuse (`accessibilityClipped`, `hitboxClipped`), `PrepaintClipFold` folds the clips from the key's entry clip, radii and offset with `Frame.pushedClip`, root first, at the old key
+and the new (`foldedClipRect`, recursion over the parent chain, no allocation), the element's innermost open clip found by a range cursor. The fold at the **old** key must reproduce the
+recorded `visibleFrame` / `bounds` bit for bit (`accessibilityNotFolded`, `hitboxNotFolded`); the new rect is `intersect(fold_new, moved frame or unclipped)`, the grouping a fresh frame
+uses (a stored per-element cut intersected with the shifted ambient would differ at a non-sixteenth x). A clip not at the element's own depth, or none, refuses `accessibilityUnmapped`
+/ `hitboxUnmapped`; a root or flattening-entry clip in the chain `rootClip`; an origin or recorded bound that is not a sixteenth `inexactTranslation`. The strictly-inside rule stays the
+fast path, and the frame's shift keeps `exactShift`. Threaded into `movedAccessibility`, `shiftedLocals` (the combined arm) and `movedHitbox`.
+**Cost.** One nil check per push/pop with no recorder open; with one, an append to `log.clips` (68 bytes a clip, allocated on the first push of a window) and one `package` counter
+increment. A ledger pays for `innerClips` only where a registration sits inside a pushed clip. A move allocates nothing. An idle frame is unchanged (7115 allocations, 67 element
+requests on the `ClippedRegistrationFoldTests` fixture, equal to master).
+**Left as it was.** A registration under a root clip that the fast path moves (strictly inside the ambient clip) is moved as before; only a cut one reaches the fold and refuses `rootClip`.
+At scale 1.2 a cut row is still refused by the **paint record** (`inexactTranslation`: its layout origins times 1.2 are not sixteenths, `FS-W`), so the ledger is not asked there.
+**Mutations.** The slow path removed reddens `aRowCutByTheViewportMovesItsAccessibilityAndHitbox` and the flipped `PlacementTranslationTests` 10 and 11; the new rect taken from the old
+fold reddens `aCutRowMovesExactlyAtEveryScale`; the recorded-rect comparison removed reddens `theFoldAtTheOldPositionMustReproduceTheRecordedCut`; the root check removed reddens
+`aRegistrationUnderARootClipStillRefuses`; `innerClips` kept for every ledger that pushed a clip reddens `aLedgerPaysOnlyForTheClipsItsOccurrencePushed`.
