@@ -1022,14 +1022,15 @@ public final class SDLWindow: PlatformWindow {
     public func presentFileDialog(_ dialog: PlatformFileDialog) -> Bool {
         guard let token = Int32(exactly: dialog.token) else { return false }
         let request: OpaquePointer?
+        let location = Self.dialogLocation(dialog)
         switch Self.dialogMode(dialog) {
         case .openFiles(let allowMany):
-            request = mui_dialog_request_new(token, false, allowMany, nil)
+            request = mui_dialog_request_new(token, false, allowMany, location)
         case .openFolders(let allowMany):
-            request = mui_dialog_request_new(token, false, allowMany, nil)
+            request = mui_dialog_request_new(token, false, allowMany, location)
             if let request { mui_dialog_request_choose_folders(request) }
-        case .save(let defaultFilename):
-            request = mui_dialog_request_new(token, true, false, defaultFilename)
+        case .save:
+            request = mui_dialog_request_new(token, true, false, location)
         }
         guard let request else { return false }
         let labels = Self.dialogLabels(dialog)
@@ -1065,6 +1066,24 @@ public final class SDLWindow: PlatformWindow {
         case .save(let defaultFilename):
             return .save(defaultFilename: defaultFilename)
         }
+    }
+
+    /// SDL's `default_location` for `dialog` (ruling `SV-AQ`). SDL3 documents it
+    /// as "the default folder or file to start the dialog at" and that "not all
+    /// platforms support this option". Open: the directory with a trailing
+    /// separator (so a GTK or portal dialog reads it as a folder), `nil` with
+    /// none. Save: the directory joined with the default filename when both are
+    /// given (the "or file" form, which names the starting folder and the
+    /// suggested name at once), the directory alone with no name, and with no
+    /// directory exactly what was passed before — the bare filename.
+    nonisolated static func dialogLocation(_ dialog: PlatformFileDialog) -> String? {
+        var directory = dialog.directory
+        if let path = directory, !path.hasSuffix("/"), !path.hasSuffix("\\") { directory = path + "/" }
+        if case .save(let defaultFilename) = dialog.kind {
+            guard let directory else { return defaultFilename }
+            return directory + (defaultFilename ?? "")
+        }
+        return directory
     }
 
     /// The texts SDL's dialog takes from `dialog` (ruling `SV-AO`): the accept

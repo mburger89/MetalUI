@@ -2675,3 +2675,11 @@ Run MetalCreator (or any app with a `.help { location in ... }` surface under `.
 *An agent cannot: the tests read the model's menus, not the real `NSApp.mainMenu` or a key event the window server routes.*
 
 - [ ] **MSI1.** (`MN-AT`) On macOS, an app whose `commands` replace `.saveItem` with Close Tab ⌘W, Close Window ⇧⌘W and Save ⌘S: File shows exactly those three; each key runs its own action once, and the standard Close never runs. Replace `.saveItem` with nothing: File has no Close, ⌘W does nothing, and the title-bar close button still closes the window.
+
+## FD. A file dialog's starting directory (record 432; ruling `SV-AQ`; decisions `docs/superpowers/2026-10-04-platform-services-decisions.md`; probe `docs/probes/swiftui-file-dialog-directory.swift`)
+
+*An agent cannot: `NSOpenPanel` does not initialise under a locked screen and SDL's dialogs need a desktop portal; only the seam, `AppKitWindow.directoryURL` and `SDLWindow.dialogLocation` were measured, and the probe's panels read `directoryURL`, not what the user sees.*
+
+- [ ] **FD1.** macOS, Linux (GTK portal and zenity) and Windows: from a window with a menu command (or the Services demo) call `window.fileDialogs.openFiles(allowedContentTypes: [], directory: <an existing folder other than the last one used>)`. The open dialog should list that folder first. Note per platform whether it does, and whether a `directory:` that does not exist falls back to the system's own without an error. **Observed:**
+- [ ] **FD2.** The same with `saveFile(defaultFilename: "notes.txt", directory: <folder>)` (Save As beside a file): the dialog starts in the folder with the name field "notes.txt". On SDL the location passed is `<folder>/notes.txt` (divergence 936); note on Linux and Windows whether the name lands in the name field and the folder is shown. **Observed:**
+- [ ] **FD3.** `.fileDialogDefaultDirectory(folder)` written after a `.fileImporter` and `.fileExporter`: both start in the folder; written on the content inside the presenter, neither does. **Observed:**

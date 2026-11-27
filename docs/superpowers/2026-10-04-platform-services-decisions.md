@@ -24,7 +24,7 @@ refute a line above, that line is corrected in place and names them. Where Swift
 call, hover — unmeasurable headless) the ruling says so and names gpui's
 approach as the comparison, not as evidence.
 
-Prefix **`SV-`**, lettered. **Next unused: `SV-AQ`.** (This line moves in the
+Prefix **`SV-`**, lettered. **Next unused: `SV-AR`.** (This line moves in the
 commit that appends a ruling; read the last `## SV-` heading.)
 
 Branch `feat/platform-services` from `c2b8f48` (master: lifecycle merged, PR
@@ -1578,5 +1578,61 @@ live `NSSavePanel` (no panel under a locked screen, human checks `DX1`, `DX2`), 
 `SDL_ShowFileDialogWithProperties` branch (no SDL dialog runs on macOS; 1.12c pins the Linux image's
 answer, `DX3`). `MG2.6b` (make `TextField` an `AlertActions`) was not run: the guard's field arm is the
 carried item's only pin.
+
+**Cost if wrong.** None to the code.
+
+## SV-AQ — A file dialog's starting directory: `.fileDialogDefaultDirectory(_:)`, `directory:` on `FileDialogs`, `PlatformFileDialog.directory` (amends `SV-AO` item 1, `SV-D`; record 432)
+
+Asked for by the Alloy code-editor app: File › Open… (⌘O) from a menu command should start in the project
+folder, Save As… beside the file being saved. Evidence: SwiftUI's declaration `fileDialogDefaultDirectory(_
+defaultDirectory: URL?)` (the SDK's `.swiftinterface`, macOS 15) and the probe
+`docs/probes/swiftui-file-dialog-directory.swift` (arms `D0`–`D7`, macOS 27.0, the reading in its header).
+Pins: `FileDialogDirectoryTests` (`D1`–`D4`), `SDLPresentationTests` 1.12d.
+
+1. **`.fileDialogDefaultDirectory(_ defaultDirectory: URL?)`** on `ElementGroup`, returning `EnvironmentScope`:
+   an internal environment key (`URL?`, equatable, so a retained key sees a change, `EE-F`), read by
+   `Frame.notePresentation` from `environmentTop` **at the presenting scope's own position** and stored on the
+   `PresentationRecord`, exactly as `SV-AO` item 1's label and message. A writer outside the presenter reaches it,
+   one on the content inside does not (`D1`, `D2`); the nearest writer wins (`D7`); `nil` leaves the system's
+   choice (`D4`). The record holds the `URL?` (a copy, no allocation); the path is built only when a dialog is
+   presented, so a window that presents nothing pays nothing.
+2. **`FileDialogs.openFiles(…, directory: URL? = nil)` and `saveFile(…, directory: URL? = nil)`**, a trailing
+   defaulted parameter (class M, no SwiftUI counterpart): a call has no view environment, so
+   `@Environment(\.fileDialogs)` and `Window.fileDialogs` read **nothing** from it — the modifier does not reach an
+   async call, only the argument does. (There is therefore no "argument over environment" case.) For Save As, pass
+   the saved file's folder.
+3. **The seam: `PlatformFileDialog.directory: String?`**, a file-system path, a defaulted `init` parameter. A
+   `URL` that is not a file URL, an empty path, or `nil` is `nil`: the system's own starting directory
+   (`D6`: SwiftUI's panel reads `directoryURL == nil` for an https URL). A directory that does not exist is
+   passed through; the platform falls back (`D5`: AppKit's panel shows its remembered directory).
+4. **AppKit** sets `NSSavePanel.directoryURL` (a directory file URL) from the pure `AppKitWindow.directoryURL(_:)`
+   before the sheet is shown. **SDL** passes `SDLWindow.dialogLocation(_:)` as the bridge's existing
+   `default_location` (SDL3: "the default folder or file to start the dialog at … not all platforms support this
+   option"): an open dialog gets the directory with a trailing separator, a save dialog gets
+   `<directory>/<filename>` when both are given — SDL3 documents the location as a "folder or file", so the
+   filename form is the documented one — the directory alone with no name, and with no directory exactly the
+   bare filename as before. Whether each desktop's dialog (GTK portal, zenity, the Windows common dialog)
+   honours it is unmeasured here (divergence 936, human check `FD1`). **The headless harness** records the
+   whole `PlatformFileDialog`, so `presentedFileDialogs` carries `directory` with no change.
+5. **Class and divergence.** The modifier is class A (SwiftUI's spelling and declaration); 936 records the SDL
+   limit. The `directory:` parameters and the seam field are class M.
+
+## SV-AR — `SV-AQ`'s mutation table (measured)
+
+Branch `feat/file-dialog-directory` (from master `e051f257`), each mutation applied alone after the commit,
+root runs `--filter FileDialogDirectoryTests` (four tests); the SDL one from `Backends/SDL` with
+`--filter sdlDialogLocation`. Every mutation reddened.
+
+| id | mutation (spelling) | reddened |
+|---|---|---|
+| MD1a | `PlatformFileDialog.init`: `self.directory = directory` → `nil` | `theDefaultDirectoryModifierReachesTheImporterAndTheExporter`, `theDirectoryArgumentReachesTheOpenAndSaveRequests`, `theAppKitPanelStartsInTheSeamsDirectory` |
+| MD1b | `present`: `directory: platformDirectoryPath(record.fileDialogDirectory)` → `nil` | `theDefaultDirectoryModifierReachesTheImporterAndTheExporter` |
+| MD1d | `platformDirectoryPath`: `guard let url, url.isFileURL` → `guard let url` | `theDefaultDirectoryModifierReachesTheImporterAndTheExporter`, `theDirectoryArgumentReachesTheOpenAndSaveRequests` |
+| MD2 | `runFileDialog`: `directory: platformDirectoryPath(directory)` → `nil` | `theDirectoryArgumentReachesTheOpenAndSaveRequests` |
+| MD3 | `AppKitWindow.directoryURL` → `nil` | `theAppKitPanelStartsInTheSeamsDirectory` |
+| M1.12d-a | `SDLWindow.dialogLocation` save: `directory + (name ?? "")` → the filename alone | `sdlDialogLocationIsTheDirectoryAndTheSuggestedName` |
+
+Not mutated: `panel.directoryURL = …` on a live panel (no panel under a locked screen) and the C bridge's
+pass of `default_location` to SDL (no SDL dialog runs here): human check `FD1`.
 
 **Cost if wrong.** None to the code.
