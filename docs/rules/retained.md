@@ -108,7 +108,7 @@ conjunct is gone, `BuildKey.environment` refuses (`FS-H`). **A row that moved by
 `ReplayKey`/`PrepaintKey.shapeInterior`, `Frame.movedPaintRecord`/`movedPrepaintLedger`, `RetainedTranslation.swift`; extends `RK-G`/`RK-S`, never forks it): accepted only for
 a **whole-device-pixel** delta on exact (1/16, below 2^19) numbers (`FS-M`), leaves rect, glyph, image (path, gradient, surface, shadow, blur, backdrop, an inner paint scope, a
 transformed primitive refuse by name), a mask moved only when strictly inside the entry clip; hitboxes keep their uncut rect and clip depth (`Hitbox.unclipped`) so a scroller's cut
-is recomputed, and the pointer is read against the moved hitboxes (`FS-P`); accessibility records, press-only actions, menus and handler hitboxes refuse; a hit rebases record and
+is recomputed, and the pointer is read against the moved hitboxes (`FS-P`); accessibility records, press-only actions, menus and handler hitboxes refuse (a scroller's hitbox does not: `Hitbox.moved` copies every field and `hitboxScrolls` is gone, `FS-AA`); a hit rebases record and
 ledger. `METALUI_RETAINED_TRANSLATION=0` / `Window.testingRetainedTranslation` is the A/B. One public field, `FrameWork.retainedTranslationRefusedReasons` (class M); no
 divergence (labels 555-564 untouched). Shifted frame 171 / 172 / 244 -> 3 / 4 / 4 with the graft; pins count work. Carried then, built or pinned in record §128 (`RG-`): placement-memo translation (`FS-G`), the unpinned
 `hitboxClipped`, a shift under a moved render effect. Demo: `METALUI_RETAINED_DEMO=1`'s shift-and-scroll strip.

@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-Z`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-AB`.** (`FS-Z` is reserved by `perf/canonical-crossing-record`, not yet on master.) (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -288,7 +288,7 @@ the viewport (an empty cut), moves exactly; registered deeper (a clip pushed ins
 strictly inside the ambient clip before and after, else `hitboxClipped`. (Measured: the proposal `.clipped()`/`.clipShape` register
 their hitboxes at the ambient depth, so `hitboxClipped` has no construction in this suite: the guard is conservative and **unpinned**, its
 mutation survives, `FS-T`.) **Refused by name:** `accessibilityRecords` (any emission or node: their frames are computed boxes), `pressOnly`,
-`contextMenus`, `presentationAnchor`, and per hitbox `hitboxUnderEffect`, `hitboxShape`, `hitboxScrolls`, `hitboxHandlers` (a text input, a
+`contextMenus`, `presentationAnchor`, and per hitbox `hitboxUnderEffect`, `hitboxShape`, `hitboxScrolls` (retired, `FS-AA`), `hitboxHandlers` (a text input, a
 value track, a drop destination or a contextual attachment, whose closures hold positions), `hitboxClipped`, `inexactTranslation`.
 **The pointer is read against the moved hitboxes.** Hover resolves after prepaint, so the decision tests the pointer against the hitboxes
 where they will stand (`mousePosition` inside one: run the prepaint); testing the old rects let a card scroll under a resting pointer, replay its
@@ -480,3 +480,20 @@ A **test switch** `Window.testingRelatesChangedClip` (`ContentMemoStore.relatesC
 **Mutations.** An entry-depth leaf keeping its old mask reddens `aParagraphUnderAGrowingRowReplaysTranslated`; the old rect tested against the new clip reddens `anOldRectIsTestedAgainstTheOldClip`; the fold of the old position
 from the new entry clip reddens `theFoldStartsFromEachKeysOwnClip`; a field dropped from the relation reddens `everyAmbientFieldButTheOffsetAndClipSeparates` and `aChangedScopeIsNotAClipChange`; `allowZero` off reddens
 `aChangedClipRelatesWhereTheShapeAndTheRestAreTheSame`.
+
+## FS-AA - A scroller's hitbox moves with its ledger like any other, and `Hitbox.moved` carries every field (record 439; amends FS-F, FS-P)
+
+**Ruling.** (1) **`Hitbox.moved` is a copy of `self`** with `bounds`, `origin` and `unclipped` replaced (`origin` is a `var` now). It rebuilt the hitbox through `init` and copied back three fields, so the four `XS-E` fields (`scrollMirrored`,
+`scrollAxes`, `scrollTakes`, `scrollRoom`) were dropped: a moved scroller would have passed the wheel on (`Window.applyScroll` reads `scrollTakes`) and verify mode would have trapped on `Hitbox.fingerprint`. A field added to `Hitbox` later is carried by
+default. (2) **`hitboxScrolls` is gone** from `movedHitbox` (and so from the layout arm and the combined arm, which share it). The refusal's reason (`FS-F`, `FS-P`: closures or geometry that hold positions) is false for a scroller: its
+`handlers` are empty, `Hitbox.scroll` is a bare `ScrollAxis`, and the payload holds no window position. `scrollTakes` and `scrollRoom` are functions of the content and viewport extents (sizes of nodes inside the occurrence, equal under every
+shift `RetainedShape` accepts), the scroller's own offset (read through a compared `withState`, so it is in the ledger's `reads` and the record's `versions`, and a changed offset misses) and the scale (in `AmbientKey`); the mirror flag is the layout direction
+(in the environment fingerprint) and `scrollAxes` the element value. The window-space fields are the three every other hitbox moves, by `insertHitbox`'s own arithmetic: `unclipped + shift`, `bounds = clip ∩ unclipped'`, `origin + shift`
+(the scroller registers outside its own clip, at the entry depth: the `FS-P` fast path; an inner depth takes the strictly-inside rule or the `FS-X` fold unchanged). (3) **Nothing else changes.** `scrollTo` and `scrollPosition` are refused by
+`prepaintRefusal` and the audit channels `scrollRequest` and `scrollTarget`; a glide taints the ledger and the paint record; `ScrollerFrame` is layout space and not in the ledger; the effect arm already moved scroller hitboxes through `rederived`,
+which starts from a copy.
+**Cost.** None stored. A moved ledger is rebased in place (`FS-U`): no ledger is made for a fence's row. Idle frames meet `ledger.key == key` first: every pin fixture keeps its scrollers outside its occurrences (`G51Fixture`, `G52`,
+`ScrollOffsetPixelSnap`, `ClippedRegistrationFold`, the chrome transcript), and none moved.
+**Measured** (Alloy's chat fixture, `AlloyTranscriptFixture`, 420 x 600 at scale 2, 20 streamed deltas and 10 wheel steps, retention backoff off): see record 439.
+**Mutations.** `moved` back to the `init` body reddens `aMovedScrollerHitboxEqualsAFreshOne`, `aWheelOverAMovedFenceScrollsTheFence` and the verify run; the refusal restored reddens `aFenceRowMovedByAWheelReplaysItsLedgerMoved` and `aStreamedReply...`; `unclipped` not moved
+reddens `aFenceCutByTheViewportEdgeMovesItsHitboxExactly`; `scrollRoom` alone dropped reddens `aMovedScrollerHitboxEqualsAFreshOne`.
