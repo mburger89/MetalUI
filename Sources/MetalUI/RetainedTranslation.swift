@@ -603,13 +603,12 @@ extension Hitbox {
 
 extension Frame {
     /// One hitbox moved by (`dx`, `dy`) in its own (pre-effect) space (`FS-F`, shared with the combined move, `EL-B`): the refusals of
-    /// the layout arm (content shape, scroll, a handler whose closure holds a position, an inexact number, a clip the move may
-    /// change) by name, the cut by the ambient clip itself recomputed. The transform is not looked at.
+    /// the layout arm (content shape, a handler whose closure holds a position, an inexact number, a clip the move may
+    /// change) by name (a scroller is moved like any other hitbox: `FS-AA`), the cut by the ambient clip itself recomputed. The transform is not looked at.
     func movedHitbox(_ hitbox: Hitbox, dx: Float, dy: Float, clip c: Bounds<Pixels>, oldClip: Bounds<Pixels>? = nil, entryDepth: Int, index: Int = 0,
                      fold: inout PrepaintClipFold?) -> TranslationOutcome<Hitbox> {
         func inside(_ b: Bounds<Pixels>, _ clip: Bounds<Pixels>) -> Bool { lies(b, strictlyInside: clip) }
         if hitbox.shape != nil { return .refused("hitboxShape") }
-        if hitbox.scroll != nil { return .refused("hitboxScrolls") }
         let h = hitbox.handlers
         if h.textInput != nil || h.valueTrack != nil || h.dropDestination != nil || h.contextual != nil {
             return .refused("hitboxHandlers")
@@ -649,7 +648,7 @@ extension Frame {
 
     /// `ledger`'s registrations moved by `shift` (`FS-F`), or the name of the gate that refused: accessibility emissions and
     /// nodes (their frames are computed boxes), press-only actions, context menus and presentation anchors refuse; so does a
-    /// hitbox that sits under a render effect, carries a content shape, scrolls, tracks a value, edits text or takes a drop
+    /// hitbox that sits under a render effect, carries a content shape, tracks a value, edits text or takes a drop
     /// (their closures or geometry hold positions the move does not reach), and one the ambient clip may have cut.
     func movedPrepaintLedger(_ ledger: PrepaintLedger, shift: LayoutShift, clip: [Float], to key: PrepaintKey? = nil) -> TranslationOutcome<LedgerTranslation> {
         if !ledger.pressOnly.isEmpty { return .refused("pressOnly") }
