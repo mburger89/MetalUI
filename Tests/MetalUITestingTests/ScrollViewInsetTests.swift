@@ -286,3 +286,171 @@ private enum Inset { case none, wrapped, direct }
     #expect(try thumb(horizontal: true, margin: (.bottom, Pixels(-3))).origin.y == 198)
     #expect(try thumb(horizontal: true, margin: (.top, Pixels(4))).origin.y == 195)
 }
+
+// MARK: - The plain flex `ScrollView` (Alloy's `ChatView`: `ScrollViewReader { ScrollView { LazyVStack ... } }`)
+
+@MainActor private func flexRows(_ stream: Stream, spacing: Float = 0) -> some ElementGroup {
+    LazyVStack(spacing: Pixels(spacing)) {
+        ForEach(0..<stream.count, id: \.self) { index in
+            ProposalText(index == stream.count - 1 ? "row \(index) \(stream.tail)" : "row \(index)")
+                .frame(height: Pixels(20))
+                .accessibilityIdentifier("block-\(index)")
+        }
+    }.scrollTargetLayout()
+}
+
+@MainActor private final class SeenBox { var id: Int? }
+
+private let lopsided = Edges(top: Pixels(5), right: Pixels(30), bottom: Pixels(11), left: Pixels(7))
+
+/// The flex transcript, `.wrapped` as `VStack { ScrollViewReader { ScrollView } }.padding(...)`, `.direct` as the padding on
+/// the scroller inside the reader. `padFirst` writes `.padding` before the anchor and the position binding, else after.
+@MainActor private func flexTranscript(_ inset: Inset, box: ProxyBox? = nil, padFirst: Bool = true,
+                                       position: Binding<Int?>? = nil) throws -> TestWindow {
+    let stream = Stream()
+    return try harnessWindow(size: sz(300, 200)) {
+        VStack(spacing: Pixels(0)) {
+            if inset == .wrapped {
+                VStack(spacing: Pixels(0)) {
+                    ScrollViewReader { proxy in
+                        let _: Bool? = box?.keep(proxy)
+                        ScrollView { flexRows(stream) }.defaultScrollAnchor(.bottom)
+                    }
+                }.padding(lopsided)
+            } else if padFirst {
+                ScrollViewReader { proxy in
+                    let _: Bool? = box?.keep(proxy)
+                    ScrollView { flexRows(stream) }.padding(lopsided).defaultScrollAnchor(.bottom).scrollPosition(id: position ?? .constant(nil))
+                }
+            } else {
+                ScrollViewReader { proxy in
+                    let _: Bool? = box?.keep(proxy)
+                    ScrollView { flexRows(stream) }.scrollPosition(id: position ?? .constant(nil)).defaultScrollAnchor(.bottom).padding(lopsided)
+                }
+            }
+        }
+    }
+}
+
+/// **SP-M, the flex `ScrollView`.** A padding written on it lays out as the wrapped form does (rows at the bottom anchor, after
+/// a wheel to the top, after `scrollTo` at each anchor), the padding is not scrollable, and the modifiers chain after it in
+/// either order. Mutation: the padding node left out of `loweredLayout`.
+@Test @MainActor func aPaddingOnTheFlexScrollViewLaysOutLikeTheWrappedForm() throws {
+    let wrappedBox = ProxyBox(), directBox = ProxyBox(), reversedBox = ProxyBox()
+    let wrapped = try flexTranscript(.wrapped, box: wrappedBox)
+    let direct = try flexTranscript(.direct, box: directBox)
+    let reversed = try flexTranscript(.direct, box: reversedBox, padFirst: false)
+    let all = [wrapped, direct, reversed]
+    for window in all { settle(window) }
+    let atEnd = try frames(direct)
+    #expect(atEnd == (try frames(wrapped)), "the bottom anchor")
+    #expect(atEnd == (try frames(reversed)), "the other modifier order")
+    #expect(atEnd["row 39 tail"] != nil && (atEnd["row 39 tail"]?.origin.x ?? 0) >= 7)
+    // A wheel in the 7-point padding scrolls nothing.
+    direct.scroll(at: pt(3, 100), byDeltaX: 0, deltaY: 40); settle(direct)
+    #expect(try frames(direct) == atEnd, "a wheel in the padding")
+    for window in all { window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: 1_000_000); settle(window) }
+    #expect(try frames(direct) == (try frames(wrapped)), "a wheel to the top")
+    #expect(try frames(reversed) == (try frames(wrapped)))
+    for (anchor, key) in [(UnitPoint.top, 10), (.bottom, 20), (.center, 30)] {
+        for box in [wrappedBox, directBox, reversedBox] { box.proxy?.scrollTo(key, anchor: anchor) }
+        for window in all { settle(window) }
+        #expect(try frames(direct) == (try frames(wrapped)), "scrollTo(\(key), \(anchor))")
+        #expect(try frames(reversed) == (try frames(wrapped)), "reversed scrollTo(\(key), \(anchor))")
+    }
+}
+
+/// **SP-M, `scrollPosition(id:)` after a padding.** The binding still reports the topmost row once a wheel moves the padded
+/// flex scroller, in either order. Mutation: the position's finish reading the padding node's bounds.
+@Test @MainActor func scrollPositionStillChainsAfterAPaddingOnTheFlexScrollView() throws {
+    for padFirst in [true, false] {
+        let box = SeenBox()
+        let binding = Binding<Int?>(get: { box.id }, set: { box.id = $0 })
+        let window = try flexTranscript(.direct, padFirst: padFirst, position: binding)
+        settle(window)
+        window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: 1_000_000); settle(window)
+        window.scroll(at: pt(100, 100), byDeltaX: 0, deltaY: -50); settle(window)
+        #expect(box.id != nil && box.id != 39, "padFirst \(padFirst): top target \(String(describing: box.id))")
+    }
+}
+
+/// **SP-N, the flex `ScrollView`.** The identifier names the scroller's own group, the rows keep theirs, and it costs what the
+/// bare scroller does. Mutation: the registration left out of `prepaint`.
+@Test @MainActor func anIdentifierOnTheFlexScrollViewNamesItsOwnNodeAtNoCost() throws {
+    func build(_ identifier: String?) throws -> TestWindow {
+        let stream = Stream()
+        return try harnessWindow(size: sz(300, 200)) {
+            VStack(spacing: Pixels(0)) {
+                if let identifier {
+                    ScrollView { flexRows(stream) }.defaultScrollAnchor(.bottom).accessibilityIdentifier(identifier)
+                } else {
+                    ScrollView { flexRows(stream) }.defaultScrollAnchor(.bottom)
+                }
+            }
+        }
+    }
+    let named = try build("transcript"), bare = try build(nil)
+    #expect(steadyRequests(named) == steadyRequests(bare))
+    let area = try named.element(identifier: "transcript")
+    #expect(area.role == .group)
+    let rows = try named.elements(role: .staticText)
+    #expect(rows.allSatisfy { $0.identifier?.hasPrefix("block-") == true }, "rows keep their own")
+    #expect(try bare.elements(role: .group).isEmpty)
+}
+
+/// **CMG-G, the flex `ScrollView`.** The trailing `.scrollIndicators` margin moves its thumb as the proposal scroller's.
+/// Mutation: as the proposal arm's.
+@Test @MainActor func aTrailingIndicatorMarginMovesTheFlexScrollViewsThumb() throws {
+    func x(_ margin: Pixels) throws -> Float {
+        let stream = Stream()
+        let window = try harnessWindow(size: sz(300, 200)) {
+            VStack(spacing: Pixels(0)) {
+                ScrollView { flexRows(stream) }.contentMargins(.trailing, margin, for: .scrollIndicators)
+            }
+        }
+        settle(window, frames: 1)
+        window.scroll(at: pt(100, 10), byDeltaX: 0, deltaY: -10)
+        settle(window, frames: 1)
+        return try #require(window.scene.rects.first { $0.bounds.size.width == 3 }).bounds.origin.x
+    }
+    #expect(try x(Pixels(0)) == 295)
+    #expect(try x(Pixels(4)) == 291)
+    #expect(try x(Pixels(-2)) == 297)
+}
+
+/// **SP-M, SP-N, the cost rule, in Alloy's shape.** `ScrollViewReader { ScrollView { LazyVStack(spacing: 10) { rows } } }` with a
+/// bottom anchor and a delta streamed into the last row: the direct form (`.padding(.horizontal, 7)` and
+/// `.accessibilityIdentifier("transcript")` on the scroller) against Alloy's wrapped form (`VStack { ... }.padding(...)
+/// .accessibilityElement(children: .contain).accessibilityIdentifier(...)`) and the bare scroller. Mutation: the members
+/// disfavoured so the generic wrappers win.
+@Test @MainActor func theAlloyShapedTranscriptStreamsThreeRequestsCheaperDirect() throws {
+    func requests(_ shape: Int) throws -> (steady: Int, delta: Int) {
+        let stream = Stream()
+        let window = try harnessWindow(size: sz(300, 200)) {
+            VStack(spacing: Pixels(0)) {
+                if shape == 0 {
+                    ScrollViewReader { _ in ScrollView { flexRows(stream, spacing: 10) }.defaultScrollAnchor(.bottom) }
+                } else if shape == 1 {
+                    ScrollViewReader { _ in
+                        ScrollView { flexRows(stream, spacing: 10) }.defaultScrollAnchor(.bottom)
+                            .padding(.horizontal, Pixels(7)).accessibilityIdentifier("transcript")
+                    }
+                } else {
+                    VStack(spacing: Pixels(0)) {
+                        ScrollViewReader { _ in ScrollView { flexRows(stream, spacing: 10) }.defaultScrollAnchor(.bottom) }
+                    }
+                    .padding(.horizontal, Pixels(7)).accessibilityElement(children: .contain).accessibilityIdentifier("transcript")
+                }
+            }
+        }
+        let steady = steadyRequests(window)
+        _ = deltaRequests(window, stream)
+        return (steady, deltaRequests(window, stream))
+    }
+    let bare = try requests(0), direct = try requests(1), wrapped = try requests(2)
+    print("SP-M alloy shape: bare \(bare), direct \(direct), wrapped \(wrapped)")
+    #expect(direct.delta == bare.delta && direct.steady == bare.steady, "direct \(direct) vs bare \(bare)")
+    #expect(wrapped.delta == direct.delta + 3, "wrapped \(wrapped) vs direct \(direct)")
+    #expect(bare.steady == 29 && bare.delta == 29, "bare \(bare)")
+    #expect(wrapped.delta == 32, "wrapped \(wrapped)")
+}
