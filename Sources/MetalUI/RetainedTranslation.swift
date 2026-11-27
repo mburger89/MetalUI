@@ -150,8 +150,8 @@ extension ReplayKey {
     /// `shift(from:)`, so the layout arm cannot move; with scopes that differ only in effect scopes (the shape half is
     /// `RetainedShape.shift`, untouched) `effect` is the relation of the scopes, a named refusal included. `nil` when nothing moved,
     /// or anything but the origin, the scroll offset and effect scopes differs.
-    func shiftAndEffects(from old: ReplayKey) -> CombinedShift<EffectRelation>? {
-        if let shift = shift(from: old) ?? clippedShift(from: old) { return CombinedShift(shift: shift, effect: nil) }
+    func shiftAndEffects(from old: ReplayKey, relatingClip: Bool = true) -> CombinedShift<EffectRelation>? {
+        if let shift = shift(from: old) ?? (relatingClip ? clippedShift(from: old) : nil) { return CombinedShift(shift: shift, effect: nil) }
         guard let shift = RetainedShape.shift(newRects: rects, newNodeCount: nodeCount, newShape: shapeInterior,
                                               newOffset: ambient.offset, oldRects: old.rects,
                                               oldNodeCount: old.nodeCount, oldShape: old.shapeInterior,

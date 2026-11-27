@@ -76,12 +76,13 @@ struct G51Root: Component {
 }
 
 /// The transcript in a 600 x 800 window at scale 2 with no accessibility client, warmed: six redraws, then ten streamed words.
-@MainActor func g51Window(rows: Int, longFirst: Bool = false, island: Bool = true, inputs: G51Inputs) async throws -> TestWindow {
+@MainActor func g51Window(rows: Int, longFirst: Bool = false, island: Bool = true, inputs: G51Inputs, relatesChangedClip: Bool = true) async throws -> TestWindow {
     let blocks = g51Blocks(rows, longFirst: longFirst)
     let options = HeadlessPlatformWindow.Options(scaleFactor: 2, accessibilityClientActive: false)
     let w = try TestWindow(size: sz(600, 800), scaleFactor: 2, options: options, textSystem: harnessTextSystem) {
         VStack(spacing: 0) { G51Root(blocks: blocks, inputs: inputs, island: island) }
     }
+    w.window.testingRelatesChangedClip = relatesChangedClip
     for _ in 0..<6 { w.window.setNeedsRedraw(); w.tick() }
     for _ in 0..<10 { inputs.words += 1; await rsSettle(); w.window.setNeedsRedraw(); w.tick() }
     return w

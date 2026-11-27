@@ -9,9 +9,6 @@ import Testing
 // from the clip now in force by the arithmetic a fresh frame uses. Before, the streaming row's second paragraph (a grafted `.equatable()` occurrence under
 // the row's own growing clip) missed its ledger on `ambient.clip` and the frame was redone.
 
-private let ceVerifyingNote: Comment =
-    "METALUI_VERIFY_RETAINED=1 builds a replayed frame twice: the translation counts this test pins are not its to read"
-
 private func ceEnvironment(_ edit: (inout EnvironmentValues) -> Void = { _ in }) -> EnvironmentFingerprint {
     var values = EnvironmentValues()
     edit(&values)
@@ -48,6 +45,12 @@ private struct CERoot: Component {
         if fades { box.opacity(1 - side.inputs.offset / 100) } else { box }
     }
 }
+
+/// The scales this fixture's moves are exact at (whole device pixels all through: 1 and 2). At 1.125 its 22 pt rows are not whole pixels and at 1.2 the paint
+/// record refuses first (`inexactTranslation`): those arms pin only that a frame equals a fresh one, and verify mode traps otherwise.
+private func ceMoves(scale: Float, moving: Bool) -> Bool { scale == 1 || scale == 2 }
+
+private let ceArms: [(Bool, Float)] = [(false, 2), (true, 2), (false, 1), (true, 1), (false, 1.125), (true, 1.125), (false, 1.2), (true, 1.2)]
 
 @MainActor private func cePair(moving: Bool, fades: Bool = false, accessibility: Bool = true, scale: Float = 2) throws -> RPPair<some Element> {
     try RPPair(size: sz(320, 300), scale: scale, warm: 16, accessibility: accessibility, graft: true) { side in
@@ -90,7 +93,7 @@ private func ceNamesAGate(_ reasons: [String: Int]) -> [String] {
 /// equal to a fresh one at each step. Pins: element requests 547 (593 before), the retaining window's allocations 885,000 (919,667 before; 879,6xx measured).
 /// Mutation: a leaf read at the entry depth keeping the old mask (`movedMask`'s entry arm answering `(mask, radii)`): the compare differs at every step
 /// the clip grows.
-@Test(.enabled(if: !rsVerifying, ceVerifyingNote), arguments: [false, true]) @MainActor
+@Test(arguments: [false, true]) @MainActor
 func aParagraphUnderAGrowingRowReplaysTranslated(accessibility: Bool) async throws {
     let pair = try ctPair(accessibility: accessibility)
     var lines: [String] = []
@@ -112,6 +115,9 @@ func aParagraphUnderAGrowingRowReplaysTranslated(accessibility: Bool) async thro
         try pair.compare("step \(step)")
     }
     print("CE transcript (accessibility \(accessibility)): requests \(requests), allocations \(allocations), redos \(redos)")
+    // Verify mode builds a replayed frame twice and traps on a moved record that differs from a fresh one (the compare above runs in it too); the counts
+    // below are not its to read.
+    guard !rsVerifying else { return }
     #expect(redos <= 2, "redos \(redos) in 40 steps")
     #expect(!lines.contains { $0.contains("redo requested") && $0.contains("ambient.clip") }, "a redo for the clip: \(lines.filter { $0.contains("redo requested") })")
     #expect(!lines.contains { $0.contains("prepaint miss") && $0.contains("ledgerKey.ambient.clip") }, "a prepaint miss for the clip")
@@ -128,27 +134,30 @@ func aParagraphUnderAGrowingRowReplaysTranslated(accessibility: Bool) async thro
 /// frame at each of 12 steps, the card standing still and moving (a different clip and a zero move, and a different clip and a move), and the ledger is
 /// replayed moved, not run again.
 /// Mutation: `movedHitbox` testing the old rect against the new clip (`inside(b, c)`): the hitbox keeps its old cut, the compare differs.
-@Test(.enabled(if: !rsVerifying, ceVerifyingNote), arguments: [false, true]) @MainActor
-func anOldRectIsTestedAgainstTheOldClip(moving: Bool) async throws {
-    let pair = try cePair(moving: moving)
+@Test(arguments: ceArms) @MainActor
+func anOldRectIsTestedAgainstTheOldClip(moving: Bool, scale: Float) async throws {
+    let pair = try cePair(moving: moving, scale: scale)
     let out = try await ceRun(pair)
-    #expect(out.hits >= 8, "the ledger is replayed moved, not run again: \(out.hits) prepaint hits")
+    guard !rsVerifying else { return }
+    #expect(!ceMoves(scale: scale, moving: moving) || out.hits >= 8, "the ledger is replayed moved, not run again: \(out.hits) prepaint hits")
     #expect(ceNamesAGate(out.reasons).isEmpty, "refusals: \(out.reasons)")
     #expect(!out.lines.contains { $0.contains("prepaint miss") && $0.contains("ledgerKey.ambient.clip") }, "a miss for the clip")
-    #expect(out.redos == 0, "redos \(out.redos)")
+    #expect(!ceMoves(scale: scale, moving: moving) || out.redos == 0, "redos \(out.redos)")
 }
 
 /// The fold starts from each key's own clip: the card's clip is folded from the entry clip it was made under at the old position (which must give the recorded
 /// cut, else `…NotFolded`) and from the one now at the new, for the paint record's masks and the ledger's registrations alike.
 /// Mutation: the old position folded from the new entry clip (`PrepaintClipFold`'s `oldEntryClip` replaced by `entryClip`, `foldedRecord`'s `was` likewise):
 /// the ledger's fold refuses, its prepaint runs again and the grafted card is redone; the paint record's refuses `maskNotFolded`.
-@Test(.enabled(if: !rsVerifying, ceVerifyingNote), arguments: [false, true]) @MainActor
-func theFoldStartsFromEachKeysOwnClip(moving: Bool) async throws {
-    let pair = try cePair(moving: moving)
+@Test(arguments: ceArms) @MainActor
+func theFoldStartsFromEachKeysOwnClip(moving: Bool, scale: Float) async throws {
+    let pair = try cePair(moving: moving, scale: scale)
     try #require(pair.on.window.testingRetainedRecords().contains { $0.prepaint?.innerClips != nil }, "the fixture's ledger holds an inner clip")
     let out = try await ceRun(pair)
+    guard !rsVerifying else { return }
     #expect(ceNamesAGate(out.reasons).isEmpty, "a fold refused: \(out.reasons)")
     #expect(out.reasons["maskNotFolded", default: 0] == 0 && out.reasons["maskUnmapped", default: 0] == 0, "\(out.reasons)")
+    guard ceMoves(scale: scale, moving: moving) else { return }
     #expect(out.moves >= 8, "the paint record moves too: \(out.moves) translated")
     #expect(out.hits >= 8 && out.redos == 0, "a refused fold runs the prepaint again and the grafted card is redone: \(out.hits) hits, \(out.redos) redos")
 }
@@ -157,10 +166,11 @@ func theFoldStartsFromEachKeysOwnClip(moving: Bool) async throws {
 /// (the prepaint ledger does not key the opacity, and still replays moved), the record is not translated, and every frame equals a fresh one.
 /// Mutation: `equalsIgnoringOffsetAndClip` ignoring `layerOpacityScale` (the record moves with the old opacity, the compare differs) - and its arm in
 /// `everyAmbientFieldButTheOffsetAndClipSeparates`.
-@Test(.enabled(if: !rsVerifying, ceVerifyingNote)) @MainActor
+@Test @MainActor
 func aChangedScopeIsNotAClipChange() async throws {
     let pair = try cePair(moving: false, fades: true)
     let out = try await ceRun(pair)
+    guard !rsVerifying else { return }
     let named = out.lines.filter { $0.contains("retained paint miss") && $0.contains("key.ambient.layerOpacityScale") }
     #expect(named.count >= 8, "the miss names the opacity: \(named.count) of \(out.lines.count) lines")
     #expect(out.moves == 0, "no record is translated across a change of opacity: \(out.moves)")

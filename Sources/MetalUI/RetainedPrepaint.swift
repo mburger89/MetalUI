@@ -385,7 +385,7 @@ extension Frame {
             // paint from, so the record must be movable here too, or the frame would be redone (`FS-D`).
             // A changed entry clip is part of the record's move only where the ledger's key relates by it too (`FS-Y`): the prepaint's ambient is
             // then the paint record's but for the clip and the offset, and nothing under an effect that changed is read as a clip change.
-            let clipRelated = memos.translatesLayout && ledger.key.ambient.clip != key.ambient.clip && ledger.key.clippedShift(to: key) != nil
+            let clipRelated = memos.translatesLayout && memos.relatesChangedClip && ledger.key.ambient.clip != key.ambient.clip && ledger.key.clippedShift(to: key) != nil
             let recordMoves = memos.translatesLayout ? recordShiftAtPrepaint(old, phase: phase, key: key, clipRelated: clipRelated) : nil
             if let recordMoves, case .refused = paintTranslation(of: old, shift: recordMoves, key: retainedReplayKeyForTranslation(phase, key), phase: phase) {
                 noteRun(phase, "recordCannotMove")
@@ -399,7 +399,7 @@ extension Frame {
             // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
             // are replayed moved by the add, unless one cannot be moved exactly (refused by name). The entry clip may have changed with the move
             // (`FS-Y`, a zero move included): the same add, every cut made again from the new clip.
-            let layoutShift = ledger.key.shift(to: key) ?? ledger.key.clippedShift(to: key)
+            let layoutShift = ledger.key.shift(to: key) ?? (memos.relatesChangedClip ? ledger.key.clippedShift(to: key) : nil)
             if layoutShift == nil {
                 noteRun(phase, ledger.key.describeDifference(from: key).joined(separator: ", "))
             }

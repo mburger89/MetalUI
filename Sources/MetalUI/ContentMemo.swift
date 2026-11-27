@@ -213,6 +213,10 @@ package final class ContentMemoStore {
     /// (`RK-G`'s render-effect translation stays). `METALUI_RETAINED_TRANSLATION=0` reads it when each window is made.
     package var translatesLayout = ProcessInfo.processInfo.environment["METALUI_RETAINED_TRANSLATION"] != "0"
 
+    /// Test switch (`FS-Y`): off, an occurrence whose entry clip changed misses as it did before (the key relation does not carry a changed clip), so a
+    /// fixture that needs the redo it caused can still make it.
+    package var relatesChangedClip = true
+
     /// Test switch (`RK-B`): off, no occurrence skips its build recursion (the `fb9a7e42` arm after lane 1: prepaint replay
     /// stays, the graft goes). `METALUI_RETAINED_GRAFT=0` reads it when each window is made.
     package var graftsBuild = ProcessInfo.processInfo.environment["METALUI_RETAINED_GRAFT"] != "0"

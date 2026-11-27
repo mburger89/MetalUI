@@ -1017,7 +1017,7 @@ extension Frame {
             // add is exact, else refused by name and a miss.
             var moved: PaintTranslation?
             if valid, !effectTranslated, old.key != key, memos.replaysPrepaint, memos.translatesLayout,
-               let combined = key.shiftAndEffects(from: old.key) {
+               let combined = key.shiftAndEffects(from: old.key, relatingClip: memos.relatesChangedClip) {
                 // `EL-B`: the delta is added in the occurrence's own space (the record's leaves are before every outer scope) and the
                 // live scopes then apply the effect, so a layout move with equal effects (`effect == nil`, the old arm) and one with
                 // an effect change are the same add; the effect numbers never enter it.
