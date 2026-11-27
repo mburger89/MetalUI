@@ -1,6 +1,7 @@
 @testable import MetalUI
 import Foundation
 import MetalUITesting
+import Observation
 import Testing
 
 // Alloy's three `ScrollView` gaps (`SP-M`..`CMG-G`, record 438): a padding folded into the scroller's own layout (no wrapper
