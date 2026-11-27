@@ -515,6 +515,7 @@ extension PrepaintLedger {
         let copy = PrepaintLedger(key: key)
         copy.hitboxes = moved.hitboxes
         copy.hitboxChains = hitboxChains
+        copy.innerClips = innerClips
         copy.axEmissions = moved.accessibility?.emissions ?? axEmissions
         copy.focus = focus
         copy.axNodes = moved.accessibility?.nodes ?? axNodes
@@ -553,7 +554,8 @@ extension Frame {
     /// One hitbox moved by (`dx`, `dy`) in its own (pre-effect) space (`FS-F`, shared with the combined move, `EL-B`): the refusals of
     /// the layout arm (content shape, scroll, a handler whose closure holds a position, an inexact number, a clip the move may
     /// change) by name, the cut by the ambient clip itself recomputed. The transform is not looked at.
-    func movedHitbox(_ hitbox: Hitbox, dx: Float, dy: Float, clip c: Bounds<Pixels>, entryDepth: Int) -> TranslationOutcome<Hitbox> {
+    func movedHitbox(_ hitbox: Hitbox, dx: Float, dy: Float, clip c: Bounds<Pixels>, entryDepth: Int, index: Int = 0,
+                     fold: inout PrepaintClipFold?) -> TranslationOutcome<Hitbox> {
         func inside(_ b: Bounds<Pixels>) -> Bool {
             b.origin.x.value > c.origin.x.value && b.origin.y.value > c.origin.y.value
                 && b.origin.x.value + b.size.width.value < c.origin.x.value + c.size.width.value
@@ -578,12 +580,22 @@ extension Frame {
         // Cut by a clip derived inside the occurrence (or unknown): it moves with the occurrence only if it did not touch
         // the ambient clip before and does not after.
         let moved = Bounds(origin: Point(x: Pixels(b.origin.x.value + dx), y: Pixels(b.origin.y.value + dy)), size: b.size)
-        guard inside(b), inside(moved) else { return .refused("hitboxClipped") }
-        guard exactShift(b.origin.x.value, by: dx), exactShift(b.origin.y.value, by: dy)
-        else { return .refused("inexactTranslation") }
         let movedU = hitbox.unclipped.map {
             Bounds(origin: Point(x: Pixels($0.origin.x.value + dx), y: Pixels($0.origin.y.value + dy)), size: $0.size)
         }
+        guard inside(b), inside(moved) else {
+            // Cut by the viewport's edge as well as by a clip the occurrence opened: the clips are folded again (`FS-X`).
+            guard fold != nil, let u = hitbox.unclipped, let movedU else { return .refused("hitboxClipped") }
+            guard exactShift(u.origin.x.value, by: dx), exactShift(u.origin.y.value, by: dy)
+            else { return .refused("inexactTranslation") }
+            switch fold?.bounds(ofHitbox: index, depth: hitbox.clipDepth, oldUnclipped: u, oldBounds: b, newUnclipped: movedU) {
+            case .moved(let cut)?: return .moved(hitbox.moved(dx: dx, dy: dy, bounds: cut, unclipped: movedU))
+            case .refused(let reason)?: return .refused(reason)
+            case nil: return .refused("hitboxClipped")
+            }
+        }
+        guard exactShift(b.origin.x.value, by: dx), exactShift(b.origin.y.value, by: dy)
+        else { return .refused("inexactTranslation") }
         return .moved(hitbox.moved(dx: dx, dy: dy, bounds: moved, unclipped: movedU))
     }
 
@@ -591,7 +603,7 @@ extension Frame {
     /// nodes (their frames are computed boxes), press-only actions, context menus and presentation anchors refuse; so does a
     /// hitbox that sits under a render effect, carries a content shape, scrolls, tracks a value, edits text or takes a drop
     /// (their closures or geometry hold positions the move does not reach), and one the ambient clip may have cut.
-    func movedPrepaintLedger(_ ledger: PrepaintLedger, shift: LayoutShift, clip: [Float]) -> TranslationOutcome<LedgerTranslation> {
+    func movedPrepaintLedger(_ ledger: PrepaintLedger, shift: LayoutShift, clip: [Float], to key: PrepaintKey? = nil) -> TranslationOutcome<LedgerTranslation> {
         if !ledger.pressOnly.isEmpty { return .refused("pressOnly") }
         if !ledger.inertBlockers.isEmpty { return .refused("inertChromeBlockers") }
         if !ledger.contextMenus.isEmpty { return .refused("contextMenus") }
@@ -603,9 +615,10 @@ extension Frame {
         let c = Bounds(origin: Point(x: Pixels(clip[0]), y: Pixels(clip[1])),
                        size: Size(width: Pixels(clip[2]), height: Pixels(clip[3])))
         // Accessibility records are recomputed (`RL-H`, was `AT-C`'s refusal) and geometry notes made again (`RL-E`, was `RG-C`'s).
+        var fold = key.flatMap { PrepaintClipFold(of: ledger, to: $0) }
         var accessibility: AXTranslation?
         if !ledger.axEmissions.isEmpty || !ledger.axNodes.isEmpty {
-            switch movedAccessibility(of: ledger, dx: dx, dy: dy, clip: c, entryDepth: entryDepth) {
+            switch movedAccessibility(of: ledger, dx: dx, dy: dy, clip: c, entryDepth: entryDepth, fold: &fold) {
             case .refused(let reason): return .refused(reason)
             case .moved(let translation): accessibility = translation
             }
@@ -619,9 +632,9 @@ extension Frame {
         }
         var hitboxes: [Hitbox] = []
         hitboxes.reserveCapacity(ledger.hitboxes.count)
-        for hitbox in ledger.hitboxes {
+        for (index, hitbox) in ledger.hitboxes.enumerated() {
             if hitbox.transform != nil { return .refused("hitboxUnderEffect") }
-            switch movedHitbox(hitbox, dx: dx, dy: dy, clip: c, entryDepth: entryDepth) {
+            switch movedHitbox(hitbox, dx: dx, dy: dy, clip: c, entryDepth: entryDepth, index: index, fold: &fold) {
             case .refused(let reason): return .refused(reason)
             case .moved(let moved): hitboxes.append(moved)
             }

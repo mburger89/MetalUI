@@ -118,24 +118,26 @@ func anInnerClippedHitboxInsideBothClipsMoves() async throws {
     #expect(run.redos == 0)
 }
 
-/// 10 - rows whose clipped hitbox touches or leaves the ambient clip (the window's bottom edge) after the move are refused, run their
-/// prepaint and equal a fresh window (the cut is recomputed by the build, not shifted); the rows above the edge still translate.
-/// Mutation: the `guard inside(b), inside(moved)` line deleted (the straddling row's cut hitbox is moved, not recomputed: the hitbox
-/// list differs from the fresh window's).
+/// 10 - rows whose clipped hitbox touches or leaves the ambient clip (the window's bottom edge) after the move still replay translated: the
+/// clips their occurrence pushed are folded again at the new position (`FS-X`, record 434; was refused `hitboxClipped`, the prepaint run and
+/// the cut recomputed by the build), and the scene and hitbox list equal a retention-off window's.
+/// Mutation: the fold's new rect left as the old rect shifted (the cut row's hitbox differs from the fresh window's), or the slow path
+/// removed (the cut rows refuse `hitboxClipped` again and run their prepaint).
 @Test(.enabled(if: !rsVerifying, ptVerifyingNote)) @MainActor
-func anInnerClippedHitboxTouchingTheAmbientClipRefuses() async throws {
+func anInnerClippedHitboxTouchingTheAmbientClipMovesByTheFold() async throws {
     let run = try await hcRun(height: 100)
-    #expect(run.prepaintHits > 0, "the rows below the edge's reach replay their prepaint: \(run.prepaintHits)")
-    #expect(run.prepaintHits < run.translated, "the cut rows run it: \(run.prepaintHits) of \(run.translated)")
+    #expect(run.prepaintHits > 0, "the rows replay their prepaint: \(run.prepaintHits)")
+    #expect(run.prepaintHits == run.translated, "the cut rows replay it too: \(run.prepaintHits) of \(run.translated)")
     #expect(run.redos == 0)
 }
 
-/// 11 - the refusal is named: `hitboxClipped` counted, and only that gate refuses. Mutation: as 10.
+/// 11 - the clipped rows are refused by no gate any more: `hitboxClipped` is not counted (it was, and only it, before `FS-X`).
+/// Mutation: as 10.
 @Test(.enabled(if: !rsVerifying, ptVerifyingNote)) @MainActor
-func theClippedRowsAreRefusedByTheNameHitboxClipped() async throws {
+func theClippedRowsNoLongerRefuseByTheNameHitboxClipped() async throws {
     let run = try await hcRun(height: 100)
-    #expect(run.refusals["hitboxClipped", default: 0] > 0, "hitboxClipped counted: \(run.refusals)")
-    #expect(Set(run.refusals.keys) == ["hitboxClipped"], "only that gate: \(run.refusals)")
+    #expect(run.refusals["hitboxClipped", default: 0] == 0, "hitboxClipped not counted: \(run.refusals)")
+    #expect(run.refusals.isEmpty, "nothing refuses: \(run.refusals)")
 }
 
 // MARK: a shift under a moved render effect (`RG-G`)

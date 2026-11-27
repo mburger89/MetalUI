@@ -1229,6 +1229,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         let pushed = Self.pushedClip(bounds, offset: offset, radii: radii, activeClip: activeClip,
                                      activeRadii: activeClipRadii, activeOffset: activeOffset, atFlatteningEntry: atEntry)
         clipStack.append((pushed.clip, pushed.offset, pushed.radii))
+        prepaintLog?.notePush(bounds: bounds, offset: offset, radii: radii, atFlatteningEntry: atEntry, depth: clipStack.count,
+                              hitboxes: hitboxes.count, emissions: axEmissions.count)
         retainLog?.notePush(bounds: bounds, offset: offset, radii: radii, crosses: pushed.crosses, atFlatteningEntry: atEntry,
                             depth: clipStack.count)
     }
@@ -1261,6 +1263,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// those methods' doc comments.
     func popClip() {
         clipStack.removeLast()
+        prepaintLog?.notePop(hitboxes: hitboxes.count, emissions: axEmissions.count)
         retainLog?.notePop()
     }
 
@@ -1275,6 +1278,9 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         clipStack.append((Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize),
                           Point(x: Pixels(0), y: Pixels(0)),
                           Corners(all: Pixels(0))))
+        prepaintLog?.notePush(bounds: Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize),
+                              offset: Point(x: Pixels(0), y: Pixels(0)), radii: Corners(all: Pixels(0)), atFlatteningEntry: false,
+                              depth: clipStack.count, root: true, hitboxes: hitboxes.count, emissions: axEmissions.count)
         retainLog?.notePush(bounds: Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize),
                             offset: Point(x: Pixels(0), y: Pixels(0)), radii: Corners(all: Pixels(0)), crosses: false,
                             atFlatteningEntry: false, depth: clipStack.count, root: true)
@@ -5097,7 +5103,8 @@ extension Frame {
                               elementBounds movedBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
                               accessibility: AXTranslation? = nil,
                               geometry movedGeometry: [GeometryNoteRecord]? = nil,
-                              windowShift: (dx: Float, dy: Float)? = nil) {
+                              windowShift: (dx: Float, dy: Float)? = nil,
+                              layoutOrigin: (x: Float, y: Float)? = nil) {
         // A pure translation of the effects around the occurrence moves each drawn window rect by it (`MA-H`).
         func shifted(_ b: Bounds<Pixels>) -> Bounds<Pixels> {
             guard let windowShift else { return b }
@@ -5109,7 +5116,12 @@ extension Frame {
         if prepaintLog != nil {
             for (offset, chain) in l.hitboxChains.enumerated() { if let chain { hitboxChains[firstHitbox + offset] = chain } }
         }
+        let firstEmission = axEmissions.count
         axEmissions.append(contentsOf: accessibility?.emissions ?? l.axEmissions)
+        // The clips its hitboxes and emissions were cut by, noted again at the position it stands at now, so an enclosing recorder holds them (`FS-X`).
+        if let log = prepaintLog, let clips = l.innerClips, l.key.rects.count >= 2 {
+            log.noteReplayed(clips, origin: layoutOrigin ?? (l.key.rects[0], l.key.rects[1]), hitboxBase: firstHitbox, emissionBase: firstEmission)
+        }
         for call in l.focus {
             switch call {
             case .register(let handlers, let id):

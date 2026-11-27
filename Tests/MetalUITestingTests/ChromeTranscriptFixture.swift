@@ -51,8 +51,8 @@ struct CTRoot: Component {
     }
 }
 
-@MainActor func ctPair(warm: Int = 8) throws -> RPPair<some Element> {
-    try RPPair(size: sz(420, 600), scale: 2, warm: warm, accessibility: false) { side in VStack(spacing: 0) { CTRoot(side: side) } }
+@MainActor func ctPair(warm: Int = 8, accessibility: Bool = false) throws -> RPPair<some Element> {
+    try RPPair(size: sz(420, 600), scale: 2, warm: warm, accessibility: accessibility) { side in VStack(spacing: 0) { CTRoot(side: side) } }
 }
 
 /// One streamed word on both sides, settled, one frame each; the retaining window's frames of the step (a step may draw more than one).
