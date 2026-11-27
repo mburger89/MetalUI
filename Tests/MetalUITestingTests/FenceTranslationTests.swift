@@ -58,8 +58,11 @@ private func tally(_ frames: [FrameWork]) -> (scrolls: Int, redos: Int, requests
     #expect(t.scrolls == 0, "no row refuses hitboxScrolls: \(t)")
     #expect(t.redos == 0, "nothing is redone: \(t)")
     #expect(t.translated >= visible, "every visible fence and table row moved its ledger: \(t), \(visible) scrollers")
-    // A moved ledger is rebased in place (`FS-U`); the two made are the rows the step brings into the viewport (measured).
-    #expect(PrepaintLedger.madeCount - made <= 2, "a moved ledger is rebased in place, only a new row makes one: \(PrepaintLedger.madeCount - made); \(detail)")
+    // A moved ledger is rebased in place (`FS-U`); the two made are the rows the step brings into the viewport (measured). A row
+    // whose paint record refuses by another name runs its prepaint and makes one: on the portable text system the fences' Copy
+    // icon is a Lucide path, which `movedLeaf` does not list (`unlistedKind:path`, 6 on Linux), so those rows are counted too.
+    let refusedRows = refused.values.reduce(0, +)
+    #expect(PrepaintLedger.madeCount - made <= 2 + refusedRows, "a moved ledger is rebased in place, only a new row makes one: \(PrepaintLedger.madeCount - made); \(detail)")
     try pair.compare("a wheel step")
 }
 
