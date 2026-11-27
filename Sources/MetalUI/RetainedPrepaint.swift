@@ -383,7 +383,10 @@ extension Frame {
         if invalidation.isReplayable, let old, let ledger = ledgerOfRecord {
             // The paint record may stand where the occurrence was before it moved: a replayed prepaint leaves nothing to
             // paint from, so the record must be movable here too, or the frame would be redone (`FS-D`).
-            let recordMoves = memos.translatesLayout ? recordShiftAtPrepaint(old, phase: phase, key: key) : nil
+            // A changed entry clip is part of the record's move only where the ledger's key relates by it too (`FS-Y`): the prepaint's ambient is
+            // then the paint record's but for the clip and the offset, and nothing under an effect that changed is read as a clip change.
+            let clipRelated = memos.translatesLayout && ledger.key.ambient.clip != key.ambient.clip && ledger.key.clippedShift(to: key) != nil
+            let recordMoves = memos.translatesLayout ? recordShiftAtPrepaint(old, phase: phase, key: key, clipRelated: clipRelated) : nil
             if let recordMoves, case .refused = paintTranslation(of: old, shift: recordMoves, key: retainedReplayKeyForTranslation(phase, key), phase: phase) {
                 noteRun(phase, "recordCannotMove")
                 return .run(phase.grafted ? nil : openPrepaintWindow())
@@ -526,10 +529,11 @@ extension Frame {
 
     /// How far the paint record stands from where the occurrence is now, when only its origin or scroll offset differ (`FS-D`):
     /// the geometric part of the paint key's relation, which is all a prepaint can read (the paint-only ambient is open later).
-    func recordShiftAtPrepaint(_ old: RetainedRecord, phase: RetainedPhase, key: PrepaintKey) -> LayoutShift? {
-        // A changed entry clip of the same count relates too, and a zero move with it (`FS-Y`): the paint record is cut again from the new clip.
+    func recordShiftAtPrepaint(_ old: RetainedRecord, phase: RetainedPhase, key: PrepaintKey, clipRelated: Bool = false) -> LayoutShift? {
+        // A changed entry clip of the same count relates too, and a zero move with it, once the ledger's key relates by it (`FS-Y`): the paint
+        // record is cut again from the new clip.
         let clipChanged = old.key.ambient.clip != key.ambient.clip
-        guard !clipChanged || old.key.ambient.clip.count == key.ambient.clip.count else { return nil }
+        guard !clipChanged || (clipRelated && old.key.ambient.clip.count == key.ambient.clip.count) else { return nil }
         return RetainedShape.shift(newRects: phase.rects, newNodeCount: phase.nodeCount, newShape: phase.shapeInterior,
                                    newOffset: key.ambient.offset, oldRects: old.key.rects, oldNodeCount: old.key.nodeCount,
                                    oldShape: old.key.shapeInterior, oldOffset: old.key.ambient.offset, allowZero: clipChanged)
