@@ -5,7 +5,7 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-Z`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-Y`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
@@ -451,24 +451,3 @@ At scale 1.2 a cut row is still refused by the **paint record** (`inexactTransla
 **Mutations.** The slow path removed reddens `aRowCutByTheViewportMovesItsAccessibilityAndHitbox` and the flipped `PlacementTranslationTests` 10 and 11; the new rect taken from the old
 fold reddens `aCutRowMovesExactlyAtEveryScale`; the recorded-rect comparison removed reddens `theFoldAtTheOldPositionMustReproduceTheRecordedCut`; the root check removed reddens
 `aRegistrationUnderARootClipStillRefuses`; `innerClips` kept for every ledger that pushed a clip reddens `aLedgerPaysOnlyForTheClipsItsOccurrencePushed`.
-
-## FS-Y - A crossing mask scope is transparent to the recorder directly below it; a record holds the leaves from before it and opens it again (record 434; amends CM-B, FS-V)
-
-**Ruling.** (1) `Frame.paintClipped` opens the mask scope of a crossing clip pair (`CM-B`) through `openMaskScope` / `closeMaskScope` (the halves of `paintWithMask`) and marks it `PaintScope.isClipCrossing`;
-the test and the mask rect are one function (`Frame.crossingMask`), the mark one function (`Frame.markCaptures`). (2) `RetainLog.noteBoundary` lets a recorder whose entry height is the scope's own index
-**see through** it: the leaves are noted where they enter the scope, as an op of the recorder's own height, and `passedInnerScope` is not set; the merged leaf that leaves the scope is noted by no
-recorder that saw through it (`closing`). A scope deeper than the entry height, or a second crossing scope inside the first, is an inner scope as before and refuses `innerScope`. (3) The clip that opened the scope
-is flagged `InnerClip.scopeFlag` (and every clip `paintClipped` pushed `paintedFlag`); the recorder keeps its mask (`SubtreeRecorder.crossingMasks`, `RetainedRecord.crossingMasks`, `nil` for nearly every record,
-one `CapturedPrimitive` per crossing clip). `RetainedRecord.differences` compares them. (4) A record made with no scope around it normally shares one array for its scene and its final stream; one that crossed derives
-the final stream from the scene (`Frame.finalStream`: each flagged range becomes the one op that leaves the scope, collected and marked as the scope does), at record close and after every move. (5) A replay with a
-flagged clip (`replayOps`) opens the scope after the clip's push and closes it before its pop, with the recorded mask and the ops of the range sent through `processScopes(from: boundary + 1)`: the leaves that leave it are
-the ones a fresh paint makes, by the same code. A record that holds a crossing mask always replays through `replayOps`, with or without an outer recorder. (6) The fold (`foldedClips`) evaluates `crossingMask`
-for every clip `paintClipped` pushed at the old position (which must agree with the flag, else `maskNotFolded`) and the new; `applyPaintTranslation` rewrites each clip's crossing and scope bits and the record's masks
-(`scopeState`). A clip that crosses inside another that crosses refuses `maskNested`; a clip `paintClipped` did not push keeps `maskCrossingChanged` / `maskCrossed`. A record that holds unit ranges or matched groups
-refuses to move into, out of or within a crossing (their numbers are emission counts, and a masked group's count is not its leaves'); its `emitted` is marked stale otherwise and verify mode does not compare it.
-(7) A text draw's glyphs are one leaf only while some open scope is not a crossing mask scope (`beginLeafGroup`), so a record that saw through the scope holds the ops a record made with none open holds.
-**Cost.** One flag test per boundary while a recorder is open; a crossing record holds one mask per crossing clip and a derived final stream (the merged leaves), which a record that never crosses does not; the
-move of a row into a corner zone costs a scope's two arrays in place of a whole-frame redo. An idle frame is unchanged.
-**Left as it was.** A pair whose clips are one rect (a row and its nested occurrence both rounded) crosses twice; the second scope is an inner one and refuses `maskNested` at the move and `innerScope` once painted.
-**Left undone.** A record with unit ranges that moves into or out of a crossing refuses (`maskCrossingChanged`, `maskCrossed`) and its grafted row is redone: following it needs the op and clip-event index each range end was noted at, and a replay that measures the sequence there. Alloy's transcript still redoes once for it (`aRedoDoesNotCascadeIntoTheRowsDescendants` sees 4).
-**Mutations.** See record 434.
