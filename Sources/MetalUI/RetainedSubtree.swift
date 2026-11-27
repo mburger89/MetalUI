@@ -163,10 +163,26 @@ final class RetainLog {
 
     /// Notes the leaves at `boundary` when an open recorder's own scopes end there, and at boundary 0
     /// (the scene itself) for the final-primitive stream a plain-effect replay uses (`SB-AB`).
-    func noteBoundary(_ boundary: Int, _ leaves: [([CapturedPrimitive], [Int]?)], _ depth: Int) {
+    ///
+    /// **A crossing mask scope is transparent to the recorder directly below it** (`FS-Y`, `crossingBelow`): the recorder notes the leaves where they enter
+    /// the scope, as an op of its own height, and does not pass an inner scope; the scope is opened again live when the record replays. `closing` is the
+    /// merged leaf leaving such a scope at its own height (or the scene, with none outside): the recorders that saw through it note nothing.
+    func noteBoundary(_ boundary: Int, _ leaves: [([CapturedPrimitive], [Int]?)], _ depth: Int, crossingBelow: Bool = false, closing: Bool = false) {
         // Leaves that stand above a recorder's own scope height have passed a scope opened inside its occurrence: its
         // record cannot be moved by an add (`FS-D`).
-        for recorder in recorders where recorder.entryHeight < boundary { recorder.passedInnerScope = true }
+        var seesThrough = false
+        for recorder in recorders where recorder.entryHeight < boundary {
+            if crossingBelow, recorder.entryHeight == boundary - 1 { seesThrough = true } else { recorder.passedInnerScope = true }
+        }
+        if seesThrough {
+            scene.append(SceneOp(boundary: boundary - 1, leaves: leaves, depth: depth))
+            var owner = 0
+            while owner < recorders.count {   // indexed: a `for` over the array allocates on this path
+                if recorders[owner].entryHeight == boundary - 1 { recorders[owner].opCount += 1 }
+                owner += 1
+            }
+        }
+        if closing { return }
         for recorder in recorders where recorder.entryHeight == boundary || boundary == 0 {
             scene.append(SceneOp(boundary: boundary, leaves: leaves, depth: depth))
             // The op's index in each recorder's own scene (`FS-V`): the ops at the recorder's entry height.
@@ -182,28 +198,36 @@ final class RetainLog {
     /// A clip pushed while the recorders are open (`FS-V`): each notes it, deeper than its entry, with the ops its scene held
     /// when it opened. `bounds` and `offset` are `pushClip`'s own arguments, before `activeOffset` is added.
     func notePush(bounds: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>, crosses: Bool, atFlatteningEntry: Bool,
-                  depth: Int, root: Bool = false) {
+                  depth: Int, root: Bool = false, painted: Bool = false, crossing: CapturedPrimitive? = nil, scopeIndex: Int = 0) {
         var flags: UInt8 = 0
         if crosses { flags |= InnerClip.crossesFlag }
         if atFlatteningEntry { flags |= InnerClip.flatteningEntryFlag }
         if root { flags |= InnerClip.rootFlag }
+        if painted { flags |= InnerClip.paintedFlag }
         var index = 0
         while index < recorders.count {   // indexed, as in `noteBoundary`
             let recorder = recorders[index]
             index += 1
+            var own = flags
+            // The mask scope opens at `scopeIndex`: a recorder at that height sees through it (`FS-Y`), one below it passes an inner scope.
+            if let crossing, recorder.entryHeight == scopeIndex {
+                own |= InnerClip.scopeFlag
+                recorder.crossingMasks.append(crossing)
+            }
             recorder.clips.append(InnerClip(
                 x: bounds.origin.x.value, y: bounds.origin.y.value, width: bounds.size.width.value, height: bounds.size.height.value,
                 offsetX: offset.x.value, offsetY: offset.y.value,
                 topLeft: radii.topLeft.value, topRight: radii.topRight.value,
                 bottomRight: radii.bottomRight.value, bottomLeft: radii.bottomLeft.value,
                 parent: recorder.openClips.last ?? -1, depth: Int32(depth),
-                lo: Int32(recorder.opCount), hi: Int32(recorder.opCount), flags: flags))
+                lo: Int32(recorder.opCount), hi: Int32(recorder.opCount), flags: own))
             recorder.openClips.append(Int32(recorder.clips.count - 1))
         }
     }
 
-    /// A clip of a replayed record (`FS-V`), with its bounds already at the position it stands at.
-    func notePush(clip: InnerClip) {
+    /// A clip of a replayed record (`FS-V`), with its bounds already at the position it stands at. `crossing` is its mask when its scope is opened again
+    /// (`FS-Y`), at `scopeIndex`.
+    func notePush(clip: InnerClip, crossing: CapturedPrimitive? = nil, scopeIndex: Int = 0) {
         var index = 0
         while index < recorders.count {
             let recorder = recorders[index]
@@ -211,6 +235,11 @@ final class RetainLog {
             var copy = clip
             copy.parent = recorder.openClips.last ?? -1
             copy.lo = Int32(recorder.opCount); copy.hi = copy.lo
+            copy.flags &= ~InnerClip.scopeFlag
+            if let crossing, recorder.entryHeight == scopeIndex {
+                copy.flags |= InnerClip.scopeFlag
+                recorder.crossingMasks.append(crossing)
+            }
             recorder.clips.append(copy)
             recorder.openClips.append(Int32(recorder.clips.count - 1))
         }
@@ -262,6 +291,8 @@ final class SubtreeRecorder {
     var openClips: [Int32] = []
     /// The ops this recorder's scene holds so far (those at its entry height): what a push's range counts.
     var opCount = 0
+    /// The masks of the crossing scopes this recorder saw through, one per clip flagged `scopeFlag`, in push order (`FS-Y`); empty when it saw none.
+    var crossingMasks: [CapturedPrimitive] = []
 }
 
 /// One clip pushed inside a recorded occurrence, as `Frame.pushClip` was given it (`FS-V`): what a moved record folds again from the
@@ -270,6 +301,10 @@ final class SubtreeRecorder {
 /// and in a replay's merge they are absolute.
 struct InnerClip: Equatable {
     static let crossesFlag: UInt8 = 1, flatteningEntryFlag: UInt8 = 2, rootFlag: UInt8 = 4, inexactFlag: UInt8 = 8
+    /// Pushed by `Frame.paintClipped`, the push that opens a mask scope when the pair crosses (`FS-Y`); a plain `pushClip` never does.
+    static let paintedFlag: UInt8 = 16
+    /// The clip crosses at the position the record stands at and its mask scope, opened at the record's own height, was seen through (`FS-Y`).
+    static let scopeFlag: UInt8 = 32
     /// `pushClip`'s `bounds` (layout points, before the offset is added).
     var x: Float, y: Float, width: Float, height: Float
     /// `pushClip`'s `offset` argument.
@@ -286,6 +321,10 @@ struct InnerClip: Equatable {
     var crosses: Bool { flags & Self.crossesFlag != 0 }
     var atFlatteningEntry: Bool { flags & Self.flatteningEntryFlag != 0 }
     var isRoot: Bool { flags & Self.rootFlag != 0 }
+    /// Whether the clip was pushed by `paintClipped` (`FS-Y`).
+    var isPainted: Bool { flags & Self.paintedFlag != 0 }
+    /// Whether the record opens a crossing mask scope for the clip (`FS-Y`).
+    var hasScope: Bool { flags & Self.scopeFlag != 0 }
     /// Whether the relative bounds do not add back to the layout bounds they were made from (not a multiple of 1/16).
     var isInexact: Bool { flags & Self.inexactFlag != 0 }
 
@@ -512,11 +551,24 @@ final class RetainedRecord {
     /// emits another count.
     var ranges: [UnitRange] = []
     var emitted = 0
+    /// Whether a move into, out of or within a crossing changed what `emitted` counts (`FS-Y`): a masked group's emission count is not its leaves' sum, and a
+    /// moved record cannot know the fresh one until a replay measures it (`adoptEmission`). Only the unit ranges and matched groups read it, and a move of a
+    /// record that holds either refuses.
+    var emittedIsStale = false
+
+    /// What a replay measured made the record's emission count, after a move that changed it (`FS-Y`).
+    func adoptEmission(_ count: Int) {
+        emitted = count
+        emittedIsStale = false
+    }
     var matched: [(key: GlobalElementID, range: Range<Int>)] = []
     /// Whether a leaf of the occurrence passed a paint scope opened inside it: such a record is not moved by an add (`FS-D`).
     var innerScopes = false
     /// The clips the occurrence pushed, relative to its first top node (`FS-V`); `nil` when it pushed none.
     var innerClips: [InnerClip]?
+    /// The masks of the crossing scopes the occurrence's clips open, one per clip flagged `scopeFlag`, in clip order (`FS-Y`); `nil` when none crosses, which
+    /// is nearly every record. The scene holds the leaves before such a scope; a replay opens it again.
+    var crossingMasks: [CapturedPrimitive]?
     /// Whether the build, prepaint and paint windows were all observed when the record was made
     /// (`SB-V`). A record made on a frame that skipped the build and prepaint sessions (the frame a
     /// valid record missed on) covers only its paint, so it is not replayed: the next frame observes
@@ -699,6 +751,9 @@ final class RetainedPhase {
     var translatedPaint = false
     /// The paint record moved to this frame's position, when the decision replays it translated (`FS-D`).
     var translatedScene: [RetainLog.SceneOp]?
+    /// The clips and crossing masks of the record as moved, with `translatedScene` (verify mode, `FS-Y`).
+    var translatedClips: [InnerClip]?
+    var translatedMasks: [CapturedPrimitive]?
     /// The attempt to move the record, kept between prepaint and paint (`FS-D`).
     var paintTranslationMemo: PaintTranslationMemo?
     /// Whether this occurrence's prepaint already counted the refusal of a combined layout and effect move (`EL-C`), so the paint does not.
@@ -876,6 +931,7 @@ extension Frame {
     }
 
     func replayPaint(_ r: RetainedRecord, translated: Bool = false, scene movedScene: [RetainLog.SceneOp]? = nil,
+                     clips movedClips: [InnerClip]? = nil, masks movedMasks: [CapturedPrimitive]? = nil,
                      layoutOrigin: (x: Float, y: Float)? = nil) {
         let sequenceBase = scene.nextEmissionSequence
         // A record replayed at a translated position goes through the live scopes (`RK-S`): the final stream holds
@@ -889,8 +945,11 @@ extension Frame {
             }
         } else {
             let ops = movedScene ?? r.scene
-            if let clips = r.innerClips, let log = retainLog, let origin = layoutOrigin {
-                replayOps(ops, clips: clips, origin: origin, log: log)
+            let masks = movedMasks ?? r.crossingMasks
+            let origin = layoutOrigin ?? (r.key.rects.count >= 2 ? (r.key.rects[0], r.key.rects[1]) : nil)
+            if let clips = movedClips ?? r.innerClips, let origin, retainLog != nil || masks != nil {
+                // A record that holds a crossing scope's leaves from before the scope opens it again here (`FS-Y`).
+                replayOps(ops, clips: clips, masks: masks ?? [], origin: origin)
             } else {
                 for op in ops { processScopes(op.leaves, from: op.boundary, depth: op.depth) }
             }
@@ -900,6 +959,8 @@ extension Frame {
         if !r.surfaces.isEmpty { replaySurfaces(r.surfaces) }
         for (id, _) in r.versions { stateTable.noteRead(id) }
         for touch in r.touches { animationStore.replay(touch) }
+        // A record a move into or out of a crossing made holds the old emission count: this replay measured the new one (`FS-Y`).
+        if r.emittedIsStale, movedScene == nil { r.adoptEmission(scene.nextEmissionSequence - sequenceBase) }
         // A replay re-notes the unit ranges its paint stood for, at the sequence it started at (`XF-H` item 8); another
         // emitted count drops them, and the ghost of a removal then draws nothing but still parks.
         if !r.ranges.isEmpty, scene.nextEmissionSequence - sequenceBase == r.emitted {
@@ -915,32 +976,77 @@ extension Frame {
     /// `ops` into the open recorders, with the clips the record pushed noted between them as a fresh paint would (`FS-V`): an
     /// outer record that holds this occurrence's leaves holds the clips their masks came from. The clips are made absolute at
     /// `origin`, where the occurrence stands now; each push opens before the first op it covers and pops after the last.
-    private func replayOps(_ ops: [RetainLog.SceneOp], clips: [InnerClip], origin: (x: Float, y: Float), log: RetainLog) {
+    /// A clip flagged `scopeFlag` opens its crossing mask scope after the push and closes it before the pop (`FS-Y`), with the next of `masks`: the ops in
+    /// its range go through the scope as a fresh paint's do, so the leaves that leave it are the ones a fresh paint makes.
+    private func replayOps(_ ops: [RetainLog.SceneOp], clips: [InnerClip], masks: [CapturedPrimitive], origin: (x: Float, y: Float)) {
         var cursor = 0
         var open: [Int] = []
+        var nextMask = 0
+        // The one crossing scope open (a clip that crosses opens it at the record's height, so two never nest), with the clip it belongs to.
+        var scope: (scope: PaintScope, ordinal: Int, clip: Int)?
         func advance(to target: Int) {
             while cursor < target && cursor < ops.count {
-                processScopes(ops[cursor].leaves, from: ops[cursor].boundary, depth: ops[cursor].depth)
+                processScopes(ops[cursor].leaves, from: ops[cursor].boundary + (scope == nil ? 0 : 1), depth: ops[cursor].depth)
                 cursor += 1
             }
+        }
+        func close(_ top: Int) {
+            advance(to: Int(clips[top].hi))
+            if let open = scope, open.clip == top {
+                closeMaskScope(open.scope, ordinal: open.ordinal, maskDepth: Int(clips[top].depth) - 1, emittedAt: Int(clips[top].depth))
+                scope = nil
+            }
+            retainLog?.notePop()
         }
         for index in clips.indices {
             let clip = clips[index]
             while let top = open.last, Int32(top) != clip.parent {
-                advance(to: Int(clips[top].hi))
-                log.notePop()
+                close(top)
                 open.removeLast()
             }
             advance(to: Int(clip.lo))
             let at = clip.moved(byX: origin.x, y: origin.y)
-            log.notePush(clip: at)
+            if clip.hasScope, nextMask < masks.count {
+                let mask = masks[nextMask]
+                nextMask += 1
+                retainLog?.notePush(clip: at, crossing: mask, scopeIndex: paintScopes.count)
+                let opened = openMaskScope(mask, crossing: true, entryDepth: Int(clip.depth))
+                scope = (opened.0, opened.1, index)
+            } else {
+                retainLog?.notePush(clip: at)
+            }
             open.append(index)
         }
-        while let top = open.popLast() {
-            advance(to: Int(clips[top].hi))
-            log.notePop()
-        }
+        while let top = open.popLast() { close(top) }
         advance(to: ops.count)
+    }
+
+    /// The final stream of a record whose crossing scopes were seen through, made of its scene (`FS-Y`): the ops outside a flagged clip's range as they are,
+    /// the ops inside one as the one op that leaves its scope, the leaves collected as the scope collects them and marked with its mask as it marks them.
+    /// Only for a record with no paint scope around it, so `boundary 0` is also the scope's own height.
+    static func finalStream(of scene: [RetainLog.SceneOp], clips: [InnerClip], masks: [CapturedPrimitive]?) -> [RetainLog.SceneOp] {
+        var final: [RetainLog.SceneOp] = []
+        final.reserveCapacity(scene.count)
+        var cursor = 0, nextMask = 0
+        for clip in clips where clip.hasScope {
+            guard let masks, nextMask < masks.count else { break }
+            let mask = masks[nextMask]
+            nextMask += 1
+            while cursor < Int(clip.lo), cursor < scene.count { final.append(scene[cursor]); cursor += 1 }
+            var captures: [CapturedPrimitive] = [], depths: [Int] = []
+            while cursor < Int(clip.hi), cursor < scene.count {
+                for (group, emitted) in scene[cursor].leaves {
+                    captures.append(contentsOf: group)
+                    depths.append(contentsOf: emitted ?? Array(repeating: scene[cursor].depth, count: group.count))
+                }
+                cursor += 1
+            }
+            guard !captures.isEmpty else { continue }
+            _ = markCaptures(&captures, primitive: mask, maskDepth: Int(clip.depth) - 1)
+            final.append(RetainLog.SceneOp(boundary: 0, leaves: [(captures, depths)], depth: Int(clip.depth)))
+        }
+        while cursor < scene.count { final.append(scene[cursor]); cursor += 1 }
+        return final
     }
 
     // MARK: Decision and recording
@@ -1032,9 +1138,11 @@ extension Frame {
                 if let moved {
                     if retainedVerifiesFromEnvironment {
                         // Verify mode keeps the record it compares against and compares the fresh run with the record as moved (`SB-W`).
-                        let ops = copiedPaintTranslation(moved, of: old)
-                        phase.translatedScene = ops
-                        if phase.replayed == nil { return .record(SubtreeRecorder(), key, old: old.moved(to: ops)) }
+                        let copy = copiedPaintTranslation(moved, of: old)
+                        phase.translatedScene = copy.ops; phase.translatedClips = copy.clips; phase.translatedMasks = copy.masks
+                        if phase.replayed == nil {
+                            return .record(SubtreeRecorder(), key, old: old.moved(to: copy.ops, clips: copy.clips, masks: copy.masks, emittedIsStale: copy.emittedIsStale))
+                        }
                     } else {
                         // The record is made over at the new position, in place (`FS-V`: nothing is copied), so the frames that follow replay
                         // it as an exact hit.
@@ -1140,10 +1248,13 @@ extension Frame {
         // leaves handed to it.
         var allEffects = true
         for scope in paintScopes where scope.kind != .effect { allEffects = false; break }
-        if allEffects, recorder.entryHeight == 0 {
+        if allEffects, recorder.entryHeight == 0, recorder.crossingMasks.isEmpty {
             // No scope around the occurrence: the ops of boundary 0 are the ops of the entry height, one array for both.
             record.finalScene = record.scene
             record.finalIsScene = true
+        } else if allEffects, recorder.entryHeight == 0 {
+            // A crossing scope was seen through (`FS-Y`): the scene holds the leaves before it, so the final stream, which the scene does not note, is derived.
+            record.finalScene = Self.finalStream(of: record.scene, clips: recorder.clips, masks: recorder.crossingMasks)
         } else if allEffects {
             var final: [RetainLog.SceneOp] = []
             final.reserveCapacity(steadyCapacity(ops.count))   // `G52`
@@ -1174,6 +1285,7 @@ extension Frame {
             var relative = recorder.clips
             for index in relative.indices { relative[index] = relative[index].moved(byX: -key.rects[0], y: -key.rects[1]) }
             record.innerClips = relative
+            if !recorder.crossingMasks.isEmpty { record.crossingMasks = recorder.crossingMasks }
         }
         if log.recorders.isEmpty { retainLog = nil }
         let memos = stateTable.contentMemos
@@ -1211,15 +1323,17 @@ extension Frame {
 extension RetainedRecord {
     /// A copy whose leaves are `scene`, for verify mode to compare a moved replay with a fresh run (`FS-D`): the final stream is
     /// left out, as for any translated replay.
-    func moved(to scene: [RetainLog.SceneOp]) -> RetainedRecord {
+    func moved(to scene: [RetainLog.SceneOp], clips: [InnerClip]?? = .none, masks: [CapturedPrimitive]?? = .none, emittedIsStale stale: Bool = false) -> RetainedRecord {
         let copy = RetainedRecord(key: key)
         copy.contentSerial = contentSerial; copy.versions = versions
         copy.scene = scene; copy.finalScene = nil
         copy.marks = marks; copy.touches = touches; copy.lives = lives; copy.surfaces = surfaces
         copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
-        copy.innerClips = innerClips
+        copy.innerClips = clips ?? innerClips
+        copy.crossingMasks = masks ?? crossingMasks
         copy.ranges = ranges; copy.emitted = emitted; copy.matched = matched
+        copy.emittedIsStale = emittedIsStale || stale
         return copy
     }
 
@@ -1227,7 +1341,11 @@ extension RetainedRecord {
     /// operation (kind, layer, masks, texture identity, raster key), the marks and touches, and the
     /// element work the record stands for.
     func differences(from other: RetainedRecord, ignoringFinalStream: Bool = false) -> String? {
-        if scene.count != other.scene.count { return "scene.count \(scene.count) vs \(other.scene.count)" }
+        if scene.count != other.scene.count {
+            let flags = { (clips: [InnerClip]?) in (clips ?? []).map { "\($0.flags)@\($0.lo)..<\($0.hi)" } }
+            return "scene.count \(scene.count) vs \(other.scene.count) (clips \(flags(innerClips)) vs \(flags(other.innerClips)), "
+                + "boundaries \(scene.map(\.boundary)) vs \(other.scene.map(\.boundary)), innerScopes \(innerScopes) vs \(other.innerScopes))"
+        }
         if innerClips != other.innerClips { return "innerClips \(String(describing: innerClips)) vs \(String(describing: other.innerClips))" }
         func kindDescription(_ kind: CapturedPrimitive.Kind) -> String {
             switch kind {
@@ -1239,6 +1357,13 @@ extension RetainedRecord {
                 return "shadow \(sh.leaf.map { kindDescription($0.kind) }) \(sh.color) \(sh.radius) \(sh.dx) \(sh.dy) \(sh.local) \(sh.contentMask) \(sh.entryDepth)"
             default: return "\(kind)"
             }
+        }
+        func describe(_ p: CapturedPrimitive) -> String { "\(p.layer)|\(p.innerMask)|\(kindDescription(p.kind))|\(p.groups.count)" }
+        if (crossingMasks?.count ?? 0) != (other.crossingMasks?.count ?? 0) {
+            return "crossingMasks \(crossingMasks?.count ?? 0) vs \(other.crossingMasks?.count ?? 0)"
+        }
+        for (a, b) in zip(crossingMasks ?? [], other.crossingMasks ?? []) where describe(a) != describe(b) {
+            return "crossing mask \(describe(a)) vs \(describe(b))"
         }
         func describe(_ op: RetainLog.SceneOp) -> String {
             var s = "\(op.boundary)|\(op.depth)|"
@@ -1267,9 +1392,13 @@ extension RetainedRecord {
                 && $0.request?.target == $1.request?.target && $0.request?.policy == $1.request?.policy
                 && $0.request?.value == $1.request?.value && $0.request?.scaleFactor == $1.request?.scaleFactor
         }) { return "surfaces \(surfaces.count) vs \(other.surfaces.count)" }
-        if emitted != other.emitted { return "emitted \(emitted) vs \(other.emitted)" }
-        if ranges != other.ranges { return "unit ranges \(ranges.count) vs \(other.ranges.count)" }
-        if !matched.elementsEqual(other.matched, by: { $0.key == $1.key && $0.range == $1.range }) { return "matched groups \(matched.count) vs \(other.matched.count)" }
+        // The count a masked group's emission makes depends on the pair's painted extents (`insertMaskedGroup`), which a move into or out of a crossing changes: a record
+        // such a move made holds the old count, until a replay measures it (`FS-Y`).
+        if !(emittedIsStale || other.emittedIsStale) {
+            if emitted != other.emitted { return "emitted \(emitted) vs \(other.emitted)" }
+            if ranges != other.ranges { return "unit ranges \(ranges.count) vs \(other.ranges.count)" }
+            if !matched.elementsEqual(other.matched, by: { $0.key == $1.key && $0.range == $1.range }) { return "matched groups \(matched.count) vs \(other.matched.count)" }
+        }
         // A first sighting touches and stores (two touches), a later frame only touches: the same entry kept
         // alive, so the comparison is of the ids, not of the touch count.
         func ids(_ touches: [RetainLog.Touch]) -> Set<GlobalElementID> {

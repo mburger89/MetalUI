@@ -749,6 +749,9 @@ final class PaintScope {
         var radii: MUICorners
     }
     var captures: [CapturedPrimitive] = []
+    /// Whether this is the mask scope of a clip pair that crosses (`CM-B`, `Frame.paintClipped`): a recorder opened directly below it sees through it, noting
+    /// the leaves where they enter it and not the merged leaf that leaves it (`FS-Y`).
+    var isClipCrossing = false
     /// A default insertion's fade scope names its unit (`XF-H` item 7); `nil` for every other kind.
     var fadeUnit: GlobalElementID?
     /// Whether `processScopes` skips this scope for now: a `.fade` while an annotated member of its unit paints.

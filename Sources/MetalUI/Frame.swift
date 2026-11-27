@@ -1224,7 +1224,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// the same commit) and
     /// `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`.
     func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
-                 radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+                  radii: Corners<Pixels> = Corners(all: Pixels(0)), crossing: CapturedPrimitive? = nil, painted: Bool = false) {
         let atEntry = atFlatteningEntry
         let pushed = Self.pushedClip(bounds, offset: offset, radii: radii, activeClip: activeClip,
                                      activeRadii: activeClipRadii, activeOffset: activeOffset, atFlatteningEntry: atEntry)
@@ -1232,7 +1232,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         prepaintLog?.notePush(bounds: bounds, offset: offset, radii: radii, atFlatteningEntry: atEntry, depth: clipStack.count,
                               hitboxes: hitboxes.count, emissions: axEmissions.count)
         retainLog?.notePush(bounds: bounds, offset: offset, radii: radii, crosses: pushed.crosses, atFlatteningEntry: atEntry,
-                            depth: clipStack.count)
+                            depth: clipStack.count, painted: painted, crossing: crossing, scopeIndex: paintScopes.count)
     }
 
     /// The level `pushClip` pushes onto the clip in force (`FS-V`): **the one copy of its arithmetic**, which a moved paint
@@ -4111,7 +4111,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// `Frame.paintWithCompositingGroup` sends the collection through the scopes
     /// outside it as ONE leaf, passing those `depths` (one per primitive; `nil`
     /// means every primitive was emitted at the current depth).
-    func insertThroughScopes(leaf originalLeaf: [CapturedPrimitive], depths: [Int]? = nil) {
+    func insertThroughScopes(leaf originalLeaf: [CapturedPrimitive], depths: [Int]? = nil, closingCrossingScope: Bool = false,
+                             emittedAt depth: Int? = nil) {
         var leaf = originalLeaf
         // A shadow, blur or composite scope rasterizes its leaves on the CPU,
         // which cannot read a GPU backdrop: a backdrop leaf inside one is its
@@ -4125,7 +4126,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
                 for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
             }
         }
-        processScopes([(leaf, depths)], from: paintScopes.count, depth: clipStack.count)
+        processScopes([(leaf, depths)], from: paintScopes.count, depth: depth ?? clipStack.count, closingCrossingScope: closingCrossingScope)
     }
 
     /// `initial` leaves through the paint scopes below index `boundary` (innermost first), then
@@ -4134,12 +4135,17 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// them from there. `depth` is the clip depth the leaves were emitted at. With no recorder
     /// open `retainLog` is `nil` and this is the old loop line for line. Each group carries its
     /// primitives' emission depths, `nil` for "all at `depth`" (no array on the ordinary path).
-    func processScopes(_ initial: [([CapturedPrimitive], [Int]?)], from boundary: Int, depth: Int) {
+    func processScopes(_ initial: [([CapturedPrimitive], [Int]?)], from boundary: Int, depth: Int, closingCrossingScope: Bool = false) {
         var leaves = initial
         var pastBarrier = false
         var index = boundary
+        var closing = closingCrossingScope
         while index > 0 {
-            retainLog?.noteBoundary(index, leaves, depth)
+            if let log = retainLog {
+                // A recorder directly below a crossing mask scope sees through it (`FS-Y`); the leaf that leaves the scope it saw through is not noted again.
+                log.noteBoundary(index, leaves, depth, crossingBelow: paintScopes[index - 1].isClipCrossing, closing: closing)
+            }
+            closing = false
             index -= 1
             let scope = paintScopes[index]
             // A default fade scope opened inside an occurrence cannot be replayed (`XF-H` item 7): its alpha is live.
@@ -4221,7 +4227,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
             }
             leaves = next
         }
-        retainLog?.noteBoundary(0, leaves, depth)
+        retainLog?.noteBoundary(0, leaves, depth, crossingBelow: false, closing: closing)
         // One group of leaves (the common case) goes straight in: no flattened copy.
         if leaves.count == 1 { insertLeaves(leaves[0].0) } else { insertLeaves(leaves.flatMap(\.0)) }
     }
@@ -4510,8 +4516,13 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// (the emitters then insert directly, as they always did).
     /// `count` is how many primitives the draw will emit when it knows: the group then holds exactly that and is never
     /// regrown by appending, and a record that keeps the leaf keeps no spare capacity (`G51`).
+    ///
+    /// **Nor when every open scope is a crossing mask scope** (`FS-Y`): such a scope only collects what reaches it, so the glyphs go in one at a time, as with
+    /// no scope open, and a record that saw through the scope holds the ops a record made with none open holds.
     func beginLeafGroup(reserving count: Int = 0) {
-        guard !paintScopes.isEmpty else { leafGroup = nil; return }
+        var batches = false
+        for scope in paintScopes where !scope.isClipCrossing { batches = true; break }
+        guard batches else { leafGroup = nil; return }
         var group: [CapturedPrimitive] = []
         if count > 0 { group.reserveCapacity(count) }
         leafGroup = group
