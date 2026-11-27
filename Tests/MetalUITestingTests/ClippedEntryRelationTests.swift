@@ -141,7 +141,7 @@ func anOldRectIsTestedAgainstTheOldClip(moving: Bool) async throws {
 /// The fold starts from each key's own clip: the card's clip is folded from the entry clip it was made under at the old position (which must give the recorded
 /// cut, else `…NotFolded`) and from the one now at the new, for the paint record's masks and the ledger's registrations alike.
 /// Mutation: the old position folded from the new entry clip (`PrepaintClipFold`'s `oldEntryClip` replaced by `entryClip`, `foldedRecord`'s `was` likewise):
-/// the two refuse by name and the test sees them.
+/// the ledger's fold refuses, its prepaint runs again and the grafted card is redone; the paint record's refuses `maskNotFolded`.
 @Test(.enabled(if: !rsVerifying, ceVerifyingNote), arguments: [false, true]) @MainActor
 func theFoldStartsFromEachKeysOwnClip(moving: Bool) async throws {
     let pair = try cePair(moving: moving)
@@ -150,6 +150,7 @@ func theFoldStartsFromEachKeysOwnClip(moving: Bool) async throws {
     #expect(ceNamesAGate(out.reasons).isEmpty, "a fold refused: \(out.reasons)")
     #expect(out.reasons["maskNotFolded", default: 0] == 0 && out.reasons["maskUnmapped", default: 0] == 0, "\(out.reasons)")
     #expect(out.moves >= 8, "the paint record moves too: \(out.moves) translated")
+    #expect(out.hits >= 8 && out.redos == 0, "a refused fold runs the prepaint again and the grafted card is redone: \(out.hits) hits, \(out.redos) redos")
 }
 
 /// A change of anything else than the clip is not a clip change: with the opacity changing as the clip grows the paint record's miss is named by that field
