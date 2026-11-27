@@ -85,18 +85,23 @@ func aRoundedRowAtTheViewportEdgeReplaysTranslated(nested: Bool) async throws {
     #expect(translated >= 3 * 3, "the rows replay translated: \(translated)")
 }
 
-/// A move that puts the viewport edge inside a corner zone changes the push's crossing: the record refuses by name and the frame is painted again, equal
-/// to a fresh one (`FS-V`). Mutation: the crossing check off (the replay keeps the square cut a fresh frame replaces by the exact pair coverage).
+/// A move that puts the viewport edge inside a corner zone changes the push's crossing, and the record replays through a live mask (`FS-Z`, was a refusal named
+/// `maskCrossingChanged`, `FS-V`): the clip opens its crossing scope again at the new position and the frame equals a fresh one, masks included.
+/// Mutation: the scope not opened again on a replay (the deep scene differs: no masked group).
 @Test(.enabled(if: !rsVerifying, mrVerifyingNote)) @MainActor
-func aRowWhoseCornerZoneCrossesTheEdgeRefusesByName() async throws {
+func aRowWhoseCornerZoneCrossesTheEdgeReplaysThroughALiveMask() async throws {
     let pair = try mrPair(nested: false)
     try pair.compare("warm")
     let f = await mrScroll(pair, by: 45)   // the bottom edge now leaves 15 pt of the fourth row, too little for its two top corners
-    #expect(f.retainedTranslationRefusedReasons["maskCrossingChanged", default: 0] >= 1, "named: \(f.retainedTranslationRefusedReasons)")
+    #expect(f.retainedTranslationRefusedReasons.isEmpty, "no refusal: \(f.retainedTranslationRefusedReasons)")
+    #expect(f.retainedTranslated >= 3, "the rows replay translated: \(f.retainedTranslated)")
+    #expect(!pair.on.scene.groups.isEmpty, "the cut row is a masked group")
     try pair.compare("crossed")
+    meCompareDeep(pair, "crossed")
     let g = await mrScroll(pair, by: 10)   // and out of it again
-    #expect(g.retainedTranslationRefusedReasons["maskStraddlesEntryClip"] == nil)
+    #expect(g.retainedTranslationRefusedReasons.isEmpty)
     try pair.compare("after")
+    meCompareDeep(pair, "after")
 }
 
 /// What a record with inner clips costs, and what one without pays (`FS-V`): a record whose occurrence pushed nothing stores nothing; the clips of one that
@@ -123,24 +128,23 @@ private struct MRPlain: Component, @MainActor Equatable {
     }
 }
 
-/// The transcript fixture of records 416 and 423, streaming 40 words: rows cut by the viewport edge no longer refuse, so the requests a streamed word costs
-/// drop (mean 24.9 on master, record 423 measured 24.85). The redos that remain are the corner-zone crossings (`maskCrossingChanged`).
+/// The transcript fixture of records 416 and 423, streaming 40 words: no row refuses a move any more (`FS-Z`). The corner-zone crossings that were the redos
+/// of record 424 (`maskCrossingChanged`) replay through a live mask, so the requests a streamed word costs fall again (mean 24.9 on master, 11 now).
 @Test(.enabled(if: !rsVerifying, mrVerifyingNote)) @MainActor
-func theStreamingTranscriptRefusesOnlyAtACornerZone() async throws {
+func theStreamingTranscriptRefusesNothing() async throws {
     let pair = try ctPair()
     var reasons: [String: Int] = [:]
-    var requests: [Int] = [], perStep: [String] = []
+    var requests: [Int] = [], redos = 0
     for step in 0..<40 {
         let f = await ctStep(pair).reduce(FrameWork(), +)
         reasons.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +)
-        if !f.retainedTranslationRefusedReasons.isEmpty { perStep.append("\(step): \(f.retainedTranslationRefusedReasons) redos \(f.retainedRedos)") }
-        requests.append(f.elementRequests)
+        requests.append(f.elementRequests); redos += f.retainedRedos
         try pair.compare("step \(step)")
+        meCompareDeep(pair, "step \(step)")
     }
     let mean = Double(requests.reduce(0, +)) / Double(requests.count)
-    print("MR transcript: mean requests \(mean), refusals \(reasons), by step \(perStep), requests \(requests)")
-    #expect(reasons["maskStraddlesEntryClip"] == nil && reasons["maskNotFolded"] == nil && reasons["maskUnmapped"] == nil, "refusals: \(reasons)")
-    #expect(reasons.keys.allSatisfy { ["maskCrossingChanged", "innerScope", "maskCrossed"].contains($0) }, "only the corner zone refuses: \(reasons)")
+    #expect(reasons.isEmpty, "refusals: \(reasons)")
+    #expect(redos == 0, "redos \(redos)")
     #expect(mean < 20, "mean requests a streamed word \(mean) (24.85 before)")
 }
 

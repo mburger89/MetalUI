@@ -80,6 +80,7 @@ public struct MatchedGeometryGroup<Content: ElementGroup>: ElementGroup {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }
         frame.animationStore.matched.noteSequences(start..<frame.scene.nextEmissionSequence, for: key)   // `XF-H` item 10
+        frame.retainLog?.noteMatchedGroup()
     }
 }
 

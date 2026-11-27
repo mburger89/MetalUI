@@ -123,7 +123,12 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// Verify mode (`RK-N`, `METALUI_VERIFY_RETAINED=1`): what this frame held after the root's paint, taken only
     /// when a prepaint was replayed, and whether the frame was abandoned there so the window builds it again with
     /// every replay off and compares the two.
-    var verifySnapshot: RetainedVerifySnapshot?
+    var verifySnapshot: RetainedVerifySnapshot? {
+        get { verifySnapshotBox?.value }
+        set { verifySnapshotBox = newValue.map(VerifySnapshotBox.init) }
+    }
+    /// The snapshot boxed (`FS-Z`): a frame is made every draw and the snapshot, a struct of many words, is set only in verify mode.
+    var verifySnapshotBox: VerifySnapshotBox?
     var verifyAbandoned = false
 
     /// Where a ``ScrollViewProxy`` built in this frame enqueues its
@@ -1224,7 +1229,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// the same commit) and
     /// `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`.
     func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
-                 radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+                  radii: Corners<Pixels> = Corners(all: Pixels(0)), painted: Bool = false, seenThrough: Bool = false) {
         let atEntry = atFlatteningEntry
         let pushed = Self.pushedClip(bounds, offset: offset, radii: radii, activeClip: activeClip,
                                      activeRadii: activeClipRadii, activeOffset: activeOffset, atFlatteningEntry: atEntry)
@@ -1232,7 +1237,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         prepaintLog?.notePush(bounds: bounds, offset: offset, radii: radii, atFlatteningEntry: atEntry, depth: clipStack.count,
                               hitboxes: hitboxes.count, emissions: axEmissions.count)
         retainLog?.notePush(bounds: bounds, offset: offset, radii: radii, crosses: pushed.crosses, atFlatteningEntry: atEntry,
-                            depth: clipStack.count)
+                            depth: clipStack.count, painted: painted, seenThrough: seenThrough,
+                            rangeCount: animationStore.transitions.ranges.count)
     }
 
     /// The level `pushClip` pushes onto the clip in force (`FS-V`): **the one copy of its arithmetic**, which a moved paint
@@ -1264,7 +1270,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     func popClip() {
         clipStack.removeLast()
         prepaintLog?.notePop(hitboxes: hitboxes.count, emissions: axEmissions.count)
-        retainLog?.notePop()
+        retainLog?.notePop(rangeCount: animationStore.transitions.ranges.count)
     }
 
     /// Pushes a clip covering the whole surface with **no accumulated
@@ -4111,7 +4117,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// `Frame.paintWithCompositingGroup` sends the collection through the scopes
     /// outside it as ONE leaf, passing those `depths` (one per primitive; `nil`
     /// means every primitive was emitted at the current depth).
-    func insertThroughScopes(leaf originalLeaf: [CapturedPrimitive], depths: [Int]? = nil) {
+    func insertThroughScopes(leaf originalLeaf: [CapturedPrimitive], depths: [Int]? = nil, emittedAt depth: Int? = nil, closing: Bool = false) {
         var leaf = originalLeaf
         // A shadow, blur or composite scope rasterizes its leaves on the CPU,
         // which cannot read a GPU backdrop: a backdrop leaf inside one is its
@@ -4125,7 +4131,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
                 for i in leaf.indices { leaf[i].degradeBackdropToFlatTint() }
             }
         }
-        processScopes([(leaf, depths)], from: paintScopes.count, depth: clipStack.count)
+        processScopes([(leaf, depths)], from: paintScopes.count, depth: depth ?? clipStack.count, closing: closing)
     }
 
     /// `initial` leaves through the paint scopes below index `boundary` (innermost first), then
@@ -4134,7 +4140,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// them from there. `depth` is the clip depth the leaves were emitted at. With no recorder
     /// open `retainLog` is `nil` and this is the old loop line for line. Each group carries its
     /// primitives' emission depths, `nil` for "all at `depth`" (no array on the ordinary path).
-    func processScopes(_ initial: [([CapturedPrimitive], [Int]?)], from boundary: Int, depth: Int) {
+    func processScopes(_ initial: [([CapturedPrimitive], [Int]?)], from boundary: Int, depth: Int, closing: Bool = false) {
         var leaves = initial
         var pastBarrier = false
         var index = boundary
@@ -4221,7 +4227,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
             }
             leaves = next
         }
-        retainLog?.noteBoundary(0, leaves, depth)
+        retainLog?.noteBoundary(0, leaves, depth, closing: closing)
+        stateTable.contentMemos.finalTap?.append(RetainLog.SceneOp(boundary: 0, leaves: leaves, depth: depth))
         // One group of leaves (the common case) goes straight in: no flattened copy.
         if leaves.count == 1 { insertLeaves(leaves[0].0) } else { insertLeaves(leaves.flatMap(\.0)) }
     }

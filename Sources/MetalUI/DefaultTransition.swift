@@ -168,6 +168,9 @@ struct UnitRange: Equatable {
 struct ConditionalUnitMark {
     var start = 0
     var fading = false
+    /// `start` in the virtual emission sequence of a record that saw through a crossing mask scope (`FS-Z`): the sequence the unit would start at with no
+    /// scope around it. Equal to `start` when no scope was seen through.
+    var virtualStart = 0
 }
 
 extension Frame {
@@ -184,6 +187,7 @@ extension Frame {
             mark.fading = true
         }
         mark.start = scene.nextEmissionSequence
+        mark.virtualStart = retainLog?.virtualSequence(mark.start) ?? mark.start
         return mark
     }
 
@@ -197,10 +201,18 @@ extension Frame {
         // A composite scope collects its leaves and re-emits them later: the range would not be contiguous.
         let composite = !paintScopes.isEmpty && compositeScopeOpen
         animationStore.transitions.noteRange(unit, start: mark.start, end: composite ? mark.start : end)
+        // A record that has seen through a crossing scope keeps its ranges as the sequence would count them with no scope: collapsed only by a composite
+        // that is not the one seen through (`FS-Z`).
+        if let log = retainLog, log.virtualActive {
+            let other = !paintScopes.isEmpty && compositeScopeOpen(excludingSeenThrough: true)
+            log.noteVirtualRange(unit, start: mark.virtualStart, end: other ? mark.virtualStart : log.virtualSequence(end))
+        }
     }
 
-    private var compositeScopeOpen: Bool {
-        for scope in paintScopes where scope.kind == .composite { return true }
+    private var compositeScopeOpen: Bool { compositeScopeOpen(excludingSeenThrough: false) }
+
+    private func compositeScopeOpen(excludingSeenThrough: Bool) -> Bool {
+        for scope in paintScopes where scope.kind == .composite && !(excludingSeenThrough && scope.seenThrough) { return true }
         return false
     }
 }
