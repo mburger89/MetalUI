@@ -71,6 +71,9 @@ package struct BuildWork: Sendable, Equatable {
     package var tableColumnsResolved = 0
     package var tableDataReads = 0
     package var tableColdFrames = 0
+    /// Mask scopes pushed and offscreen groups multiplied by a shape clip (`CM-A`).
+    package var maskScopesPushed = 0
+    package var groupsMasked = 0
 }
 
 extension Window {
@@ -133,7 +136,9 @@ extension Window {
                                tableCellsRealized: frame.tableWork.cellsRealized,
                                tableColumnsResolved: frame.tableWork.columnsResolved,
                                tableDataReads: frame.tableWork.dataReads,
-                               tableColdFrames: frame.tableWork.coldFrames))
+                               tableColdFrames: frame.tableWork.coldFrames,
+                               maskScopesPushed: frame.maskScopesPushed,
+                               groupsMasked: frame.groupsMasked))
         }
     }
 }

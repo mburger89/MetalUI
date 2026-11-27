@@ -221,6 +221,8 @@ final class FrameWorkRecorder {
         pending.tableColumnsResolved += work.tableColumnsResolved
         pending.tableDataReads += work.tableDataReads
         pending.tableColdFrames += work.tableColdFrames
+        pending.maskScopesPushed += work.maskScopesPushed
+        pending.groupsMasked += work.groupsMasked
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }
