@@ -27,6 +27,12 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     var position: ScrollPositionBinding?
     /// The `defaultScrollAnchor` declarations, if any (`DSA-A`).
     var defaultAnchors = DefaultScrollAnchors()
+    /// The padding written directly on this scroller (`SP-M`): `nil` when none, so the scroller lays out exactly as it
+    /// always did. Folded into the scroller's own layout as one padding node around its viewport, never a wrapper element.
+    var inset: Edges<Pixels>?
+    /// The identifier written directly on this scroller (`SP-N`): `nil` when none. It names the scroller's own
+    /// accessibility node, a group that contains its content and leaves each child's identifier alone.
+    var accessibilityID: String?
 
     /// A scroller over proposal `content` along `axis`; `elementID` names it
     /// for its scroll state.
@@ -61,7 +67,10 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     }
 
     public struct Layout {
+        /// The node this element registers: the viewport, or the padding node around it (`SP-M`).
         var node: LayoutNodeID
+        /// The viewport itself; `node` when the scroller has no padding.
+        var viewportNode: LayoutNodeID
         var contentNode: LayoutNodeID
         var content: Content.GroupLayout
     }
@@ -112,8 +121,15 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
             ? pass.requestNativeScrollViewport(child: contentNode, axis: contentAxis)
             : pass.requestNativeScrollViewport(child: contentNode, horizontal: axes.contains(.horizontal),
                                                vertical: axes.contains(.vertical))   // `XS-B`
-        return (node, Layout(node: node.layoutNodeID, contentNode: contentNode.layoutNodeID,
-                            content: contentLayout))
+        guard let inset else {
+            return (node, Layout(node: node.layoutNodeID, viewportNode: node.layoutNodeID,
+                                 contentNode: contentNode.layoutNodeID, content: contentLayout))
+        }
+        let padded = pass.requestNativePadding(child: node, insets: Edges(
+            top: Double(inset.top.value), right: Double(inset.right.value),
+            bottom: Double(inset.bottom.value), left: Double(inset.left.value)))   // `SP-M`
+        return (padded, Layout(node: padded.layoutNodeID, viewportNode: node.layoutNodeID,
+                               contentNode: contentNode.layoutNodeID, content: contentLayout))
     }
 
     /// The clamp, the offset resolution and the fading overlay indicator, all
@@ -129,6 +145,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        let bounds = layout.node == layout.viewportNode ? bounds : pass.bounds(of: layout.viewportNode)   // `SP-M`
         var chrome = self.chrome
         chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
         chrome.resolveMargins(pass.frame.environmentTop.contentMargins)   // `CMG-A`
@@ -137,6 +154,12 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         if !axes.isEmpty {   // `ScrollView([])` scrolls nothing and registers nothing (probe `L3`)
             pass.registerScrollRegion(bounds, id: id, axis: axis, chrome: chrome, offset: offset, cross: crossOffset,
                                       contentSize: pass.bounds(of: layout.contentNode).size)
+        }
+        if let accessibilityID {   // `SP-N`: the scroller's own node, a group that contains its content
+            var handlers = Handlers()
+            handlers.axNode.declarations.identifier = accessibilityID
+            handlers.axNode.declarations.childBehavior = .contain
+            pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil, synthesizesAccessibility: true)
         }
         // `DD-F` item 2: the content prepaints inside this scroller's frame.
         let scroller = ScrollerFrame(scrollerID: id, axis: axis,
@@ -161,6 +184,7 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
+        let bounds = layout.node == layout.viewportNode ? bounds : pass.bounds(of: layout.viewportNode)   // `SP-M`
         var chrome = self.chrome
         chrome.resolveLayoutDirection(rightToLeft: pass.frame.environmentTop.layoutDirection == .rightToLeft)   // `LD-E`
         chrome.resolveMargins(pass.frame.environmentTop.contentMargins)   // `CMG-C`
@@ -181,3 +205,46 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
 }
 
 extension ProposalScrollView: ProposalElement {}
+
+// MARK: - Layout and accessibility modifiers folded into the scroller (`SP-M`, `SP-N`)
+
+extension ProposalScrollView {
+    /// The same padding on every edge, SwiftUI's `padding(_:)`: the scroller's viewport is inset inside its parent by
+    /// `length` (`SP-M`). **Folded into the scroller's own layout**: it adds one native padding node around the
+    /// viewport and no element, so it costs no element request over the unpadded scroller, where the generic
+    /// ``ProposalElementGroup`` padding wraps it in a `ModifiedContent` element. Written again, it adds to what is there.
+    public func padding(_ length: Pixels) -> Self {
+        padding(Edges(all: length))
+    }
+
+    /// Padding on the edges in `edges` only, SwiftUI's `padding(_:_:)` (divergence 208), folded as
+    /// ``padding(_:)-(Pixels)`` is.
+    public func padding(_ edges: Edge.Set, _ length: Pixels) -> Self {
+        padding(edges.insets(length))
+    }
+
+    /// Padding of `insets`, SwiftUI's `padding(_: EdgeInsets)`, folded as ``padding(_:)-(Pixels)`` is.
+    public func padding(_ insets: EdgeInsets) -> Self {
+        padding(insets.edges)
+    }
+
+    /// Per-edge padding in points, folded as ``padding(_:)-(Pixels)`` is.
+    public func padding(_ insets: Edges<Pixels>) -> Self {
+        var copy = self
+        let held = inset ?? Edges(all: Pixels(0))
+        copy.inset = Edges(top: held.top + insets.top, right: held.right + insets.right,
+                           bottom: held.bottom + insets.bottom, left: held.left + insets.left)
+        return copy
+    }
+
+    /// This scroller's own accessibility identifier, SwiftUI's `accessibilityIdentifier(_:)` on a `ScrollView`
+    /// (`SP-N`; probe `I1`..`I3`: the identifier is the `AXScrollArea`'s, a child's own identifier stays and a child
+    /// without one gets none). The scroller publishes a node that **contains** its content, so no identifier is pushed
+    /// onto the leaves, and it is the scroller's own node: no wrapper element and no element request. It publishes
+    /// as a group, not an `AXScrollArea` (divergence 250).
+    public func accessibilityIdentifier(_ identifier: String) -> Self {
+        var copy = self
+        copy.accessibilityID = identifier
+        return copy
+    }
+}

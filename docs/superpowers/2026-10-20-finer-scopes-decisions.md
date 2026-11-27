@@ -5,18 +5,12 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-AB`.** (`FS-Z` is reserved by `perf/canonical-crossing-record`, not yet on master.) (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-AB`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
-**Carried out of record 434: a crossing mask scope seen through by the recorder below it (tried, reverted, not a ruling).** The design: `paintClipped` opens its `CM-B` scope through
-`openMaskScope`/`closeMaskScope`; `RetainLog.noteBoundary` notes the leaves before it as the recorder's own ops (no `passedInnerScope`), the record keeps the scope's mask, `replayOps` opens it again live,
-`Frame.finalStream` derives the final stream, and the move re-evaluates `Frame.crossingMask` at the new position. It did not reach its target (the transcript's last redo, rows 45 and 46, `maskCrossingChanged`
-and `innerScope`; requests 593 to 569, redos still 4), and finishing it needs: (a) **per-range anchors**, the op index and the clip-event index each unit range's end was noted at, because a record with unit ranges or
-matched groups holds emission counts, and a masked group's count is not its leaves'; (b) a **verify-mode prediction** of unit ranges and `emitted`, since verify mode compares a moved record with a fresh recording
-without replaying it, so the move needs a second copy of `insertLeaves`/`insertMaskedGroup`'s sequencing including the over-8192-px fallback; (c) the **glyph-batching rule**: under a crossing-only scope stack a text
-draw is one op per glyph, output identical; (d) an `emitted` skip in `differences` is sound only when both records have empty ranges and matched. Suspected allocation sources to measure first: `scopeState(of:)` copying the
-clip array per move (twice for a ranged record), per-glyph ops, `finalStream`'s captures and depths. Pins that must not rise doing it: the 40-word chrome transcript's 547 requests, the G51 and G52 ceilings, `aNonAnimatableComponentAllocatesWhatItDid` 319.
+**A crossing mask scope seen through by the recorder below it** was carried out of record 434 (tried, reverted) and is ruled in `FS-Z` (record 437): the record holds the canonical form, the leaves before the mask, so a move changes
+masks and two flag bits and no count; the per-range anchors, the verify-mode prediction and the `differences` skip of that attempt are not needed.
 
 **What was measured first.** The item's premise is that one changed row makes its whole enclosing scope miss and every sibling rebuild.
 At `711ab9c4` that is false for a row that is an `.equatable()` `Component` (reading F1 below) and true for something the premise did not
@@ -393,7 +387,7 @@ live blocks 72283 to 69976; a steady frame allocates 3 fewer blocks (`aNonAnimat
 **Pins.** `aTranslatedFrameConstructsNoLedgerAndNoFingerprintBox`, `theFingerprintSlotsAreBoundedAndExact`, `aSharedFingerprintEqualsExactlyWhatTheFingerprintEquals`,
 `everyAmbientFieldButTheOffsetSeparates`; each mutation reddens (record 409).
 
-## FS-V - A moved paint record folds the clips its occurrence pushed instead of moving their masks (record 424; amends FS-E, FS-M)
+## FS-V - A moved paint record folds the clips its occurrence pushed instead of moving their masks (record 424; amends FS-E, FS-M; amended by FS-Z: a painted clip at paint height 0 may change whether it crosses)
 
 **Ruling.** (1) While a recorder is open every `pushClip` and `pushRootClip` deeper than its entry notes an `InnerClip`: `pushClip`'s own arguments (the layout
 bounds before `activeOffset` is added, the `offset`, the radii), the index of the clip it was pushed inside, the clip depth, the range of the record's scene ops
@@ -476,10 +470,34 @@ only one (`drawSurface`) refuses `unlistedKind:surface`, and `fill`, glyph and i
 **Cost.** No stored bytes. Idle frames meet `old.key == key` first and are unchanged (7115 allocations, 67 requests on the `ClippedRegistrationFoldTests` fixture); a changed key pays one `clippedShift` (a clip compare, then
 the shape compare `shift` already made) where it used to miss. The streamed transcript with an accessibility client: element requests 593 to 547, redos 4 to 2 in 40 words.
 A **test switch** `Window.testingRelatesChangedClip` (`ContentMemoStore.relatesChangedClip`, on) turns the relation off at its three call sites so a fixture can still make the redo it caused (`G51ChurnTests`); at the prepaint the paint record's clip move is asked only where the ledger's key relates by the clip too, so an effect that changed (a zoom, a pan) is never read as a clip change.
-**Left as it was.** The two redos that remain are rows 45 and 46 (`maskCrossingChanged`, `innerScope`: a row crossing a corner zone), carried above.
+**Left as it was.** The two redos that remain are rows 45 and 46 (`maskCrossingChanged`, `innerScope`: a row crossing a corner zone), carried above. *Amended by `FS-Z`: a row at paint height 0 whose clip crosses the edge replays through a live mask, and the two redos are gone.*
 **Mutations.** An entry-depth leaf keeping its old mask reddens `aParagraphUnderAGrowingRowReplaysTranslated`; the old rect tested against the new clip reddens `anOldRectIsTestedAgainstTheOldClip`; the fold of the old position
 from the new entry clip reddens `theFoldStartsFromEachKeysOwnClip`; a field dropped from the relation reddens `everyAmbientFieldButTheOffsetAndClipSeparates` and `aChangedScopeIsNotAClipChange`; `allowZero` off reddens
 `aChangedClipRelatesWhereTheShapeAndTheRestAreTheSame`.
+
+## FS-Z - A crossing mask scope is seen through: the record holds what a paint with no crossing makes (record 437; amends FS-D, FS-V, FS-Y; replaces the item carried out of record 434)
+
+**Ruling.** (1) **Seen through.** A `CM-B` crossing scope that opens while `paintScopes` is empty and an untainted recorder at paint height 0 is open is **seen through** (`PaintScope.seenThrough`, `Frame.opensSeenThrough`); every recorder at height 0 sees through it, and any other crossing
+scope (one with another scope around it, or opened under a recorder at height > 0) is an inner scope exactly as before (`innerScope`, `maskCrossingChanged`, `maskCrossed` keep their rules there). (2) **The record is canonical.** A recorder seeing through notes the leaves as they enter the scope,
+one op per primitive (`RetainLog.noteSeen`: a text draw's glyphs, one leaf because a scope was open, are one op a glyph again), as its own scene ops (`seenOnlyTag`), and does not set `passedInnerScope`; the merged leaf that leaves the scope is noted in the final stream only
+(`finalOnlyTag`, `processScopes(closing:)`). The record keeps both as boundary 0 ops, so `scene` is byte for byte what a paint with no crossing there makes, and `finalScene` (shared with `scene` only when no clip opened a scope) is the true stream.
+(3) **Counts on the virtual sequence.** `emitted` and the unit ranges of a record at height 0 are counted as the sequence would run with no scope: `RetainLog.virtualSequence` is the true sequence plus what the closed scopes collected and did not emit (`virtualDelta`) plus what the open one has
+collected; it is maintained only from the first seen-through scope of a log (`virtualActive`), `ConditionalUnitMark.virtualStart` and `RetainLog.virtualRanges` carry the ranges, and a unit range collapses (`CM` composite) only for a composite that is not the scope seen through. A scope that collected
+a primitive that is not exactly one emission (a path, a gradient, a shadow, an inner opacity group, a backdrop, a marked primitive, a nested record's ranges) is **inexact**: the recorders it was seen by **fall back to master's record** (`SubtreeRecorder.fallback`, decided at the scope's close, the seen ops kept
+in the log until then): the merged leaf as an op of the scene, the true `emitted` and ranges, `passedInnerScope` set, no clips. Such a record cannot move across a crossing change (`innerScope`, as on master) but records and replays unmoved, so a row with an icon (every bundled symbol is a path) and
+the `.equatable()` occurrences around it are not worse off than on master. A clip that holds the scope bit and whose range counts saturated (`uncountedFlag`) falls back the same way. A matched-geometry group noted inside a scope or after one that closed inside the recorder's window taints
+`crossingMatchedGroup` (a recorder opened after the close keeps one distance between the true and the virtual sequence and is consistent; a taint is a local miss: no record, never a redo).
+(4) **A move changes masks and two flag bits.** `InnerClip` gains `paintedFlag`, `scopeFlag`, `uncountedFlag` and, in its padding (stride 60), `rangesBefore: UInt8` and `insideCount: UInt16`. At paint height 0 (`old.key` and `key` hold no scope) a painted clip may start, keep or stop opening a scope: `foldedClips` asks `opensCrossingScope`
+(the one copy of `paintClipped`'s test, `ClipMask.swift`) at both positions, `applyPaintTranslation` rewrites `crossesFlag` and `scopeFlag` in place (`copiedPaintTranslation` returns the rewritten clips for verify mode, `RetainedRecord.moved(to:clips:)`), and `finalScene` is the shared scene again whenever no clip opens a scope there, so a record that stopped crossing replays on the fast path.
+New refusals: `maskNested` (two scopes on one chain at the new position), `maskNotCanonical` (a status change whose clip's ops are not one group-free rect, glyph or image each, or whose range counts saturated), `maskMatchedGroups` (a status change with matched groups), `maskNotFolded` when a recorded scope bit is not what the old position gives. Plain `pushClip` clips and every clip under an outer scope keep `maskCrossingChanged`/`maskCrossed`.
+(5) **Replay.** `replayOps` opens the scope again at a clip that holds the scope bit (`Frame.parentState(of:in:...)` is the clip in force where it was pushed, `Frame.crossingMask` the mask rect, `openMaskScope`/`closeMaskScope` with the clip's own depths), the ops it covers go through `processScopes(from: boundary + 1)`, and the scope closes before the clip pops. A record whose
+`finalScene` is gone (a move changed a scope) takes the final stream of the replay that follows (`ContentMemoStore.finalTap`, once per move); one that has it replays it and measures each scope at the merged op (`insertFinalStream`). The record's unit ranges are converted to the true sequence the frame has (`trueRanges(of:...)`): a range inside a scope collapses at where it opened, any other endpoint is moved back by what the scopes before it collected and did not emit.
+(6) **Verify mode** keeps every comparison of `differences`, with no skip; its frame snapshot gains `groups`, a recursive digest of the group quads, filters, mask scenes and content scenes, and `unitRanges`, the frame's live unit ranges (a replay that dropped them, as one did for a record with more than 255 ranges before a painted clip, was invisible to the snapshot).
+(7) **Replay re-notes ranges** unless a scope it crossed has saturated counts (`crossingsUncounted`): a record that never crosses re-notes every range, whatever its clips hold.
+**Cost.** `InnerClip` stride 60, `CapturedPrimitive` 272, `UnitRange` 24 and `class_getInstanceSize(RetainedRecord.self)` 248, as on master. A record that never crosses pays no allocation (a translated non-crossing step 3645 allocations, as on master; the idle island frame 2349 against 2353 to 2357). A crossing record that does not move replays its captured final stream.
+**Measured.** The 40-word chrome transcript: redos 2 to 0, element requests 547 to 442, allocations 749,432 to 706,293. The island fixture of record 437 (`MaskEdgeFixture.swift`, 40 streamed steps): redos 7 to 3, requests 1389 to 1335, allocations 545,800 to 523,202 at scale 1; the three that remain (steps 1, 17, 33) are geometry
+redos of rows realised as the lazy window grows (`ledgerKey.rects`, `shapeInterior`), the same steps on master.
+**Mutations.** Thirteen of fourteen turn a named test red (record 437 has the table); the digest in the verify snapshot is not covered by a test arm.
 
 ## FS-AA - A scroller's hitbox moves with its ledger like any other, and `Hitbox.moved` carries every field (record 439; amends FS-F, FS-P)
 

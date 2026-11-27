@@ -308,6 +308,17 @@ package final class ContentMemoStore {
     /// Every paint record the store holds (test support: the clips a record stores, `FS-V`).
     var records: [RetainedRecord] { entries.values.compactMap(\.record) }
 
+    /// The ops that reach the scene while a replay captures the final stream of a record that crosses (`FS-Z`): set and cleared inside `replayPaint`. Here and not on
+    /// `Frame`, so a frame, made every draw, holds no word for it.
+    var finalTap: [RetainLog.SceneOp]?
+
+    /// The recorder log's op and virtual-range arrays between frames, emptied, capacity kept and bounded (`FS-Z`).
+    var logSceneScratch: [RetainLog.SceneOp] = []
+    var logRangesScratch: [UnitRange] = []
+
+    /// Forgets every paint record, so the next frame makes them again where the occurrences stand (test support, `FS-Z`).
+    func dropRecords() { for entry in entries.values { entry.record = nil } }
+
     func entry(for key: Key) -> Entry? {
         if !firedIDs.isEmpty { flagAncestorsOfFires() }
         return entries[key]

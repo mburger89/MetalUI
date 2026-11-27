@@ -27,7 +27,7 @@ private let srVerifyingNote: Comment =
 /// `graftRecord` (every row rebuilds: the grafts and the requests), the scope never set (the same).
 @Test(.enabled(if: !rsVerifying, srVerifyingNote)) @MainActor
 func aScopedRedoRebuildsOnlyTheFailingRowAndItsDescendants() async throws {
-    let pair = try ctPair()
+    let pair = try ctOuterScopePair()
     let frames = try await srRun(pair, steps: 40)
     let redone = frames.filter { $0.retainedRedos > 0 }
     try #require(redone.count >= 2, "the fixture redoes: \(redone.count)")
@@ -46,7 +46,7 @@ func aScopedRedoRebuildsOnlyTheFailingRowAndItsDescendants() async throws {
 /// off (`isInQuarantinedScope` answering false: the paragraphs graft again and the redos repeat).
 @Test(.enabled(if: !rsVerifying, srVerifyingNote)) @MainActor
 func aRedoDoesNotCascadeIntoTheRowsDescendants() async throws {
-    let pair = try ctPair()
+    let pair = try ctOuterScopePair()
     let frames = try await srRun(pair, steps: 40)
     let redos = frames.map(\.retainedRedos)
     #expect(redos.reduce(0, +) <= 2, "redos \(redos.reduce(0, +)) in 40 steps")
@@ -60,7 +60,7 @@ func aRedoDoesNotCascadeIntoTheRowsDescendants() async throws {
 /// forgot. Mutation: the rollback off in `rollBackAttempt` (attempt 2 plans from what attempt 1 wrote).
 @Test(.enabled(if: !rsVerifying, srVerifyingNote)) @MainActor
 func aScopedRedoEqualsAFreshFrameInEveryChannel() async throws {
-    let pair = try ctPair()
+    let pair = try ctOuterScopePair()
     var redone = 0
     for step in 0..<40 {
         let frames = await ctStep(pair)
@@ -80,7 +80,7 @@ func aScopedRedoEqualsAFreshFrameInEveryChannel() async throws {
 /// `retainedRedoEscalations`; the scene equals a fresh frame's in all three. Mutations: `noteRedo` suspending replay when scoped (the first arm), the fault ignored.
 @Test(.enabled(if: !rsVerifying, srVerifyingNote), arguments: [0, 1, 2]) @MainActor
 func theWindowBacksOffOnlyOnEscalation(arm: Int) async throws {
-    let pair = try ctPair()
+    let pair = try ctOuterScopePair()
     pair.on.window.testingRedoFault = arm == 1 ? .unrestorableChannel : arm == 2 ? .secondAttemptAsksAgain : nil
     let frames = try await srRun(pair, steps: 40)
     let backoff = frames.map(\.retainedBackoffFrames).reduce(0, +)

@@ -89,24 +89,62 @@ extension Frame {
     /// ``paintWithMask(_:_:)`` for a mask primitive already built (`CM-A`).
     /// `maskDepth` is the clip depth the mask's own clip was read at (`GroupMark.maskDepth`).
     func paintWithMask(primitive: CapturedPrimitive, maskDepth: Int, _ body: () -> Void) {
+        let (scope, ordinal) = openMaskScope(primitive)
+        body()
+        closeMaskScope(scope, ordinal: ordinal, maskDepth: maskDepth)
+    }
+
+    /// Opens a mask scope around what follows (`CM-A`): the first half of ``paintWithMask(primitive:maskDepth:_:)``, split so a replay can open
+    /// the scope a recorded clip opened and close it after the ops the clip covered (`FS-Z`). `entryDepth` is the clip depth the scope is entered at
+    /// (the live depth when `nil`). **`seenThrough`**: the recorders at paint height 0 note what enters the scope as their own leaves and what leaves it in
+    /// their final stream, as a paint with no scope around the leaves would (`FS-Z`).
+    func openMaskScope(_ primitive: CapturedPrimitive, seenThrough: Bool = false, entryDepth: Int? = nil) -> (scope: PaintScope, ordinal: Int) {
         maskScopesPushed += 1
-        let scope = PaintScope(kind: .composite, effect: .identity, entryClipDepth: clipDepth)
+        let scope = PaintScope(kind: .composite, effect: .identity, entryClipDepth: entryDepth ?? clipDepth)
         scope.mask = primitive
+        scope.seenThrough = seenThrough
         let ordinal = reserveCaptures(of: scope)
         paintScopes.append(scope)
-        body()
+        if seenThrough {
+            retainLog?.noteSeenOpen(scope, rangeCount: animationStore.transitions.ranges.count, matchedCount: animationStore.matched.noted.count)
+        }
+        return (scope, ordinal)
+    }
+
+    /// Whether a mask scope opened now is seen through (`FS-Z`): no scope is open around it and a recorder at paint height 0 can still leave a record.
+    var opensSeenThrough: Bool { paintScopes.isEmpty && retainLog?.seesThroughAtZero == true }
+
+    /// Closes the scope ``openMaskScope(_:seenThrough:entryDepth:)`` opened: what it collected leaves marked with the mask (`CM-A`). `emittedAt` is the clip
+    /// depth the collection was emitted at (the live depth when `nil`). Answers what the scope collected and what its close emitted.
+    @discardableResult
+    func closeMaskScope(_ scope: PaintScope, ordinal: Int, maskDepth: Int, emittedAt depth: Int? = nil) -> (captured: Int, emitted: Int) {
         paintScopes.removeLast()
-        noteCaptured(scope.captures.count, ordinal: ordinal)
-        guard !scope.captures.isEmpty else { return }
+        let captured = scope.captures.count
+        noteCaptured(captured, ordinal: ordinal)
+        guard !scope.captures.isEmpty, let primitive = scope.mask else {
+            if scope.seenThrough { closeSeen(scope, captured: captured, emitted: 0) }
+            return (captured, 0)
+        }
         var captures = scope.captures   // taken, not copied (`G51`)
         scope.captures = []
+        if scope.seenThrough {
+            for capture in captures where !RetainLog.isCountable(capture) { scope.inexact = true; break }
+        }
         if captures.contains(where: { if case .backdrop = $0.kind { true } else { false } }) {
             masksFlattenedBackdrop += 1
         } else {
             let mark = GroupMark(token: GroupToken(), alpha: 1, mask: [primitive], maskDepth: maskDepth)
             for i in captures.indices { captures[i].groups.insert(mark, at: 0) }
         }
-        insertThroughScopes(leaf: captures, depths: scope.captureDepths)
+        let before = scene.nextEmissionSequence
+        insertThroughScopes(leaf: captures, depths: scope.captureDepths, emittedAt: depth, closing: scope.seenThrough)
+        let emitted = scene.nextEmissionSequence - before
+        if scope.seenThrough { closeSeen(scope, captured: captured, emitted: emitted) }
+        return (captured, emitted)
+    }
+
+    private func closeSeen(_ scope: PaintScope, captured: Int, emitted: Int) {
+        retainLog?.noteSeenClose(scope, captured: captured, emitted: emitted, matchedCount: animationStore.matched.noted.count)
     }
 
     /// `pushClip` around `body`, inside a mask scope when the pushed clip crosses the one in force (`CM-B`, divergence 92
@@ -115,31 +153,55 @@ extension Frame {
     /// outline, the clip in force as its content mask, so the coverage is the product of both rounded rects. The pushed clip
     /// stays the square box, so hit testing and every primitive's own mask are unchanged.
     func paintClipped(_ bounds: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>, _ body: () -> Void) {
+        var crossing: CapturedPrimitive?
+        if Self.opensCrossingScope(bounds, radii: radii, activeClip: activeClip, activeRadii: activeClipRadii,
+                                   activeOffset: activeOffset, atFlatteningEntry: atFlatteningEntry) {
+            crossing = Self.crossingMask(bounds, radii: radii, activeClip: activeClip, activeRadii: activeClipRadii,
+                                         activeOffset: activeOffset, scale: scaleFactor, layer: activeLayer)
+        }
+        let readAt = clipDepth
+        let seen = crossing != nil && opensSeenThrough
+        pushClip(bounds, offset: offset, radii: radii, painted: true, seenThrough: seen)
+        defer { popClip() }
+        if let crossing {
+            let (scope, ordinal) = openMaskScope(crossing, seenThrough: seen)
+            body()
+            closeMaskScope(scope, ordinal: ordinal, maskDepth: readAt)
+        } else { body() }
+    }
+
+    /// Whether a clip pushed with `bounds` and `radii` (`pushClip`'s own arguments) opens a crossing mask scope against the clip in force (`CM-B`): the one
+    /// copy of ``paintClipped(_:offset:radii:_:)``'s test, which a moved record asks again at the position it moves to (`FS-Z`).
+    static func opensCrossingScope(_ bounds: Bounds<Pixels>, radii: Corners<Pixels>, activeClip: Bounds<Pixels>, activeRadii: Corners<Pixels>,
+                                   activeOffset: Point<Pixels>, atFlatteningEntry: Bool) -> Bool {
         func square(_ c: Corners<Pixels>) -> Bool {
             c.topLeft == Pixels(0) && c.topRight == Pixels(0) && c.bottomRight == Pixels(0) && c.bottomLeft == Pixels(0)
         }
-        var crossing: CapturedPrimitive?
-        if !(square(radii) && square(activeClipRadii)), !atFlatteningEntry {
-            let translated = Bounds(
-                origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
-                              y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
-                size: bounds.size)
-            if Self.clipsCross(activeClip, radii: activeClipRadii, translated, radii: radii) {
-                let none = MUIHsla(h: 0, s: 0, l: 0, a: 0)
-                let r = MUIRect(bounds: MUIBounds(translated.scaled(by: scaleFactor)),
-                                contentMask: MUIBounds(activeClip.scaled(by: scaleFactor)),
-                                maskCornerRadii: MUICorners(activeClipRadii.scaled(by: scaleFactor)),
-                                background: MUIHsla(h: 0, s: 0, l: 1, a: 1), borderColor: none,
-                                cornerRadii: MUICorners(radii.scaled(by: scaleFactor)),
-                                borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: 0,
-                                shape: PrimitiveShape.roundedRectangle.rawValue)
-                crossing = CapturedPrimitive(kind: .rect(r), layer: activeLayer, innerMask: false)
-            }
-        }
-        let readAt = clipDepth
-        pushClip(bounds, offset: offset, radii: radii)
-        defer { popClip() }
-        if let crossing { paintWithMask(primitive: crossing, maskDepth: readAt, body) } else { body() }
+        guard !(square(radii) && square(activeRadii)), !atFlatteningEntry else { return false }
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
+        return clipsCross(activeClip, radii: activeRadii, translated, radii: radii)
+    }
+
+    /// The mask rect of a crossing clip (`CM-B`): the new clip as its own outline, the clip in force as its content mask, so the coverage is the product of both
+    /// rounded rects. The one copy of its arithmetic.
+    static func crossingMask(_ bounds: Bounds<Pixels>, radii: Corners<Pixels>, activeClip: Bounds<Pixels>, activeRadii: Corners<Pixels>,
+                             activeOffset: Point<Pixels>, scale: Float, layer: Int) -> CapturedPrimitive {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
+        let none = MUIHsla(h: 0, s: 0, l: 0, a: 0)
+        let r = MUIRect(bounds: MUIBounds(translated.scaled(by: scale)),
+                        contentMask: MUIBounds(activeClip.scaled(by: scale)),
+                        maskCornerRadii: MUICorners(activeRadii.scaled(by: scale)),
+                        background: MUIHsla(h: 0, s: 0, l: 1, a: 1), borderColor: none,
+                        cornerRadii: MUICorners(radii.scaled(by: scale)),
+                        borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0), order: 0,
+                        shape: PrimitiveShape.roundedRectangle.rawValue)
+        return CapturedPrimitive(kind: .rect(r), layer: layer, innerMask: false)
     }
 
     /// The flags `processScopes` sets on `p`'s own mask, set on the masks its marks carry (`CM-A`): whether each mask's clip

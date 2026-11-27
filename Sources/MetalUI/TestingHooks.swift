@@ -247,6 +247,10 @@ extension Window {
     package var testingStateEntries: [String] { stateTable.entryDigest }
     /// The paint records the window holds, for a test of what a record stores (`FS-V`).
     func testingRetainedRecords() -> [RetainedRecord] { stateTable.contentMemos.records }
+    /// Forgets every paint record: the next frame makes them again, at the position the occurrences stand at (`FS-Z`).
+    func testingDropRetainedRecords() { stateTable.contentMemos.dropRecords() }
+    /// The unit ranges the last frame noted, as `unit start end` lines (`FS-Z`).
+    var testingUnitRanges: [String] { animationStore.transitions.testingLastFrameRanges.map { "\(sbPath($0.unit)) \($0.start) \($0.end)" } }
     /// How many failed occurrences are quarantined with what is under them (`RK-AN`).
     package var testingQuarantinedScopes: Int { stateTable.contentMemos.quarantinedScopes.count }
     /// Whether a redo suspends prepaint replay window-wide for the next nine builds (`RK-D` item 3). Off: the redo's quarantine of the failing entry

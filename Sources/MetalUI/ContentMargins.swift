@@ -50,6 +50,14 @@ extension EdgeInsets {
     }
 }
 
+extension EdgeInsets {
+    /// The margin on the side a thumb of a scroller along `axis` sits on, across that axis (`CMG-G`): `trailing` for a
+    /// vertical scroller's thumb, `bottom` for a horizontal one's.
+    func across(_ axis: ScrollAxis) -> Double {
+        axis == .vertical ? Double(trailing.value) : Double(bottom.value)
+    }
+}
+
 extension ElementGroup {
     /// Insets the content of the scrollable views below, and their indicators, by `insets` on `edges` —
     /// SwiftUI's `contentMargins(_:_:for:)` (macOS 14, `CMG-A`). A `ScrollView`, a `ProposalScrollView`, a `List`

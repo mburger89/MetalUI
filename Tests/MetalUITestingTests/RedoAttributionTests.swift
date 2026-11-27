@@ -27,7 +27,7 @@ private let raVerifyingNote: Comment =
 /// earned; every miss that says `quarantine` names who holds it. Mutations: the `requestRedo` line removed, the cause left empty, `quarantineOwner` answering `none`.
 @Test(.enabled(if: !rsVerifying, raVerifyingNote)) @MainActor
 func everyRedoNamesItsCauseAndItsQuarantine() async throws {
-    let pair = try ctPair()
+    let pair = try ctOuterScopePair()
     let (lines, frames) = try await raRun(pair, steps: 40)
     let redos = frames.map(\.retainedRedos).reduce(0, +)
     let requested = lines.filter { $0.hasPrefix("retained redo requested") }
@@ -48,7 +48,7 @@ func everyRedoNamesItsCauseAndItsQuarantine() async throws {
 /// Mutation: the `requestRedo` or `noteRedo` line built outside `emit`'s autoclosure.
 @Test(.enabled(if: !rsVerifying && !retainedTraces, raVerifyingNote)) @MainActor
 func theRedoLinesAreBuiltOnlyWhileSomethingListens() async throws {
-    let pair = try ctPair()
+    let pair = try ctOuterScopePair()
     RetainedTrace.linesBuilt = 0; RetainedTrace.pathsBuilt = 0
     var redos = 0
     for _ in 0..<40 { redos += await ctStep(pair).reduce(FrameWork(), +).retainedRedos }
@@ -61,19 +61,20 @@ func theRedoLinesAreBuiltOnlyWhileSomethingListens() async throws {
 /// held by one of those redos. Mutation: a redo of another kind (the shaped fixture's) puts `observed` or a paint cause on a line.
 @Test(.enabled(if: !rsVerifying, raVerifyingNote)) @MainActor
 func theChromeTranscriptRedoesOnlyForGeometry() async throws {
-    let pair = try ctPair()
+    let pair = try ctOuterScopePair()
     let (lines, _) = try await raRun(pair, steps: 40)
     let requested = lines.filter { $0.hasPrefix("retained redo requested") }
     try #require(!requested.isEmpty)
     #expect(requested.allSatisfy { $0.contains("at graftedPrepaint") && !$0.contains("observed") && !$0.contains("quarantine") }, "\(requested.first ?? "")")
 }
 
-/// The same rows with a content-shaped button: every grafted row refuses every layout move, and the trace names both causes the paint and prepaint sides give
-/// (`hitboxShape` for the ledger, `innerScope` for the paint record behind `recordCannotMove`). The redos are spread by the backoff (3 frames in 40 words,
-/// never two running) and the frames equal a fresh frame's. Mutation: a cause left off the line (the last expectation).
+/// The same rows with a content-shaped button: every grafted row refuses every layout move, and the trace names the cause the prepaint side gives
+/// (`hitboxShape`, the ledger). The redos are spread by the backoff (3 frames in 40 words, never two running) and the frames equal a fresh frame's.
+/// Mutation: a cause left off the line (the last expectation). The paint side's cause is the next test's: a crossing scope seen through is no longer an
+/// `innerScope`, so the shaped rows (every one of which a fresh frame would cut at the viewport edge) no longer name it (`FS-Z`).
 @Test(.enabled(if: !rsVerifying, raVerifyingNote)) @MainActor
 func aRowThatAlwaysRefusesNamesItsCausesAndRedoesNoMoreOftenThanTheBackoffAllows() async throws {
-    let pair = try raShapedPair()
+    let pair = try ctShapedPair()
     let (lines, frames) = try await raRun(pair, steps: 40, compare: true)
     let redoFrames = frames.enumerated().filter { $0.element.retainedRedos > 0 }.map(\.offset)
     try #require(!redoFrames.isEmpty, "the fixture redoes")
@@ -81,44 +82,17 @@ func aRowThatAlwaysRefusesNamesItsCausesAndRedoesNoMoreOftenThanTheBackoffAllows
     #expect(!zip(redoFrames, redoFrames.dropFirst()).contains { $1 - $0 < 2 }, "a redo in two frames running: \(redoFrames)")
     #expect(frames.allSatisfy { $0.retainedRedoEscalations == 0 })
     let causes = Set(lines.filter { $0.hasPrefix("retained redo requested") }.compactMap { $0.components(separatedBy: " because ").last })
-    #expect(causes.contains { $0.contains("hitboxShape") } && causes.contains { $0.contains("innerScope") }, "causes: \(causes)")
+    #expect(causes.contains { $0.contains("hitboxShape") }, "causes: \(causes)")
 }
 
-// MARK: The shaped fixture
-
-/// A row whose button has a content shape: its hitbox refuses every layout move by name.
-struct RAShapedRow: Component, @MainActor Equatable {
-    let id: Int
-    let text: String
-    var content: some ElementGroup {
-        VStack(alignment: .leading, spacing: 6) {
-            CTParagraph(text: text).equatable()
-            Button("Allow") {}.contentShape(RoundedRectangle(cornerRadius: Pixels(4)))
-        }
-        .padding(Edges(all: Pixels(8)))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.accent.opacity(0.18))
-        .cornerRadius(Pixels(8))
-    }
-}
-
-struct RAShapedRoot: Component {
-    let side: RPSide
-    var content: some ElementGroup {
-        let rows = (0..<50).map { RAShapedRow(id: $0, text: "row \($0) some words that wrap onto more than one line in a narrow column") }
-            + [RAShapedRow(id: 999, text: ctText(Int(side.inputs.offset)))]
-        ScrollViewReader { _ in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: Pixels(10)) {
-                    ForEach(rows, id: \.id) { row in row.equatable() }
-                }.padding(g49Inset)
-            }
-            .defaultScrollAnchor(.bottom).contentMargins(.bottom, Pixels(40), for: .scrollContent)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-}
-
-@MainActor private func raShapedPair() throws -> RPPair<some Element> {
-    try RPPair(size: sz(420, 600), scale: 2, warm: 8, accessibility: false) { side in VStack(spacing: 0) { RAShapedRoot(side: side) } }
+/// A record that cannot move names its refusal as the paint side's cause behind `recordCannotMove` (`RK-AP`, `FS-Z`): a row whose crossing scope has another
+/// scope around it (the transcript under a faded root) is an inner scope, so its record refuses the move by name (`maskCrossingChanged`, or `innerScope` for a
+/// row made crossing), and the trace says so. Mutation: the cause left off the line (`paintNote`).
+@Test(.enabled(if: !rsVerifying, raVerifyingNote)) @MainActor
+func aRecordThatCannotMoveNamesItsRefusalAsTheCauseOfTheRedo() async throws {
+    let pair = try ctOuterScopePair()
+    let (lines, _) = try await raRun(pair, steps: 40)
+    let causes = Set(lines.filter { $0.hasPrefix("retained redo requested") }.compactMap { $0.components(separatedBy: " because ").last })
+    try #require(!causes.isEmpty, "the fixture redoes")
+    #expect(causes.contains { $0.contains("recordCannotMove") && ($0.contains("innerScope") || $0.contains("maskCrossingChanged")) }, "causes: \(causes)")
 }
