@@ -591,12 +591,12 @@ extension PrepaintLedger {
 extension Hitbox {
     /// This hitbox with its clipped rect, its uncut rect and its element origin moved by (`dx`, `dy`) window points.
     func moved(dx: Float, dy: Float, bounds newBounds: Bounds<Pixels>, unclipped newUnclipped: Bounds<Pixels>?) -> Hitbox {
-        var h = Hitbox(bounds: newBounds, id: id, layer: layer, opaque: opaque, scroll: scroll, handlers: handlers,
-                       origin: Point(x: Pixels(origin.x.value + dx), y: Pixels(origin.y.value + dy)), shape: shape,
-                       transform: transform)
-        h.contextualEnabled = contextualEnabled
+        // A copy of `self` with only the three window-space fields replaced, so a field added to `Hitbox` later is carried by default
+        // (the `XS-E` scroll fields were dropped by a memberwise rebuild until record 439).
+        var h = self
+        h.bounds = newBounds
+        h.origin = Point(x: Pixels(origin.x.value + dx), y: Pixels(origin.y.value + dy))
         h.unclipped = newUnclipped
-        h.clipDepth = clipDepth
         return h
     }
 }
