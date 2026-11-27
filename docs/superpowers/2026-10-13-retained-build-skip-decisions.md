@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AP`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AQ`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -604,3 +604,13 @@ Per grafted outermost occurrence: **60.5 µs of build stood for, 10.7 µs of gra
 **Evidence.** Record 425: a 0.3 pt wheel step at scale 2 is `fractionalTranslation ... fractional=entryOffset layoutDeltaPx=(0,0) offsetDeltaPx=(0,-0.6)`, the next whole-pixel step `inexactTranslation [entry field=newY ... fractional=entryOffset entryOffsetPx=(0,-1.6)]`; scale 1.2 names `layoutOrigin`; the transcript fixture streams with no fractional refusal at all.
 
 **Cost if wrong.** A trace line that misnames who is fractional sends the next fix the wrong way: `aFractionalScrollIsRefusedWithItsFieldAndWhoIsFractional`, `anInexactLayoutOriginIsNamedAsTheLayoutOrigin`, `aLeafWithAFractionalOriginIsNamedByKindAndField`.
+
+## RK-AP — A redo says why, and who is quarantined for it (record 431)
+
+**Question.** Alloy's streamed transcript shows 203 prepaint misses tagged `quarantine` in 30 deltas and 8 paint-translation refusals (`maskCrossingChanged` 5, `innerScope` 3). Are the first a consequence of the second?
+
+**Ruling.** (1) `Frame.requestRedo(_:site:phase:)` prints `retained redo requested <path> at <graftedPrepaint|paintPlain|paintRecord> because prepaint [<guard names, note>] paint [<refusal, translation refusal, miss reasons>] grafted= replayed=`; `ContentMemoStore.noteRedo` prints `retained redo quarantine <path> for <n> builds until build <b> exponent <e> scoped=`; a `retained prepaint miss` line that says `quarantine` appends `quarantinedBy: self until build <b>` or the scope's path. The three are built only while something listens (`RetainedTrace.emit`'s autoclosure; `RetainedPhase.paintNote` is written only under `RetainedTrace.active`), so nothing is allocated otherwise (`theRedoLinesAreBuiltOnlyWhileSomethingListens`). (2) Nothing decides on a trace value; the quarantine is `RK-D` item 3 and `RK-AN` unchanged.
+
+**Evidence.** Record 431: on the chrome transcript every quarantine miss is held by a redo, and every redo is a grafted occurrence whose prepaint could not replay for geometry alone.
+
+**Cost if wrong.** A trace line that says the wrong cause; no behaviour.

@@ -710,6 +710,8 @@ final class RetainedPhase {
     /// The prepaint decision's guard names and the reason a passing guard still ran (`DM-F`), set only while `RetainedTrace.active`.
     var prepaintInvalidation: [String] = []
     var prepaintNote: String?
+    /// What the paint decision found (refusal, miss reasons, a translation refusal), set only while `RetainedTrace.active`: the cause a redo line names (`RK-AP`).
+    var paintNote: String?
 
     init(build: RetainedBuild, entry: ContentMemoStore.Entry, prepaintObserved: Bool) {
         self.build = build
@@ -972,6 +974,7 @@ extension Frame {
         let memos = stateTable.contentMemos
         if let reason = retainedEntryRefusal(build: build) {
             RetainedTrace.emit("retained paint refused \(RetainedTrace.path(build.key.id)) because \(reason)\(phaseFlags(phase))")
+            if RetainedTrace.active { phase.paintNote = "paint refused: \(reason)" }
             entry.record = nil
             memos.retained.noteIneligible(.paint, reason: reason)
             return .plain
@@ -1051,6 +1054,7 @@ extension Frame {
             RetainedTrace.emit(missLine(old, key: key, invalidation: invalidation, phase: phase))
         } else {
             RetainedTrace.emit("retained paint first-or-dropped \(RetainedTrace.path(build.key.id))\(phaseFlags(phase))")
+            if RetainedTrace.active { phase.paintNote = "paint first-or-dropped" }
         }
         entry.record = nil
         return .record(SubtreeRecorder(), key, old: nil)
@@ -1086,6 +1090,7 @@ extension Frame {
             RetainedTrace.unclassified += 1
         }
         let cause = (invalidation.inputs.observedChange || !invalidation.inputs.serialMatches) ? RetainedTrace.causeSuffix(of: phase.entry) : ""
+        phase.paintNote = (phase.paintNote.map { $0 + "; " } ?? "") + "paint miss [\(why.joined(separator: ", "))]"
         return "retained paint miss \(RetainedTrace.path(phase.build.key.id)) reasons=[\(why.joined(separator: ", "))]\(cause)\(phaseFlags(phase))"
     }
 

@@ -480,6 +480,7 @@ extension Frame {
             RetainedTrace.emit("retained paint translation refused \(RetainedTrace.path(phase.build.key.id)): \(reason)"
                 + describeFractionalMove(reason, of: old, to: key))
             stateTable.contentMemos.retained.noteTranslationRefused(reason: reason)
+            if RetainedTrace.active { phase.paintNote = "paint translation refused: \(reason)" }
         }
         return outcome
     }
