@@ -1896,6 +1896,15 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         prepaintLog?.inertBlockers.append(rect)
     }
 
+    /// The `$focus` retention write of a produced, enabled, visible focused element (`RK-AQ`). The write stays plain (write counts match a fresh
+    /// frame); only the open recorders are told it is the framework's own (the accessibility slot's precedent, `emitAXNode`), since a ledger
+    /// replays it.
+    func writeFocusRetention(_ id: GlobalElementID) {
+        prepaintLog?.allowedStateWrites += 1
+        stateTable.withState(Self.focusRetentionSlot(for: id), initial: true) { _ in }
+        prepaintLog?.allowedStateWrites -= 1
+    }
+
     /// Records a click target — an **opaque hitbox carrying a handler set** —
     /// and does nothing at all when `handlers` is empty.
     ///
@@ -2079,10 +2088,10 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
             // contract rather than a patch, and it does not go in unreviewed in
             // the last commit before a merge — the same judgement
             // `Window.applyScroll` was given during the input milestone.
-            if enabled && keyboardVisible {
-                stateTable.withState(Self.focusRetentionSlot(for: focused),
-                                     initial: true) { _ in }
-            }
+            let retains = enabled && keyboardVisible
+            // `RK-AQ`: the leaf's frame effects are ledger entries, replayed by `replayPrepaintLedger`.
+            prepaintLog?.focus.append(.focused(focused, retains: retains))
+            if retains { writeFocusRetention(focused) }
         }
         // Disabled: NO hitbox — not a blocker with empty handlers, and no
         // derived id (ruling EV-E, third pass). A blocker would eat an enabled
@@ -5136,6 +5145,13 @@ extension Frame {
                 if !restoreScopeStack.isEmpty, handlers.isFocusable { focusRegistry.noteScopes(restoreScopeStack, for: id) }
             case .shortcut(let handlers, let id): focusRegistry.registerShortcut(handlers, id: id)
             case .binding(let binding, let id): focusRegistry.registerFocusBinding(binding, id: id)
+            case .focused(let id, let retains):
+                // `RK-AQ`: what the focused element's `registerHandlers` did, when it is still the focused one. A ledger replays only while the focus
+                // under it is the one it was made with, so the guard holds on every replay that reaches here; it keeps a hand-built ledger honest.
+                if focusedElement == id {
+                    focusedElementProducedThisFrame = true
+                    if retains { writeFocusRetention(id) }
+                }
             }
             prepaintLog?.focus.append(call)
         }

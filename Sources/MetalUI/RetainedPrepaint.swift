@@ -30,6 +30,9 @@ final class PrepaintLog {
         case register(Handlers, GlobalElementID)
         case shortcut(Handlers, GlobalElementID)
         case binding(FocusBindingTarget, GlobalElementID)
+        /// The focused element was produced under the window (`RK-AQ`): replay sets `focusedElementProducedThisFrame` when `focusedElement` is still `id`
+        /// and, when `retains`, repeats the plain `$focus` retention write the producing call made.
+        case focused(GlobalElementID, retains: Bool)
     }
 
     struct Marks: Equatable {
