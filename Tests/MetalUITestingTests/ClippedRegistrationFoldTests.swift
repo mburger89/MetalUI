@@ -33,7 +33,8 @@ private struct CFRow: Component, @MainActor Equatable {
 private struct CFChromeOnly: Component, @MainActor Equatable {
     let id: Int
     var content: some ElementGroup {
-        Box().frame(maxWidth: .infinity).frame(height: Pixels(60)).background(Color.accent.opacity(0.2)).cornerRadius(Pixels(8))
+        VStack(spacing: 0) { Box().frame(height: Pixels(60)).background(Color.accent.opacity(0.2)) }
+            .frame(maxWidth: .infinity).cornerRadius(Pixels(8))
     }
 }
 
@@ -190,10 +191,15 @@ func aLedgerPaysOnlyForTheClipsItsOccurrencePushed() async throws {
     func ledgers(_ pair: RPPair<some Element>) -> [PrepaintLedger] {
         pair.on.window.testingRetainedRecords().compactMap(\.prepaint).filter { !$0.hitboxes.isEmpty || !$0.axEmissions.isEmpty || !$0.elementBounds.isEmpty }
     }
-    let plain = ledgers(try cfPair(.plain)), chrome = ledgers(try cfPair(.chromeOnly)), rounded = ledgers(try cfPair(.rounded))
+    let plain = ledgers(try cfPair(.plain))
+    let pushedBefore = PrepaintLog.pushCount
+    let chrome = ledgers(try cfPair(.chromeOnly))
+    let chromeClips = PrepaintLog.pushCount - pushedBefore
+    let rounded = ledgers(try cfPair(.rounded))
     try #require(!plain.isEmpty && !rounded.isEmpty)
     #expect(plain.allSatisfy { $0.innerClips == nil }, "no clip pushed, none stored")
     #expect(chrome.allSatisfy { $0.innerClips == nil }, "a clip with nothing registered inside it is not stored")
+    #expect(chromeClips > 0, "the chrome's prepaint did push a clip, or this arm proves nothing: \(chromeClips)")
     #expect(rounded.contains { $0.innerClips?.count == 1 }, "a rounded row keeps its one clip")
     #expect(rounded.allSatisfy { ($0.innerClips?.count ?? 0) <= 2 }, "bounded by the occurrence's own pushes")
     #expect(MemoryLayout<PrepaintClip>.stride <= 72, "the bytes a clip adds to a ledger: \(MemoryLayout<PrepaintClip>.stride)")
@@ -203,7 +209,8 @@ func aLedgerPaysOnlyForTheClipsItsOccurrencePushed() async throws {
     #if canImport(Darwin)
     let allocations = try #require(countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() })
     let requests = pair.on.lastFrameWork.elementRequests
-    print("CF idle frame: allocations \(allocations), requests \(requests)")
+    // The numbers master makes of this fixture (measured on 164978ef): no recorder is open on an idle frame, so no clip is journalled.
+    #expect(allocations == 7115 && requests == 67, "an idle frame: \(allocations) allocations, \(requests) requests")
     #endif
 }
 

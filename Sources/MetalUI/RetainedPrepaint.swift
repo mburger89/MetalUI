@@ -69,6 +69,8 @@ final class PrepaintLog {
     var clips: [PrepaintClip] = []
     /// The index in `clips` of the innermost push not yet popped, or -1.
     var openClip: Int32 = -1
+    /// Clips noted since the process began: a `package` counter for the tests that pin which ledgers keep theirs (`FS-X`).
+    package nonisolated(unsafe) static var pushCount = 0
 
     var current: Marks {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
@@ -85,6 +87,7 @@ final class PrepaintLog {
         var flags: UInt8 = 0
         if atFlatteningEntry { flags |= InnerClip.flatteningEntryFlag }
         if root { flags |= InnerClip.rootFlag }
+        Self.pushCount += 1
         clips.append(PrepaintClip(
             clip: InnerClip(x: bounds.origin.x.value, y: bounds.origin.y.value, width: bounds.size.width.value,
                             height: bounds.size.height.value, offsetX: offset.x.value, offsetY: offset.y.value,
