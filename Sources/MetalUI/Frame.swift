@@ -2388,7 +2388,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     /// `registerHandlers`'s own doc for why it must be a distinct slot rather
     /// than `id` itself. `at: 0` is inert: `GlobalElementID.child(of:at:name:)`
     /// always prefers `name` when one is supplied.
-    private static func focusRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
+    static func focusRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
         .child(of: id, at: 0, name: ElementID("$focus"))
     }
 

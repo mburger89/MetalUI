@@ -380,6 +380,10 @@ extension Frame {
         // `RK-AQ`: the focused element under the occurrence is a decision input, not a refusal.
         let focusNow = retainedFocus(under: build.key.id)
         phase.prepaintFocus = focusNow
+        if let focus = focusNow, memos.focusBackoff(for: build.key.id, focus: focus) != nil {
+            noteRun(phase, "focusBackoff")
+            return .run(nil)
+        }
         let key = retainedPrepaintKey(phase).transactionNormalised   // `AM-D`, `AM-L`
         phase.prepaintKey = key
         let old = entry.record
@@ -753,6 +757,8 @@ struct RetainedVerifySnapshot {
     let unitRanges: [String]
     let hitboxes: [String]
     let tabOrder: [GlobalElementID]
+    /// The focused element after `resolveFocus` (`RK-AQ`): a replayed ledger must leave focus where a fresh prepaint leaves it.
+    let focused: GlobalElementID?
     let accessibility: [String]
     let axNodes: Set<GlobalElementID>
     let tallies: RegionTallies
@@ -800,6 +806,7 @@ struct RetainedVerifySnapshot {
             return "hitboxes (\(hitboxes.count) vs \(other.hitboxes.count)) first difference \(String(describing: first))"
         }
         if tabOrder != other.tabOrder { return "tab order" }
+        if focused != other.focused { return "focused element \(String(describing: focused)) vs \(String(describing: other.focused))" }
         if accessibility != other.accessibility { return "accessibility records (\(accessibility.count) vs \(other.accessibility.count))" }
         if axNodes != other.axNodes {
             let a = Set(axNodes.map { sbPath($0) }), b = Set(other.axNodes.map { sbPath($0) })
@@ -861,7 +868,7 @@ extension Frame {
             counts: [s.rects.count, s.glyphs.count, s.images.count, s.surfaces.count, s.textures.count, s.drawList.count],
             groups: Self.groupDigest(of: s, path: ""),
             unitRanges: animationStore.transitions.ranges.map { "\(sbPath($0.unit)) \($0.start) \($0.end)" },
-            hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder,
+            hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder, focused: focusedElement,
             accessibility: axEmissions(from: 0).map {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },

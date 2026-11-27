@@ -1396,6 +1396,14 @@ extension Frame {
         }
         // `AM-D`, `AM-L`: the transaction's two members are not part of a retained key.
         let key = retainedKey(phase).transactionNormalised
+        // `RK-AQ`: a focus path whose record could not be stored is left plain for a while, as it was before focus was a key.
+        if let focus = phase.paintFocus, let backoff = memos.focusBackoff(for: build.key.id, focus: focus) {
+            RetainedTrace.emit("retained paint focusBackoff \(RetainedTrace.path(build.key.id)) because \(backoff.reason)\(phaseFlags(phase))")
+            if RetainedTrace.active { phase.paintNote = "paint focusBackoff: \(backoff.reason)" }
+            entry.record = nil
+            memos.retained.noteIneligible(.paint, reason: backoff.reason)
+            return .plain
+        }
         let underPointer = retainedSubtreeHasPointerOrPress(under: build.key.id)
         if let old = entry.record {
             var inputs = PaintInvalidation.Inputs()
@@ -1645,6 +1653,7 @@ extension Frame {
             RetainedTrace.emit("retained paint ineligible \(RetainedTrace.path(phase.build.key.id)) because \(reason)\(phaseFlags(phase))")
             phase.entry.record = nil
             memos.retained.noteIneligible(.paint, reason: reason)
+            if let focus = phase.paintFocus { memos.noteFocusedIneligible(phase.build.key.id, focus: focus, reason: reason) }
             return
         }
         memos.retained.misses += 1
@@ -1652,6 +1661,7 @@ extension Frame {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
+            if phase.paintFocus != nil { memos.clearFocusBackoff(phase.build.key.id) }
             if memos.recordsAttempt { memos.attemptRecorded.append(phase.entry) }   // `GL-K`
             RetainedTestingHooks.beforeRecordClear?()
             phase.entry.flags.clearObservedChange(ifChangesEqual: phase.changesAtStart)   // `MO-F`
