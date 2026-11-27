@@ -1,7 +1,7 @@
 # MetalUI and SwiftUI — where they differ
 
 MetalUI's public vocabulary follows SwiftUI on macOS. This page lists every
-place it knowingly does not: **242 live divergences**, each measured (a probe
+place it knowingly does not: **243 live divergences**, each measured (a probe
 arm in `docs/probes/`, run against real SwiftUI) or ruled as MetalUI's own
 choice, each with the test that pins MetalUI's answer. A divergence is not a
 bug report: it is expected, measured behaviour. If a test named here starts
@@ -270,6 +270,7 @@ scheduled).
 | 1126 | a selectable `Text`'s string changing under a selection | the view is reused and `⌘C` copies the OLD range applied to the NEW string (`S1`: `'ALPHA B'`); a shorter string aborts the process in `-[NSTextInteraction copy:]` (`S1b`, `S1x`, `S1y`) | the selection is dropped on the frame that shows the new string, nothing is copied from it, nothing clamps and nothing can crash (`TXS-F`) | `TXS-F` | `aStringChangeDropsTheSelection` | none |
 | 1127 | setting a selectable `Text`'s selection from an accessibility client | `accessibilitySelectedTextRange` is settable (`X1e`: an assistive client selects text that way) | the three text-area attributes are answered read-only; the selection is the pointer's and ⌘A's alone, as a field's binding is the app's (`SL-`); no `.setSelection` request exists (`TXS-G`) | `TXS-G` | `aSelectableTextAnswersItsRangeAndRefusesToSetIt` | none |
 | 1128 | a selectable `Text`'s right-click menu | `NSTextInteraction`'s whole text menu (Look Up, Translate, Search With Google, Cut, Copy, Paste, Share, Font, Spelling, ...), which **replaces** a declared `.contextMenu` (`M1`, `M1b`, `M1e`) | `[Copy, Select All]`, Copy off with no range; the other items are absent, and a declared `.contextMenu` on the `Text` or an ancestor **wins** (a declared menu is the app's intent, `TXS-E`); a right-click does not select the word under it (unmeasured: `HC-TXS-3`) | `TXS-E` | `aDeclaredContextMenuWinsOverTheCopyMenu` | none |
+| 250 | an `accessibilityIdentifier` on a `ScrollView` | the identifier names the scroll area, an `AXScrollArea` (probe `swiftui-scrollview-inset.swift` `I1`..`I3`), whose children keep their own identifiers | the identifier names the scroller's own node, a **group** (`AXGroup`) that contains its content: `AccessibilityRole` has no scroll-area case, and a new one needs the AppKit and AccessKit role maps and their parity tests; the identifier, the containment and the frame are SwiftUI's, a client searching by `AXScrollArea` does not find it; only a scroller that was written an identifier publishes a node | `SP-N`, `SP-O` | `anIdentifierOnTheScrollerNamesItsOwnNodeAndLeavesTheRowsAlone`, `aScrollerWithoutAnIdentifierPublishesNoNodeOfItsOwn` | none |
 
 ## Retired
 

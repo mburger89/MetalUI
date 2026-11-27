@@ -1,7 +1,7 @@
 # Scroll extras and `@Bindable` - decisions
 
 Rulings for round-3 item R3-4: pinned section views, `scrollPosition(id:anchor:)` with `scrollTargetLayout()`, an animated `scrollTo`, `@Bindable`, two-axis scrolling. Prefix `SP-`.
-Branch `feat/scroll-position` from master `28a819e9` (record 177). **Next unused: `SP-M`.**
+Branch `feat/scroll-position` from master `28a819e9` (record 177). **Next unused: `SP-P`** (`SP-M`..`SP-O` are Alloy's `ScrollView` inset gaps, record 438, below).
 Probe: `docs/probes/swiftui-scroll-position.swift` (arms V, W, H, O pin sections; P, X, A could not be measured headless; B is `@Bindable`). Carried from: `LZ-N` (`pinnedViews:`/`Section` not built), `MD-H` item 6
 (`@Bindable`), `CN-M`, `DD-AB` items 5-6, `CX-I` item 2 (two-axis, `scrollPosition`, animated `scrollTo`).
 
@@ -107,3 +107,15 @@ kernel viewport that answers both axes unspecified (`requestNativeScrollViewport
 ## SP-L - Divergences 915 and 916
 
 **Ruling.** 915: pinned views need a windowed lazy stack (`SP-J`). 916: scroll targets are `ForEach` elements only (`SP-B`). Labels 917-924 stay unused; `docs/divergences.md` and `record/04` carry the rows.
+
+## SP-M - A padding written on a scroller is folded into its layout (record 438, Alloy)
+
+**Ruling.** `ProposalScrollView` gains `padding(_:)` (a length, `Edge.Set` and length, `EdgeInsets`, `Edges<Pixels>`), concrete members that win over `ProposalElementGroup`'s. The padding is stored on the scroller and `requestProposalLayout` registers **one native padding node around the viewport**: no `ModifiedContent` element, no identity level, no element request. `Layout.node` is that node and `Layout.viewportNode` the viewport; `prepaint` and `paint` read the viewport's bounds with `pass.bounds(of:)` when they differ, so the scroll region, the clips and the thumb are the inset rectangle's. A second padding adds to the first (SwiftUI's nested paddings), and a scroller with none takes the old path untouched (`guard let inset`). *Measured* (`ScrollViewInsetTests`): Alloy's bottom-anchored lazy transcript streams a delta in 38 element requests, unpadded, and 38 with `.padding(.horizontal, 7)` directly on the scroller; the wrapped form (`VStack { ScrollViewReader { ScrollView } }.padding`) costs 40, so the fold saves the 2 Alloy measured as the wrapper and the padding. Row frames, the end-anchored position, a wheel to the top and `scrollTo` with each anchor are the wrapped form's, with a lopsided padding. *Reading:* the same `ProposalElementGroup.padding` is still the answer for every other element; only the scroller, whose own layout can host the node, takes the fold.
+
+## SP-N - `accessibilityIdentifier` on a scroller names its own node (record 438, Alloy)
+
+**Ruling.** SwiftUI (probe `swiftui-scrollview-inset.swift` `I1`..`I3`, run 2026-11-27): a `ScrollView` is an `AXScrollArea`; `.accessibilityIdentifier("transcript")` on it is that area's identifier, its children keep their own and a child with none gets none, where on a `VStack` it overwrites every leaf (`DA-A`). `ProposalScrollView.accessibilityIdentifier(_:)` is now a concrete member (it wins over the wrapper form): the scroller stores it and, at prepaint, registers **its own accessibility node** at the viewport bounds with the identifier and `.contain`, so `AccessibilityTreeBuilder.distributes` never hands it down (a declared child behaviour is its opt-out) and the rows' ids stay. No wrapper element, so Alloy's `accessibilityElement(children: .contain)` workaround (one element request, measured 39 against 38) is not needed; a scroller without an identifier registers nothing, so the tree and the cost are what they were. The node is a group: see `SP-O`. Every other accessibility modifier written on a scroller keeps the generic wrapper.
+
+## SP-O - Carried: the scroll area publishes as a group; padding on a reader (record 438)
+
+**Ruling.** Divergence 250: the scroller's node is an `AXGroup`, where SwiftUI's is `AXScrollArea`, because `AccessibilityRole` has no scroll-area case and a new one needs the AppKit and AccessKit role maps, the SDL parity tests (not runnable in this sandbox) and every client's role table. The identifier, the containment and the frame (the viewport) are SwiftUI's; a client that searches by `AXScrollArea` is the loser. Also carried: `ScrollViewReader.padding` and `.frame` stay the generic wrapper (+1 request): the reader has no node of its own, so the fold is written on the scroller inside it (`ScrollViewReader { _ in ScrollView { ... }.padding(...) }`), the shape the tests measure; and the legacy `ScrollView` (the CSS-flex scroller over `ElementGroup` content) is unchanged.
