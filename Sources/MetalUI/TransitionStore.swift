@@ -231,6 +231,9 @@ final class TransitionStore {
     /// replay was re-noted), 0 for a tree with no builder `if`, `if`/`else` branch or `ForEach` element.
     var lastFrameUnitRanges: Int { previousRanges.count }
 
+    /// The unit ranges the last completed frame noted, in order, for the tests of a record that replays them (`FS-Z`).
+    var testingLastFrameRanges: [UnitRange] { previousRanges }
+
     /// Insertions and ghosts in flight.
     var liveCount: Int { insertions.count + ghosts.count }
 
@@ -769,6 +772,12 @@ final class PaintScope {
     /// The token of the group a flattening effect's crossing clips share (`CM-B`): one per scope, so every primitive whose
     /// clip crosses the entry clip joins the same masked group. Made on first use.
     lazy var crossingMaskToken = GroupToken()
+    /// A crossing mask scope the retained records of paint height 0 see through (`FS-Z`): the leaves that enter it are noted as the record's own ops, one op a
+    /// primitive, and its close is noted as the final stream only.
+    var seenThrough = false
+    /// A seen-through scope that collected something a record cannot count one emission a primitive for (`FS-Z`): a marked primitive, a kind that is not a rect, a
+    /// glyph or an image, or the ranges of a nested record. Its recorders are tainted `crossingUncounted` when it closes.
+    var inexact = false
 
     var capturing: Bool { kind == .transition || kind == .capture }
 

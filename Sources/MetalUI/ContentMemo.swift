@@ -308,6 +308,9 @@ package final class ContentMemoStore {
     /// Every paint record the store holds (test support: the clips a record stores, `FS-V`).
     var records: [RetainedRecord] { entries.values.compactMap(\.record) }
 
+    /// Forgets every paint record, so the next frame makes them again where the occurrences stand (test support, `FS-Z`).
+    func dropRecords() { for entry in entries.values { entry.record = nil } }
+
     func entry(for key: Key) -> Entry? {
         if !firedIDs.isEmpty { flagAncestorsOfFires() }
         return entries[key]
