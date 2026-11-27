@@ -152,6 +152,14 @@ public struct FrameWork: Sendable, Equatable {
     public var tableDataReads: Int
     /// Builds in which a `Table` planned cold, its viewport not yet known (`TBL-M`).
     public var tableColdFrames: Int
+    /// Mask scopes the frame pushed, prepaint and paint together (`CM-A`, `CM-B`): one per clip that is drawn as an offscreen
+    /// group multiplied by its shape instead of as the square box of its bounds. 0 for a tree with no crossing rounded clip and
+    /// no shape-clipped group (an ellipse or path clip), so a nonzero value is a full masked group a guard can refuse.
+    public var maskScopesPushed: Int
+    /// Offscreen groups the frame multiplied by a shape clip (`CM-A`, `CM-B`): the groups a mask scope's leaves became, none for
+    /// a scope that held a backdrop or exceeded the target limit. 0 for a tree with no crossing rounded clip and no
+    /// shape-clipped group.
+    public var groupsMasked: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -193,7 +201,8 @@ public struct FrameWork: Sendable, Equatable {
                 codeHighlightRunsVisited: Int = 0, codeFindMatchesVisited: Int = 0, surfaceOnlyFrames: Int = 0,
                 codeSelectionsVisited: Int = 0,
                 tableRowsRealized: Int = 0, tableCellsRealized: Int = 0, tableColumnsResolved: Int = 0,
-                tableDataReads: Int = 0, tableColdFrames: Int = 0) {
+                tableDataReads: Int = 0, tableColdFrames: Int = 0,
+                maskScopesPushed: Int = 0, groupsMasked: Int = 0) {
         self.surfaceOnlyFrames = surfaceOnlyFrames
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
@@ -261,6 +270,8 @@ public struct FrameWork: Sendable, Equatable {
         self.tableColumnsResolved = tableColumnsResolved
         self.tableDataReads = tableDataReads
         self.tableColdFrames = tableColdFrames
+        self.maskScopesPushed = maskScopesPushed
+        self.groupsMasked = groupsMasked
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -329,7 +340,9 @@ public struct FrameWork: Sendable, Equatable {
                   tableCellsRealized: l.tableCellsRealized + r.tableCellsRealized,
                   tableColumnsResolved: l.tableColumnsResolved + r.tableColumnsResolved,
                   tableDataReads: l.tableDataReads + r.tableDataReads,
-                  tableColdFrames: l.tableColdFrames + r.tableColdFrames)
+                  tableColdFrames: l.tableColdFrames + r.tableColdFrames,
+                  maskScopesPushed: l.maskScopesPushed + r.maskScopesPushed,
+                  groupsMasked: l.groupsMasked + r.groupsMasked)
     }
 
     /// Adds `rhs` into `lhs` field by field, the compound form of ``+(_:_:)``.
