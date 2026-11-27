@@ -50,12 +50,16 @@ private func tally(_ frames: [FrameWork]) -> (scrolls: Int, redos: Int, requests
     let visible = sideways(pair.on).count
     #expect(visible >= 2, "the fixture shows fences and tables: \(visible)")
     let made = PrepaintLedger.madeCount
-    let t = tally(wheelFrames(pair, dy: 24))
+    let frames = wheelFrames(pair, dy: 24)
+    let t = tally(frames)
+    var refused: [String: Int] = [:]
+    for f in frames { refused.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +) }
+    let detail = "refused \(refused), misses \(frames.reduce(0) { $0 + $1.retainedMisses }), prepaint hits \(frames.reduce(0) { $0 + $1.retainedPrepaintHits }), ineligible \(frames.reduce(0) { $0 + $1.retainedPrepaintIneligible })"
     #expect(t.scrolls == 0, "no row refuses hitboxScrolls: \(t)")
     #expect(t.redos == 0, "nothing is redone: \(t)")
     #expect(t.translated >= visible, "every visible fence and table row moved its ledger: \(t), \(visible) scrollers")
     // A moved ledger is rebased in place (`FS-U`); the two made are the rows the step brings into the viewport (measured).
-    #expect(PrepaintLedger.madeCount - made <= 2, "a moved ledger is rebased in place, only a new row makes one: \(PrepaintLedger.madeCount - made)")
+    #expect(PrepaintLedger.madeCount - made <= 2, "a moved ledger is rebased in place, only a new row makes one: \(PrepaintLedger.madeCount - made); \(detail)")
     try pair.compare("a wheel step")
 }
 
