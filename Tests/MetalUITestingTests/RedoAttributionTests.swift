@@ -68,8 +68,8 @@ func theChromeTranscriptRedoesOnlyForGeometry() async throws {
     #expect(requested.allSatisfy { $0.contains("at graftedPrepaint") && !$0.contains("observed") && !$0.contains("quarantine") }, "\(requested.first ?? "")")
 }
 
-/// The same rows with a content-shaped button: every grafted row refuses every layout move, and the trace names the cause the prepaint side gives
-/// (`hitboxShape` for the ledger; the paint record's `innerScope` it named before record 434 is gone, the crossing scope being seen through). The redos are spread by the backoff (3 frames in 40 words,
+/// The same rows with a content-shaped button: every grafted row refuses every layout move, and the trace names both causes the paint and prepaint sides give
+/// (`hitboxShape` for the ledger, `innerScope` for the paint record behind `recordCannotMove`). The redos are spread by the backoff (3 frames in 40 words,
 /// never two running) and the frames equal a fresh frame's. Mutation: a cause left off the line (the last expectation).
 @Test(.enabled(if: !rsVerifying, raVerifyingNote)) @MainActor
 func aRowThatAlwaysRefusesNamesItsCausesAndRedoesNoMoreOftenThanTheBackoffAllows() async throws {
@@ -81,7 +81,7 @@ func aRowThatAlwaysRefusesNamesItsCausesAndRedoesNoMoreOftenThanTheBackoffAllows
     #expect(!zip(redoFrames, redoFrames.dropFirst()).contains { $1 - $0 < 2 }, "a redo in two frames running: \(redoFrames)")
     #expect(frames.allSatisfy { $0.retainedRedoEscalations == 0 })
     let causes = Set(lines.filter { $0.hasPrefix("retained redo requested") }.compactMap { $0.components(separatedBy: " because ").last })
-    #expect(causes.contains { $0.contains("hitboxShape") } && !causes.contains { $0.contains("innerScope") }, "causes: \(causes)")
+    #expect(causes.contains { $0.contains("hitboxShape") } && causes.contains { $0.contains("innerScope") }, "causes: \(causes)")
 }
 
 // MARK: The shaped fixture

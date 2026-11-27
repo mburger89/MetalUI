@@ -107,8 +107,8 @@ func aRowCutByTheViewportMovesItsAccessibilityAndHitbox() async throws {
     #expect(!lines.contains { $0.contains("translationRefused") }, "a refusal was traced: \(lines.filter { $0.contains("translationRefused") })")
 }
 
-/// The streamed transcript of records 416 and 423 with an accessibility client: no frame refuses a clipped registration any more (`FS-X`), nor a mask but
-/// the crossing change of a row whose unit ranges cannot follow it, which is a redo (`FS-Y`, record 434; the fourth of `aRedoDoesNotCascadeIntoTheRowsDescendants`).
+/// The streamed transcript of records 416 and 423 with an accessibility client: no frame refuses a clipped registration any more; what redos remain
+/// name a mask (`maskCrossingChanged`, `innerScope`: the later fix).
 /// Mutation: the slow path removed (the transcript refuses `accessibilityClipped` / `hitboxClipped` as on master).
 @Test(.enabled(if: !rsVerifying, cfVerifyingNote)) @MainActor
 func aStreamedTranscriptWithAccessibilityRefusesNoClippedRegistration() async throws {
@@ -123,7 +123,7 @@ func aStreamedTranscriptWithAccessibilityRefusesNoClippedRegistration() async th
     }
     print("CF transcript: requests \(requests), redos \(redos), refusals \(reasons)")
     #expect(reasons.keys.allSatisfy { !cfGateReasons.contains($0) && !$0.hasPrefix("accessibility") && !$0.hasPrefix("hitbox") }, "refusals: \(reasons)")
-    #expect(reasons.isEmpty, "nothing refuses: \(reasons)")
+    #expect(reasons.keys.allSatisfy { ["maskCrossingChanged", "innerScope", "maskCrossed"].contains($0) }, "only a mask refuses: \(reasons)")
 }
 
 /// The fold at the old position must give the rect that was recorded: a ledger whose recorded hitbox rect is not what the fold makes refuses

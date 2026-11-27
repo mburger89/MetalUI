@@ -85,79 +85,18 @@ func aRoundedRowAtTheViewportEdgeReplaysTranslated(nested: Bool) async throws {
     #expect(translated >= 3 * 3, "the rows replay translated: \(translated)")
 }
 
-/// A move that puts the viewport edge inside a corner zone makes the pushed clip cross the viewport's: a fresh frame opens a mask scope for it (`CM-B`). The record
-/// holds the leaves from before that scope and opens it again as it replays (`FS-Y`, record 434), so the step refuses nothing, redoes nothing and equals a
-/// fresh frame, and so does the redraw at rest and the step that takes the row out of the corner zone again. The nested arm's rows are two clips on one rect,
-/// both crossing the edge: a fresh frame opens one scope inside the other, which no record sees through, so the move refuses by name (`maskNested`, then
-/// `innerScope` once the row is painted again) and the frame is painted whole, equal to a fresh one.
-/// Mutations: the mark not inserted (the pair differs at the cut row), one mark per op in place of one leaf (the pair differs), the final stream of a crossing record
-/// taken as its scene (the unmoved redraw differs), the scope not opened live for a flagged clip (the pair differs).
-@Test(.enabled(if: !rsVerifying, mrVerifyingNote), arguments: [false, true]) @MainActor
-func aRowWhoseCornerZoneCrossesTheEdgeReplaysThroughALiveMask(nested: Bool) async throws {
-    let pair = try mrPair(nested: nested)
-    try pair.compare("warm")
-    let f = await mrScroll(pair, by: 45, retint: nested)   // the bottom edge now leaves 15 pt of the fourth row, too little for its two top corners
-    let allowed: Set<String> = nested ? ["maskNested"] : []
-    #expect(Set(f.retainedTranslationRefusedReasons.keys).isSubset(of: allowed), "refused \(f.retainedTranslationRefusedReasons)")
-    #expect(f.retainedRedos == 0, "redos \(f.retainedRedos)")
-    #expect(f.retainedTranslated >= 3, "translated \(f.retainedTranslated)")
-    try pair.compare("crossed")
-    pair.on.resetFrameWork()
-    pair.redraw()
-    #expect(pair.stepWork.retainedRedos == 0 && pair.stepWork.retainedTranslationRefusedReasons.isEmpty)
-    try pair.compare("crossed, unmoved")
-    let g = await mrScroll(pair, by: 10, retint: nested)   // and out of it again
-    let back: Set<String> = nested ? ["innerScope"] : []
-    #expect(Set(g.retainedTranslationRefusedReasons.keys).isSubset(of: back) && g.retainedRedos == 0,
-            "refused \(g.retainedTranslationRefusedReasons), redos \(g.retainedRedos)")
-    try pair.compare("after")
-}
-
-/// What a record that crosses holds (`FS-Y`), whether a move made it or a fresh paint at the crossing did: its scene has the leaves from before the scope, no
-/// primitive carries the crossing mark, its final stream is not its scene and carries the mark on the one leaf that leaves the scope, and one mask per clip that
-/// crosses; a record that does not cross holds none. The fresh arm drops every record after the step, so the next frames paint inside the scope.
-/// Mutations: the transparency off in `noteBoundary` (the fresh record holds the merged leaf and `innerScopes` is set), the final stream taken as the scene.
-@Test(.enabled(if: !rsVerifying, mrVerifyingNote), arguments: [false, true]) @MainActor
-func aCrossedRecordHoldsItsLeavesBeforeTheMask(fresh: Bool) async throws {
-    let pair = try mrPair(nested: false)
-    let rest = pair.on.window.testingRetainedRecords().filter { !$0.scene.isEmpty }
-    #expect(rest.allSatisfy { $0.crossingMasks == nil && !$0.innerScopes }, "nothing crosses at rest")
-    _ = await mrScroll(pair, by: 45)
-    if fresh {
-        pair.on.window.testingDropRetainedRecords()
-        for _ in 0..<3 { pair.redraw() }
-    }
-    let records = pair.on.window.testingRetainedRecords().filter { !$0.scene.isEmpty }
-    let crossed = records.filter { $0.crossingMasks != nil }
-    try #require(crossed.count == 2, "the rows cut at the top and the bottom edge cross: \(crossed.count) of \(records.count)")
-    for r in crossed {
-        #expect(!r.innerScopes, "the scope is seen through")
-        #expect(r.crossingMasks?.count == 1 && r.innerClips?.filter(\.hasScope).count == 1)
-        #expect(r.scene.allSatisfy { op in op.leaves.allSatisfy { $0.0.allSatisfy { $0.groups.isEmpty } } }, "the scene holds the leaves before the mask")
-        #expect(!r.finalIsScene)
-        let final = try #require(r.finalScene)
-        #expect(final.contains { op in op.leaves.contains { $0.0.contains { !$0.groups.isEmpty } } }, "the final stream carries the mark")
-    }
-    #expect(records.filter { $0.crossingMasks == nil }.count == records.count - 2)
-    #expect(records.filter { $0.crossingMasks == nil }.allSatisfy { $0.finalIsScene })
-    try pair.compare("crossed records")
-    _ = await mrScroll(pair, by: 15)   // 60 pt in all: both edges on a row boundary or clear of every corner zone, the masks are dropped with the crossing
-    #expect(pair.on.window.testingRetainedRecords().allSatisfy { $0.crossingMasks == nil && $0.innerClips?.contains(where: \.hasScope) != true })
-    try pair.compare("out again")
-}
-
-/// A record that crosses costs one mask a crossing clip, and a record that never does costs the 8 bytes of its nil (`FS-Y`): at rest, and after a step that
-/// keeps every row out of a corner zone, no record holds a mask. Mutation: the masks kept on a record whose crossing ended.
+/// A move that puts the viewport edge inside a corner zone changes the push's crossing: the record refuses by name and the frame is painted again, equal
+/// to a fresh one (`FS-V`). Mutation: the crossing check off (the replay keeps the square cut a fresh frame replaces by the exact pair coverage).
 @Test(.enabled(if: !rsVerifying, mrVerifyingNote)) @MainActor
-func aCrossingRecordPaysOnlyWhileItCrosses() async throws {
-    #expect(MemoryLayout<[CapturedPrimitive]?>.stride == 8)
+func aRowWhoseCornerZoneCrossesTheEdgeRefusesByName() async throws {
     let pair = try mrPair(nested: false)
-    _ = await mrScroll(pair, by: 10)
-    #expect(pair.on.window.testingRetainedRecords().allSatisfy { $0.crossingMasks == nil && $0.innerClips?.contains(where: \.hasScope) != true })
-    _ = await mrScroll(pair, by: 35)   // 45 pt in all
-    #expect(pair.on.window.testingRetainedRecords().contains { $0.crossingMasks != nil })
-    _ = await mrScroll(pair, by: 15)   // 60 pt in all
-    #expect(pair.on.window.testingRetainedRecords().allSatisfy { $0.crossingMasks == nil })
+    try pair.compare("warm")
+    let f = await mrScroll(pair, by: 45)   // the bottom edge now leaves 15 pt of the fourth row, too little for its two top corners
+    #expect(f.retainedTranslationRefusedReasons["maskCrossingChanged", default: 0] >= 1, "named: \(f.retainedTranslationRefusedReasons)")
+    try pair.compare("crossed")
+    let g = await mrScroll(pair, by: 10)   // and out of it again
+    #expect(g.retainedTranslationRefusedReasons["maskStraddlesEntryClip"] == nil)
+    try pair.compare("after")
 }
 
 /// What a record with inner clips costs, and what one without pays (`FS-V`): a record whose occurrence pushed nothing stores nothing; the clips of one that
@@ -184,8 +123,8 @@ private struct MRPlain: Component, @MainActor Equatable {
     }
 }
 
-/// The transcript fixture of records 416 and 423, streaming 40 words: rows cut by the viewport edge no longer refuse, nor do those that start or stop crossing it
-/// (`FS-Y`), so the requests a streamed word costs drop (mean 24.9 on master, record 423 measured 24.85) and nothing refuses.
+/// The transcript fixture of records 416 and 423, streaming 40 words: rows cut by the viewport edge no longer refuse, so the requests a streamed word costs
+/// drop (mean 24.9 on master, record 423 measured 24.85). The redos that remain are the corner-zone crossings (`maskCrossingChanged`).
 @Test(.enabled(if: !rsVerifying, mrVerifyingNote)) @MainActor
 func theStreamingTranscriptRefusesOnlyAtACornerZone() async throws {
     let pair = try ctPair()
@@ -201,7 +140,7 @@ func theStreamingTranscriptRefusesOnlyAtACornerZone() async throws {
     let mean = Double(requests.reduce(0, +)) / Double(requests.count)
     print("MR transcript: mean requests \(mean), refusals \(reasons), by step \(perStep), requests \(requests)")
     #expect(reasons["maskStraddlesEntryClip"] == nil && reasons["maskNotFolded"] == nil && reasons["maskUnmapped"] == nil, "refusals: \(reasons)")
-    #expect(reasons.isEmpty, "nothing refuses: \(reasons)")
+    #expect(reasons.keys.allSatisfy { ["maskCrossingChanged", "innerScope", "maskCrossed"].contains($0) }, "only the corner zone refuses: \(reasons)")
     #expect(mean < 20, "mean requests a streamed word \(mean) (24.85 before)")
 }
 
