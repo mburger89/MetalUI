@@ -1055,18 +1055,30 @@ extension Frame {
         phase.nodeCount = signatures.count
     }
 
-    /// Whether the hovered element, the pressed one or the focused one is the component or under it (`SB-F`
-    /// item 4): identity is structural, so an element inside the occurrence has its component's id as an
-    /// ancestor. Exact where the design's "pointer inside an owned hitbox" was conservative: a hover that is
-    /// elsewhere (another node on top of this one) costs this occurrence nothing.
-    func retainedSubtreeHasPointerPressOrFocus(under id: GlobalElementID) -> Bool {
+    /// Whether the hovered element or the pressed one is the component or under it, or the selected `Text` is (`SB-F` item 4): identity is
+    /// structural, so an element inside the occurrence has its component's id as an ancestor. Exact where the design's "pointer inside an
+    /// owned hitbox" was conservative: a hover that is elsewhere (another node on top of this one) costs this occurrence nothing. Focus is
+    /// not in this rule since `RK-AQ`: a retained occurrence is keyed on `retainedFocus(under:)` instead.
+    func retainedSubtreeHasPointerOrPress(under id: GlobalElementID) -> Bool {
         if let hovered = hoveredElement, hovered.isOrDescends(from: id) { return true }
         if let active = activeElement, active.isOrDescends(from: id) { return true }
-        if let focused = focusedElement, focused.isOrDescends(from: id) { return true }
-        // The selected `Text` misses retained replay as a focused element does (`TXS-B`, `TXS-H`): its highlight and its
+        // The selected `Text` misses retained replay as a focused element did (`TXS-B`, `TXS-H`): its highlight and its
         // pending press are state a recorded paint knows nothing of.
         if let selected = textSelection?.id, selected.isOrDescends(from: id) { return true }
         return false
+    }
+
+    /// The focused element when it is `id` or under it (`RK-AQ`): the one id every focus read inside the occurrence is a function of, since only
+    /// the focused element reads focus. Stored in the ledger (prepaint time) and the record (paint time) and compared as a decision input.
+    func retainedFocus(under id: GlobalElementID) -> GlobalElementID? {
+        guard let focused = focusedElement, focused.isOrDescends(from: id) else { return nil }
+        return focused
+    }
+
+    /// Whether the hovered, pressed, selected or focused element is the component or under it: the rule before `RK-AQ`, kept for the graft
+    /// (a graft under a steady focus is carried over).
+    func retainedSubtreeHasPointerPressOrFocus(under id: GlobalElementID) -> Bool {
+        retainedSubtreeHasPointerOrPress(under: id) || retainedFocus(under: id) != nil
     }
 
     // MARK: Windows
