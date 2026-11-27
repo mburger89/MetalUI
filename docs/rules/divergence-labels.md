@@ -1,12 +1,13 @@
 # Divergence labels: reservations and use
 
-`docs/divergences.md` labels are stable ids: a retired label is never reused. **242 live, next label 250**
+`docs/divergences.md` labels are stable ids: a retired label is never reused. **243 live, next label 251**
 (also in `CLAUDE.md`). A milestone that expects divergences reserves a block of ten; a new divergence takes the
 next sequential label or the next unused label of its milestone's block. Update this list and `CLAUDE.md`'s
 "next label" in the commit that adds the row.
 
 Moved verbatim from `CLAUDE.md` on 2026-11-18, one entry per item:
 
+- 250 used by `SP-O` (an identifier on a `ScrollView` names a group node, not an `AXScrollArea`); the next label is 251 (251–254 were C21's block and are unused)
 - 244 used by `OG-Q` (`backgroundProminence`: every selected row reads `.increased`, hierarchical styles do not adapt); the next label is 250 (245–248 are live, 249 is retired, 250–254 were C21's block and are unused)
 - 243 used by `IV-S` (a write read only below a memo boundary rebuilds each plain ancestor once)
 - 242 used by `MN-AP` (`Label` has no `labelStyle`), 1085 used by `OG-L` (the same-transaction reveal), 1086 used by `OG-M` (the ⌥ cascade over bindings), 1087 used by `OG-O` (the content list's flatten cache), 1088 used by `OG-P` (the splice animation is paint only and realised rows only) and 1089–1094 unused (1085–1094 reserved by OG)
