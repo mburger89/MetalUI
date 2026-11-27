@@ -92,8 +92,8 @@ private struct Card: Component, @MainActor Equatable {
 @Test @MainActor func aSteadyFrameCostsWhatItDidWithOneCaretWhateverTheCaretCount() async throws {
     for n in [1, 3, 50] {
         let one = try await steady(carets: n, views: 1), two = try await steady(carets: n, views: 2)
-        #expect(one == Cost(requests: 2, hits: 0, misses: 1, ineligible: 0, frames: 1), "\(n) carets, one view: \(one)")
-        #expect(two == Cost(requests: 3, hits: 1, misses: 1, ineligible: 0, frames: 1), "\(n) carets, two views: \(two)")
+        #expect(one == Cost(requests: 2, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(n) carets, one view: \(one)")
+        #expect(two == Cost(requests: 3, hits: 2, misses: 0, ineligible: 0, frames: 1), "\(n) carets, two views: \(two)")
     }
 }
 

@@ -735,9 +735,6 @@ final class RetainedRecord {
     var innerScopes = false
     /// The clips the occurrence pushed, relative to its first top node (`FS-V`); `nil` when it pushed none.
     var innerClips: [InnerClip]?
-    /// The focused element under the occurrence when the record was made, `nil` when none was (`RK-AQ`): the record replays only while the focus under
-    /// the occurrence is this one, so every focus read inside it (only the focused element reads focus) is a function of that one id.
-    var focusedUnder: GlobalElementID?
     /// Whether a clip of the record opens a crossing mask scope at the position it stands at (`FS-Z`): its leaves are those before the mask.
     var opensCrossingScope: Bool { InnerClip.anyScope(in: innerClips) }
     /// Whether the build, prepaint and paint windows were all observed when the record was made
@@ -1413,7 +1410,7 @@ extension Frame {
             inputs.serialMatches = old.contentSerial == entry.serial
             inputs.versionsUnchanged = retainedVersionsUnchanged(old.versions)
             inputs.underPointer = underPointer
-            inputs.focusMoved = old.focusedUnder != phase.paintFocus
+            inputs.focusMoved = entry.recordFocus != phase.paintFocus
             inputs.ledgerIdentityDiffers = phase.replayed != nil && old.prepaint !== phase.replayed
             inputs.ledgerGain = old.prepaint == nil && phase.ledger != nil   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
             let invalidation = PaintInvalidation(inputs)
@@ -1554,7 +1551,6 @@ extension Frame {
         record.coverageBuild = phase.build.observed || phase.inheritsBuildCoverage
         record.coveragePrepaint = phase.prepaintObserved
         record.prepaint = phase.ledger
-        record.focusedUnder = phase.paintFocus
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
         // `PA-H`: loops, not closures through stdlib generics (a dynamic isolation check each), into reserved arrays.
@@ -1643,6 +1639,9 @@ extension Frame {
             if let reason = recorder.taint {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed subtree is ineligible now (\(reason))")
             }
+            if phase.entry.recordFocus != phase.paintFocus {
+                preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)): focusedUnder \(String(describing: phase.entry.recordFocus)) vs \(String(describing: phase.paintFocus))")
+            }
             if let difference = old.differences(from: record, ignoringFinalStream: phase.translatedPaint) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)) (observed \(phase.entry.observedChange), serial \(phase.entry.serial)): \(difference)")
             }
@@ -1661,6 +1660,7 @@ extension Frame {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
+            phase.entry.recordFocus = phase.paintFocus
             if phase.paintFocus != nil { memos.clearFocusBackoff(phase.build.key.id) }
             if memos.recordsAttempt { memos.attemptRecorded.append(phase.entry) }   // `GL-K`
             RetainedTestingHooks.beforeRecordClear?()
@@ -1684,7 +1684,6 @@ extension RetainedRecord {
         copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
         copy.innerClips = clips
-        copy.focusedUnder = focusedUnder
         copy.ranges = ranges; copy.emitted = emitted; copy.matched = matched
         return copy
     }
@@ -1693,7 +1692,6 @@ extension RetainedRecord {
     /// operation (kind, layer, masks, texture identity, raster key), the marks and touches, and the
     /// element work the record stands for.
     func differences(from other: RetainedRecord, ignoringFinalStream: Bool = false) -> String? {
-        if focusedUnder != other.focusedUnder { return "focusedUnder \(String(describing: focusedUnder)) vs \(String(describing: other.focusedUnder))" }
         if scene.count != other.scene.count { return "scene.count \(scene.count) vs \(other.scene.count)" }
         if innerClips != other.innerClips { return "innerClips \(String(describing: innerClips)) vs \(String(describing: other.innerClips))" }
         func kindDescription(_ kind: CapturedPrimitive.Kind) -> String {

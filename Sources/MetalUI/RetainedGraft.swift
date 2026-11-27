@@ -360,7 +360,7 @@ extension Frame {
         for item in pending {
             let entry = item.entry
             guard let record = entry.record, record.prepaint != nil, record.coverageComplete,
-                  record.focusedUnder == nil, record.prepaint?.focusedUnder == nil else {
+                  entry.recordFocus == nil, record.prepaint?.focusedUnder == nil else {
                 memos.retained.graftCapturesSkipped += 1
                 continue
             }
@@ -470,7 +470,7 @@ extension Frame {
         guard old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) else { return nil }
         guard !retainedSubtreeHasPointerPressOrFocus(under: id), !retainedPointerIsInside(ledger) else { return nil }
         // `RK-AQ`: a record or a ledger made under a focus is not a graft's to stand on (a graft under a steady focus is carried over).
-        guard old.focusedUnder == nil, ledger.focusedUnder == nil else { return nil }
+        guard entry.recordFocus == nil, ledger.focusedUnder == nil else { return nil }
         guard graftDependenciesHold(graft) else { return nil }
         return graft
     }

@@ -138,6 +138,9 @@ package final class ContentMemoStore {
         // windows over its build recursion, prepaint and paint, and whether any observed property
         // changed since the record was made.
         var record: RetainedRecord?
+        /// The focused element under the occurrence when `record` was painted, `nil` when none was (`RK-AQ`): the record replays only while the focus
+        /// under the occurrence is this one. Here, not on the record, whose instance size a test pins.
+        var recordFocus: GlobalElementID?
         var observedChange: Bool {
             get { flags.observedChange }
             set { flags.observedChange = newValue }

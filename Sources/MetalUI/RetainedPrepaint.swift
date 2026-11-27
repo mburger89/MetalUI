@@ -402,7 +402,7 @@ extension Frame {
         inputs.pointerInLedger = ledgerOfRecord.map { retainedPointerIsInside($0) } ?? false
         // Both must equal the focus now: a record whose frame moved focus at the boundary (ledger and record disagree) never replays its prepaint,
         // so this cause cannot produce a redo (`RK-AQ`).
-        inputs.focusMoved = old.map { $0.focusedUnder != focusNow || ledgerOfRecord.map { $0.focusedUnder != focusNow } ?? false } ?? false
+        inputs.focusMoved = old != nil && (entry.recordFocus != focusNow || (ledgerOfRecord.map { $0.focusedUnder != focusNow } ?? false))
         let invalidation = PrepaintInvalidation(inputs)
         if RetainedTrace.active { phase.prepaintInvalidation = invalidation.names }
         if invalidation.isReplayable, let old, let ledger = ledgerOfRecord {

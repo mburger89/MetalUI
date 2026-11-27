@@ -129,6 +129,7 @@ occurrence (`SB-X`) and because every typed character, caret move or IME update 
 version. A composition exists only on a focused field (`IM-I` drops it on blur). A selection binding written from code is a
 content change of the occurrence's value or an observed read: miss. The first character after the field loses focus returns it
 to eligible one frame later (`RW-F`: none; the entry exists).
+**Amended by `RK-AQ` (record 440):** a focused field's ancestors no longer miss because the focused element is under them; they replay while the focus under them is the one their ledger and record were made with. The field's own typed characters, caret moves and IME updates are still input writes that bump the version, so every key frame still misses the chain (test 7, `aFocusedFieldInsideARetainedPanelMissesAndTypingWorks`, holds unchanged).
 **Evidence.** Spec §5 tests 6, 7.
 **Cost if wrong.** A focused field that replays: a typed character does not appear. Test 7 types into a retained field and reads
 the AX value each step.
