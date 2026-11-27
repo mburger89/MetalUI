@@ -188,3 +188,4 @@ the recursive call is an `@inline(never)` helper (`finishLayout`, `sealedCompone
 public initialisers do not delegate (`self = Self.make(…)`), and nothing is boxed. One `Component` level costs at most 88,000 bytes of debug stack
 at 24 KB of `content` (`aNestingLevelOfLayoutCostsAtMostItsCeilingOfDebugStack`); every demo's first frame is under 1 MiB, the controls and
 looks demos under 900,000 on macOS (`theCensusDemosLayOutBelowOneMebibyte`).
+**Release stack is the tree value (`HP-P`, record 435).** In release the first frame's stack is about six times the constructed root value, not what layout needs: a large static tree is split at `Component` boundaries, each holding its own modifiers. The default demo's root is at most 5,120 bytes (`theDefaultDemosRootValueIsAFewKilobytes`) and its first frame 302,656 bytes.
