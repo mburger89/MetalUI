@@ -34,6 +34,8 @@ final class PrepaintLog {
 
     struct Marks: Equatable {
         var focus = 0, axNodes = 0, pressOnly = 0, contextMenus = 0, elementBounds = 0, lives = 0, anchors = 0, geometry = 0, modifiers = 0, inertBlockers = 0, liveValues = 0, regions = 0
+        /// The clips noted so far (`FS-X`).
+        var clips = 0
     }
 
     var recorders: [PrepaintRecorder] = []
@@ -61,12 +63,62 @@ final class PrepaintLog {
     /// Entries read-only accesses kept live under the prepaint (`RW-E`).
     var lives: [GlobalElementID] = []
     var allowedStateWrites = 0
+    /// The clips pushed while a recorder is open, in push order, with absolute layout bounds and the **frame's** hitbox and emission
+    /// counts as their ranges (`FS-X`); a ledger keeps the slice of its window, relative to its own origin and low marks. Empty for a
+    /// window that pushes none, which allocates nothing.
+    var clips: [PrepaintClip] = []
+    /// The index in `clips` of the innermost push not yet popped, or -1.
+    var openClip: Int32 = -1
+    /// Clips noted since the process began: a `package` counter for the tests that pin which ledgers keep theirs (`FS-X`).
+    package nonisolated(unsafe) static var pushCount = 0
 
     var current: Marks {
         Marks(focus: focus.count, axNodes: axNodes.count, pressOnly: pressOnly.count,
               contextMenus: contextMenus.count, elementBounds: elementBounds.count, lives: lives.count,
               anchors: anchors.count, geometry: geometry.count, modifiers: modifiers.count,
-              inertBlockers: inertBlockers.count, liveValues: liveValues.count, regions: regions.count)
+              inertBlockers: inertBlockers.count, liveValues: liveValues.count, regions: regions.count,
+              clips: clips.count)
+    }
+
+    /// A clip pushed while a recorder is open (`FS-X`): `bounds` and `offset` are `pushClip`'s own arguments, `hitboxes` and `emissions`
+    /// the frame's counts now, where its ranges open.
+    func notePush(bounds: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>, atFlatteningEntry: Bool, depth: Int,
+                  root: Bool = false, hitboxes: Int, emissions: Int) {
+        var flags: UInt8 = 0
+        if atFlatteningEntry { flags |= InnerClip.flatteningEntryFlag }
+        if root { flags |= InnerClip.rootFlag }
+        Self.pushCount += 1
+        clips.append(PrepaintClip(
+            clip: InnerClip(x: bounds.origin.x.value, y: bounds.origin.y.value, width: bounds.size.width.value,
+                            height: bounds.size.height.value, offsetX: offset.x.value, offsetY: offset.y.value,
+                            topLeft: radii.topLeft.value, topRight: radii.topRight.value,
+                            bottomRight: radii.bottomRight.value, bottomLeft: radii.bottomLeft.value,
+                            parent: openClip, depth: Int32(depth), lo: Int32(hitboxes), hi: Int32(hitboxes), flags: flags),
+            axLo: Int32(emissions), axHi: Int32(emissions)))
+        openClip = Int32(clips.count - 1)
+    }
+
+    /// The innermost open clip is popped: its ranges close here.
+    func notePop(hitboxes: Int, emissions: Int) {
+        guard openClip >= 0 else { return }
+        let top = Int(openClip)
+        clips[top].clip.hi = Int32(hitboxes)
+        clips[top].axHi = Int32(emissions)
+        openClip = clips[top].clip.parent
+    }
+
+    /// A replayed ledger's clips, closed as they stand (`FS-X`): at `origin` where the occurrence stands now, the ranges at the bases its
+    /// hitboxes and emissions were appended at, the clips pushed at its entry depth inside the clip open here.
+    func noteReplayed(_ replayed: [PrepaintClip], origin: (x: Float, y: Float), hitboxBase: Int, emissionBase: Int) {
+        let base = Int32(clips.count)
+        for stored in replayed {
+            var copy = stored
+            copy.clip = stored.clip.moved(byX: origin.x, y: origin.y)
+            copy.clip.parent = stored.clip.parent >= 0 ? stored.clip.parent + base : openClip
+            copy.clip.lo += Int32(hitboxBase); copy.clip.hi += Int32(hitboxBase)
+            copy.axLo += Int32(emissionBase); copy.axHi += Int32(emissionBase)
+            clips.append(copy)
+        }
     }
 
     /// Marks every open recorder as unable to leave a ledger, naming the first reason.
@@ -87,6 +139,14 @@ final class PrepaintLog {
             recorder.taint = "sharePatchesOutside"
         }
     }
+}
+
+/// One clip pushed inside a recorded prepaint (`FS-X`): `clip.lo..<clip.hi` is the range of the occurrence's hitboxes registered while it
+/// was open, `axLo..<axHi` that of its accessibility emissions, both relative to the recorder's low marks. In a ledger the bounds are
+/// relative to the first top node's layout origin (they move with it); while recording they are absolute and the ranges the frame's.
+struct PrepaintClip: Equatable {
+    var clip: InnerClip
+    var axLo: Int32, axHi: Int32
 }
 
 /// One `onGeometryChange` note a prepaint made (`RG-A`): what `Frame.noteGeometry` handed `LifecycleStore.noteGeometry`, kept so an
@@ -150,6 +210,9 @@ final class PrepaintLedger {
     /// `var` for `rebase(to:_:)` (`G47`), the one writer after the ledger is closed.
     var key: PrepaintKey
     var hitboxes: [Hitbox] = []
+    /// The clips the occurrence pushed that cut a hitbox or an emission deeper than its entry, relative to the first top node (`FS-X`);
+    /// `nil` when nothing sits at an inner depth, which is nearly every ledger.
+    var innerClips: [PrepaintClip]?
     /// Lock-step with `hitboxes` when any hitbox sat under an effect, else empty: the effect chain each was registered under (`RL-I`).
     var hitboxChains: [AXEffectChain?] = []
     var axEmissions: [AXEmission] = []
@@ -232,7 +295,7 @@ enum RetainedPrepaintMode {
     /// by the translation of the render effects around the occurrence (`RK-G`, `RK-S`), hitbox transforms rewritten.
     case replay(PrepaintLedger, moved: [Hitbox]?, elementBounds: [(GlobalElementID, Bounds<Pixels>)]? = nil,
                 accessibility: AXTranslation? = nil, geometry: [GeometryNoteRecord]? = nil,
-                windowShift: (dx: Float, dy: Float)? = nil)
+                windowShift: (dx: Float, dy: Float)? = nil, layoutOrigin: (x: Float, y: Float)? = nil)
     /// Run prepaint, recording a ledger when a recorder is given.
     case run(PrepaintRecorder?)
 }
@@ -320,7 +383,10 @@ extension Frame {
         if invalidation.isReplayable, let old, let ledger = ledgerOfRecord {
             // The paint record may stand where the occurrence was before it moved: a replayed prepaint leaves nothing to
             // paint from, so the record must be movable here too, or the frame would be redone (`FS-D`).
-            let recordMoves = memos.translatesLayout ? recordShiftAtPrepaint(old, phase: phase, key: key) : nil
+            // A changed entry clip is part of the record's move only where the ledger's key relates by it too (`FS-Y`): the prepaint's ambient is
+            // then the paint record's but for the clip and the offset, and nothing under an effect that changed is read as a clip change.
+            let clipRelated = memos.translatesLayout && memos.relatesChangedClip && ledger.key.ambient.clip != key.ambient.clip && ledger.key.clippedShift(to: key) != nil
+            let recordMoves = memos.translatesLayout ? recordShiftAtPrepaint(old, phase: phase, key: key, clipRelated: clipRelated) : nil
             if let recordMoves, case .refused = paintTranslation(of: old, shift: recordMoves, key: retainedReplayKeyForTranslation(phase, key), phase: phase) {
                 noteRun(phase, "recordCannotMove")
                 return .run(phase.grafted ? nil : openPrepaintWindow())
@@ -331,13 +397,14 @@ extension Frame {
                 return .replay(ledger, moved: nil)
             }
             // The occurrence moved by layout or by a scroll since the ledger was made (`FS-D`, K1 and K2): its registrations
-            // are replayed moved by the add, unless one cannot be moved exactly (refused by name).
-            let layoutShift = ledger.key.shift(to: key)
+            // are replayed moved by the add, unless one cannot be moved exactly (refused by name). The entry clip may have changed with the move
+            // (`FS-Y`, a zero move included): the same add, every cut made again from the new clip.
+            let layoutShift = ledger.key.shift(to: key) ?? (memos.relatesChangedClip ? ledger.key.clippedShift(to: key) : nil)
             if layoutShift == nil {
                 noteRun(phase, ledger.key.describeDifference(from: key).joined(separator: ", "))
             }
             if memos.translatesLayout, let shift = layoutShift {
-                switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip) {
+                switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip, to: key) {
                 case .moved(let translation):
                     // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand, not where they stood.
                     if let point = mousePosition, translation.hitboxes.contains(where: { $0.contains(point) }) {
@@ -354,7 +421,8 @@ extension Frame {
                         return .replay(ledger, moved: nil)
                     }
                     return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds,
-                                   accessibility: translation.accessibility, geometry: translation.geometry)
+                                   accessibility: translation.accessibility, geometry: translation.geometry,
+                                   layoutOrigin: key.rects.count >= 2 ? (key.rects[0], key.rects[1]) : nil)
                 case .refused(let reason):
                     noteRun(phase, "translationRefused: \(reason)")
                     memos.retained.noteTranslationRefused(reason: reason)
@@ -427,7 +495,7 @@ extension Frame {
             phase.effectRefusalCounted = true   // the paint's own count of the same relation is not repeated (`EL-M`)
             return refuseEffect(reason, build: build, phase: phase)
         }
-        switch movedCombinedLedger(ledger, shift: shift, clip: key.ambient.clip) {
+        switch movedCombinedLedger(ledger, shift: shift, clip: key.ambient.clip, to: key) {
         case .refused(let reason):
             return refuseEffect(reason, build: build, phase: phase)
         case .moved(let translation):
@@ -447,7 +515,8 @@ extension Frame {
                 return .replay(rebased, moved: nil)
             }
             return .replay(ledger, moved: translation.hitboxes, elementBounds: translation.elementBounds,
-                           accessibility: translation.accessibility, geometry: translation.geometry)
+                           accessibility: translation.accessibility, geometry: translation.geometry,
+                           layoutOrigin: key.rects.count >= 2 ? (key.rects[0], key.rects[1]) : nil)
         }
     }
 
@@ -460,11 +529,14 @@ extension Frame {
 
     /// How far the paint record stands from where the occurrence is now, when only its origin or scroll offset differ (`FS-D`):
     /// the geometric part of the paint key's relation, which is all a prepaint can read (the paint-only ambient is open later).
-    func recordShiftAtPrepaint(_ old: RetainedRecord, phase: RetainedPhase, key: PrepaintKey) -> LayoutShift? {
-        guard old.key.ambient.clip == key.ambient.clip else { return nil }
+    func recordShiftAtPrepaint(_ old: RetainedRecord, phase: RetainedPhase, key: PrepaintKey, clipRelated: Bool = false) -> LayoutShift? {
+        // A changed entry clip of the same count relates too, and a zero move with it, once the ledger's key relates by it (`FS-Y`): the paint
+        // record is cut again from the new clip.
+        let clipChanged = old.key.ambient.clip != key.ambient.clip
+        guard !clipChanged || (clipRelated && old.key.ambient.clip.count == key.ambient.clip.count) else { return nil }
         return RetainedShape.shift(newRects: phase.rects, newNodeCount: phase.nodeCount, newShape: phase.shapeInterior,
                                    newOffset: key.ambient.offset, oldRects: old.key.rects, oldNodeCount: old.key.nodeCount,
-                                   oldShape: old.key.shapeInterior, oldOffset: old.key.ambient.offset)
+                                   oldShape: old.key.shapeInterior, oldOffset: old.key.ambient.offset, allowZero: clipChanged)
     }
 
     /// The position part of a replay key for a record that is only being asked whether it can move (`FS-D`).
@@ -527,6 +599,22 @@ extension Frame {
         }
         ledger.axEmissions = axEmissions(from: recorder.axLow)
         let from = recorder.from
+        // The clips of the window, kept only when a registration sits deeper than the entry (`FS-X`): the rest need none.
+        if to.clips > from.clips, key.rects.count >= 2 {
+            let entryDepth = key.ambient.depths.first ?? -1
+            if hitboxes.contains(where: { $0.clipDepth != entryDepth }) || ledger.axEmissions.contains(where: { $0.clipDepth != entryDepth }) {
+                var relative = Array(log.clips[from.clips..<to.clips])
+                for index in relative.indices {
+                    var c = relative[index]
+                    c.clip = c.clip.moved(byX: -key.rects[0], y: -key.rects[1])
+                    c.clip.parent = c.clip.parent >= Int32(from.clips) ? c.clip.parent - Int32(from.clips) : -1
+                    c.clip.lo -= Int32(recorder.hitboxLow); c.clip.hi -= Int32(recorder.hitboxLow)
+                    c.axLo -= Int32(recorder.axLow); c.axHi -= Int32(recorder.axLow)
+                    relative[index] = c
+                }
+                ledger.innerClips = relative
+            }
+        }
         ledger.focus = Array(log.focus[from.focus..<to.focus])
         ledger.axNodes = Array(log.axNodes[from.axNodes..<to.axNodes])
         ledger.axNodeLocals = Array(log.axNodeLocals[from.axNodes..<to.axNodes])

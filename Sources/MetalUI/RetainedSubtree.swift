@@ -367,6 +367,15 @@ struct AmbientKey: Equatable {
             && atlasGeneration == other.atlasGeneration && clip == other.clip && layerOpacityScale == other.layerOpacityScale
             && depths == other.depths && scopes == other.scopes && shared == other.shared
     }
+
+    /// `self == other` with `offset` and `clip` set aside, the clips having the same count (`FS-Y`): the relation of an occurrence that moved
+    /// **and** whose entry clip changed. **Every stored field but `offset` and `clip` is here** (`everyAmbientFieldButTheOffsetAndClipSeparates`).
+    func equalsIgnoringOffsetAndClip(_ other: AmbientKey) -> Bool {
+        clip.count == other.clip.count && snappingTransaction == other.snappingTransaction
+            && disablesAnimations == other.disablesAnimations && atlasGeneration == other.atlasGeneration
+            && layerOpacityScale == other.layerOpacityScale && depths == other.depths && scopes == other.scopes
+            && shared == other.shared
+    }
 }
 
 extension AmbientKey {
@@ -1008,7 +1017,7 @@ extension Frame {
             // add is exact, else refused by name and a miss.
             var moved: PaintTranslation?
             if valid, !effectTranslated, old.key != key, memos.replaysPrepaint, memos.translatesLayout,
-               let combined = key.shiftAndEffects(from: old.key) {
+               let combined = key.shiftAndEffects(from: old.key, relatingClip: memos.relatesChangedClip) {
                 // `EL-B`: the delta is added in the occurrence's own space (the record's leaves are before every outer scope) and the
                 // live scopes then apply the effect, so a layout move with equal effects (`effect == nil`, the old arm) and one with
                 // an effect change are the same add; the effect numbers never enter it.

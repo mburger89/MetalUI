@@ -57,7 +57,9 @@ func aStreamedFrameOfAScopedTranscriptStaysUnderItsCeilings() async throws {
 func aRedoFrameOfTheScopedTranscriptReservesWhatMastersDid() async throws {
     #if canImport(Darwin)
     let inputs = G51Inputs()
-    let w = try await g51Window(rows: 40, inputs: inputs)
+    // The fixture's one redo was the streaming row's second paragraph missing its ledger on the clip, which `FS-Y` carries (the transcript now redoes for no
+    // clip at all and this fixture not within 60 frames): the relation is switched off to make the redo this test measures, as `FS-X` left it.
+    let w = try await g51Window(rows: 40, inputs: inputs, relatesChangedClip: false)
     var perFrame: [(large: Int, redos: Int)] = []
     for _ in 0..<14 {
         inputs.words += 1

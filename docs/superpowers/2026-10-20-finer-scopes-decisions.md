@@ -5,10 +5,18 @@ test). Spec: [`specs/2026-10-20-finer-scopes-design.md`](specs/2026-10-20-finer-
 (written). Branch `perf/finer-scopes` from `711ab9c4`. Reserved divergence labels 555-564: none taken (the design
 adds no public API and no SwiftUI-visible difference). Probe and instrument: `../probes/finer-scopes/`.
 
-Prefix **`FS-`**, lettered. **Next unused: `FS-X`.** (Moves in the commit that appends a ruling.)
+Prefix **`FS-`**, lettered. **Next unused: `FS-Z`.** (Moves in the commit that appends a ruling.)
 
 **Carried.** `IV-` (record 104 section 7), `SB-AC`, `SB-AE`, `SB-X` (record 109), `RK-G`, `RK-S` (translated replay, record 110), `EE-O`
 (C14-c4, record 120), `RW-` (record 121), `MO-` (record 123), `VL-I` (the two list branches), `FI-I` (list rows name by description).
+**Carried out of record 434: a crossing mask scope seen through by the recorder below it (tried, reverted, not a ruling).** The design: `paintClipped` opens its `CM-B` scope through
+`openMaskScope`/`closeMaskScope`; `RetainLog.noteBoundary` notes the leaves before it as the recorder's own ops (no `passedInnerScope`), the record keeps the scope's mask, `replayOps` opens it again live,
+`Frame.finalStream` derives the final stream, and the move re-evaluates `Frame.crossingMask` at the new position. It did not reach its target (the transcript's last redo, rows 45 and 46, `maskCrossingChanged`
+and `innerScope`; requests 593 to 569, redos still 4), and finishing it needs: (a) **per-range anchors**, the op index and the clip-event index each unit range's end was noted at, because a record with unit ranges or
+matched groups holds emission counts, and a masked group's count is not its leaves'; (b) a **verify-mode prediction** of unit ranges and `emitted`, since verify mode compares a moved record with a fresh recording
+without replaying it, so the move needs a second copy of `insertLeaves`/`insertMaskedGroup`'s sequencing including the over-8192-px fallback; (c) the **glyph-batching rule**: under a crossing-only scope stack a text
+draw is one op per glyph, output identical; (d) an `emitted` skip in `differences` is sound only when both records have empty ranges and matched. Suspected allocation sources to measure first: `scopeState(of:)` copying the
+clip array per move (twice for a ranged record), per-glyph ops, `finalStream`'s captures and depths. Pins that must not rise doing it: the 40-word chrome transcript's 547 requests, the G51 and G52 ceilings, `aNonAnimatableComponentAllocatesWhatItDid` 319.
 
 **What was measured first.** The item's premise is that one changed row makes its whole enclosing scope miss and every sibling rebuild.
 At `711ab9c4` that is false for a row that is an `.equatable()` `Component` (reading F1 below) and true for something the premise did not
@@ -429,3 +437,46 @@ products `pt * scale`: with it skipped at scale 1.2 `METALUI_VERIFY_RETAINED=1` 
 1x display is on the free side; Alloy's text-measured x is the case it opens.
 **Cost.** None: one compare against zero per number, no allocation, no cache.
 **Mutation.** The old two-sided check in `exactMove` reddens `aLeafAtAFractionalXIsMovedByAVerticalScroll` (record 428).
+
+## FS-X - A ledger's registrations cut by a clip their occurrence pushed fold it again at the move (record 434; amends FS-F, FS-V)
+
+**Ruling.** (1) While a prepaint recorder is open every `pushClip`, `pushRootClip` and `popClip` is journalled on `PrepaintLog` (`clips`, one `PrepaintClip` each: the `InnerClip` of `FS-V`
+plus `axLo`/`axHi`; the frame's hitbox count and accessibility-emission count where it opened and closed are its ranges; one shared open-clip index, no second array). A ledger keeps
+the slice of its window as `innerClips`, **only when some hitbox or emission sits at a clip depth other than its entry's** (else `nil`): bounds relative to `key.rects[0..1]`, ranges
+relative to the recorder's low marks, parents remapped, so a rebase or a move rewrites nothing. A replayed ledger re-notes its clips into an open log at the position it stands at
+(`layoutOrigin`, the new key's when verify mode replays the old ledger with moved hitboxes), so an enclosing occurrence holds them too. (2) Where the strictly-inside rule would
+refuse (`accessibilityClipped`, `hitboxClipped`), `PrepaintClipFold` folds the clips from the key's entry clip, radii and offset with `Frame.pushedClip`, root first, at the old key
+and the new (`foldedClipRect`, recursion over the parent chain, no allocation), the element's innermost open clip found by a range cursor. The fold at the **old** key must reproduce the
+recorded `visibleFrame` / `bounds` bit for bit (`accessibilityNotFolded`, `hitboxNotFolded`); the new rect is `intersect(fold_new, moved frame or unclipped)`, the grouping a fresh frame
+uses (a stored per-element cut intersected with the shifted ambient would differ at a non-sixteenth x). A clip not at the element's own depth, or none, refuses `accessibilityUnmapped`
+/ `hitboxUnmapped`; a root or flattening-entry clip in the chain `rootClip`; an origin or recorded bound that is not a sixteenth `inexactTranslation`. The strictly-inside rule stays the
+fast path, and the frame's shift keeps `exactShift`. Threaded into `movedAccessibility`, `shiftedLocals` (the combined arm) and `movedHitbox`.
+**Cost.** One nil check per push/pop with no recorder open; with one, an append to `log.clips` (68 bytes a clip, allocated on the first push of a window) and one `package` counter
+increment. A ledger pays for `innerClips` only where a registration sits inside a pushed clip. A move allocates nothing. An idle frame is unchanged (7115 allocations, 67 element
+requests on the `ClippedRegistrationFoldTests` fixture, equal to master).
+**Left as it was.** A registration under a root clip that the fast path moves (strictly inside the ambient clip) is moved as before; only a cut one reaches the fold and refuses `rootClip`.
+At scale 1.2 a cut row is still refused by the **paint record** (`inexactTranslation`: its layout origins times 1.2 are not sixteenths, `FS-W`), so the ledger is not asked there.
+**Mutations.** The slow path removed reddens `aRowCutByTheViewportMovesItsAccessibilityAndHitbox` and the flipped `PlacementTranslationTests` 10 and 11; the new rect taken from the old
+fold reddens `aCutRowMovesExactlyAtEveryScale`; the recorded-rect comparison removed reddens `theFoldAtTheOldPositionMustReproduceTheRecordedCut`; the root check removed reddens
+`aRegistrationUnderARootClipStillRefuses`; `innerClips` kept for every ledger that pushed a clip reddens `aLedgerPaysOnlyForTheClipsItsOccurrencePushed`.
+
+## FS-Y - An occurrence whose entry clip changed with its move is related to its record and recomputed from the new clip (record 434; amends FS-D, FS-F, FS-V, FS-X)
+
+**Ruling.** (1) **The relation.** `AmbientKey.equalsIgnoringOffsetAndClip` is every stored field but `offset` and `clip`, the two clips of one count; `RetainedShape.shift(allowZero:)` answers a zero shift when asked;
+`ReplayKey.clippedShift(from:)` and `PrepaintKey.clippedShift(to:)` answer where `shift` answered `nil` and the clip differs: a changed clip alone is a **zero** shift, a changed clip and a move is the move. Consulted
+at the prepaint decision (`retainedPrepaintDecisionInner`, after `shift(to:)`), at `recordShiftAtPrepaint`, and in `shiftAndEffects(from:)` (the paint decision); the effect arms keep requiring equal clips, and a change of
+scopes, opacity, environment, depths, snapping, animation or atlas generation is **not** a clip change and misses as before. (2) **The ledger.** Every cut is made again from the clip now in force by the expression a fresh
+frame uses (`intersect(c, ...)`; `insertHitbox`, `accessibilityGeometry`); a registration at the entry depth needs nothing else. One at an inner depth that the fast path moves is tested **the old rect against the
+old clip and the moved rect against the new** (`movedHitbox`, `movedAccessibility`: testing both against the new clip would move a rect the old clip cut as if it had not been); the rest goes to `PrepaintClipFold`, which
+now folds the old position from the entry clip, radii and offset the ledger was made under (`ledger.key.ambient.clip`) and the new from the key's, the check at the old position bit for bit unchanged. (3) **The paint record.**
+`movedPaintRecord` carries `EntryClipChange` (the old and the new entry clip as `fill` carries it: `activeClip.scaled(by:)` and its radii) when the clips differ, and `movedLeaf` takes a leaf read at the entry depth to the new
+clip's mask only if its mask is exactly the old clip's (else `maskNotFolded`: an unbounded mask or one cut some other way); `foldedRecord` folds `was` from the old clip and `now` from the new, `entryClipChanged` is gone.
+Crossing (`maskCrossingChanged`, `maskCrossed`), scopes and every exactness refusal are unchanged. `finalScene` is moved in place as before. A culling site would have made a larger clip emit leaves the record never held: the
+only one (`drawSurface`) refuses `unlistedKind:surface`, and `fill`, glyph and image emission cull nothing.
+**Cost.** No stored bytes. Idle frames meet `old.key == key` first and are unchanged (7115 allocations, 67 requests on the `ClippedRegistrationFoldTests` fixture); a changed key pays one `clippedShift` (a clip compare, then
+the shape compare `shift` already made) where it used to miss. The streamed transcript with an accessibility client: element requests 593 to 547, redos 4 to 2 in 40 words.
+A **test switch** `Window.testingRelatesChangedClip` (`ContentMemoStore.relatesChangedClip`, on) turns the relation off at its three call sites so a fixture can still make the redo it caused (`G51ChurnTests`); at the prepaint the paint record's clip move is asked only where the ledger's key relates by the clip too, so an effect that changed (a zoom, a pan) is never read as a clip change.
+**Left as it was.** The two redos that remain are rows 45 and 46 (`maskCrossingChanged`, `innerScope`: a row crossing a corner zone), carried above.
+**Mutations.** An entry-depth leaf keeping its old mask reddens `aParagraphUnderAGrowingRowReplaysTranslated`; the old rect tested against the new clip reddens `anOldRectIsTestedAgainstTheOldClip`; the fold of the old position
+from the new entry clip reddens `theFoldStartsFromEachKeysOwnClip`; a field dropped from the relation reddens `everyAmbientFieldButTheOffsetAndClipSeparates` and `aChangedScopeIsNotAClipChange`; `allowZero` off reddens
+`aChangedClipRelatesWhereTheShapeAndTheRestAreTheSame`.

@@ -225,6 +225,12 @@ extension Window {
         set { stateTable.contentMemos.translatesLayout = newValue }
     }
 
+    /// Whether an occurrence whose entry clip changed with its move is related to its record (`FS-Y`); off, it misses as it did at `FS-X`.
+    package var testingRelatesChangedClip: Bool {
+        get { stateTable.contentMemos.relatesChangedClip }
+        set { stateTable.contentMemos.relatesChangedClip = newValue }
+    }
+
     /// Whether `.equatable()` occurrences skip their build recursion (`RK-B`); off, prepaint and paint replay as at lane 1's tree.
     package var testingRetainedGraft: Bool {
         get { stateTable.contentMemos.graftsBuild }

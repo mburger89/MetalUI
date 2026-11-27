@@ -42,14 +42,14 @@ func aScopedRedoRebuildsOnlyTheFailingRowAndItsDescendants() async throws {
 }
 
 /// A redo does not cascade into the row's descendants (`RK-AN`; record 416: a nested `.equatable()` paragraph grafted in the next frame and failed the same
-/// way one level down, a redo a frame): over 40 words the transcript redoes at most 3 times, never in two frames running. Mutation: the scope quarantine
+/// way one level down, a redo a frame): over 40 words the transcript redoes at most twice (the pin was 3 and the transcript made 4 before `FS-Y`: the growing row's second paragraph no longer misses its ledger on the clip), never in two frames running. Mutation: the scope quarantine
 /// off (`isInQuarantinedScope` answering false: the paragraphs graft again and the redos repeat).
 @Test(.enabled(if: !rsVerifying, srVerifyingNote)) @MainActor
 func aRedoDoesNotCascadeIntoTheRowsDescendants() async throws {
     let pair = try ctPair()
     let frames = try await srRun(pair, steps: 40)
     let redos = frames.map(\.retainedRedos)
-    #expect(redos.reduce(0, +) <= 3, "redos \(redos.reduce(0, +)) in 40 steps")
+    #expect(redos.reduce(0, +) <= 2, "redos \(redos.reduce(0, +)) in 40 steps")
     #expect(!zip(redos, redos.dropFirst()).contains { $0 > 0 && $1 > 0 }, "a redo in two frames running: \(redos)")
     #expect(frames.allSatisfy { $0.retainedRedoEscalations == 0 })
     #expect(pair.on.window.testingQuarantinedScopes > 0 || redos.reduce(0, +) == 0, "the failing rows were quarantined as scopes")

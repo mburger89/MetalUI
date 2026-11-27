@@ -842,6 +842,11 @@ private func rsProbe(_ arm: RSKeyArm, flip: Bool) -> some ElementGroup {
         // replays translated instead of missing; the separating pin is the differential below (a scroll offset that was not part of
         // the key replays the old pixels).
         if !rsVerifying { #expect(reaction == 0 && f.retainedTranslated >= 1, "scroll: hits \(f.retainedHits) translated \(f.retainedTranslated) misses \(f.retainedMisses)") }
+    } else if arm == .clip {
+        // `FS-Y`: the entry clip changed (its corner radius, 9 to 3) and nothing else did, so the probe card is related to its record with a zero move and its
+        // leaves take the new clip's mask: it replays translated instead of missing. The separating pin is the differential below: a clip that was not part
+        // of the key (or whose mask the move left as it was) shows the old corners in the scene.
+        if !rsVerifying { #expect(reaction == 0 && f.retainedTranslated >= 1, "clip: hits \(f.retainedHits) translated \(f.retainedTranslated) misses \(f.retainedMisses)") }
     } else if arm == .offsetEffect || arm == .rotation {
         // `RK-S`: the translation of an outer effect no longer separates; the probe replays at its new place (translated) and
         // the scene equals the fresh one (the differential below). Since C14-i (`RZ-B`) the same holds for an affine change of
