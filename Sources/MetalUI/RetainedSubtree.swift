@@ -735,6 +735,9 @@ final class RetainedRecord {
     var innerScopes = false
     /// The clips the occurrence pushed, relative to its first top node (`FS-V`); `nil` when it pushed none.
     var innerClips: [InnerClip]?
+    /// The focused element under the occurrence when the record was made, `nil` when none was (`RK-AQ`): the record replays only while the focus under
+    /// the occurrence is this one, so every focus read inside it (only the focused element reads focus) is a function of that one id.
+    var focusedUnder: GlobalElementID?
     /// Whether a clip of the record opens a crossing mask scope at the position it stands at (`FS-Z`): its leaves are those before the mask.
     var opensCrossingScope: Bool { InnerClip.anyScope(in: innerClips) }
     /// Whether the build, prepaint and paint windows were all observed when the record was made
@@ -911,6 +914,10 @@ final class RetainedPhase {
     /// The prepaint key this frame computed, and the ledger this frame's prepaint made (`nil` when it was
     /// refused or tainted) or replayed (`RK-E`).
     var prepaintKey: PrepaintKey?
+    /// The focused element under the occurrence as the prepaint decision read it and as the paint decision reads it (`RK-AQ`): the ledger's and the record's
+    /// `focusedUnder`. They differ in a frame whose focus moved at the prepaint/paint boundary.
+    var prepaintFocus: GlobalElementID?
+    var paintFocus: GlobalElementID?
     var ledger: PrepaintLedger?
     var replayed: PrepaintLedger?
     /// The range of `StateTable.readJournal` this frame's own prepaint covered (`RW-D`); empty when replayed.
@@ -1379,6 +1386,7 @@ extension Frame {
     func retainedPaintDecision(_ phase: RetainedPhase) -> RetainedPaintMode {
         let build = phase.build, entry = phase.entry
         let memos = stateTable.contentMemos
+        phase.paintFocus = retainedFocus(under: build.key.id)   // `RK-AQ`
         if let reason = retainedEntryRefusal(build: build) {
             RetainedTrace.emit("retained paint refused \(RetainedTrace.path(build.key.id)) because \(reason)\(phaseFlags(phase))")
             if RetainedTrace.active { phase.paintNote = "paint refused: \(reason)" }
@@ -1388,7 +1396,7 @@ extension Frame {
         }
         // `AM-D`, `AM-L`: the transaction's two members are not part of a retained key.
         let key = retainedKey(phase).transactionNormalised
-        let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
+        let underPointer = retainedSubtreeHasPointerOrPress(under: build.key.id)
         if let old = entry.record {
             var inputs = PaintInvalidation.Inputs()
             inputs.observedChange = entry.observedChange
@@ -1397,6 +1405,7 @@ extension Frame {
             inputs.serialMatches = old.contentSerial == entry.serial
             inputs.versionsUnchanged = retainedVersionsUnchanged(old.versions)
             inputs.underPointer = underPointer
+            inputs.focusMoved = old.focusedUnder != phase.paintFocus
             inputs.ledgerIdentityDiffers = phase.replayed != nil && old.prepaint !== phase.replayed
             inputs.ledgerGain = old.prepaint == nil && phase.ledger != nil   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
             let invalidation = PaintInvalidation(inputs)
@@ -1475,7 +1484,7 @@ extension Frame {
     /// it takes the old one's place when its key differs and every entry it read is one the record already versions.
     private func refreshLedger(of old: RetainedRecord, from phase: RetainedPhase) {
         guard phase.replayed == nil, let fresh = phase.ledger, let current = old.prepaint, current !== fresh,
-              current.key != fresh.key else { return }
+              current.key != fresh.key || current.focusedUnder != fresh.focusedUnder else { return }
         for id in fresh.reads where !old.versions.contains(where: { $0.0 == id }) { return }
         old.prepaint = fresh
     }
@@ -1537,6 +1546,7 @@ extension Frame {
         record.coverageBuild = phase.build.observed || phase.inheritsBuildCoverage
         record.coveragePrepaint = phase.prepaintObserved
         record.prepaint = phase.ledger
+        record.focusedUnder = phase.paintFocus
         record.contentSerial = phase.entry.serial
         let ops = log.scene[from.scene..<to.scene]
         // `PA-H`: loops, not closures through stdlib generics (a dynamic isolation check each), into reserved arrays.
@@ -1638,7 +1648,7 @@ extension Frame {
             return
         }
         memos.retained.misses += 1
-        if retainedSubtreeHasPointerPressOrFocus(under: phase.build.key.id) {
+        if retainedSubtreeHasPointerOrPress(under: phase.build.key.id) {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
@@ -1664,6 +1674,7 @@ extension RetainedRecord {
         copy.paintWork = paintWork; copy.coverageBuild = coverageBuild; copy.coveragePrepaint = coveragePrepaint; copy.prepaint = prepaint
         copy.innerScopes = innerScopes
         copy.innerClips = clips
+        copy.focusedUnder = focusedUnder
         copy.ranges = ranges; copy.emitted = emitted; copy.matched = matched
         return copy
     }
@@ -1672,6 +1683,7 @@ extension RetainedRecord {
     /// operation (kind, layer, masks, texture identity, raster key), the marks and touches, and the
     /// element work the record stands for.
     func differences(from other: RetainedRecord, ignoringFinalStream: Bool = false) -> String? {
+        if focusedUnder != other.focusedUnder { return "focusedUnder \(String(describing: focusedUnder)) vs \(String(describing: other.focusedUnder))" }
         if scene.count != other.scene.count { return "scene.count \(scene.count) vs \(other.scene.count)" }
         if innerClips != other.innerClips { return "innerClips \(String(describing: innerClips)) vs \(String(describing: other.innerClips))" }
         func kindDescription(_ kind: CapturedPrimitive.Kind) -> String {

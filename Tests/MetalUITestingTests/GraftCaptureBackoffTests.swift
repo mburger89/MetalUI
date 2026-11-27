@@ -102,9 +102,11 @@ private struct Today: Equatable, CustomStringConvertible {
     w.resetFrameWork()
     for _ in 0..<6 { w.typeText("a"); try await w.runUntilIdle() }
     let f = total(w)
-    #expect(f.retainedGraftCaptures == 0 && f.retainedGraftCapturesSkipped == 30,
+    // `RK-AQ` (record 440): a record is stored under the focus now, so its session is armed, and the first key's build fires the four sessions
+    // that observe it: one more frame, all hits (4 requests, one hit), whose builds are 5 more skipped captures. The six keys still miss 30 times.
+    #expect(f.retainedGraftCaptures == 0 && f.retainedGraftCapturesSkipped == 35,
             "captures \(f.retainedGraftCaptures), skipped \(f.retainedGraftCapturesSkipped)")
-    #expect(Today(f) == Today(requests: 24, hits: 0, grafts: 0, skippedRequests: 0, misses: 30), "\(Today(f))")
+    #expect(Today(f) == Today(requests: 28, hits: 1, grafts: 0, skippedRequests: 0, misses: 30), "\(Today(f))")
 }
 
 /// **3** The first frame after the scrolling stops copies again, so the frame after it grafts as it does without the rule: scroll
@@ -140,9 +142,10 @@ private struct Today: Equatable, CustomStringConvertible {
     w.typeKey(.tab)   // to the second field, outside every occurrence
     try await w.runUntilIdle()
     // The frame the focus leaves in still paints under it; the next builds and copies; the one after grafts.
+    // `RK-AQ` (record 440): the records made under the focus are valid again once it leaves, so the frame it leaves in already copies and the next grafts, one frame sooner than before.
     let expected: [(Today, Int, Int)] = [
-        (Today(requests: 4, hits: 0, grafts: 0, skippedRequests: 0, misses: 5), 0, 5),
         (Today(requests: 4, hits: 0, grafts: 0, skippedRequests: 0, misses: 5), 5, 0),
+        (Today(requests: 2, hits: 1, grafts: 1, skippedRequests: 2, misses: 0), 0, 0),
         (Today(requests: 2, hits: 1, grafts: 1, skippedRequests: 2, misses: 0), 0, 0),
         (Today(requests: 2, hits: 1, grafts: 1, skippedRequests: 2, misses: 0), 0, 0)
     ]

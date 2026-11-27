@@ -239,6 +239,9 @@ final class PrepaintLedger {
     /// Modifier-key notes, made again in order against the current modifiers (`RL-B`).
     var modifiers: [ModifierNoteRecord] = []
     var tallies = RegionTallies()
+    /// The focused element under the occurrence when the ledger was made, `nil` when none was (`RK-AQ`): the ledger replays only while the focus
+    /// under the occurrence is this one. Copied by `rebased(to:_:)`, untouched by the in-place `rebase`.
+    var focusedUnder: GlobalElementID?
     /// The element prepaints the replay stands for (`FrameWork.retainedSkippedPrepaints`).
     var prepaints = 0
 
@@ -250,6 +253,15 @@ final class PrepaintLedger {
     init(key: PrepaintKey) {
         self.key = key
         Self.madeCount += 1
+    }
+}
+
+extension PrepaintLedger {
+    /// Whether the occurrence registered a text input's focus stop (`RK-AQ`): its handlers hold the `caretRect` the input method reads, a window position a
+    /// moved ledger would replay stale. A field's own hitbox refuses the move (`hitboxHandlers`); this closes the field under `allowsHitTesting(false)`, which
+    /// registers the focus stop and no hitbox.
+    var registersTextInput: Bool {
+        focus.contains { if case .register(let handlers, _) = $0 { return handlers.textInput != nil } else { return false } }
     }
 }
 
@@ -361,10 +373,13 @@ extension Frame {
             memos.retained.noteIneligible(.prepaint, reason: reason)
             return .run(nil)
         }
-        if retainedSubtreeHasPointerPressOrFocus(under: build.key.id) {
-            noteRun(phase, "pointer/press/focus under the occurrence")
+        if retainedSubtreeHasPointerOrPress(under: build.key.id) {
+            noteRun(phase, "pointer/press under the occurrence")
             return .run(nil)
         }
+        // `RK-AQ`: the focused element under the occurrence is a decision input, not a refusal.
+        let focusNow = retainedFocus(under: build.key.id)
+        phase.prepaintFocus = focusNow
         let key = retainedPrepaintKey(phase).transactionNormalised   // `AM-D`, `AM-L`
         phase.prepaintKey = key
         let old = entry.record
@@ -381,6 +396,9 @@ extension Frame {
         inputs.serialMatches = old.map { $0.contentSerial == entry.serial } ?? true
         inputs.versionsUnchanged = old.map { retainedVersionsUnchanged($0.versions) } ?? true
         inputs.pointerInLedger = ledgerOfRecord.map { retainedPointerIsInside($0) } ?? false
+        // Both must equal the focus now: a record whose frame moved focus at the boundary (ledger and record disagree) never replays its prepaint,
+        // so this cause cannot produce a redo (`RK-AQ`).
+        inputs.focusMoved = old.map { $0.focusedUnder != focusNow || ledgerOfRecord.map { $0.focusedUnder != focusNow } ?? false } ?? false
         let invalidation = PrepaintInvalidation(inputs)
         if RetainedTrace.active { phase.prepaintInvalidation = invalidation.names }
         if invalidation.isReplayable, let old, let ledger = ledgerOfRecord {
@@ -645,6 +663,7 @@ extension Frame {
                                        focusOnPress: now.focusOnPress - recorder.tallies.focusOnPress,
                                        resign: now.resign - recorder.tallies.resign)
         ledger.prepaints = elementPrepaints - recorder.prepaints
+        ledger.focusedUnder = phase.prepaintFocus
         return ledger
     }
 
