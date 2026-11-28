@@ -389,6 +389,10 @@ private let fgWriterOnMaster = (ledgers: 2, attempts: 40)
             #expect(w.requests == 5 && w.skipped == 40 && w.grafts == 17 && w.redos == 0, "glide \(glide) step \(step): \(w)")
         }
     }
+    // Alloy's markdown transcript holds the Copy button's Lucide path icon, which the portable text system's platforms refuse to move (`unlistedKind:path`, the case of
+    // `FenceTranslationTests`, `expectNoPointerRedo`): its work literals are Darwin's. The allocation comparison of 10b is Darwin's too, so off Darwin the transcript
+    // has no test here; the fixture's arms above run everywhere.
+    #if canImport(Darwin)
     for wheel in [true, false] {
         let pair = try atPair(focused: false, graft: true)
         for i in 0..<9 {
@@ -401,6 +405,7 @@ private let fgWriterOnMaster = (ledgers: 2, attempts: 40)
             else { #expect(w.requests == 11 && w.skipped == 140 && w.grafts == 10 && w.misses == 3, "stream \(i): \(w)") }
         }
     }
+    #endif
 }
 
 // MARK: 13 - idle
@@ -490,7 +495,8 @@ func aVerifiedFocusedGraftThatDiffersTraps(arm: (channel: String, word: String))
     var readers = Set<String>()
     for case let url as URL in walker where url.pathExtension == "swift" {
         let text = try String(contentsOf: url, encoding: .utf8)
-        for line in text.split(separator: "\n") {
+        // `isNewline`, not "\n": a CRLF file's line ending is one `Character` that is not "\n", and the whole file would be one line (Windows checkouts).
+        for line in text.split(whereSeparator: \.isNewline) {
             let trimmed = line.drop { $0 == " " }
             if trimmed.hasPrefix("//") { continue }
             if line.contains("focusedElement") || line.contains("isFocused") { readers.insert(url.lastPathComponent); break }
