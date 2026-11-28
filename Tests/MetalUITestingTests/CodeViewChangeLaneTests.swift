@@ -230,8 +230,7 @@ private struct Card: Component, @MainActor Equatable {
 /// change bars: the lane adds no element, no request and no retention change. **Mutation:** a wrapper element for the lane.
 @Test @MainActor func changeBarsCostWhatNoneCost() async throws {
     let steadyNone = try await cost(changeBars: false, keystroke: false), steadyBars = try await cost(changeBars: true, keystroke: false)
-    #expect(steadyNone == Cost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1)   // `RK-AS`: grafted under the focus (was 2 requests)
-    , "\(steadyNone)")
+    #expect(steadyNone == Cost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(steadyNone)")   // `RK-AS`: grafted under the focus (was 2 requests)
     #expect(steadyBars == steadyNone, "\(steadyBars)")
     let keyNone = try await cost(changeBars: false, keystroke: true), keyBars = try await cost(changeBars: true, keystroke: true)
     #if canImport(Darwin)

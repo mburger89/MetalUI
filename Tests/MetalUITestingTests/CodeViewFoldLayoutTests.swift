@@ -416,8 +416,7 @@ private let fiveFolds = [2..<5, 8..<11, 22..<25, 27..<30, 32..<35]
 /// same. **Mutation:** an element or a retention taint added for the fold state (requests or misses move).
 @Test @MainActor func aViewWithoutFoldsCostsWhatMasterCosts() async throws {
     let steady = try await steadyCost(attach: false, folds: []), keystroke = try await keystrokeCost(attach: false, folds: [])
-    #expect(steady == Cost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1)   // `RK-AS`: grafted under the focus (was 2 requests)
-    , "steady: \(steady)")
+    #expect(steady == Cost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1), "steady: \(steady)")   // `RK-AS`: grafted under the focus (was 2 requests)
     #if canImport(Darwin)
     #expect(keystroke == Cost(requests: 2, hits: 0, misses: 1, ineligible: 0, frames: 1), "keystroke: \(keystroke)")
     #endif

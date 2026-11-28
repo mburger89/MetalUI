@@ -882,7 +882,9 @@ extension Frame {
     /// `RetainedVerifySnapshot.textInput`: the focused element's target as the input method would read it.
     private func textInputOutputs() -> String {
         guard let focused = focusedElement, let target = focusRegistry.textTarget(for: focused) else { return "" }
-        return "\(sbPath(focused).suffix(40))|\(target.text)|\(target.caretOffsets)|\(target.originX)|\(target.caretRect)|secure \(target.secure)|submit \(target.onSubmit != nil)|sink \(target.selectionSink != nil)|code \(target.codeSession != nil)|vertical \(target.verticalField)|lines \(target.lines != nil) \(target.originY) \(target.lineHeight) \(target.maxScrollY)"
+        let hooks = "secure \(target.secure)|submit \(target.onSubmit != nil)|sink \(target.selectionSink != nil)|code \(target.codeSession != nil)|vertical \(target.verticalField)"
+        let lines = "lines \(target.lines != nil) \(target.originY) \(target.lineHeight) \(target.maxScrollY)"
+        return "\(sbPath(focused).suffix(40))|\(target.text)|\(target.caretOffsets)|\(target.originX)|\(target.caretRect)|\(hooks)|\(lines)"
     }
 
     func captureRetainedVerifySnapshot() -> RetainedVerifySnapshot {
