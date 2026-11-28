@@ -117,8 +117,9 @@ func aScopedRedoOfTheTranscriptReportsItsDroppedAttempt() async throws {
 }
 
 /// **W6** The fields add nothing to an idle frame: a 200 x 100 clipped two-leaf island costs the requests and allocations it did on master
-/// `ae044e77` (measured there: 5 requests, 222 allocations, 19,322 bytes). The bytes rise by exactly 96 (19,418), the 48 bytes the six `Int`s add to each
-/// `FrameWork`, twice: the harness's one-element history array allocates room for two.
+/// `ae044e77` (measured there: 5 requests, 222 allocations, 19,322 bytes). The six counts sit out of line behind one optional reference, so a stored `FrameWork` grows by 8 bytes
+/// (stride 552 to 560, pinned below), not 48: a 48-byte growth moved the growth schedule of the harness's history array (capacity 8 to 9, 18 to 17 slots) and
+/// with it the one allocation `snappingAddsNoAllocationsAndNoElementRequestsToIdleAndScrolledFrames` pins, whose 1562 stays. The bytes measured here are 19,378.
 /// Mutation: a `[String: Int]` built per frame in `testingOnFrameAdopted` (the allocation count rises).
 @Test @MainActor func theRedoneWorkFieldsAddNothingToAnIdleFrame() async throws {
     let w = try harnessWindow(size: sz(200, 100)) {
@@ -137,10 +138,11 @@ func aScopedRedoOfTheTranscriptReportsItsDroppedAttempt() async throws {
     let measured = try #require(seen)
     print("FrameWork redone fields, idle: requests \(w.lastFrameWork.elementRequests) allocations \(measured.allocations) bytes \(measured.bytes)")
     #expect(measured.allocations == 222, "allocations \(measured.allocations)")
-    #expect(measured.bytes <= 19_322 + 96, "bytes \(measured.bytes)")
+    #expect(measured.bytes <= 19_322 + 56, "bytes \(measured.bytes)")
     #else
     w.window.setNeedsRedraw(); w.tick()
     #endif
+    #expect(MemoryLayout<FrameWork>.stride == 560, "a stored record's stride \(MemoryLayout<FrameWork>.stride)")
     #expect(w.lastFrameWork.elementRequests == 5, "requests \(w.lastFrameWork.elementRequests)")
     #expect(w.lastFrameWork.redoneElementPrepaints == 0)
 }

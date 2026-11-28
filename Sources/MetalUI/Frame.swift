@@ -3994,7 +3994,6 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         }
     }
 
-
     /// The ledger's accessibility records recomputed against the current effects (`AT-A`, `AT-G`): each record's pre-effect rects
     /// under the effect its own stack makes, the ambient effects as they are now followed by the recorded steps of the effects the
     /// occurrence opened (the arithmetic of `prepaintWithRenderEffect`, so bit-equal to a fresh prepaint), or the reason one cannot
@@ -5343,7 +5342,6 @@ extension Frame {
     /// `resolveFocus` still validates it against this frame's registry.
     func seatFocus(on id: GlobalElementID) { focusedElement = id }
 }
-
 
 /// What the attempts a redo dropped had done (record 441): the element and layout counters `FrameWork` reads from the adopted frame, summed over every
 /// abandoned attempt of one frame. Integers only; empty unless the frame was redone.
