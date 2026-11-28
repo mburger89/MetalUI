@@ -162,10 +162,6 @@ final class RetainLog {
     var lives: [GlobalElementID] = []
     /// The surface calls of paint (`TRM-BB`).
     var surfaces: [SurfaceNote] = []
-    /// The ids paint asked `isHovered` about, in order (`RK-AR`, `RetainedHover.swift`): empty, so allocating nothing, for a frame none reads. At most `HoverReads.logLimit`.
-    var hoverReads: [GlobalElementID] = []
-    /// The log took `HoverReads.logLimit` reads or an index-keyed one: every recorder open or opened from here reads the whole subtree.
-    var hoverSaturated = false
 
     var current: Marks {
         Marks(scene: scene.count, marks: marks.count, touches: touches.count, lives: lives.count, surfaces: surfaces.count)
@@ -428,9 +424,14 @@ final class SubtreeRecorder {
     var openClips: [Int32] = []
     /// The ops this recorder's scene holds so far (those at its entry height): what a push's range counts.
     var opCount = 0
-    /// `RetainLog.hoverReads.count` where the paint window opened, and whether the paint read hover in a way an id cannot name (`RK-AR`).
-    var hoverFrom = 0
+    /// The occurrence this recorder covers (`RK-AR`), set where its window opens; what `isHovered` asked about outside it is `hoverOutside`.
+    var occurrence: GlobalElementID?
+    /// The distinct ids the paint asked `isHovered` about (at most `HoverReads.readerLimit`, empty and so allocating nothing when none), whether it asked about more,
+    /// whether it asked by `HitboxID`, and whether it asked about an element outside the occurrence.
+    var hoverReaders: [GlobalElementID] = []
+    var hoverOverflow = false
     var hoverByHitbox = false
+    var hoverOutside = false
 }
 
 /// One clip pushed inside a recorded occurrence, as `Frame.pushClip` was given it (`FS-V`): what a moved record folds again from the
@@ -1100,8 +1101,6 @@ extension Frame {
         recorder.sequenceFrom = scene.nextEmissionSequence
         recorder.virtualFrom = log.virtualSequence(recorder.sequenceFrom)
         recorder.matchedFrom = animationStore.matched.noted.count
-        recorder.hoverFrom = log.hoverReads.count
-        recorder.hoverByHitbox = log.hoverSaturated
         stateTable.contentMemos.retained.ledgerSnapshots += 1
         log.recorders.append(recorder)
     }
@@ -1661,7 +1660,8 @@ extension Frame {
             return
         }
         memos.retained.misses += 1
-        if retainedSubtreeHasPressOrSelection(under: phase.build.key.id) {
+        // `RK-AR`: a record that read hover by `HitboxID` is not stored while the hovered element is under the occurrence (master's rule: an index does not say which hitbox).
+        if retainedSubtreeHasPressOrSelection(under: phase.build.key.id) || (hover.reads?.byHitbox == true && hover.reads?.hovered != nil) {
             phase.entry.record = nil
         } else {
             phase.entry.record = record

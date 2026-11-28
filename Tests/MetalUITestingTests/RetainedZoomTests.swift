@@ -223,7 +223,7 @@ func aHitboxInsideAnEffectTheOccurrenceOpenedFollowsTheZoom() async throws {
 /// With a graft (`graft: true`) the node has no element to prepaint either way, which is why this arm builds without grafts. The frame equals the
 /// retention-off window's at every step.
 @Test(.enabled(if: !rsVerifying, zVerifyingNote)) @MainActor
-func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async throws {
+func aZoomThatCarriesTheContentUnderAStationaryPointerIsNotRedone() async throws {
     let pair = try zoomPair(warm: 6, graft: false)
     // A point on blank canvas at scale 1 that node 7's button hitbox covers at 1.5: the hitbox is 38 points wide at local x 459...497
     // (node 7's 448 plus 11) and local y 53 down, so at 1.5 under the fixed 40 x 24 offset the point (757, 120) reads local (478, 64);

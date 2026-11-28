@@ -36,6 +36,25 @@ private func paintMissReasons(_ lines: [String]) -> [[String]] {
     lines.filter { $0.hasPrefix("retained paint miss") }.compactMap(traceReasons)
 }
 
+/// No redo of a step, or off Darwin only one with a cause that is not the pointer. On the portable text system's platforms the fences' Copy icon is a Lucide path,
+/// which a moved paint record does not list (`unlistedKind:path`, `FenceTranslationTests`), so a row holding one refuses to move and a grafted one is redone whatever
+/// the pointer does; macOS holds the strict count (no redo at all).
+private func expectNoPointerRedo(_ frames: [FrameWork], _ step: Int) {
+    let redos = sum(frames, \.retainedRedos), redone = sum(frames, \.redoneElementRequests)
+    #if canImport(Darwin)
+    #expect(redos == 0 && redone == 0, "step \(step): redos \(redos), redone requests \(redone)")
+    #else
+    var refused: [String: Int] = [:]
+    for f in frames { refused.merge(f.retainedTranslationRefusedReasons, uniquingKeysWith: +) }
+    #expect((redos == 0 && redone == 0) || refused["unlistedKind:path", default: 0] > 0, "step \(step): redos \(redos), redone requests \(redone) with no path refusal: \(refused)")
+    #endif
+}
+
+/// No redo line of a trace names the pointer or the hover.
+private func redoLinesNameNoPointer(_ lines: [String]) -> Bool {
+    !lines.contains { $0.contains("retained redo requested") && ($0.contains("pointerIn") || $0.contains("hover") || $0.contains("press")) }
+}
+
 // MARK: 1 - Alloy's case
 
 /// **1** The pointer rests over a fence's scroller while the transcript wheels, graft on: no redo in any step, none for `pointerInMovedLedger`, no paint miss
@@ -51,13 +70,14 @@ private func paintMissReasons(_ lines: [String]) -> [[String]] {
     for step in 0..<20 {
         atRestingWheel(pair, at: point, dy: 40)
         let f = pair.on.frameWork
-        #expect(sum(f, \.retainedRedos) == 0 && sum(f, \.redoneElementRequests) == 0, "step \(step): redos \(sum(f, \.retainedRedos)), redone requests \(sum(f, \.redoneElementRequests))")
+        expectNoPointerRedo(f, step)
         if pair.on.window.lastHitboxes.last(where: { $0.opaque && $0.contains(point) })?.scroll == .horizontal { overFence += 1 }
         try pair.compare("step \(step)")
     }
     RetainedTrace.sink = nil
     #expect(overFence >= 5, "set up: the pointer is over a horizontal scroller on \(overFence) of 20 steps")
     #expect(!lines.contains { $0.contains("pointerInMovedLedger") }, "no line names the moved ledger: \(lines.filter { $0.contains("pointerInMovedLedger") }.prefix(2))")
+    #expect(redoLinesNameNoPointer(lines), "no redo names the pointer: \(lines.filter { $0.contains("retained redo requested") }.prefix(2))")
     let reasons = paintMissReasons(lines).flatMap { $0 }
     #expect(!reasons.contains("hover") && !reasons.contains("press") && !reasons.contains("pointer"), "no paint miss names the pointer: \(Set(reasons))")
 }
@@ -327,12 +347,12 @@ private struct HKKeyedCard: Component, @MainActor Equatable {
     static func == (l: HKKeyedCard, r: HKKeyedCard) -> Bool { true }
 }
 
-/// **9** A custom element asks `isHovered(HitboxID)`: its record reads the whole subtree, so the pointer anywhere in the ledger runs the prepaint (it does
+/// **9** A custom element asks `isHovered(HitboxID)`: its record reads by hitbox (master's rule: not stored while the hovered element is under it), so the pointer anywhere in the ledger runs the prepaint (it does
 /// not replay, and no frame is redone), the paint follows the hover, and the window equals the retention-off one. **Mutation:** `wholeSubtree` ignored (the
 /// pointer is not seen: the prepaint replays, the paint misses and the frame is redone).
 @Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aHitboxKeyedHoverQueryKeepsTheWholeSubtreeRule() throws {
     let pair = try RPPair(size: sz(200, 60), accessibility: false) { _ in VStack(spacing: 0) { HKKeyedCard().equatable() } }
-    #expect(pair.on.window.testingRecordHovers().first?.reads.wholeSubtree == true, "the record reads the whole subtree: \(pair.on.window.testingRecordHovers())")
+    #expect(pair.on.window.testingRecordHovers().first?.reads.byHitbox == true, "the record reads by hitbox: \(pair.on.window.testingRecordHovers())")
     pair.redraw()
     #expect(pair.frames.last?.retainedPrepaintHits ?? 0 >= 1, "away from the pointer the prepaint replays")
     pair.on.resetFrameWork()
@@ -417,11 +437,12 @@ private struct HKOutsideCard: Component, @MainActor Equatable {
         let on = pair.on.window.resolvedPointerStyle, off = pair.off.window.resolvedPointerStyle
         #expect(on == off, "step \(step): cursor \(String(describing: on)) against \(String(describing: off))")
         styles.insert(String(describing: on))
-        #expect(sum(pair.on.frameWork, \.retainedRedos) == 0, "step \(step): redos")
+        expectNoPointerRedo(pair.on.frameWork, step)
     }
     RetainedTrace.sink = nil
     #expect(styles.count >= 2, "the cursor changed under the resting pointer: \(styles)")
     #expect(!lines.contains { $0.contains("pointerInMovedLedger") }, "no moved-ledger refusal")
+    #expect(redoLinesNameNoPointer(lines), "no redo names the pointer")
 }
 
 /// **12** Blocks with a help text scroll under a resting pointer (graft off, the move of a `.help` row is refused by name `hitboxHandlers`): after each
@@ -545,6 +566,129 @@ func aVerifiedPrepaintReplayWithAStaleCursorOrHelpTraps(arm: (channel: String, y
             for step in 0..<12 {
                 atRestingWheel(pair, at: point, dy: step.isMultiple(of: 3) ? -24 : 40)
                 do { try pair.compare("step \(step)") } catch { exit(3) }
+            }
+        }
+    }
+}
+
+/// One element with two opaque hitboxes under one id (the public `insertHitbox` allows it), painting each half from its own `HitboxID`.
+private struct HKTwoBoxes: Element {
+    var elementID: ElementID? { nil }
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 120, height: 18)) }.layoutNodeID, ())
+    }
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) -> [HitboxID] {
+        let half = bounds.size.width.value / 2
+        let left = Bounds(origin: bounds.origin, size: Size(width: Pixels(half), height: bounds.size.height))
+        let right = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + half), y: bounds.origin.y), size: left.size)
+        return [pass.insertHitbox(left, id: id, opaque: true), pass.insertHitbox(right, id: id, opaque: true)]
+    }
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout [HitboxID], pass: inout PaintPass) {
+        let half = bounds.size.width.value / 2
+        for (index, box) in prepaint.enumerated() {
+            let part = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + half * Float(index)), y: bounds.origin.y), size: Size(width: Pixels(half), height: bounds.size.height))
+            pass.fill(part, color: pass.isHovered(box) ? Hsla(h: 0, s: 1, l: 0.5, a: 1) : Hsla(h: 0.6, s: 1, l: 0.5, a: 1))
+        }
+    }
+}
+private struct HKTwoBoxesCard: Component, @MainActor Equatable {
+    var content: some ElementGroup { HKTwoBoxes() }
+    static func == (l: HKTwoBoxesCard, r: HKTwoBoxesCard) -> Bool { true }
+}
+
+/// **9b** One element with two hitboxes under one id, painted from `isHovered(HitboxID)`: the pointer moving from its left half to its right leaves the hovered
+/// *element* the same, so a record keyed on it replays the left half highlighted. The window equals the retention-off one at every move.
+/// **Mutation:** `byHitbox` ignored in `HoverReads.answer` (the keyed-by-element answer: the stale half stays highlighted).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aPointerMovingBetweenTwoHitboxesOfOneElementEqualsAFreshWindow() throws {
+    let pair = try RPPair(size: sz(200, 60), accessibility: false) { _ in VStack(spacing: 0) { HKTwoBoxesCard().equatable() } }
+    let box = try #require(pair.on.window.lastHitboxes.first(where: { $0.opaque })?.bounds)
+    let y = box.origin.y.value + 9
+    for x in [box.origin.x.value + 20, box.origin.x.value + 100, box.origin.x.value + 20, box.origin.x.value + 100] {
+        for w in [pair.on, pair.off] { w.hover(at: pt(x, y)) }
+        pair.redraw()
+        try pair.compare("pointer at \(x)")
+    }
+}
+
+/// A component of `count` hover-reader rows, optionally with an element that asks about one outside its occurrence.
+private struct HKReaderRows: Component, @MainActor Equatable {
+    let count: Int
+    let height: Float
+    let outside: Bool
+    var counter = 0
+    var content: some ElementGroup {
+        let count = self.count, height = self.height
+        VStack(alignment: .leading, spacing: Pixels(0)) {
+            ForEach(0..<count, id: \.self) { index in
+                Text("r\(index)").frame(width: Pixels(60), height: Pixels(height)).hoverBackground(.accent).onTapGesture {}
+            }
+            if outside { HKOutsideReader() }
+        }
+    }
+    static func == (l: HKReaderRows, r: HKReaderRows) -> Bool { l.count == r.count && l.outside == r.outside && l.counter == r.counter }
+}
+
+/// **10b** An occurrence with more readers than the limit (33) that also asks about an element outside it is still ineligible by name, and the window equals the
+/// retention-off one when that element's hover changes. **Mutation:** the outside check skipped once the recorder overflowed.
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func anOccurrenceOverTheReaderLimitStillTaintsAnOutsideRead() throws {
+    let pair = try RPPair(size: sz(200, 120), accessibility: false) { _ in
+        VStack(spacing: 0) { HKIdRecorder(); HKReaderRows(count: HoverReads.readerLimit + 1, height: 2, outside: true).equatable() }
+    }
+    pair.on.resetFrameWork()
+    pair.redraw()
+    #expect(pair.on.lastFrameWork.retainedIneligibleReasons["hoverReadOutside", default: 0] >= 1, "ineligible by name: \(pair.on.lastFrameWork.retainedIneligibleReasons)")
+    for w in [pair.on, pair.off] { w.hover(at: hkCentre(pair)) }
+    pair.redraw()
+    try pair.compare("the other element hovered")
+    for w in [pair.on, pair.off] { w.hover(at: pt(199, 119)) }
+    pair.redraw()
+    try pair.compare("left")
+}
+
+private struct HKNestedRows: Component, @MainActor Equatable {
+    let counter: Int
+    var content: some ElementGroup {
+        VStack(alignment: .leading, spacing: Pixels(0)) {
+            HKReaderRows(count: 40, height: 2, outside: false).equatable()
+            Text("n \(counter)")
+        }
+    }
+    static func == (l: HKNestedRows, r: HKNestedRows) -> Bool { l.counter == r.counter }
+}
+
+/// **16a** An outer occurrence whose nested one (40 readers) replays while the outer is recorded again holds the same reads a fresh paint makes: the nested
+/// record's overflow is handed to the enclosing recorder, so whether a sibling replayed never changes the representation. **Mutation:** the nested overflow not
+/// handed on (the outer holds no reads, a fresh paint of it overflows).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aNestedOccurrencePastTheReaderLimitHandsItsOverflowToTheOuterOne() throws {
+    let pair = try RPPair(size: sz(200, 300), accessibility: false) { side in
+        VStack(spacing: 0) { HKNestedRows(counter: Int(side.inputs.offset)).equatable() }
+    }
+    pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
+    pair.redraw(); pair.redraw()
+    #expect(pair.on.window.testingRecordHovers().filter { $0.reads.wholeSubtree }.count == 2, "inner and outer overflow: \(pair.on.window.testingRecordHovers().map { $0.reads.wholeSubtree })")
+    try pair.compare("counter changed")
+}
+
+/// **16b** Occurrences whose reads pass every limit draw normally under verify mode, whatever their siblings replayed: a sibling of 300 readers, and an outer
+/// occurrence whose nested one (40 readers) replays while the outer is recorded again; each record's reads equal a fresh paint's. **Mutation:** none reddens it alone
+/// (verify mode paints a nested occurrence fresh); it guards the sibling-independence of the representation (16a holds the nested hand-over).
+@Test(.serialized) @MainActor func occurrencesPastTheReaderLimitDrawNormallyUnderVerifyMode() async {
+    await #expect(processExitsWith: .success) {
+        setTestEnvironment("METALUI_VERIFY_RETAINED", "1")
+        await MainActor.run {
+            guard let pair = try? RPPair(size: sz(200, 900), accessibility: false, graft: false, { side in
+                VStack(spacing: 0) {
+                    HKReaderRows(count: 300, height: 2, outside: false).equatable()
+                    HKNestedRows(counter: Int(side.inputs.offset)).equatable()
+                    HKReaderRows(count: 3, height: 18, outside: false).equatable()
+                }
+            }) else { exit(2) }
+            for step in 0..<4 {
+                pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
+                pair.redraw(); pair.redraw()
+                let point = pt(20, 3 + Float(step) * 40)
+                for w in [pair.on, pair.off] { w.hover(at: point) }
+                pair.redraw()
             }
         }
     }

@@ -197,6 +197,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
                 frame.retainLog?.noteRedoHole()
                 return
             }
+            recorder.occurrence = phase.build.key.id   // `RK-AR`
             frame.openRecorderWindow(recorder)
             phase.entry.paintSession.run(entry: phase.entry, store: frame.stateTable.contentMemos) {
                 component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)

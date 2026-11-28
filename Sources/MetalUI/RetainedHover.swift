@@ -6,43 +6,40 @@
 
 /// The hover reads of one occurrence's paint, nested replays included: the element ids it passed to `isHovered`, and the one of them that was hovered.
 struct HoverReads: Equatable {
-    /// The most readers one record keeps; above it the record falls back to `wholeSubtree`, the rule before `RK-AR`.
+    /// The most readers one record keeps; above it the record falls back to `wholeSubtree`.
     static let readerLimit = 32
-    /// The most reads one frame's log keeps, duplicates included; a frame that reads more falls back to `wholeSubtree` for every recorder it opens or has open.
-    static let logLimit = 256
 
-    /// The ids asked, de-duplicated, in the order first asked. Empty when `wholeSubtree`.
+    /// The ids asked, de-duplicated, in the order first asked. Empty when `wholeSubtree` or `byHitbox`.
     var readers: [GlobalElementID] = []
     /// The hovered element when it is a reader (or, for `wholeSubtree`, when it is under the occurrence) as the record was painted: `nil` when no reader was hovered.
     var hovered: GlobalElementID?
-    /// The occurrence read hover in a way an id cannot name (a `HitboxID` query: an index, not a function of the hovered element), or read it
-    /// of more elements than `readerLimit`: every hitbox under it is a reader and the hovered element under it is the answer.
+    /// The paint asked about more than `readerLimit` elements: every hitbox under the occurrence is a reader and the hovered element under it is the answer. Whether
+    /// an occurrence reads this way is a function of its own distinct reads, never of what its siblings replayed.
     var wholeSubtree = false
+    /// The paint asked `isHovered(HitboxID)`. An index is not a function of the hovered element (one element may register two hitboxes), so the rule is master's:
+    /// the record is not stored while the hovered element is under the occurrence, and misses when it is.
+    var byHitbox = false
 
     /// What the paint reads of the hovered element `hovered` now: the one this record's readers can tell apart from every other.
     func answer(hovered: GlobalElementID?, under occurrence: GlobalElementID) -> GlobalElementID? {
         guard let hovered else { return nil }
-        if wholeSubtree { return hovered.isOrDescends(from: occurrence) ? hovered : nil }
+        if wholeSubtree || byHitbox { return hovered.isOrDescends(from: occurrence) ? hovered : nil }
         return readers.contains(hovered) ? hovered : nil
     }
 
     /// Whether `hitbox` could make a reader hovered: a reader is hovered only through its own opaque hitbox.
-    func reads(_ hitbox: Hitbox) -> Bool { wholeSubtree || readers.contains(hitbox.id) }
+    func reads(_ hitbox: Hitbox) -> Bool { wholeSubtree || byHitbox || readers.contains(hitbox.id) }
 }
 
-extension RetainLog {
-    /// Notes a read of hover for `id` while the recorders are open. Bounded by `HoverReads.logLimit`: past it every open recorder, and every
-    /// recorder opened later in the frame, is `wholeSubtree`.
+extension SubtreeRecorder {
+    /// Notes a read of hover for `id` in this recorder's paint. Bounded: at most `HoverReads.readerLimit` ids, then `hoverOverflow`; an id outside the occurrence
+    /// is `hoverOutside` whatever else was read.
     func noteHover(_ id: GlobalElementID) {
-        if hoverSaturated || hoverReads.last == id { return }
-        if hoverReads.count >= HoverReads.logLimit { saturateHover(); return }
-        hoverReads.append(id)
-    }
-
-    /// Every open recorder reads hover by hitbox from here on (an index-keyed query, or a log past its limit).
-    func saturateHover() {
-        hoverSaturated = true
-        for recorder in recorders { recorder.hoverByHitbox = true }
+        if let occurrence, !id.isOrDescends(from: occurrence) { hoverOutside = true }
+        if hoverOverflow || hoverByHitbox { return }
+        if hoverReaders.last == id || hoverReaders.contains(id) { return }
+        if hoverReaders.count == HoverReads.readerLimit { hoverOverflow = true; hoverReaders = []; return }
+        hoverReaders.append(id)
     }
 }
 
@@ -50,43 +47,41 @@ extension Frame {
     /// `PaintPass.isHovered(GlobalElementID)`: one branch while nothing records.
     func noteHoverRead(_ id: GlobalElementID) {
         guard let log = retainLog else { return }
-        log.noteHover(id)
+        for recorder in log.recorders { recorder.noteHover(id) }
     }
 
-    /// `PaintPass.isHovered(HitboxID)`: an index into this frame's hitboxes is not a function of the hovered element, so every open recorder reads the whole subtree.
+    /// `PaintPass.isHovered(HitboxID)`: every open recorder reads by hitbox.
     func noteHoverReadByHitbox() {
         guard let log = retainLog else { return }
         for recorder in log.recorders { recorder.hoverByHitbox = true }
     }
 
-    /// A nested occurrence's paint replayed: what its record read, an enclosing recorder read too.
+    /// A nested occurrence's paint replayed: what its record read, an enclosing recorder read too (the same distinct reads a fresh paint makes, in the same order).
     @inline(never)
     func noteReplayedHoverReads(_ reads: HoverReads?) {
         guard let reads, let log = retainLog else { return }
-        if reads.wholeSubtree { noteHoverReadByHitbox(); return }
-        for id in reads.readers { log.noteHover(id) }
+        for recorder in log.recorders {
+            if reads.byHitbox { recorder.hoverByHitbox = true }
+            if reads.wholeSubtree { recorder.hoverOverflow = true; recorder.hoverReaders = [] }
+            for id in reads.readers { recorder.noteHover(id) }
+        }
     }
 
-    /// The reads of the paint `recorder` covered, and whether it asked about an element outside `occurrence`. `nil` reads for an occurrence that read
+    /// The reads of the paint `recorder` covered, and whether it asked about an element outside its occurrence. `nil` reads for an occurrence that read
     /// nothing: no allocation.
     func closedHoverReads(_ recorder: SubtreeRecorder, occurrence: GlobalElementID) -> (reads: HoverReads?, outside: Bool) {
-        guard let log = retainLog else { return (nil, false) }
         var reads = HoverReads()
-        var outside = false
         if recorder.hoverByHitbox {
+            reads.byHitbox = true
+        } else if recorder.hoverOverflow {
             reads.wholeSubtree = true
-        } else if recorder.hoverFrom < log.hoverReads.count {
-            for index in recorder.hoverFrom..<log.hoverReads.count {
-                let id = log.hoverReads[index]
-                if !id.isOrDescends(from: occurrence) { outside = true; continue }
-                if reads.readers.contains(id) { continue }
-                if reads.readers.count == HoverReads.readerLimit { reads.wholeSubtree = true; reads.readers = []; break }
-                reads.readers.append(id)
-            }
+        } else if !recorder.hoverReaders.isEmpty {
+            reads.readers = recorder.hoverReaders
+        } else {
+            return (nil, recorder.hoverOutside)
         }
-        guard reads.wholeSubtree || !reads.readers.isEmpty else { return (nil, outside) }
         reads.hovered = reads.answer(hovered: hoveredElement, under: occurrence)
-        return (reads, outside)
+        return (reads, recorder.hoverOutside)
     }
 
     /// Whether the pointer is over a hitbox of `hitboxes` a hover reader of `reads` owns. No reads or no pointer is `false` with no scan.
