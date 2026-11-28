@@ -1,7 +1,7 @@
 # Retained build skip — decisions
 
 Rulings for item C14b-2 of the gpui-gap priority list (user request 2026-10-02; **not a plan task**), the continuation of
-C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AT`.**
+C14b (record §109, `SB-A`…`SB-AE`). Prefix `RK-`. **Next unused: `RK-AU`.**
 Spec: [`specs/2026-10-13-retained-build-skip-design.md`](specs/2026-10-13-retained-build-skip-design.md). Record:
 `../record/110-retained-build-skip.md`. Branch `perf/retained-build-skip` from `fb9a7e42`. Divergence labels reserved 405–414:
 **none taken** (no public API, no SwiftUI-visible behaviour). Probe: `../probes/retained-build-skip/`.
@@ -654,3 +654,15 @@ Per grafted outermost occurrence: **60.5 µs of build stood for, 10.7 µs of gra
 **Accepted trade.** A grafted focused text field that moves is one scoped redo (`translationRefused: focusTextInput` at `graftedPrepaint`, an 8-build quarantine), what a grafted unfocused one already costs: 4 requests plus 2 redone against master's focused replay-run of 4. `FocusKeyedReplayTests` 9 takes a `graft:` argument. The first version of (3) backed off standing taints only (the plan's d3): a `ProgressView` beside a focused composer then cost the unfocused 28,3xx allocations a step against master's focused 19,0xx; the plan's d2 on top of the split keeps master's cost (T10).
 
 **Cost if wrong.** A graft that stands where the focus differs: `aFocusedComposerGraftsWhileTheColumnAboveItIsTainted`, `focusMovingIntoOrOutOfAGraftedFieldRefusesByName`, `aFocusStateWriteAfterAGraftedFrameMovesTheFocus`, `aGraftedFocusedFieldKeepsTheInputMethodsCaretRect`, `aVerifiedFocusedGraftThatDiffersTraps`. An allocation at idle: `aGraftedFocusedComposerIdlesWithNoFrame`, `theChatsStepsAllocateNoMoreThanMastersInAFixedSeedChild`.
+
+## RK-AT — Reading a field's edit state at input time writes nothing (record 445; amends `SL-B`, `RW-C`'s "a read is not a write" for `Window.editState`)
+
+**Question.** With Alloy's composer focused, a scroll step costs 148.65 element requests against 108.65 unfocused, and the composer's occurrence refuses by `versions` on every step. Which entry moves, and what writes it?
+
+**Ruling.** (1) **A read of an entry at input time is not a write.** `Window.editState(_:)` returns the stored `TextEditState` as it stands (`StateTable.stored(_:as:)`: no version, no `writeCount`, no taint, no journal entry, no liveness mark) and creates an absent entry as before. It was a `withState` that stored the copy back, so `publishFocusedSelection`, which runs after every input event while a field with a selection sink is focused, gave the field's entry a new version per event. (2) No record's key changes: `versions` keeps every read, and a real change (a published range, typing, a caret move, a composition) still writes and still refuses the record. (3) Any new input-time reader of a state entry uses `stored`, never a `withState` whose body only copies.
+
+**Evidence.** Record 445: a focused composer shape (a vertical `TextField` bound to its text and selection) under wheel steps costs 39 to 41 requests a step on master against the unfocused 10 to 12; here the two are equal step by step, with no `versions` refusal.
+
+**Cost if wrong.** A field whose edit state changed but whose version did not replays a stale caret, selection or scroll: `theFocusedBoundFieldStillRepaintsWhenItsEditStateChanges` (typing, typing after a scroll, a backspace; the retention-off window equal at each), and the existing text-field retained suites under `METALUI_VERIFY_RETAINED=1`.
+
+**Carried.** The other `withState` bodies that only read (a grep of `withState(` with `{ x = $0 }` is the shape) are not swept; `Window.editState` is the one input-time path that fires per event.

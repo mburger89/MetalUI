@@ -4023,7 +4023,11 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         return target.secure ? String(repeating: "x", count: text.count) : text
     }
 
+    /// The field's edit state as input sees it. A read: an entry that exists is returned as it stands, with no new version (`RK-AT`) -- a
+    /// `withState` that rewrote it gave every retained record that read the field a new version on every input event (a wheel step, a
+    /// pointer move) while a bound field held focus, through `publishFocusedSelection`. An absent entry is created, as before.
     func editState(_ id: GlobalElementID) -> TextEditState {
+        if let state = stateTable.stored(id, as: TextEditState.self) { return state }
         var state = TextEditState()
         stateTable.withState(id, initial: TextEditState()) { state = $0 }
         return state
