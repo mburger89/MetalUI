@@ -133,7 +133,7 @@ final class AnimationStore {
     /// Counts one interpolation in the frame being built.
     func noteInterpolation() {
         interpolationsThisFrame += 1
-        retainLog?.taint("interpolation")
+        retainLog?.taint("interpolation", transient: true)
     }
 
     /// Interpolations counted so far in the frame being built (`SB-`): a retained

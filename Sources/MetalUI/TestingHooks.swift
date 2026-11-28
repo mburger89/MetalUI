@@ -365,6 +365,12 @@ extension Window {
                     ledger.hitboxes[index].handlers.contextual = ContextualAttachment(
                         locatedMenu: contextual.menu, help: help + " (stale)", helpProvider: contextual.helpProvider, selection: contextual.selection)
                 }
+            case "textInput":   // `RK-AS`: the caret rect a stale ledger would hand the input method
+                for index in ledger.focus.indices {
+                    guard case .register(var handlers, let id) = ledger.focus[index], handlers.textInput != nil else { continue }
+                    handlers.textInput?.caretRect.origin.x += Pixels(1)
+                    ledger.focus[index] = .register(handlers, id)
+                }
             default: preconditionFailure("unknown ledger channel \(channel)")
             }
         }
@@ -396,6 +402,7 @@ extension Window {
             case "loops": graft.events.removeAll { if case .loop = $0 { true } else { false } }
             case "lifecycleNotes": graft.events.removeAll { if case .lifecycleNote = $0 { true } else { false } }
             case "memoTouches": graft.events.removeAll { if case .memoTouch = $0 { true } else { false } }
+            case "focusStates": graft.events.removeAll { if case .focusState = $0 { true } else { false } }   // `RK-AS`
             case "leafKeys": graft.segment = graft.segment.testingDroppingLeafKeys()
             default: preconditionFailure("unknown graft channel \(channel)")
             }
@@ -410,6 +417,9 @@ extension Window {
 
     /// Why occurrences left no graft record in the last build, one name each (`RK-F`).
     package var testingGraftRefusals: [String] { stateTable.contentMemos.lastGraftRefusals }
+
+    /// How many occurrences the focus backoff holds plain now (`RK-AS`).
+    package var testingFocusBackoffCount: Int { stateTable.contentMemos.focusBackoffs.count }
 }
 
 extension Window {

@@ -194,6 +194,11 @@ struct FocusRegistry {
         focusBindingOwners[FocusBindingKey(slot: slot, value: binding.value)] = id
     }
 
+    /// Every binding registered, as a sorted line each: element, slot and value (verify mode, `RK-AS`).
+    var bindingFingerprint: [String] {
+        focusBindings.map { "\(sbPath($0.key))|\(sbPath($0.value.slot))|\(String(describing: $0.value.value))" }.sorted()
+    }
+
     /// The `@FocusState` slot and value `id` is bound with, if any.
     func focusBinding(for id: GlobalElementID) -> (slot: GlobalElementID, value: AnyHashable)? {
         focusBindings[id]

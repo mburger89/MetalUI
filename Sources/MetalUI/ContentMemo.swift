@@ -141,6 +141,8 @@ package final class ContentMemoStore {
         /// The focused element under the occurrence when `record` was painted, `nil` when none was (`RK-AQ`): the record replays only while the focus
         /// under the occurrence is this one. Here, not on the record, whose instance size a test pins.
         var recordFocus: GlobalElementID?
+        /// `buildSerial` of the build whose paint stored `record` (`RK-AS`): a record stored this frame is new, one stored earlier was hit. Here, not on the record, whose instance size a test pins.
+        var recordStoredAt = -1
         /// What the paint of `record` read of hover (`RK-AR`, `RetainedHover.swift`): `nil` when it read none. Here, not on the record, whose instance size a test pins.
         var recordHover: HoverReads?
         var observedChange: Bool {
@@ -254,9 +256,10 @@ package final class ContentMemoStore {
     /// The most scopes kept; the soonest to expire goes first.
     static let quarantinedScopeLimit = 64
 
-    /// An occurrence whose paint record could not be stored while the focused element was under it (`RK-AQ`): a focused `CodeView`'s caret blink
-    /// taints every paint record, so every enclosing occurrence would make a ledger and a record each frame and store neither. It is left to run as it
-    /// did before the focus was a key (prepaint unrecorded, paint plain) until `retryAt`, then tried again; each failure doubles the wait, 8 builds to 256.
+    /// An occurrence whose paint record could not be stored while the focused element was under it for a **standing** reason (`RK-AQ`, `RK-AS`): a focused `CodeView`'s
+    /// caret blink taints every paint record, so every enclosing occurrence would make a ledger and a record each frame and store neither. It is left to run as it
+    /// did before the focus was a key (prepaint unrecorded, paint plain) until `retryAt`, then tried again; each failure doubles the wait, 8 builds to 256. A **transient**
+    /// taint (a glide or a fade, a state write: `SubtreeRecorder.standingTaint` is `nil`) ends without input and is not a failure: the unfocused window records the frame it ends in.
     struct FocusBackoff {
         let occurrence: GlobalElementID
         let reason: String
@@ -513,7 +516,8 @@ package final class ContentMemoStore {
         return count
     }
 
-    /// Why occurrences could leave no graft record in the build in progress and in the last one, one name each (`RK-F`).
+    /// Why occurrences could leave no graft record, or could not stand on the one they had, in the build in progress and in the last one, one name each (`RK-F`, `RK-AS`).
+    /// At most two names an occurrence the build reaches; the arrays keep the capacity of one frame's peak.
     var graftRefusals: [String] = []
     /// The occurrences whose graft windows closed this frame and whose records `Frame.flushPendingGrafts` makes (`RK-AG`).
     var pendingGrafts: [PendingGraft] = [] {
@@ -559,7 +563,7 @@ package final class ContentMemoStore {
     /// Starts this build's counters over (`RK-D`): the abandoned attempt's work was thrown away.
     func resetBuildCounters() {
         retained = RetainedCounters()
-        graftRefusals = []
+        graftRefusals.removeAll(keepingCapacity: true)   // `RK-AS`: the names are made every frame under a steady scroll, so the two arrays keep their capacity
         pendingGrafts = []
         evaluations = 0; skips = 0; refusals = 0
     }
@@ -572,7 +576,7 @@ package final class ContentMemoStore {
         lastEvaluations = evaluations + carriedEvaluations; lastSkips = skips; lastRefusals = refusals
         carriedEvaluations = 0
         lastRetained = retained; retained = RetainedCounters()
-        lastGraftRefusals = graftRefusals; graftRefusals = []
+        swap(&lastGraftRefusals, &graftRefusals); graftRefusals.removeAll(keepingCapacity: true)   // `RK-AS`: a ping-pong, no array made a frame
         evaluations = 0; skips = 0; refusals = 0
         guard !entries.isEmpty else { ledgerEntries = 0; return }
         var gone: [Key] = []

@@ -173,10 +173,14 @@ final class RetainLog {
 
     /// Marks every open recorder (or, with `scopeIndex`, every one whose own scopes include that index)
     /// as unable to leave a record, naming the first reason.
-    func taint(_ reason: String, scopeIndex: Int? = nil) {
+    ///
+    /// `transient` (`RK-AS`): the frame is mid-animation or wrote state, which ends without input (`requestAnotherFrame`, `activeAnimation`, `interpolation`,
+    /// `stateWrite`); every other reason is **standing**, a read of something no record keys or a structure no record holds, and repeats on every painted frame.
+    /// The recorder keeps the first standing one for `ContentMemoStore.FocusBackoff`.
+    func taint(_ reason: String, scopeIndex: Int? = nil, transient: Bool = false) {
         for recorder in recorders {
             if let scopeIndex, recorder.entryHeight > scopeIndex { continue }
-            if recorder.taint == nil { recorder.taint = reason }
+            recorder.noteTaint(reason, transient: transient)
         }
     }
 
@@ -295,7 +299,7 @@ final class RetainLog {
         while index < recorders.count {
             let recorder = recorders[index]
             index += 1
-            if recorder.entryHeight == 0, recorder.taint == nil, recorder.virtualFrom - recorder.sequenceFrom != distance { recorder.taint = "crossingMatchedGroup" }
+            if recorder.entryHeight == 0, recorder.taint == nil, recorder.virtualFrom - recorder.sequenceFrom != distance { recorder.noteTaint("crossingMatchedGroup") }
         }
     }
 
@@ -399,6 +403,14 @@ final class RetainLog {
 @MainActor
 final class SubtreeRecorder {
     var taint: String?
+    /// The first standing reason (`RK-AS`): `taint` names the first of any kind, which a transient one (a glide's `activeAnimation`) may be while a blink's `taintRetention` is
+    /// the one that repeats. `nil` while every taint so far was transient.
+    var standingTaint: String?
+    /// Marks the recorder unable to leave a record, naming the first reason, and the first standing one apart.
+    func noteTaint(_ reason: String, transient: Bool = false) {
+        if taint == nil { taint = reason }
+        if !transient, standingTaint == nil { standingTaint = reason }
+    }
     /// `StateTable.readJournal.count` where the paint window opened (`RW-D`).
     var readLow = 0
     /// The paint scopes open where the paint window opened: the height the scene is recorded at.
@@ -1125,7 +1137,7 @@ extension Frame {
         let to = log.current
         let after = ledgerSnapshot()
         stateTable.contentMemos.retained.ledgerSnapshots += 1
-        if let reason = recorder.before.movedChannel(to: after), recorder.taint == nil { recorder.taint = reason }
+        if let reason = recorder.before.movedChannel(to: after), recorder.taint == nil { recorder.noteTaint(reason) }
         return (to, after)
     }
 
@@ -1530,7 +1542,7 @@ extension Frame {
         let record = RetainedRecord(key: key)
         // `RK-AR`: what the paint read of hover, nested replays included. An element asked about outside the occurrence is a read this record cannot be keyed on.
         let hover = closedHoverReads(recorder, occurrence: phase.build.key.id)
-        if hover.outside, recorder.taint == nil { recorder.taint = "hoverReadOutside" }
+        if hover.outside, recorder.taint == nil { recorder.noteTaint("hoverReadOutside") }
         var seen = Set<GlobalElementID>()
         for id in stateTable.markJournal[phase.build.journal] where seen.insert(id).inserted {
             record.versions.append((id, stateTable.entryVersion(id)))
@@ -1656,7 +1668,7 @@ extension Frame {
             RetainedTrace.emit("retained paint ineligible \(RetainedTrace.path(phase.build.key.id)) because \(reason)\(phaseFlags(phase))")
             phase.entry.record = nil
             memos.retained.noteIneligible(.paint, reason: reason)
-            if let focus = phase.paintFocus { memos.noteFocusedIneligible(phase.build.key.id, focus: focus, reason: reason) }
+            if let focus = phase.paintFocus, let standing = recorder.standingTaint { memos.noteFocusedIneligible(phase.build.key.id, focus: focus, reason: standing) }
             return
         }
         memos.retained.misses += 1
@@ -1666,6 +1678,7 @@ extension Frame {
         } else {
             phase.entry.record = record
             phase.entry.recordFocus = phase.paintFocus
+            phase.entry.recordStoredAt = memos.buildSerial
             phase.entry.recordHover = hover.reads
             if phase.paintFocus != nil { memos.clearFocusBackoff(phase.build.key.id) }
             if memos.recordsAttempt { memos.attemptRecorded.append(phase.entry) }   // `GL-K`
