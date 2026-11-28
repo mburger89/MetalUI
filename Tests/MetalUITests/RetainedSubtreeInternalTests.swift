@@ -19,7 +19,7 @@ import MetalUITesting
 private enum Channel: String {
     /// Recorded and replayed (the scene, the marks and touches paint makes).
     case recorded
-    /// In the replay key, or the pointer/press/focus rule.
+    /// In the replay key, or the pointer/press rule, or keyed by the focused element under the occurrence (`RK-AQ`).
     case keyed
     /// A change in a paint makes the occurrence ineligible.
     case ledger

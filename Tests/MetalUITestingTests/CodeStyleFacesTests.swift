@@ -321,7 +321,7 @@ private struct Card: Component, @MainActor Equatable {
         let f = totalWork(w)
         steady.append("shaped \(f.codeLinesShaped) requests \(f.elementRequests) hits \(f.retainedHits) misses \(f.retainedMisses) ineligible \(f.retainedIneligible) frames \(w.frameWork.count)")
     }
-    let master = "shaped 0 requests 2 hits 0 misses 1 ineligible 0 frames 1"
+    let master = "shaped 0 requests 2 hits 1 misses 0 ineligible 0 frames 1"   // `RK-AQ`: the focused view's steady frame hits (was a miss)
     #expect(steady == Array(repeating: master, count: 5), "\(steady)")
     #expect(!decorations.hasFaces && decorations.lineCache.faceResolutions == 0 && resolvedBefore == 0)
     #if canImport(Darwin)

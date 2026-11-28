@@ -138,6 +138,9 @@ package final class ContentMemoStore {
         // windows over its build recursion, prepaint and paint, and whether any observed property
         // changed since the record was made.
         var record: RetainedRecord?
+        /// The focused element under the occurrence when `record` was painted, `nil` when none was (`RK-AQ`): the record replays only while the focus
+        /// under the occurrence is this one. Here, not on the record, whose instance size a test pins.
+        var recordFocus: GlobalElementID?
         var observedChange: Bool {
             get { flags.observedChange }
             set { flags.observedChange = newValue }
@@ -248,6 +251,48 @@ package final class ContentMemoStore {
     var testingEscalationEntry: Entry?
     /// The most scopes kept; the soonest to expire goes first.
     static let quarantinedScopeLimit = 64
+
+    /// An occurrence whose paint record could not be stored while the focused element was under it (`RK-AQ`): a focused `CodeView`'s caret blink
+    /// taints every paint record, so every enclosing occurrence would make a ledger and a record each frame and store neither. It is left to run as it
+    /// did before the focus was a key (prepaint unrecorded, paint plain) until `retryAt`, then tried again; each failure doubles the wait, 8 builds to 256.
+    struct FocusBackoff {
+        let occurrence: GlobalElementID
+        let reason: String
+        var retryAt: Int
+        var exponent: UInt8
+    }
+    var focusBackoffs: [FocusBackoff] = []
+    /// The focused element the table was made under: it is cleared whenever the focus differs.
+    var focusBackoffOwner: GlobalElementID?
+    /// A focus path is one path, so the table is small; the precedent is `quarantinedScopeLimit`.
+    static let focusBackoffLimit = 32
+
+    /// The backoff holding `id` while `focus` is the focused element under it, or `nil` (`RK-AQ`).
+    func focusBackoff(for id: GlobalElementID, focus: GlobalElementID) -> FocusBackoff? {
+        if focusBackoffOwner != focus { focusBackoffs.removeAll(); focusBackoffOwner = focus; return nil }
+        guard let entry = focusBackoffs.first(where: { $0.occurrence == id }), buildSerial < entry.retryAt else { return nil }
+        return entry
+    }
+
+    /// `id` could not store the paint record it made under `focus`: wait 8 builds, then 16, doubling to 256 (`RK-AQ`).
+    func noteFocusedIneligible(_ id: GlobalElementID, focus: GlobalElementID, reason: String) {
+        if focusBackoffOwner != focus { focusBackoffs.removeAll(); focusBackoffOwner = focus }
+        var exponent: UInt8 = 0
+        if let index = focusBackoffs.firstIndex(where: { $0.occurrence == id }) {
+            exponent = min(focusBackoffs[index].exponent + 1, 5)
+            focusBackoffs.remove(at: index)
+        } else if focusBackoffs.count >= Self.focusBackoffLimit {
+            focusBackoffs.removeFirst()
+        }
+        focusBackoffs.append(FocusBackoff(occurrence: id, reason: reason,
+                                          retryAt: buildSerial + 1 + (8 << Int(exponent)), exponent: exponent))
+    }
+
+    /// `id` stored a record made under a focus: its backoff is forgotten.
+    func clearFocusBackoff(_ id: GlobalElementID) {
+        guard !focusBackoffs.isEmpty else { return }
+        focusBackoffs.removeAll { $0.occurrence == id }
+    }
 
     /// Whether `id` is at, under or above a scope of the redo in progress.
     @inline(never)   // called from the recursive build and prepaint: its locals stay out of their frames
@@ -408,7 +453,9 @@ package final class ContentMemoStore {
         // then the token write fires it, and its handler finds a stale serial.
         // The same step clears `stale` (`MO-D`): a write that lands during the getter survives it.
         let newSerial = entry.flags.advance()
+        RetainedSession.retiringThread = Thread.current   // `RK-AQ`: the fires this tick raises are the build's own
         entry.token.tick &+= 1
+        RetainedSession.retiringThread = nil
         let handle = ContentMemoHandle(entry: entry, store: self, serial: newSerial)
         armed += 1
         let content = withObservationTracking {

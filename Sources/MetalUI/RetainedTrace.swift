@@ -150,6 +150,8 @@ package struct PaintInvalidation {
         package var serialMatches = true
         package var versionsUnchanged = true
         package var underPointer = false
+        /// The focused element under the occurrence is not the one the record was made with (`RK-AQ`).
+        package var focusMoved = false
         /// A replayed prepaint's ledger is not the record's (`old.prepaint !== phase.replayed`).
         package var ledgerIdentityDiffers = false
         /// `RW-S`: the record holds no ledger and this frame's prepaint made one.
@@ -162,7 +164,7 @@ package struct PaintInvalidation {
 
     package var isValid: Bool {
         !inputs.observedChange && inputs.coverageBuild && inputs.coveragePrepaint && inputs.serialMatches
-            && inputs.versionsUnchanged && !inputs.underPointer && !inputs.ledgerIdentityDiffers && !inputs.ledgerGain
+            && inputs.versionsUnchanged && !inputs.underPointer && !inputs.focusMoved && !inputs.ledgerIdentityDiffers && !inputs.ledgerGain
     }
 
     /// The failing conjuncts' names, in a fixed order.
@@ -174,6 +176,7 @@ package struct PaintInvalidation {
         if !inputs.coveragePrepaint { out.append("coverage.prepaint") }
         if !inputs.versionsUnchanged { out.append("versions") }
         if inputs.underPointer { out.append("pointer") }
+        if inputs.focusMoved { out.append("focus") }
         if inputs.ledgerIdentityDiffers { out.append("ledger.identity") }
         if inputs.ledgerGain { out.append("ledger.gain") }
         return out
@@ -198,6 +201,8 @@ package struct PrepaintInvalidation {
         package var serialMatches = true
         package var versionsUnchanged = true
         package var pointerInLedger = false
+        /// The focused element under the occurrence is not the one the ledger, or the record it hangs on, was made with (`RK-AQ`).
+        package var focusMoved = false
         package init() {}
     }
 
@@ -219,6 +224,7 @@ package struct PrepaintInvalidation {
             if !inputs.serialMatches { out.append("serial") }
             if !inputs.versionsUnchanged { out.append("versions") }
         }
+        if inputs.focusMoved { out.append("focus") }
         if inputs.pointerInLedger { out.append("pointerInLedger") }
         return out
     }

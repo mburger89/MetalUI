@@ -30,6 +30,9 @@ final class PrepaintLog {
         case register(Handlers, GlobalElementID)
         case shortcut(Handlers, GlobalElementID)
         case binding(FocusBindingTarget, GlobalElementID)
+        /// The focused element was produced under the window (`RK-AQ`): replay sets `focusedElementProducedThisFrame` when `focusedElement` is still `id`
+        /// and, when `retains`, repeats the plain `$focus` retention write the producing call made.
+        case focused(GlobalElementID, retains: Bool)
     }
 
     struct Marks: Equatable {
@@ -236,6 +239,9 @@ final class PrepaintLedger {
     /// Modifier-key notes, made again in order against the current modifiers (`RL-B`).
     var modifiers: [ModifierNoteRecord] = []
     var tallies = RegionTallies()
+    /// The focused element under the occurrence when the ledger was made, `nil` when none was (`RK-AQ`): the ledger replays only while the focus
+    /// under the occurrence is this one. Copied by `rebased(to:_:)`, untouched by the in-place `rebase`.
+    var focusedUnder: GlobalElementID?
     /// The element prepaints the replay stands for (`FrameWork.retainedSkippedPrepaints`).
     var prepaints = 0
 
@@ -247,6 +253,15 @@ final class PrepaintLedger {
     init(key: PrepaintKey) {
         self.key = key
         Self.madeCount += 1
+    }
+}
+
+extension PrepaintLedger {
+    /// Whether the occurrence registered a text input's focus stop (`RK-AQ`): its handlers hold the `caretRect` the input method reads, a window position a
+    /// moved ledger would replay stale. A field's own hitbox refuses the move (`hitboxHandlers`); this closes the field under `allowsHitTesting(false)`, which
+    /// registers the focus stop and no hitbox.
+    var registersTextInput: Bool {
+        focus.contains { if case .register(let handlers, _) = $0 { return handlers.textInput != nil } else { return false } }
     }
 }
 
@@ -358,8 +373,15 @@ extension Frame {
             memos.retained.noteIneligible(.prepaint, reason: reason)
             return .run(nil)
         }
-        if retainedSubtreeHasPointerPressOrFocus(under: build.key.id) {
-            noteRun(phase, "pointer/press/focus under the occurrence")
+        if retainedSubtreeHasPointerOrPress(under: build.key.id) {
+            noteRun(phase, "pointer/press under the occurrence")
+            return .run(nil)
+        }
+        // `RK-AQ`: the focused element under the occurrence is a decision input, not a refusal.
+        let focusNow = retainedFocus(under: build.key.id)
+        phase.prepaintFocus = focusNow
+        if let focus = focusNow, memos.focusBackoff(for: build.key.id, focus: focus) != nil {
+            noteRun(phase, "focusBackoff")
             return .run(nil)
         }
         let key = retainedPrepaintKey(phase).transactionNormalised   // `AM-D`, `AM-L`
@@ -378,6 +400,9 @@ extension Frame {
         inputs.serialMatches = old.map { $0.contentSerial == entry.serial } ?? true
         inputs.versionsUnchanged = old.map { retainedVersionsUnchanged($0.versions) } ?? true
         inputs.pointerInLedger = ledgerOfRecord.map { retainedPointerIsInside($0) } ?? false
+        // Both must equal the focus now: a record whose frame moved focus at the boundary (ledger and record disagree) never replays its prepaint,
+        // so this cause cannot produce a redo (`RK-AQ`).
+        inputs.focusMoved = old != nil && (entry.recordFocus != focusNow || (ledgerOfRecord.map { $0.focusedUnder != focusNow } ?? false))
         let invalidation = PrepaintInvalidation(inputs)
         if RetainedTrace.active { phase.prepaintInvalidation = invalidation.names }
         if invalidation.isReplayable, let old, let ledger = ledgerOfRecord {
@@ -642,6 +667,7 @@ extension Frame {
                                        focusOnPress: now.focusOnPress - recorder.tallies.focusOnPress,
                                        resign: now.resign - recorder.tallies.resign)
         ledger.prepaints = elementPrepaints - recorder.prepaints
+        ledger.focusedUnder = phase.prepaintFocus
         return ledger
     }
 
@@ -731,6 +757,8 @@ struct RetainedVerifySnapshot {
     let unitRanges: [String]
     let hitboxes: [String]
     let tabOrder: [GlobalElementID]
+    /// The focused element after `resolveFocus` (`RK-AQ`): a replayed ledger must leave focus where a fresh prepaint leaves it.
+    let focused: GlobalElementID?
     let accessibility: [String]
     let axNodes: Set<GlobalElementID>
     let tallies: RegionTallies
@@ -778,6 +806,7 @@ struct RetainedVerifySnapshot {
             return "hitboxes (\(hitboxes.count) vs \(other.hitboxes.count)) first difference \(String(describing: first))"
         }
         if tabOrder != other.tabOrder { return "tab order" }
+        if focused != other.focused { return "focused element \(String(describing: focused)) vs \(String(describing: other.focused))" }
         if accessibility != other.accessibility { return "accessibility records (\(accessibility.count) vs \(other.accessibility.count))" }
         if axNodes != other.axNodes {
             let a = Set(axNodes.map { sbPath($0) }), b = Set(other.axNodes.map { sbPath($0) })
@@ -839,7 +868,7 @@ extension Frame {
             counts: [s.rects.count, s.glyphs.count, s.images.count, s.surfaces.count, s.textures.count, s.drawList.count],
             groups: Self.groupDigest(of: s, path: ""),
             unitRanges: animationStore.transitions.ranges.map { "\(sbPath($0.unit)) \($0.start) \($0.end)" },
-            hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder,
+            hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder, focused: focusedElement,
             accessibility: axEmissions(from: 0).map {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },

@@ -123,7 +123,7 @@ the window's top layer — a portal for modals, popovers and tooltips
   while its value is `==` to the last evaluation's, its own `@State` is unwritten and the `@Observable`
   properties the last getter read are unchanged. No identity level, cursor index or initialiser is added;
   build recursion and layout run as for the bare component; the getter is skipped and, while the occurrence's
-  layout, surrounding paint context and pointer/press/focus state are unchanged, its **prepaint and paint are
+  layout, surrounding paint context and pointer/press state are unchanged and the focused element under it is the one it was recorded with (`RK-AQ`), its **prepaint and paint are
   replayed** from a record of their hitboxes, focus registrations, accessibility records and scene primitives
   (record §109, `SB-B`; `FrameWork.contentEvaluations`/`contentSkips`/`contentRefusals`, `elementRequests`/
   `elementPrepaints`/`elementPaints`, `retainedHits`/`retainedMisses`/`retainedIneligible`/

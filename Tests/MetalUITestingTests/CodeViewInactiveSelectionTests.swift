@@ -201,11 +201,11 @@ private struct Steady: Equatable { var requests = 0, hits = 0, misses = 0, ineli
 /// extra wrapper element (`.padding(1)` around the view) adds a request per view (4 becomes 5).
 @Test @MainActor func aSteadyFrameCostsWhatItDidBeforeInactiveSelection() async throws {
     let one = try await steady(views: 1, focused: false), two = try await steady(views: 2, focused: false)
-    #expect(one == Steady(requests: 4, hits: 0, misses: 1, ineligible: 0), "\(one)")
-    #expect(two == Steady(requests: 5, hits: 1, misses: 1, ineligible: 0), "\(two)")
+    #expect(one == Steady(requests: 4, hits: 1, misses: 0, ineligible: 0), "\(one)")
+    #expect(two == Steady(requests: 5, hits: 2, misses: 0, ineligible: 0), "\(two)")
     let oneFocused = try await steady(views: 1, focused: true), twoFocused = try await steady(views: 2, focused: true)
-    #expect(oneFocused == Steady(requests: 4, hits: 0, misses: 1, ineligible: 0), "\(oneFocused)")
-    #expect(twoFocused == Steady(requests: 5, hits: 1, misses: 1, ineligible: 0), "\(twoFocused)")
+    #expect(oneFocused == Steady(requests: 4, hits: 1, misses: 0, ineligible: 0), "\(oneFocused)")
+    #expect(twoFocused == Steady(requests: 5, hits: 2, misses: 0, ineligible: 0), "\(twoFocused)")
 }
 
 /// **8** A focus change repaints the two views concerned and no other: of three retained views, moving the focus from

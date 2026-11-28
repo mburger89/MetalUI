@@ -647,6 +647,7 @@ extension PrepaintLedger {
         copy.geometry = moved.geometry ?? geometry
         copy.modifiers = modifiers
         copy.tallies = tallies
+        copy.focusedUnder = focusedUnder
         copy.prepaints = prepaints
         copy.liveStates = liveStates
         copy.reads = reads
@@ -721,6 +722,7 @@ extension Frame {
         if !ledger.inertBlockers.isEmpty { return .refused("inertChromeBlockers") }
         if !ledger.contextMenus.isEmpty { return .refused("contextMenus") }
         if !ledger.anchors.isEmpty { return .refused("presentationAnchor") }
+        if ledger.registersTextInput { return .refused("focusTextInput") }
         guard clip.count >= 4 else { return .refused("unkeyedClip") }
         let entryDepth = ledger.key.ambient.depths.first ?? -1
         let dx = shift.windowX, dy = shift.windowY

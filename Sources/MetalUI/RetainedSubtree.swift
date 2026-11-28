@@ -764,13 +764,18 @@ final class RetainedSession {
     }
     let label: String
     init(_ label: String) { self.label = label }
+    /// The thread that is retiring a session right now (`RK-AQ`): Observation runs `onChange` inline on the writing thread, so a fire that finds its own
+    /// thread here was raised by that retirement, whichever thread the frame is built on (off Darwin a test's main actor is a pool thread).
+    nonisolated(unsafe) static var retiringThread: Thread?
 
     /// Runs `body` inside a fresh session; the previous one is retired first (the serial moves on,
     /// then the token write fires it, and its handler finds a stale serial — `IV-L` item 5).
     @MainActor
     func run<R>(entry: ContentMemoStore.Entry, store: ContentMemoStore, _ body: () -> R) -> R {
         serial &+= 1
+        Self.retiringThread = Thread.current
         token.tick &+= 1
+        Self.retiringThread = nil
         let handle = RetainedHandle(entry: entry, store: store, session: self, serial: serial)
         return withObservationTracking({
             _ = token.tick
@@ -804,22 +809,25 @@ private final class RetainedHandle: @unchecked Sendable {
     func fire() {
         // Flag first, any thread, under the locks (`MO-A`, `MO-G`); a retired session's fire changes nothing.
         let live = sessionFlags.serial == serial
+        let retired = RetainedSession.retiringThread === Thread.current
         if live {
             if RetainedTrace.active { entryFlags.lastFireCause = "\(sessionLabel): " + RetainedTrace.writerCause() }
             entryFlags.fireRetained()
         }
         if Thread.isMainThread {
-            MainActor.assumeIsolated { self.bookkeep(live) }
+            MainActor.assumeIsolated { self.bookkeep(live, retired: retired) }
         } else {
-            Task { @MainActor in self.bookkeep(live) }
+            Task { @MainActor in self.bookkeep(live, retired: retired) }
         }
     }
 
-    @MainActor private func bookkeep(_ live: Bool) {
+    @MainActor private func bookkeep(_ live: Bool, retired: Bool) {
         guard live, let session, let store else { return }
         if let entry { store.noteRetainedFire(entry) }   // `SB-AF`
         RetainedTrace.emit("retained session fired: \(session.label)\(RetainedTrace.causeSuffix(of: entry))")
-        store.markDirty?()
+        // A fire raised by a session being retired inside this very build (`RK-AQ`): the enclosing occurrences are flagged above and miss in this frame,
+        // so it asks for no frame of its own (it was the extra frame of the first change under a record a focus left armed).
+        if !retired { store.markDirty?() }
     }
 }
 
@@ -911,6 +919,10 @@ final class RetainedPhase {
     /// The prepaint key this frame computed, and the ledger this frame's prepaint made (`nil` when it was
     /// refused or tainted) or replayed (`RK-E`).
     var prepaintKey: PrepaintKey?
+    /// The focused element under the occurrence as the prepaint decision read it and as the paint decision reads it (`RK-AQ`): the ledger's and the record's
+    /// `focusedUnder`. They differ in a frame whose focus moved at the prepaint/paint boundary.
+    var prepaintFocus: GlobalElementID?
+    var paintFocus: GlobalElementID?
     var ledger: PrepaintLedger?
     var replayed: PrepaintLedger?
     /// The range of `StateTable.readJournal` this frame's own prepaint covered (`RW-D`); empty when replayed.
@@ -1055,18 +1067,30 @@ extension Frame {
         phase.nodeCount = signatures.count
     }
 
-    /// Whether the hovered element, the pressed one or the focused one is the component or under it (`SB-F`
-    /// item 4): identity is structural, so an element inside the occurrence has its component's id as an
-    /// ancestor. Exact where the design's "pointer inside an owned hitbox" was conservative: a hover that is
-    /// elsewhere (another node on top of this one) costs this occurrence nothing.
-    func retainedSubtreeHasPointerPressOrFocus(under id: GlobalElementID) -> Bool {
+    /// Whether the hovered element or the pressed one is the component or under it, or the selected `Text` is (`SB-F` item 4): identity is
+    /// structural, so an element inside the occurrence has its component's id as an ancestor. Exact where the design's "pointer inside an
+    /// owned hitbox" was conservative: a hover that is elsewhere (another node on top of this one) costs this occurrence nothing. Focus is
+    /// not in this rule since `RK-AQ`: a retained occurrence is keyed on `retainedFocus(under:)` instead.
+    func retainedSubtreeHasPointerOrPress(under id: GlobalElementID) -> Bool {
         if let hovered = hoveredElement, hovered.isOrDescends(from: id) { return true }
         if let active = activeElement, active.isOrDescends(from: id) { return true }
-        if let focused = focusedElement, focused.isOrDescends(from: id) { return true }
-        // The selected `Text` misses retained replay as a focused element does (`TXS-B`, `TXS-H`): its highlight and its
+        // The selected `Text` misses retained replay as a focused element did (`TXS-B`, `TXS-H`): its highlight and its
         // pending press are state a recorded paint knows nothing of.
         if let selected = textSelection?.id, selected.isOrDescends(from: id) { return true }
         return false
+    }
+
+    /// The focused element when it is `id` or under it (`RK-AQ`): the one id every focus read inside the occurrence is a function of, since only
+    /// the focused element reads focus. Stored in the ledger (prepaint time) and the record (paint time) and compared as a decision input.
+    func retainedFocus(under id: GlobalElementID) -> GlobalElementID? {
+        guard let focused = focusedElement, focused.isOrDescends(from: id) else { return nil }
+        return focused
+    }
+
+    /// Whether the hovered, pressed, selected or focused element is the component or under it: the rule before `RK-AQ`, kept for the graft
+    /// (a graft under a steady focus is carried over).
+    func retainedSubtreeHasPointerPressOrFocus(under id: GlobalElementID) -> Bool {
+        retainedSubtreeHasPointerOrPress(under: id) || retainedFocus(under: id) != nil
     }
 
     // MARK: Windows
@@ -1367,6 +1391,7 @@ extension Frame {
     func retainedPaintDecision(_ phase: RetainedPhase) -> RetainedPaintMode {
         let build = phase.build, entry = phase.entry
         let memos = stateTable.contentMemos
+        phase.paintFocus = retainedFocus(under: build.key.id)   // `RK-AQ`
         if let reason = retainedEntryRefusal(build: build) {
             RetainedTrace.emit("retained paint refused \(RetainedTrace.path(build.key.id)) because \(reason)\(phaseFlags(phase))")
             if RetainedTrace.active { phase.paintNote = "paint refused: \(reason)" }
@@ -1376,7 +1401,15 @@ extension Frame {
         }
         // `AM-D`, `AM-L`: the transaction's two members are not part of a retained key.
         let key = retainedKey(phase).transactionNormalised
-        let underPointer = retainedSubtreeHasPointerPressOrFocus(under: build.key.id)
+        // `RK-AQ`: a focus path whose record could not be stored is left plain for a while, as it was before focus was a key.
+        if let focus = phase.paintFocus, let backoff = memos.focusBackoff(for: build.key.id, focus: focus) {
+            RetainedTrace.emit("retained paint focusBackoff \(RetainedTrace.path(build.key.id)) because \(backoff.reason)\(phaseFlags(phase))")
+            if RetainedTrace.active { phase.paintNote = "paint focusBackoff: \(backoff.reason)" }
+            entry.record = nil
+            memos.retained.noteIneligible(.paint, reason: backoff.reason)
+            return .plain
+        }
+        let underPointer = retainedSubtreeHasPointerOrPress(under: build.key.id)
         if let old = entry.record {
             var inputs = PaintInvalidation.Inputs()
             inputs.observedChange = entry.observedChange
@@ -1385,6 +1418,7 @@ extension Frame {
             inputs.serialMatches = old.contentSerial == entry.serial
             inputs.versionsUnchanged = retainedVersionsUnchanged(old.versions)
             inputs.underPointer = underPointer
+            inputs.focusMoved = entry.recordFocus != phase.paintFocus
             inputs.ledgerIdentityDiffers = phase.replayed != nil && old.prepaint !== phase.replayed
             inputs.ledgerGain = old.prepaint == nil && phase.ledger != nil   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
             let invalidation = PaintInvalidation(inputs)
@@ -1463,7 +1497,7 @@ extension Frame {
     /// it takes the old one's place when its key differs and every entry it read is one the record already versions.
     private func refreshLedger(of old: RetainedRecord, from phase: RetainedPhase) {
         guard phase.replayed == nil, let fresh = phase.ledger, let current = old.prepaint, current !== fresh,
-              current.key != fresh.key else { return }
+              current.key != fresh.key || current.focusedUnder != fresh.focusedUnder else { return }
         for id in fresh.reads where !old.versions.contains(where: { $0.0 == id }) { return }
         old.prepaint = fresh
     }
@@ -1613,6 +1647,9 @@ extension Frame {
             if let reason = recorder.taint {
                 preconditionFailure("METALUI_VERIFY_RETAINED: a replayed subtree is ineligible now (\(reason))")
             }
+            if phase.entry.recordFocus != phase.paintFocus {
+                preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)): focusedUnder \(String(describing: phase.entry.recordFocus)) vs \(String(describing: phase.paintFocus))")
+            }
             if let difference = old.differences(from: record, ignoringFinalStream: phase.translatedPaint) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)) (observed \(phase.entry.observedChange), serial \(phase.entry.serial)): \(difference)")
             }
@@ -1623,13 +1660,16 @@ extension Frame {
             RetainedTrace.emit("retained paint ineligible \(RetainedTrace.path(phase.build.key.id)) because \(reason)\(phaseFlags(phase))")
             phase.entry.record = nil
             memos.retained.noteIneligible(.paint, reason: reason)
+            if let focus = phase.paintFocus { memos.noteFocusedIneligible(phase.build.key.id, focus: focus, reason: reason) }
             return
         }
         memos.retained.misses += 1
-        if retainedSubtreeHasPointerPressOrFocus(under: phase.build.key.id) {
+        if retainedSubtreeHasPointerOrPress(under: phase.build.key.id) {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
+            phase.entry.recordFocus = phase.paintFocus
+            if phase.paintFocus != nil { memos.clearFocusBackoff(phase.build.key.id) }
             if memos.recordsAttempt { memos.attemptRecorded.append(phase.entry) }   // `GL-K`
             RetainedTestingHooks.beforeRecordClear?()
             phase.entry.flags.clearObservedChange(ifChangesEqual: phase.changesAtStart)   // `MO-F`

@@ -478,6 +478,8 @@ structural, so an element inside the occurrence has the component's id as an anc
 costs the occurrence nothing, and a record made while one of the three is inside is not stored (a subtree the
 pointer just left re-paints once). The predictions of `RetainedSubtreeWindowTests` hold in every drag frame.
 
+**Amended by `RK-AQ` (record 440): focus is no longer in this rule.** The hovered or pressed element (and the selected `Text`) still refuses; the focused element under the occurrence is stored in the ledger and the record (`focusedUnder`) and keys their replay, because only the focused element reads focus.
+
 ## SB-Y — The lane 1 ineligible set as built, and what is carried
 
 **Ruling.** Ineligible in lane 1 (counted `retainedIneligible`, retried each frame): a paint that snaps an
