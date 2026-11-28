@@ -118,7 +118,7 @@ struct Hitbox {
     /// offset like `bounds`, but **not** clipped or inset — so a drag's values
     /// are local to the element's own box (plan task 12 part 1, `IX-C` item 5).
     /// Written by `Frame.insertHitbox`; read only by the gesture arena.
-    let origin: Point<Pixels>
+    var origin: Point<Pixels>
 
     /// A declared `.contentShape(_:)`'s geometry in window space — translated
     /// like `bounds` and **not** clipped (the clip is `bounds`' job) — or `nil`
