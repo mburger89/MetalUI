@@ -112,7 +112,7 @@ struct Hitbox {
     /// **this** record's closure, so a click always runs the handler belonging
     /// to the hitbox that was hit, not one looked up by name from somewhere
     /// else.
-    let handlers: Handlers
+    var handlers: Handlers   // `var` for `Window.testingCorruptPrepaintLedgers` (`RK-AR`); nothing else writes it
 
     /// The owning element's window-space origin — translated by the active
     /// offset like `bounds`, but **not** clipped or inset — so a drag's values

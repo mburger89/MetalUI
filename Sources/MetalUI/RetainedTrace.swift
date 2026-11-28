@@ -149,7 +149,10 @@ package struct PaintInvalidation {
         package var coveragePrepaint = true
         package var serialMatches = true
         package var versionsUnchanged = true
-        package var underPointer = false
+        /// The pressed element, or the selected `Text`, is the occurrence or under it (`RK-AR`; the hovered element is `hoverMoved`'s).
+        package var underPress = false
+        /// What the record's paint read of hover has a different answer now: the reader hovered then is not, or one is now that was not (`RK-AR`).
+        package var hoverMoved = false
         /// The focused element under the occurrence is not the one the record was made with (`RK-AQ`).
         package var focusMoved = false
         /// A replayed prepaint's ledger is not the record's (`old.prepaint !== phase.replayed`).
@@ -164,7 +167,7 @@ package struct PaintInvalidation {
 
     package var isValid: Bool {
         !inputs.observedChange && inputs.coverageBuild && inputs.coveragePrepaint && inputs.serialMatches
-            && inputs.versionsUnchanged && !inputs.underPointer && !inputs.focusMoved && !inputs.ledgerIdentityDiffers && !inputs.ledgerGain
+            && inputs.versionsUnchanged && !inputs.underPress && !inputs.hoverMoved && !inputs.focusMoved && !inputs.ledgerIdentityDiffers && !inputs.ledgerGain
     }
 
     /// The failing conjuncts' names, in a fixed order.
@@ -175,7 +178,8 @@ package struct PaintInvalidation {
         if !inputs.coverageBuild { out.append("coverage.build") }
         if !inputs.coveragePrepaint { out.append("coverage.prepaint") }
         if !inputs.versionsUnchanged { out.append("versions") }
-        if inputs.underPointer { out.append("pointer") }
+        if inputs.underPress { out.append("press") }
+        if inputs.hoverMoved { out.append("hover") }
         if inputs.focusMoved { out.append("focus") }
         if inputs.ledgerIdentityDiffers { out.append("ledger.identity") }
         if inputs.ledgerGain { out.append("ledger.gain") }
@@ -200,6 +204,7 @@ package struct PrepaintInvalidation {
         package var coveragePrepaint = true
         package var serialMatches = true
         package var versionsUnchanged = true
+        /// The paint of the record read hover (`RK-AR`) and a reader is hovered, or the pointer is over a reader's hitbox in the ledger.
         package var pointerInLedger = false
         /// The focused element under the occurrence is not the one the ledger, or the record it hangs on, was made with (`RK-AQ`).
         package var focusMoved = false

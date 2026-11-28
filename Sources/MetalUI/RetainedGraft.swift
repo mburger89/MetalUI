@@ -360,7 +360,7 @@ extension Frame {
         for item in pending {
             let entry = item.entry
             guard let record = entry.record, record.prepaint != nil, record.coverageComplete,
-                  entry.recordFocus == nil, record.prepaint?.focusedUnder == nil else {
+                  entry.recordFocus == nil, record.prepaint?.focusedUnder == nil, entry.recordHover?.hovered == nil else {
                 memos.retained.graftCapturesSkipped += 1
                 continue
             }
@@ -468,7 +468,10 @@ extension Frame {
             return nil
         }
         guard old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) else { return nil }
-        guard !retainedSubtreeHasPointerPressOrFocus(under: id), !retainedPointerIsInside(ledger) else { return nil }
+        // `RK-AR`: a record painted with a hover reader hovered, or a reader under the pointer where it stands, is not a graft's to stand on; a reader that
+        // arrives under a resting pointer is the paint's exact redo (`paintRecord`).
+        guard !retainedSubtreeHasPressOrSelection(under: id), retainedFocus(under: id) == nil, entry.recordHover?.hovered == nil,
+              !retainedHoverReaderUnderPointer(ledger.hitboxes, reads: entry.recordHover) else { return nil }
         // `RK-AQ`: a record or a ledger made under a focus is not a graft's to stand on (a graft under a steady focus is carried over).
         guard entry.recordFocus == nil, ledger.focusedUnder == nil else { return nil }
         guard graftDependenciesHold(graft) else { return nil }

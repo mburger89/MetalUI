@@ -34,7 +34,7 @@ func traceReasons(_ line: String) -> [String]? {
 // MARK: 1 - each paint conjunct alone
 
 enum PaintConjunct: String, CaseIterable, Sendable, CustomStringConvertible {
-    case observed, serial, coverageBuild = "coverage.build", coveragePrepaint = "coverage.prepaint", versions, pointer
+    case observed, serial, coverageBuild = "coverage.build", coveragePrepaint = "coverage.prepaint", versions, press, hover
     case ledgerIdentity = "ledger.identity", ledgerGain = "ledger.gain"
     var description: String { rawValue }
     var inputs: PaintInvalidation.Inputs {
@@ -45,7 +45,8 @@ enum PaintConjunct: String, CaseIterable, Sendable, CustomStringConvertible {
         case .coverageBuild: i.coverageBuild = false
         case .coveragePrepaint: i.coveragePrepaint = false
         case .versions: i.versionsUnchanged = false
-        case .pointer: i.underPointer = true
+        case .press: i.underPress = true
+        case .hover: i.hoverMoved = true
         case .ledgerIdentity: i.ledgerIdentityDiffers = true
         case .ledgerGain: i.ledgerGain = true
         }

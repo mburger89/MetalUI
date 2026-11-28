@@ -288,12 +288,11 @@ private struct RSInspector: Component, @MainActor Equatable {
     return pt(f.origin.x.value + f.size.width.value / 2, f.origin.y.value + f.size.height.value / 2)
 }
 
-/// 1.4 — a subtree the pointer is inside, a press is on or focus is in re-paints, and the three others
-/// replay; once the pointer has left it, it re-records once and replays again (`SB-F` item 4). The
-/// harness draws a frame for each action, so the action's own frame is read with `lastFrameWork`.
-/// The pointer, press and focus rules are exact (`SB-F` item 4, `SB-AA`): the hovered, pressed or focused
-/// element must be the occurrence or under it. Mutation: the pointer test forced false
-/// (the hovered card replays a stale frame and 1.2 reddens with it); forced true (a quiet frame misses).
+/// 1.4 — a subtree a press is on or focus is in re-paints, and the three others replay (`SB-F` item 4); a pointer inside a card whose paint reads no hover
+/// costs it nothing (`RK-AR`, was: the card re-painted while the pointer was inside it and once as it left). The harness draws a frame for each action, so
+/// the action's own frame is read with `lastFrameWork`. The press and focus rules are exact (`SB-F` item 4, `SB-AA`): the pressed or focused
+/// element must be the occurrence or under it. Mutation: the press test forced false
+/// (the pressed card replays a stale frame and 1.2 reddens with it); forced true (a quiet frame misses).
 @Test @MainActor func aPointerOrPressOrFocusInsideASubtreeMissesAndOutsideReplays() throws {
     let window = try rsCards()
     let quiet = rsFrame(window)
@@ -301,12 +300,12 @@ private struct RSInspector: Component, @MainActor Equatable {
     // Pointer: card B's button.
     window.hover(at: try rsCentre(window, "go B"))
     var f = window.lastFrameWork
-    #expect(f.retainedHits == 3 && f.retainedMisses == 1, "the pointer is inside card B: \(f.retainedHits)/\(f.retainedMisses)")
+    #expect(f.retainedHits == 4 && f.retainedMisses == 0, "the pointer is inside card B, which reads no hover: \(f.retainedHits)/\(f.retainedMisses)")
     f = rsFrame(window)
-    #expect(f.retainedHits == 3 && f.retainedMisses == 1, "and stays a miss while it is inside")
+    #expect(f.retainedHits == 4 && f.retainedMisses == 0, "and stays a hit while it is inside")
     window.exitPointer()
     f = window.lastFrameWork
-    #expect(f.retainedHits == 3 && f.retainedMisses == 1, "the frame it leaves in repaints once")
+    #expect(f.retainedHits == 4 && f.retainedMisses == 0, "and the frame it leaves in repaints nothing")
     f = rsFrame(window)
     #expect(f.retainedHits == 4 && f.retainedMisses == 0, "and then replays")
     // Press: card C's button, held.

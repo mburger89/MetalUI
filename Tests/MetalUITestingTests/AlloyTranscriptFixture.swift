@@ -137,3 +137,106 @@ struct ATSession: Component, @MainActor Equatable {
     pair.frames.append(pair.on.lastFrameWork); pair.work += pair.on.lastFrameWork
     return region.id
 }
+
+// MARK: - The long reply (record 442, `RK-AR`)
+
+/// One parsed document of 60 blocks, the way Alloy's long reply is: a paragraph, a fence wider than the column on every 3rd block, a table on every 8th.
+func atLongSource() -> String {
+    var out = ""
+    for id in 0..<60 {
+        if id.isMultiple(of: 3) {
+            out += "```swift\nlet value\(id) = computeSomethingWithAVeryLongName(argumentNumberOne: \(id), argumentNumberTwo: \(id + 1), argumentNumberThree: \(id + 2))\n```\n\n"
+        } else if id.isMultiple(of: 8) {
+            out += "| name of a column | another column name | a third column name |\n|:--|--:|:--|\n| row \(id) cell with text | \(id) | a long trailing cell of row \(id) |\n\n"
+        } else {
+            out += "Block \(id) has some words in it, enough to wrap over a line or two in a narrow column.\n\n"
+        }
+    }
+    return out
+}
+
+/// What the optional pieces of a long-reply row are: a reader (an opaque tap, a hover background, an `onHover` that logs), a pointer-style text, a help text.
+struct ATOptions: Equatable {
+    var readers: Set<Int> = []
+    var cursors: Set<Int> = []
+    var helps: Set<Int> = []
+}
+
+/// A block's outer occurrence: Alloy's `ReplyPiece`.
+struct ATPiece: Component, @MainActor Equatable {
+    let index: Int
+    let block: MarkdownBlock
+    let theme: MarkdownTheme
+    let options: ATOptions
+    let log: HarnessLog
+    var content: some ElementGroup {
+        VStack(alignment: .leading, spacing: Pixels(0)) {
+            ATTopBlock(index: index, block: block, theme: theme).equatable()
+            if options.readers.contains(index) {
+                let log = self.log, index = self.index
+                Text("reader \(index)").frame(width: Pixels(120), height: Pixels(18))
+                    .hoverBackground(.accent).onTapGesture {}
+                    .onHover { log.add("hover \(index) \($0)") }
+            }
+            if options.cursors.contains(index) {
+                Text("cursor \(index)").pointerStyle(.link).frame(width: Pixels(120), height: Pixels(18))
+            }
+            if options.helps.contains(index) {
+                Text("help \(index)").help("tip \(index)").frame(width: Pixels(120), height: Pixels(18))
+            }
+        }
+    }
+    static func == (l: ATPiece, r: ATPiece) -> Bool { l.index == r.index && l.block == r.block && l.options == r.options && l.log === r.log }
+}
+
+struct ATTopBlock: Component, @MainActor Equatable {
+    let index: Int
+    let block: MarkdownBlock
+    let theme: MarkdownTheme
+    var content: some ElementGroup { MarkdownBlockView(block).markdownTheme(theme).equatable() }
+    static func == (l: ATTopBlock, r: ATTopBlock) -> Bool { l.index == r.index && l.block == r.block }
+}
+
+struct ATLongTranscript: Component {
+    let options: ATOptions
+    let log: HarnessLog
+    var content: some ElementGroup {
+        let theme = atTheme(), options = self.options, log = self.log
+        let blocks = MarkdownDocument(parsing: atLongSource()).blocks
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: Pixels(10)) {
+                ForEach(Array(blocks.enumerated()), id: \.offset) { pair in
+                    ATPiece(index: pair.offset, block: pair.element, theme: theme, options: options, log: log).equatable()
+                }
+            }.padding(g49Inset)
+        }
+        .defaultScrollAnchor(.bottom)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Alloy's resting pointer in this window (its (400, 300) over a fence's horizontal scroller): the centre of the fence scroller nearest the middle of
+/// the window, at x = 210. A fence scroller is 17 points high and the wheel steps are 6, so the pointer stays over it.
+@MainActor func atRestingPoint(_ pair: RPPair<some Element>) -> Point<Pixels> {
+    let fences = pair.on.window.lastHitboxes.filter { $0.scroll == .horizontal && $0.bounds.size.height.value < 30 }
+    func mid(_ h: Hitbox) -> Float { h.bounds.origin.y.value + h.bounds.size.height.value / 2 }
+    let best = fences.min { abs(mid($0) - 300) < abs(mid($1) - 300) }
+    return pt(210, best.map(mid) ?? 300)
+}
+
+/// The long reply, both windows. Each side logs through its own `RPSide.log`.
+@MainActor func atLongReplyPair(graft: Bool = false, options: ATOptions = ATOptions()) throws -> RPPair<some Element> {
+    let pair = try RPPair(size: sz(420, 600), scale: 2, warm: 8, accessibility: false, graft: graft) { side in
+        VStack(spacing: 0) { ATLongTranscript(options: options, log: side.log) }
+    }
+    for _ in 0..<2 { pair.redraw() }
+    pair.frames = []; pair.work = FrameWork()
+    return pair
+}
+
+/// A vertical wheel step at `point` on both windows (the pointer stays there).
+@MainActor func atRestingWheel(_ pair: RPPair<some Element>, at point: Point<Pixels>, dy: Float) {
+    pair.on.resetFrameWork()
+    for w in [pair.on, pair.off] { w.scroll(at: point, byDeltaX: 0, deltaY: dy) }
+    pair.frames.append(pair.on.lastFrameWork); pair.work += pair.on.lastFrameWork
+}

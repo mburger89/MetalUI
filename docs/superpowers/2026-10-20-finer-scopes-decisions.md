@@ -286,7 +286,7 @@ mutation survives, `FS-T`.) **Refused by name:** `accessibilityRecords` (any emi
 value track, a drop destination or a contextual attachment, whose closures hold positions), `hitboxClipped`, `inexactTranslation`.
 **The pointer is read against the moved hitboxes.** Hover resolves after prepaint, so the decision tests the pointer against the hitboxes
 where they will stand (`mousePosition` inside one: run the prepaint); testing the old rects let a card scroll under a resting pointer, replay its
-prepaint, and meet the paint's pointer rule: a redo (found by `aHitboxTheScrollersClipCutIsRecomputedAtItsNewPlace`, red under the mutation).
+prepaint, and meet the paint's pointer rule: a redo (found by `aHitboxTheScrollersClipCutIsRecomputedAtItsNewPlace`, red under the mutation). **Amended by `RK-AR` (record 442):** the moved hitboxes are tested only for the hover readers the occurrence's record names (`HoverReads`), and only for an occurrence that is not grafted; a grafted occurrence's paint decides exactly. The mutation named above reddens no test since `RK-AR` (a `Button` reads no hover); `aHoveredRowMovingAwayFiresHoverFalseAndTheRowArrivingFiresHoverTrue` and `aReaderCoveredByALaterRegistrationIsNotHoveredAndReplays` cover it.
 **The paint record must be able to follow before a prepaint is replayed.** A replayed prepaint leaves no element state, so a paint that
 then misses is the redo (`RK-D`). The prepaint decision therefore asks, from the geometric part of the paint key, whether the record
 stands elsewhere and can be moved (`Frame.paintTranslation`, memoised in the phase and counted once), and **runs the prepaint** when it

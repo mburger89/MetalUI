@@ -199,8 +199,8 @@ func anUnfocusedFieldKeepsItsStateAcrossThreeHundredReplays() throws {
 // MARK: Test 7 — a focused field misses; typing works
 
 /// **Test 7** (`RW-J`, `SB-X`): focus the field, type, backspace, compose with the input method, commit, and leave. Every
-/// step's scene and accessibility value equal the twin's; the panel is a counted miss (not a hit) while the field holds focus and
-/// replays again one frame after it is left. **Mutation:** `SB-X`'s focused-under test (`RetainedSubtree`'s focused descendant
+/// step's scene and accessibility value equal the twin's; the panel replays while the field holds focus with the pointer on it (`RK-AQ` keys focus,
+/// `RK-AR` keys hover: was a counted miss while the pointer rested in the panel) and after it is left. **Mutation:** `SB-X`'s focused-under test (`RetainedSubtree`'s focused descendant
 /// check) made false — a typed character does not appear in the retaining window.
 @Test(.enabled(if: !rsVerifying, verifyingNote)) @MainActor
 func aFocusedFieldInsideARetainedPanelMissesAndTypingWorks() throws {
@@ -213,7 +213,7 @@ func aFocusedFieldInsideARetainedPanelMissesAndTypingWorks() throws {
         try twin.act { w in w.typeText(step) }
         try twin.compare("typed \(step)")
         let f = try #require(twin.frames.last)
-        #expect(!twin.graphPanelReplays, "a focused field's panel is not replayed: hits \(f.retainedHits)")
+        #expect(twin.graphPanelReplays, "a focused, hovered field's panel is replayed: hits \(f.retainedHits)")
     }
     try twin.act { w in w.typeKey(.delete) }
     try twin.compare("backspace")
