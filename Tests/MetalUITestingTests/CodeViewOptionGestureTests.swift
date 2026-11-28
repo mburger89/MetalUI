@@ -300,7 +300,7 @@ private struct CostCard: Component, @MainActor Equatable {
     #if canImport(Darwin)
     #expect(option.press == plain.press, "option \(option.press) vs plain \(plain.press)")
     #expect(option.steady == plain.steady, "option \(option.steady) vs plain \(plain.steady)")
-    #expect(plain.steady == Cost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(plain.steady)")
+    #expect(plain.steady == Cost(requests: 0, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(plain.steady)")
     #expect(plain.press == Cost(requests: 1, hits: 0, misses: 1, ineligible: 0, frames: 1), "\(plain.press)")
     #else
     #expect(option.press.perFrameEquals(plain.press), "option \(option.press) vs plain \(plain.press)")

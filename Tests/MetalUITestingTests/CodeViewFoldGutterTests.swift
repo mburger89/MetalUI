@@ -300,7 +300,8 @@ private struct GutterCard: Component, @MainActor Equatable {
 /// retention taint added for the lane (requests or misses move); the chevron glyphs shaped per row (checked in 11).
 @Test @MainActor func aFoldGutterCostsWhatNoFoldGutterCosts() async throws {
     let none = try await steadyCost(gutter: false), with = try await steadyCost(gutter: true)
-    #expect(none == Cost(requests: 2, hits: 1, misses: 0, ineligible: 0, frames: 1), "steady, no gutter: \(none)")
+    #expect(none == Cost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1)   // `RK-AS`: grafted under the focus (was 2 requests)
+    , "steady, no gutter: \(none)")
     #expect(with == none, "steady: \(with) vs \(none)")
     let keyNone = try await keystrokeCost(gutter: false), keyWith = try await keystrokeCost(gutter: true)
     #if canImport(Darwin)

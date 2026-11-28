@@ -114,8 +114,7 @@ struct FGPair<Root: Element> {
     let pair = fg.pair
     for (w, side) in [(pair.on, pair.onSide), (pair.off, pair.offSide)] {
         withAnimation(.linear(duration: 40)) { fg.boxes.proxy(for: side)?.scrollTo(0, anchor: .top) }
-        w.advance(by: 1.0 / 60.0)
-        w.advance(by: 1.0 / 60.0)
+        for _ in 0..<5 { w.advance(by: 1.0 / 60.0) }
     }
     pair.frames = []; pair.work = FrameWork()
 }
@@ -133,4 +132,32 @@ struct FGPair<Root: Element> {
         for w in windows { w.scroll(at: pt(4, 300), byDeltaX: 0, deltaY: dy) }
     }
     pair.frames.append(pair.on.lastFrameWork); pair.work += pair.on.lastFrameWork
+}
+
+/// A focusable box with no state: its focus is moved by Tab or `focus(nil)` alone, which bumps no state version, so a graft's refusal for it is `focusMoved`.
+struct FGPlainField: Component, @MainActor Equatable {
+    let side: RPSide
+    var content: some ElementGroup {
+        VStack(spacing: 2) {
+            Text("plain").frame(width: Pixels(80), height: Pixels(14))
+            Box().frame(width: Pixels(60), height: Pixels(20)).background(.accent).focusable()
+        }
+    }
+    static func == (l: FGPlainField, r: FGPlainField) -> Bool { l.side === r.side }
+}
+
+@MainActor func fgPlainPair() throws -> RPPair<some Element> {
+    let pair = try RPPair(size: sz(260, 140), accessibility: false) { side in
+        VStack(spacing: 0) { FGPlainField(side: side).equatable() }
+    }
+    for _ in 0..<4 { pair.redraw() }
+    pair.frames = []
+    return pair
+}
+
+/// An occurrence that holds the composer: the composer's `@FocusState` is bound inside this graft window, so the graft's journal carries `.focusState`.
+struct FGHost: Component, @MainActor Equatable {
+    let side: RPSide
+    var content: some ElementGroup { FGComposer(side: side) }
+    static func == (l: FGHost, r: FGHost) -> Bool { l.side === r.side }
 }

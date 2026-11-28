@@ -87,13 +87,13 @@ private struct Card: Component, @MainActor Equatable {
 }
 
 /// **1** A steady frame of one retained view and of two costs the same with 1, 3 and 50 carets, and what master
-/// costs (2 requests, 0/1/0 retention; 3 requests, 1/1/0). **Mutation:** a wrapper element per caret (the request
+/// costs (2 requests, 0/1/0 retention; 3 requests, 1/1/0), less the one request of the view that grafts under its focus (`RK-AS`: 1 and 2). **Mutation:** a wrapper element per caret (the request
 /// count grows with the carets); carets painted through an element or a retention taint (misses or ineligible move).
 @Test @MainActor func aSteadyFrameCostsWhatItDidWithOneCaretWhateverTheCaretCount() async throws {
     for n in [1, 3, 50] {
         let one = try await steady(carets: n, views: 1), two = try await steady(carets: n, views: 2)
-        #expect(one == Cost(requests: 2, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(n) carets, one view: \(one)")
-        #expect(two == Cost(requests: 3, hits: 2, misses: 0, ineligible: 0, frames: 1), "\(n) carets, two views: \(two)")
+        #expect(one == Cost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(n) carets, one view: \(one)")
+        #expect(two == Cost(requests: 2, hits: 2, misses: 0, ineligible: 0, frames: 1), "\(n) carets, two views: \(two)")
     }
 }
 

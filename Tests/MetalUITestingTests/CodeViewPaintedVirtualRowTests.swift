@@ -126,7 +126,7 @@ private struct VCard: Component, @MainActor Equatable {
 /// decorations' `revision` (a redraw and a reshape per read).
 @Test @MainActor func readingVirtualRowsBackCostsTheViewNothing() async throws {
     let none = try await steadyCost(reads: 0), many = try await steadyCost(reads: 50)
-    #expect(none.0 == VCost(requests: 2, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(none.0)")
+    #expect(none.0 == VCost(requests: 1, hits: 1, misses: 0, ineligible: 0, frames: 1), "\(none.0)")   // `RK-AS`: was 2 requests
     #expect(many.0 == none.0 && many.1 == none.1 && many.2 == 0 && none.2 == 0, "\(many.1) vs \(none.1), frames from the reads \(many.2)")
     #expect(none.1.codeLinesShaped == 0, "a steady frame shapes nothing")
 }

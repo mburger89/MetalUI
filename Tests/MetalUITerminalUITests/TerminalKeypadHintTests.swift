@@ -136,8 +136,8 @@ extension TermRig {
     let letter = await cost { rig.key("a") }
     await rig.settle()
     let keypad = await cost { rig.key("5", keypad: true) }
-    #expect(keypad.builds == 1 && keypad.requests == 2, "keypad keystroke: \(keypad)")   // equal to master (`TRM-BC` item 7)
-    #expect(keypad.builds == letter.builds && keypad.requests == letter.requests && keypad.frames == letter.frames,
+    #expect(keypad.builds == 1 && keypad.requests == 0, "keypad keystroke: \(keypad)")   // `RK-AS`: grafted under the focus (master 2, `TRM-BC` item 7)
+    #expect(keypad.builds == letter.builds && letter.requests == 2 && keypad.requests == 0 && keypad.frames == letter.frames,   // the letter is the first key after the focus (a new record, no graft yet)
             "keypad \(keypad) letter \(letter)")
     await rig.settle()
     rig.window.resetFrameWork()

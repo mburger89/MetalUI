@@ -276,7 +276,7 @@ private let up = "\u{F700}", down = "\u{F701}", left = "\u{F702}", right = "\u{F
     rig.typed("a")
     let keystroke = rig.window.lastFrameWork
     #expect(rig.sent == [[0x61]])
-    #expect(keystroke.elementRequests == steady, "the keystroke frame \(keystroke.elementRequests) vs a plain redraw \(steady)")
+    #expect(keystroke.elementRequests == 0, "the keystroke frame grafts under the focus (`RK-AS`; it rebuilt, 2 requests, before): \(keystroke.elementRequests) vs a plain redraw \(steady)")
     #expect(steady == 2, "the view's own two requests (the pointer input adds none, TRM-BD): \(steady)")
     rig.feed("a")
     await rig.frame()

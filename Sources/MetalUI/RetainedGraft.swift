@@ -465,7 +465,8 @@ extension Frame {
     /// Names a refusal: counted for `testingGraftRefusals` and traced (`RK-AS`: every graft refusal is named). Answers `nil`.
     private func refuseGraft(_ name: String, _ id: GlobalElementID) -> GraftRecord? {
         stateTable.contentMemos.graftRefusals.append(name)
-        RetainedTrace.emit("retained graft refused \(RetainedTrace.path(id)) because \(name)")
+        // Guarded here: the autoclosure's context costs an allocation a refusal when it is built before `emit` looks (measured: +19 a frame on the unfocused wheel).
+        if RetainedTrace.active { RetainedTrace.emit("retained graft refused \(RetainedTrace.path(id)) because \(name)") }
         return nil
     }
 

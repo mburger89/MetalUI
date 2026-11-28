@@ -296,8 +296,8 @@ private struct Steady: Equatable { var requests = 0, hits = 0, misses = 0, ineli
 @Test @MainActor func aSteadyFrameCostsNothingMoreWithOrWithoutAState() throws {
     let one = try steady(views: 1, states: false), oneState = try steady(views: 1, states: true)
     let two = try steady(views: 2, states: false), twoStates = try steady(views: 2, states: true)
-    #expect(one == Steady(requests: 4, hits: 1, misses: 0, ineligible: 0), "\(one)")
-    #expect(two == Steady(requests: 5, hits: 2, misses: 0, ineligible: 0), "\(two)")
+    #expect(one == Steady(requests: 3, hits: 1, misses: 0, ineligible: 0), "\(one)")
+    #expect(two == Steady(requests: 4, hits: 2, misses: 0, ineligible: 0), "\(two)")
     #expect(oneState == one, "with a state: \(oneState)")
     #expect(twoStates == two, "with states: \(twoStates)")
 }
