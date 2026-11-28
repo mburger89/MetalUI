@@ -453,12 +453,12 @@ private struct HKOutsideCard: Component, @MainActor Equatable {
 @Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aRestingPointerAddsNoAllocationToAnIdleFrame() throws {
     let pair = try atLongReplyPair(graft: true)
     let point = atRestingPoint(pair)
-    /// Three interleaved idle frames of each window, the last one's count (the first frames after a redraw settle caches the count would read).
+    // Eight interleaved idle frames of each window, the least count of each: a periodic sweep (a cache's epoch) only ever adds to a frame it lands on.
     func idle() throws -> (on: Int, off: Int) {
-        var counts = (on: 0, off: 0)
-        for _ in 0..<3 {
-            counts.on = try #require(countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() })
-            counts.off = try #require(countAllocations { pair.off.window.setNeedsRedraw(); pair.off.tick() })
+        var counts = (on: Int.max, off: Int.max)
+        for _ in 0..<8 {
+            counts.on = min(counts.on, try #require(countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }))
+            counts.off = min(counts.off, try #require(countAllocations { pair.off.window.setNeedsRedraw(); pair.off.tick() }))
         }
         return counts
     }
@@ -468,8 +468,8 @@ private struct HKOutsideCard: Component, @MainActor Equatable {
     for w in [pair.on, pair.off] { w.hover(at: point) }
     for _ in 0..<6 { pair.redraw() }
     let over = try idle()
-    // The counter is exact within a process, but the hash-seeded tables a window grows move a frame's count by a few between processes and test orders
-    // (up to 4 seen); the old rule cost over 3,000 more over a fence (master: 16,179 against 13,112 with the pointer away).
+    // The counter is exact within a process, but what a window's caches do on the frame they sweep moves a frame's count by a few to some tens between
+    // processes and test orders; the old rule cost over 3,000 more over a fence (master: 16,179 against 13,112 with the pointer away).
     let noise = 16
     #expect(over.on - over.off <= inset.on - inset.off + noise, "idle frame allocations: retaining window over a fence \(over.on) in the inset \(inset.on); retention off \(over.off) and \(inset.off)")
 }
