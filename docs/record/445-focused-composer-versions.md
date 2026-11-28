@@ -1,0 +1,27 @@
+# 445: reading a field's edit state at input time writes nothing (`RK-AT`; class M, no divergence)
+
+Branch `perf/focused-composer-versions`, base master `fe78a128` (#461, record 443, is in it). No public API, no divergence (243 live, next label 251). Ruling `RK-AT`; next `RK-AU`.
+
+**Why (Alloy).** With the composer text field focused, a scroll step costs 148.65 element requests against 108.65 unfocused (retained grafted nodes 312.65 to 261.65, skipped requests 293.4 to 253.4, misses 23.4 to 24.4). `METALUI_TRACE_RETAINED=1` printed two lines a step for the `ComposerView.equatable()` occurrence, a paint miss and a prepaint miss, both `reasons=[versions]`: a state entry its record had read had a new version every step.
+
+**Finding.** The entry is the field's `TextEditState`, and the writer is `Window.editState(_:)`, which was a `withState` that copied the value out. It is a read, but `withState` stores the entry back with a new version (and counts a write, and taints an open recorder). `publishFocusedSelection` (`SL-B`) runs in a `defer` after **every** input event (a wheel step, a pointer move, a key) and starts with `editState(id)`; it returns early only after that read when there is nothing to publish. It is reached only when the focused field has a selection sink, which Alloy's `TextField(_:text:selectedOffsets:prompt:axis:)` has. So a focused bound field's `TextEditState` got a new version per input event, and every retained record that read it (the field's occurrence: the prepaint `readState` and the compared write, the paint's reads) failed `retainedVersionsUnchanged`. Found by printing the moved id and its value type from `retainedVersionsUnchanged`, then a write log with a stack, in a copy of Alloy built against this tree (the transcript's wheel steps over a focused composer); `Window.editState`'s seven other callers (key, text input, composition, focus move, the scroll cover) read the same way.
+
+**Why the record 443 fixture missed it.** `FGComposer` is a one-line `TextField("Message", text:)` with no selection binding: no `selectionSink`, so `publishFocusedSelection` returned at its first guard, before the read. Alloy's composer binds `selectedOffsets:`. (The vertical axis, `lineLimit`, the pickers and the glass modifiers are not what matters; the fixture below carries them anyway so the shape is Alloy's.)
+
+**What changed.** `StateTable.stored(_:as:)` (a read of the dictionary: no version, no `writeCount`, no taint, no journal entry, no liveness mark) and `Window.editState` returning an existing entry through it; an absent entry is created as before. Nothing else: no record's key was weakened and no read was dropped from `versions`, the version simply no longer moves when nothing changed. A change that really publishes (`publishFocusedSelection` finding a new range, typing, a caret move) still writes through `setEditState`.
+
+**Numbers (fixture `FocusedComposerVersionsTests.swift`: record 443's transcript over Alloy's composer shape, a vertical `TextField` bound to `text` and `selectedOffsets` with a prompt, `lineLimit(1...8)`, `onChange` of its `@FocusState`, `onKeyPress`, a suggestion overlay, a background and an overlay stroke, a mode `Picker` and a `Menu`, a send button with a shortcut, a drop destination, in a `VStack` with a background under a `ZStack` beside the transcript with an `onGeometryChange`; 420 x 600 at scale 2, graft on, wheel steps over the transcript, per step on the retaining window).**
+
+| | master | here |
+|---|---|---|
+| wheel, unfocused: requests / skipped / grafts / misses / `versions` lines | 10 / 61 / 17 / 0 / 0 (12 / 61 / 17 / 1 / 0 on alternate steps) | same |
+| wheel, focused | 39 / 32 / 16 / 1 / 2 (41 / 32 / 16 / 2 / 2 alternate) | equal to the unfocused step, every step |
+| the `TextEditState` version across a pointer move, a wheel and a pointer move | moves | stays |
+
+**Existing tests.** None moved; no pin or ceiling changed. The suites of the retained, focus and hover families pass under `METALUI_VERIFY_RETAINED=1` (`FocusKeyedGraftTests`, `FocusKeyedReplayTests`, `HoverKeyedReplayTests` and the new file: 56 tests, no trap).
+
+**Tests** (`FocusedComposerVersionsTests`, 3). **1** `aFocusedBoundFieldCostsWhatAnUnfocusedOneCostsUnderAWheel`: twelve wheel steps, focused equal to unfocused in requests, skipped, grafts, misses and `versions` refusals, and the window equal to the retention-off one. **2** `anInputEventOverAFocusedBoundFieldGivesItsEditStateNoNewVersion`: the field's `testingStateVersion` is the same after a pointer move, a wheel and another move, and after idle frames; the idle frames cost what an unfocused window's cost. **3** `theFocusedBoundFieldStillRepaintsWhenItsEditStateChanges`: typing, typing after a scroll and a backspace reach the model's draft and caret and the window equals the retention-off one at each step. Mutations (each reverted): `editState` back to a `withState` read reddens 1 (12 steps) and 2; `publishFocusedSelection` removed reddens 3 (the caret stays nil).
+
+**Cost allocation.** The fix adds nothing to a frame: `stored` is one dictionary lookup, and the old read built a replacement `Entry` per input event (not measured separately). Idle uses the same CPU as before (0 requests settled; the focused idle frame equals the unfocused one in test 2).
+
+**Carried.** A glide step (`advance`, no input event) never reached this path and was equal already; Alloy's measure alternated glide and wheel input.

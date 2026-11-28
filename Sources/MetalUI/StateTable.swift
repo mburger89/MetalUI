@@ -947,6 +947,10 @@ final class StateTable {
         noteRead(id)
     }
 
+    /// The stored value at `id` as an `S`, or `nil` (absent or another type): no write, no version, no `writeCount`, no taint, no
+    /// journal entry and no liveness mark. For input-time reads (`Window.editState`, `RK-AT`), which are not part of any build window.
+    func stored<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? { storage[id]?.value as? S }
+
     /// The entry at `id` read without writing it back (`RW-C`): no version, no `writeCount`, no taint; the access
     /// marks the entry live and joins the read set. An absent entry, or one of another type, is today's `withState`
     /// (a creation: a write).
