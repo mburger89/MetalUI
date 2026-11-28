@@ -2324,6 +2324,8 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         if let checkpoint { animationStore.rollbackBuild(checkpoint) }
         surfaceRegistry.rollbackBuild()
         memos.redoInProgress = true
+        var dropped = AbandonedWork()   // record 441: what the attempts dropped here did, handed to the frame that is adopted
+        dropped.add(frame)
         if scoped {
             memos.redoScopes = ids
             memos.testingEscalationEntry = testingRedoFault == .secondAttemptAsksAgain ? firstEntries.first : nil
@@ -2332,6 +2334,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         frame = buildFrame()
         if scoped, !frame.redoEntries.isEmpty {
             // Attempt 2 asked for a redo: the third build has every replay off, and the window backs off (`RK-AM`).
+            dropped.add(frame)
             memos.noteRedo(frame.redoEntries)
             memos.retained.redoEscalations = 1
             scrollRequests.restore(pendingScrollRequests)
@@ -2343,6 +2346,7 @@ public final class Window { // swiftlint:disable:this type_body_length - the win
         }
         memos.redoScopes = []
         memos.redoInProgress = false
+        frame.abandonedWork = dropped
         assert(frame.redoEntries.isEmpty, "a redo asked for a redo (RK-M): every replay is off in it")
         return frame
     }

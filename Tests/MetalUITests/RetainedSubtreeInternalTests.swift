@@ -56,6 +56,7 @@ private let frameChannels: [String: Channel] = [
     "effectScopesPushed": .frameLocal, "compositeScopesPushed": .frameLocal,
     "groupsComposited": .frameLocal, "groupsBaked": .frameLocal, "groupsFlattenedOversize": .frameLocal,   // GO-C counters
     "filterGroups": .frameLocal, "filtersFlattenedOversize": .frameLocal,   // GF-B counters
+    "abandonedWork": .frameLocal,   // record 441: set once by the redo, read once at adoption
     "maskScopesPushed": .frameLocal, "groupsMasked": .frameLocal, "masksBakedToEllipse": .frameLocal,   // CM-A counters
     "masksFlattenedBackdrop": .frameLocal, "masksFlattenedOversize": .frameLocal, "nestedClipMasks": .frameLocal,   // TZ-B
     "glyphsRekeyed": .frameLocal, "glyphRekeyFallbacks": .frameLocal, "glyphRekeyLookups": .frameLocal,   // TZ-A
