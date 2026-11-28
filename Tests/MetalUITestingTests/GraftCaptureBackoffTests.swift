@@ -102,12 +102,9 @@ private struct Today: Equatable, CustomStringConvertible {
     w.resetFrameWork()
     for _ in 0..<6 { w.typeText("a"); try await w.runUntilIdle() }
     let f = total(w)
-    // `RK-AQ` (record 440): a record is stored under the focus now, so its session is armed, and the first key's build fires the four sessions
-    // that observe it: one more frame, all hits (4 requests, one hit), whose builds are 5 more skipped captures. The six keys still miss 30 times.
-    // Verify mode builds a replayed frame twice (the first key's all-hit frame): its counts are not this pin's to read, the zero copies are.
-    #expect(f.retainedGraftCaptures == 0 && (rsVerifying || f.retainedGraftCapturesSkipped == 35),
+    #expect(f.retainedGraftCaptures == 0 && f.retainedGraftCapturesSkipped == 30,
             "captures \(f.retainedGraftCaptures), skipped \(f.retainedGraftCapturesSkipped)")
-    if !rsVerifying { #expect(Today(f) == Today(requests: 28, hits: 1, grafts: 0, skippedRequests: 0, misses: 30), "\(Today(f))") }
+    #expect(Today(f) == Today(requests: 24, hits: 0, grafts: 0, skippedRequests: 0, misses: 30), "\(Today(f))")
 }
 
 /// **3** The first frame after the scrolling stops copies again, so the frame after it grafts as it does without the rule: scroll

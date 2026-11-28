@@ -770,7 +770,9 @@ final class RetainedSession {
     @MainActor
     func run<R>(entry: ContentMemoStore.Entry, store: ContentMemoStore, _ body: () -> R) -> R {
         serial &+= 1
+        store.retiringSession = true
         token.tick &+= 1
+        store.retiringSession = false
         let handle = RetainedHandle(entry: entry, store: store, session: self, serial: serial)
         return withObservationTracking({
             _ = token.tick
@@ -819,7 +821,9 @@ private final class RetainedHandle: @unchecked Sendable {
         guard live, let session, let store else { return }
         if let entry { store.noteRetainedFire(entry) }   // `SB-AF`
         RetainedTrace.emit("retained session fired: \(session.label)\(RetainedTrace.causeSuffix(of: entry))")
-        store.markDirty?()
+        // A fire raised by a session being retired inside this very build (`RK-AQ`): the enclosing occurrences are flagged above and miss in this frame,
+        // so it asks for no frame of its own (it was the extra frame of the first change under a record a focus left armed).
+        if !store.retiringSession { store.markDirty?() }
     }
 }
 
