@@ -238,7 +238,7 @@ private struct FKHidden: Component, @MainActor Equatable {
 ///
 /// **`graft: true` (`RK-AS`, record 443: a deliberate trade)**: the focused occurrence now grafts, so the refused move is one scoped redo at `graftedPrepaint`
 /// (the refusal is counted by the abandoned attempt) instead of a replay-run, which is what a grafted *unfocused* field costs on master. The frame still equals
-/// the retention-off window's, the move costs no more than the same move unfocused (`unfocusedMove`: 4 requests and 4 redone, measured with the focus left out: the
+/// the retention-off window's, the move costs no more than the same move unfocused (`fkUnfocusedMove`: 4 requests and 2 redone, 6, measured with the focus left out: the
 /// focus is not an input of that path), and a second move inside the redo's quarantine redoes nothing.
 @Test(.enabled(if: !rsVerifying, verifyNote), arguments: [false, true]) @MainActor func aMovedAncestorOfAHitTestDisabledFieldRefusesFocusTextInput(graft: Bool) throws {
     let pair = try RPPair(size: sz(260, 140), accessibility: false, graft: graft) { side in

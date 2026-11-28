@@ -347,7 +347,7 @@ private struct FGWriterOuter: Component, @MainActor Equatable {
 }
 
 /// What master makes of 10c's scenario (`fgWriterOnMaster`): measured by the same test on master `Sources/`.
-private let fgWriterOnMaster = (ledgers: Int.max, attempts: Int.max)
+private let fgWriterOnMaster = (ledgers: 2, attempts: 40)
 
 // MARK: 11 - the names
 
