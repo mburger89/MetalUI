@@ -189,6 +189,9 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
                 frame.retainLog?.noteRedoHole()
                 return
             }
+            // `RK-AS`: held plain by a backoff, the paint has no recorder to taint; its state writes still say the frame is not quiet.
+            if phase.heldByBackoff { frame.stateTable.contentMemos.heldPaintDepth += 1 }
+            defer { if phase.heldByBackoff { frame.stateTable.contentMemos.heldPaintDepth -= 1 } }
             component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
         case .record(let recorder, let key, let old):
             // A replayed prepaint left no element state to paint from: the frame is redone (`RK-C`).

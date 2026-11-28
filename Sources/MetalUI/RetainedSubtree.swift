@@ -929,6 +929,8 @@ final class RetainedPhase {
     /// The paint decision found a miss confined to the occurrence's geometry with every other conjunct held and the build window closed
     /// on a clean record: the record made keeps the build half (`AM-B`).
     var inheritsBuildCoverage = false
+    /// The paint decision held this occurrence plain for a `FocusBackoff` (`RK-AS`): a state write its paint makes is a transient taint the missing recorder cannot see.
+    var heldByBackoff = false
     /// `MemoFlags.changes` when the phase opened, before the paint session is armed (`MO-F`).
     let changesAtStart: Int
     /// The occurrence's rects and layout signature, read once at prepaint and shared by both keys.
@@ -1406,6 +1408,7 @@ extension Frame {
         if let focus = phase.paintFocus, let backoff = memos.focusBackoff(for: build.key.id, focus: focus) {
             RetainedTrace.emit("retained paint focusBackoff \(RetainedTrace.path(build.key.id)) because \(backoff.reason)\(phaseFlags(phase))")
             if RetainedTrace.active { phase.paintNote = "paint focusBackoff: \(backoff.reason)" }
+            phase.heldByBackoff = true
             entry.record = nil
             memos.retained.noteIneligible(.paint, reason: backoff.reason)
             return .plain

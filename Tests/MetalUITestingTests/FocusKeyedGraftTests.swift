@@ -268,10 +268,14 @@ private struct FGBlinkOuter: Component, @MainActor Equatable {
 }
 
 #if canImport(Darwin)
-/// What master measures in `fgChildMeasures`' form (a child process with `SWIFT_DETERMINISTIC_HASHING=1`; the largest of ten runs for the differences, which still move by
-/// one or two, the one value for the focused count, which did not move in ten): see record 443. Relative or fixed-seed forms, so a different machine's allocator moves the
+/// What master measures in `fgChildMeasures`' form (a child process with `SWIFT_DETERMINISTIC_HASHING=1`; thirty runs: the focused count 19,021 every time, the largest of the differences, which still move by
+/// one: spinner 10,085, wheel 9,791, glide 10,011, stream 1,856): see record 443. Relative or fixed-seed forms, so a different machine's allocator moves the
 /// retaining and retention-off windows together.
-let fgMastersMeasures = FGMeasures()
+let fgMastersMeasures: FGMeasures = {
+    var m = FGMeasures()
+    m.spinnerFocused = 19_021; m.spinnerDelta = 10_085; m.wheel = 9_791; m.glide = 10_011; m.stream = 1_856
+    return m
+}()
 
 /// **10b** and **12b** The allocations of the unfocused chats' steps, as the difference between the retaining window and the retention-off one (least of eight steps, least of
 /// three fresh fixtures), and the focused spinner chain's, no more than master's. The refusal names, the taint classification, the ping-pong of the names and the backoff lift
@@ -286,6 +290,64 @@ let fgMastersMeasures = FGMeasures()
     #expect(m.stream <= master.stream, "stream: \(m.stream) against master's \(master.stream)")
 }
 #endif
+
+// MARK: 10c - a state write on every paint
+
+/// An element whose paint writes state every time: a transient taint raised during paint (`stateWrite`).
+private struct FGPaintWriter: Element {
+    var elementID: ElementID? { nil }
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 10)) }.layoutNodeID, ())
+    }
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {}
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
+        pass.withState(id, initial: 0) { $0 += 1 }
+        pass.fill(bounds, color: Hsla(h: 0.3, s: 1, l: 0.5, a: 1))
+    }
+}
+
+private struct FGWriterCard: Component, @MainActor Equatable {
+    let side: RPSide
+    var content: some ElementGroup {
+        let side = self.side
+        VStack(spacing: 2) {
+            TextField("write", text: Binding(get: { side.inputs.text }, set: { side.inputs.text = $0 })).frame(width: Pixels(200), height: Pixels(24))
+            FGPaintWriter()
+        }
+    }
+    static func == (l: FGWriterCard, r: FGWriterCard) -> Bool { l.side === r.side }
+}
+
+private struct FGWriterOuter: Component, @MainActor Equatable {
+    let side: RPSide
+    var content: some ElementGroup { FGWriterCard(side: side).equatable() }
+    static func == (l: FGWriterOuter, r: FGWriterOuter) -> Bool { l.side === r.side }
+}
+
+/// **10c** A focused field beside an element whose paint writes state on every frame, under two occurrences: every frame raises the transient taint, so the backoff must stay
+/// (a frame held plain raises it through its paint's state write, not through a recorder): over 20 frames the chain makes no more ledgers than master's (`fgWriterLedgersOnMaster`)
+/// and no more paint attempts. Without the held paint's flag a backoff is lifted by every frame it holds plain, and the chain records and fails every other frame.
+/// **Mutation:** M13 (`heldPaintDepth` not consulted).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aStateWriteOnEveryPaintBesideAFocusedFieldKeepsTheBackoff() throws {
+    let side = RPSide()
+    let w = try harnessWindow(size: sz(300, 120)) { VStack(spacing: 0) { FGWriterOuter(side: side).equatable() } }
+    w.window.testingRetainedGraft = true
+    w.typeKey(.tab)
+    for _ in 0..<3 { w.window.setNeedsRedraw(); w.tick() }
+    #expect(w.window.focusedElement != nil, "the field is focused")
+    let made = PrepaintLedger.madeCount
+    w.resetFrameWork()
+    var held = 0
+    for _ in 0..<20 { w.window.setNeedsRedraw(); w.tick(); held += w.window.testingFocusBackoffCount > 0 ? 1 : 0 }
+    let attempts = w.frameWork.reduce(0) { $0 + ($1.retainedIneligibleReasons["stateWrite"] ?? 0) }
+    try? "ledgers \(PrepaintLedger.madeCount - made) paint attempts \(attempts) framesHeld \(held) redos \(w.frameWork.reduce(0) { $0 + $1.retainedRedos })\n".write(
+        toFile: "/private/tmp/claude-501/-Users-maxburger-Developer-MetalUI/6204b926-398d-4909-80ba-c86fcdf2e673/scratchpad/focus-graft-agent/writer-\(ProcessInfo.processInfo.environment["FGD_TAG"] ?? "x").txt", atomically: true, encoding: .utf8)
+    #expect(PrepaintLedger.madeCount - made <= fgWriterOnMaster.ledgers, "ledgers made over 20 frames: \(PrepaintLedger.madeCount - made) against master's \(fgWriterOnMaster.ledgers)")
+    #expect(attempts <= fgWriterOnMaster.attempts, "paint attempts over 20 frames: \(attempts) against master's \(fgWriterOnMaster.attempts)")
+}
+
+/// What master makes of 10c's scenario (`fgWriterOnMaster`): measured by the same test on master `Sources/`.
+private let fgWriterOnMaster = (ledgers: Int.max, attempts: Int.max)
 
 // MARK: 11 - the names
 

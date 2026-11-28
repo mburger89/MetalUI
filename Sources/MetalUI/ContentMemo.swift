@@ -271,6 +271,8 @@ package final class ContentMemoStore {
     }
     /// Whether a transient taint (`requestAnotherFrame`, `activeAnimation`, a state write) was raised in the frame being built (`RK-AS`): one Bool, reset by `endFrame`.
     var transientTaintThisFrame = false
+    /// How many paints held plain by a backoff are open (`RK-AS`): a state write under one counts as a transient taint though no recorder is open.
+    var heldPaintDepth = 0
     var focusBackoffs: [FocusBackoff] = []
     /// The focused element the table was made under: it is cleared whenever the focus differs.
     var focusBackoffOwner: GlobalElementID?
