@@ -764,15 +764,18 @@ final class RetainedSession {
     }
     let label: String
     init(_ label: String) { self.label = label }
+    /// The thread that is retiring a session right now (`RK-AQ`): Observation runs `onChange` inline on the writing thread, so a fire that finds its own
+    /// thread here was raised by that retirement, whichever thread the frame is built on (off Darwin a test's main actor is a pool thread).
+    nonisolated(unsafe) static var retiringThread: Thread?
 
     /// Runs `body` inside a fresh session; the previous one is retired first (the serial moves on,
     /// then the token write fires it, and its handler finds a stale serial — `IV-L` item 5).
     @MainActor
     func run<R>(entry: ContentMemoStore.Entry, store: ContentMemoStore, _ body: () -> R) -> R {
         serial &+= 1
-        store.retiringSession = true
+        Self.retiringThread = Thread.current
         token.tick &+= 1
-        store.retiringSession = false
+        Self.retiringThread = nil
         let handle = RetainedHandle(entry: entry, store: store, session: self, serial: serial)
         return withObservationTracking({
             _ = token.tick
@@ -806,24 +809,25 @@ private final class RetainedHandle: @unchecked Sendable {
     func fire() {
         // Flag first, any thread, under the locks (`MO-A`, `MO-G`); a retired session's fire changes nothing.
         let live = sessionFlags.serial == serial
+        let retired = RetainedSession.retiringThread === Thread.current
         if live {
             if RetainedTrace.active { entryFlags.lastFireCause = "\(sessionLabel): " + RetainedTrace.writerCause() }
             entryFlags.fireRetained()
         }
         if Thread.isMainThread {
-            MainActor.assumeIsolated { self.bookkeep(live) }
+            MainActor.assumeIsolated { self.bookkeep(live, retired: retired) }
         } else {
-            Task { @MainActor in self.bookkeep(live) }
+            Task { @MainActor in self.bookkeep(live, retired: retired) }
         }
     }
 
-    @MainActor private func bookkeep(_ live: Bool) {
+    @MainActor private func bookkeep(_ live: Bool, retired: Bool) {
         guard live, let session, let store else { return }
         if let entry { store.noteRetainedFire(entry) }   // `SB-AF`
         RetainedTrace.emit("retained session fired: \(session.label)\(RetainedTrace.causeSuffix(of: entry))")
         // A fire raised by a session being retired inside this very build (`RK-AQ`): the enclosing occurrences are flagged above and miss in this frame,
         // so it asks for no frame of its own (it was the extra frame of the first change under a record a focus left armed).
-        if !store.retiringSession { store.markDirty?() }
+        if !retired { store.markDirty?() }
     }
 }
 

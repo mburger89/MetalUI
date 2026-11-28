@@ -261,8 +261,6 @@ package final class ContentMemoStore {
         var retryAt: Int
         var exponent: UInt8
     }
-    /// Whether a session is being retired on the main actor right now (`RK-AQ`): a fire raised then is the build's own, flagged and seen by the same frame.
-    var retiringSession = false
     var focusBackoffs: [FocusBackoff] = []
     /// The focused element the table was made under: it is cleared whenever the focus differs.
     var focusBackoffOwner: GlobalElementID?
@@ -455,7 +453,9 @@ package final class ContentMemoStore {
         // then the token write fires it, and its handler finds a stale serial.
         // The same step clears `stale` (`MO-D`): a write that lands during the getter survives it.
         let newSerial = entry.flags.advance()
+        RetainedSession.retiringThread = Thread.current   // `RK-AQ`: the fires this tick raises are the build's own
         entry.token.tick &+= 1
+        RetainedSession.retiringThread = nil
         let handle = ContentMemoHandle(entry: entry, store: self, serial: newSerial)
         armed += 1
         let content = withObservationTracking {
