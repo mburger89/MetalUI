@@ -160,6 +160,18 @@ public struct FrameWork: Sendable, Equatable {
     /// a scope that held a backdrop or exceeded the target limit. 0 for a tree with no crossing rounded clip and no
     /// shape-clipped group.
     public var groupsMasked: Int
+    /// Group members the abandoned attempts of a redone frame entered (record 441): ``elementRequests`` is the adopted attempt's alone, so ``elementRequests`` + this is what the frame's builds did. 0 for a frame that was not redone.
+    public var redoneElementRequests: Int
+    /// Elements the abandoned attempts of a redone frame prepainted (record 441): ``elementPrepaints`` counts the adopted attempt alone, which on a redo that replays the rest of the frame is far below a neighbouring frame's, so compare ``elementPrepaints`` + this. 0 for a frame that was not redone.
+    public var redoneElementPrepaints: Int
+    /// Elements the abandoned attempts of a redone frame painted (record 441): ``elementPaints`` + this is the paint work of every attempt. 0 for a frame that was not redone.
+    public var redoneElementPaints: Int
+    /// `sizeThatFits` calls in the root layout runs of the abandoned attempts of a redone frame (record 441), beside ``layoutMeasureCalls``, which is the adopted attempt's. 0 for a frame that was not redone.
+    public var redoneLayoutMeasureCalls: Int
+    /// Layout cache hits of the abandoned attempts (record 441), beside ``layoutCacheHits``. 0 for a frame that was not redone.
+    public var redoneLayoutCacheHits: Int
+    /// Layout measurement bodies the abandoned attempts ran (record 441), beside ``layoutCacheMisses``. 0 for a frame that was not redone.
+    public var redoneLayoutCacheMisses: Int
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -202,7 +214,8 @@ public struct FrameWork: Sendable, Equatable {
                 codeSelectionsVisited: Int = 0,
                 tableRowsRealized: Int = 0, tableCellsRealized: Int = 0, tableColumnsResolved: Int = 0,
                 tableDataReads: Int = 0, tableColdFrames: Int = 0,
-                maskScopesPushed: Int = 0, groupsMasked: Int = 0) {
+                maskScopesPushed: Int = 0, groupsMasked: Int = 0,
+                redoneElementRequests: Int = 0, redoneElementPrepaints: Int = 0, redoneElementPaints: Int = 0, redoneLayoutMeasureCalls: Int = 0, redoneLayoutCacheHits: Int = 0, redoneLayoutCacheMisses: Int = 0) {
         self.surfaceOnlyFrames = surfaceOnlyFrames
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
@@ -272,6 +285,12 @@ public struct FrameWork: Sendable, Equatable {
         self.tableColdFrames = tableColdFrames
         self.maskScopesPushed = maskScopesPushed
         self.groupsMasked = groupsMasked
+        self.redoneElementRequests = redoneElementRequests
+        self.redoneElementPrepaints = redoneElementPrepaints
+        self.redoneElementPaints = redoneElementPaints
+        self.redoneLayoutMeasureCalls = redoneLayoutMeasureCalls
+        self.redoneLayoutCacheHits = redoneLayoutCacheHits
+        self.redoneLayoutCacheMisses = redoneLayoutCacheMisses
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -342,7 +361,13 @@ public struct FrameWork: Sendable, Equatable {
                   tableDataReads: l.tableDataReads + r.tableDataReads,
                   tableColdFrames: l.tableColdFrames + r.tableColdFrames,
                   maskScopesPushed: l.maskScopesPushed + r.maskScopesPushed,
-                  groupsMasked: l.groupsMasked + r.groupsMasked)
+                  groupsMasked: l.groupsMasked + r.groupsMasked,
+                  redoneElementRequests: l.redoneElementRequests + r.redoneElementRequests,
+                  redoneElementPrepaints: l.redoneElementPrepaints + r.redoneElementPrepaints,
+                  redoneElementPaints: l.redoneElementPaints + r.redoneElementPaints,
+                  redoneLayoutMeasureCalls: l.redoneLayoutMeasureCalls + r.redoneLayoutMeasureCalls,
+                  redoneLayoutCacheHits: l.redoneLayoutCacheHits + r.redoneLayoutCacheHits,
+                  redoneLayoutCacheMisses: l.redoneLayoutCacheMisses + r.redoneLayoutCacheMisses)
     }
 
     /// Adds `rhs` into `lhs` field by field, the compound form of ``+(_:_:)``.

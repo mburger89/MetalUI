@@ -223,6 +223,12 @@ final class FrameWorkRecorder {
         pending.tableColdFrames += work.tableColdFrames
         pending.maskScopesPushed += work.maskScopesPushed
         pending.groupsMasked += work.groupsMasked
+        pending.redoneElementRequests += work.redoneElementRequests
+        pending.redoneElementPrepaints += work.redoneElementPrepaints
+        pending.redoneElementPaints += work.redoneElementPaints
+        pending.redoneLayoutMeasureCalls += work.redoneLayoutMeasureCalls
+        pending.redoneLayoutCacheHits += work.redoneLayoutCacheHits
+        pending.redoneLayoutCacheMisses += work.redoneLayoutCacheMisses
         pending.rasterizedPixels += work.rasterizedPixels
         pending.blurredPixels += work.blurredPixels
     }
