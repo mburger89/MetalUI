@@ -160,6 +160,39 @@ public struct FrameWork: Sendable, Equatable {
     /// a scope that held a backdrop or exceeded the target limit. 0 for a tree with no crossing rounded clip and no
     /// shape-clipped group.
     public var groupsMasked: Int
+    /// Group members the abandoned attempts of a redone frame entered (record 441): ``elementRequests`` is the adopted attempt's alone, so ``elementRequests`` + this is what the frame's builds did. 0 for a frame that was not redone.
+    public var redoneElementRequests: Int {
+        get { redone?.elementRequests ?? 0 }
+        set { updateRedone(\.elementRequests, newValue) }
+    }
+    /// Elements the abandoned attempts of a redone frame prepainted (record 441): ``elementPrepaints`` counts the adopted attempt alone, which on a redo that replays the rest of the frame is far below a neighbouring frame's, so compare ``elementPrepaints`` + this. 0 for a frame that was not redone.
+    public var redoneElementPrepaints: Int {
+        get { redone?.elementPrepaints ?? 0 }
+        set { updateRedone(\.elementPrepaints, newValue) }
+    }
+    /// Elements the abandoned attempts of a redone frame painted (record 441): ``elementPaints`` + this is the paint work of every attempt. 0 for a frame that was not redone.
+    public var redoneElementPaints: Int {
+        get { redone?.elementPaints ?? 0 }
+        set { updateRedone(\.elementPaints, newValue) }
+    }
+    /// `sizeThatFits` calls in the root layout runs of the abandoned attempts of a redone frame (record 441), beside ``layoutMeasureCalls``, which is the adopted attempt's. 0 for a frame that was not redone.
+    public var redoneLayoutMeasureCalls: Int {
+        get { redone?.layoutMeasureCalls ?? 0 }
+        set { updateRedone(\.layoutMeasureCalls, newValue) }
+    }
+    /// Layout cache hits of the abandoned attempts (record 441), beside ``layoutCacheHits``. 0 for a frame that was not redone.
+    public var redoneLayoutCacheHits: Int {
+        get { redone?.layoutCacheHits ?? 0 }
+        set { updateRedone(\.layoutCacheHits, newValue) }
+    }
+    /// Layout measurement bodies the abandoned attempts ran (record 441), beside ``layoutCacheMisses``. 0 for a frame that was not redone.
+    public var redoneLayoutCacheMisses: Int {
+        get { redone?.layoutCacheMisses ?? 0 }
+        set { updateRedone(\.layoutCacheMisses, newValue) }
+    }
+    /// The six `redone` counts, out of line: a frame that was not redone holds `nil` (8 bytes), so a stored record grows by a pointer and an idle frame
+    /// allocates nothing (record 441); the harness's history array grows by the same schedule as before the fields existed.
+    private var redone: RedoneBox?
     /// Glyph-atlas texels uploaded.
     public var atlasUploadPixels: Int
     /// Image textures the previous frame did not reference.
@@ -175,6 +208,14 @@ public struct FrameWork: Sendable, Equatable {
     public var glyphs: Int
     /// Images in the presented scene.
     public var images: Int
+
+    /// Writes one of the six counts: nothing at all when the value is the one held (a build that was not redone adds 0), so an unredone frame never allocates.
+    private mutating func updateRedone(_ field: WritableKeyPath<RedoneWork, Int>, _ value: Int) {
+        var counts = redone?.counts ?? RedoneWork()
+        guard counts[keyPath: field] != value else { return }
+        counts[keyPath: field] = value
+        redone = counts == RedoneWork() ? nil : RedoneBox(counts)
+    }
 
     /// A record with every count given; all zero by default.
     public init(builds: Int = 0, layoutMeasureCalls: Int = 0, layoutCacheHits: Int = 0,
@@ -202,7 +243,8 @@ public struct FrameWork: Sendable, Equatable {
                 codeSelectionsVisited: Int = 0,
                 tableRowsRealized: Int = 0, tableCellsRealized: Int = 0, tableColumnsResolved: Int = 0,
                 tableDataReads: Int = 0, tableColdFrames: Int = 0,
-                maskScopesPushed: Int = 0, groupsMasked: Int = 0) {
+                maskScopesPushed: Int = 0, groupsMasked: Int = 0,
+                redoneElementRequests: Int = 0, redoneElementPrepaints: Int = 0, redoneElementPaints: Int = 0, redoneLayoutMeasureCalls: Int = 0, redoneLayoutCacheHits: Int = 0, redoneLayoutCacheMisses: Int = 0) {
         self.surfaceOnlyFrames = surfaceOnlyFrames
         self.builds = builds
         self.layoutMeasureCalls = layoutMeasureCalls
@@ -272,6 +314,9 @@ public struct FrameWork: Sendable, Equatable {
         self.tableColdFrames = tableColdFrames
         self.maskScopesPushed = maskScopesPushed
         self.groupsMasked = groupsMasked
+        let redoneCounts = RedoneWork(elementRequests: redoneElementRequests, elementPrepaints: redoneElementPrepaints, elementPaints: redoneElementPaints,
+                                      layoutMeasureCalls: redoneLayoutMeasureCalls, layoutCacheHits: redoneLayoutCacheHits, layoutCacheMisses: redoneLayoutCacheMisses)
+        redone = redoneCounts == RedoneWork() ? nil : RedoneBox(redoneCounts)
     }
 
     /// Field-by-field sums: several frames' work as one record.
@@ -342,9 +387,34 @@ public struct FrameWork: Sendable, Equatable {
                   tableDataReads: l.tableDataReads + r.tableDataReads,
                   tableColdFrames: l.tableColdFrames + r.tableColdFrames,
                   maskScopesPushed: l.maskScopesPushed + r.maskScopesPushed,
-                  groupsMasked: l.groupsMasked + r.groupsMasked)
+                  groupsMasked: l.groupsMasked + r.groupsMasked,
+                  redoneElementRequests: l.redoneElementRequests + r.redoneElementRequests,
+                  redoneElementPrepaints: l.redoneElementPrepaints + r.redoneElementPrepaints,
+                  redoneElementPaints: l.redoneElementPaints + r.redoneElementPaints,
+                  redoneLayoutMeasureCalls: l.redoneLayoutMeasureCalls + r.redoneLayoutMeasureCalls,
+                  redoneLayoutCacheHits: l.redoneLayoutCacheHits + r.redoneLayoutCacheHits,
+                  redoneLayoutCacheMisses: l.redoneLayoutCacheMisses + r.redoneLayoutCacheMisses)
     }
 
     /// Adds `rhs` into `lhs` field by field, the compound form of ``+(_:_:)``.
     public static func += (lhs: inout FrameWork, rhs: FrameWork) { lhs = lhs + rhs }
+}
+
+/// The six counts of the attempts a redo abandoned (record 441), as ``FrameWork`` holds them.
+private struct RedoneWork: Equatable, Sendable {
+    var elementRequests = 0, elementPrepaints = 0, elementPaints = 0
+    var layoutMeasureCalls = 0, layoutCacheHits = 0, layoutCacheMisses = 0
+}
+
+/// ``RedoneWork`` behind one reference, compared by value, so an unredone frame's record carries a nil pointer in place of 48 bytes.
+private final class RedoneBox: Equatable, Sendable {
+    let counts: RedoneWork
+    init(_ counts: RedoneWork) { self.counts = counts }
+    var elementRequests: Int { counts.elementRequests }
+    var elementPrepaints: Int { counts.elementPrepaints }
+    var elementPaints: Int { counts.elementPaints }
+    var layoutMeasureCalls: Int { counts.layoutMeasureCalls }
+    var layoutCacheHits: Int { counts.layoutCacheHits }
+    var layoutCacheMisses: Int { counts.layoutCacheMisses }
+    static func == (l: RedoneBox, r: RedoneBox) -> Bool { l === r || l.counts == r.counts }
 }

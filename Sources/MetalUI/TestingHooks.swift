@@ -74,6 +74,13 @@ package struct BuildWork: Sendable, Equatable {
     /// Mask scopes pushed and offscreen groups multiplied by a shape clip (`CM-A`).
     package var maskScopesPushed = 0
     package var groupsMasked = 0
+    /// What the attempts a redo abandoned did before the adopted one (record 441): 0 for a frame that was not redone.
+    package var redoneElementRequests = 0
+    package var redoneElementPrepaints = 0
+    package var redoneElementPaints = 0
+    package var redoneLayoutMeasureCalls = 0
+    package var redoneLayoutCacheHits = 0
+    package var redoneLayoutCacheMisses = 0
 }
 
 extension Window {
@@ -138,7 +145,13 @@ extension Window {
                                tableDataReads: frame.tableWork.dataReads,
                                tableColdFrames: frame.tableWork.coldFrames,
                                maskScopesPushed: frame.maskScopesPushed,
-                               groupsMasked: frame.groupsMasked))
+                               groupsMasked: frame.groupsMasked,
+                               redoneElementRequests: frame.abandonedWork.elementRequests,
+                               redoneElementPrepaints: frame.abandonedWork.elementPrepaints,
+                               redoneElementPaints: frame.abandonedWork.elementPaints,
+                               redoneLayoutMeasureCalls: frame.abandonedWork.layoutMeasureCalls,
+                               redoneLayoutCacheHits: frame.abandonedWork.layoutCacheHits,
+                               redoneLayoutCacheMisses: frame.abandonedWork.layoutCacheMisses))
         }
     }
 }
@@ -251,7 +264,7 @@ extension Window {
     func testingDropRetainedRecords() { stateTable.contentMemos.dropRecords() }
     /// The unit ranges the last frame noted, as `unit start end` lines (`FS-Z`).
     var testingUnitRanges: [String] { animationStore.transitions.testingLastFrameRanges.map { "\(sbPath($0.unit)) \($0.start) \($0.end)" } }
-    /// How many failed occurrences are quarantined with what is under them (`RK-AN`).
+    /// How many failed occurrences are quarantined with what is under them (record 441).
     package var testingQuarantinedScopes: Int { stateTable.contentMemos.quarantinedScopes.count }
     /// Whether a redo suspends prepaint replay window-wide for the next nine builds (`RK-D` item 3). Off: the redo's quarantine of the failing entry
     /// stays, the window keeps replaying. The differential tests run with it off to read what the backoff used to hide (record 419).

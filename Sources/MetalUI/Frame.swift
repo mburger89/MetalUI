@@ -186,6 +186,9 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     var elementRequests = 0
     var elementPrepaints = 0
     var elementPaints = 0
+    /// The work of this frame's abandoned attempts (record 441): set only on a redone frame, by `Window.redoAbandonedFrame`, from the attempts it drops.
+    /// Plain `Int`s, so a frame that is never redone allocates and writes nothing for it.
+    var abandonedWork = AbandonedWork()
 
     /// Whether this frame's `afterLayout` made a removal ghost whose container is not yet known (`XF-F`): while true
     /// `recordElementBounds` also notes each id into `ghostAnchorSeen`, so the walk after prepaint finds the nearest
@@ -3991,7 +3994,6 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
         }
     }
 
-
     /// The ledger's accessibility records recomputed against the current effects (`AT-A`, `AT-G`): each record's pre-effect rects
     /// under the effect its own stack makes, the ambient effects as they are now followed by the recorded steps of the effects the
     /// occurrence opened (the arithmetic of `prepaintWithRenderEffect`, so bit-equal to a fresh prepaint), or the reason one cannot
@@ -5339,4 +5341,26 @@ extension Frame {
     /// takes it back when an edit ends. `Window` keeps an in-frame decision (`focusingFromInsideAFrameSurvivesThatFrame`), and
     /// `resolveFocus` still validates it against this frame's registry.
     func seatFocus(on id: GlobalElementID) { focusedElement = id }
+}
+
+/// What the attempts a redo dropped had done (record 441): the element and layout counters `FrameWork` reads from the adopted frame, summed over every
+/// abandoned attempt of one frame. Integers only; empty unless the frame was redone.
+struct AbandonedWork: Equatable {
+    var elementRequests = 0
+    var elementPrepaints = 0
+    var elementPaints = 0
+    var layoutMeasureCalls = 0
+    var layoutCacheHits = 0
+    var layoutCacheMisses = 0
+
+    /// Adds what `frame`, an attempt about to be dropped, did (including what it carries from attempts dropped before it).
+    @MainActor mutating func add(_ frame: Frame) {
+        let layout = frame.tree.lastNativeLayoutWork
+        elementRequests += frame.elementRequests
+        elementPrepaints += frame.elementPrepaints
+        elementPaints += frame.elementPaints
+        layoutMeasureCalls += layout.measureCalls
+        layoutCacheHits += layout.cacheHits
+        layoutCacheMisses += layout.cacheMisses
+    }
 }
