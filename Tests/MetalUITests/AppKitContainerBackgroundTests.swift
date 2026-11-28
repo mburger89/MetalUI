@@ -172,25 +172,33 @@ import MetalUIRender
                        "NSAccessibilityReparentingCellProxy"], "recorded on master before the container")
 }
 
-/// **WB-13** (`WB-I`). A window with no backdrop pays nothing per frame for the container: a steady redraw of an
-/// AppKit window costs the element requests and (least of eight) allocations master's content-view-is-the-host
-/// window did, measured on master 697ea647 (1 request, 144 allocations). One extra view at creation is
-/// the whole cost.
+/// **WB-13** (`WB-I`). A window with no backdrop pays nothing per frame for the container: against a control
+/// window in the same process with master's shape (the host view set directly as the content view), a steady
+/// redraw costs the same element requests and no more allocations (least of eight, interleaved). One extra
+/// view at creation is the whole cost. The control makes this a guard: it cannot go red by reverting the fix.
 @MainActor
 @Test func aWindowWithNoBackdropCostsTheSameSteadyFrameAsBefore() throws {
-    let (appKit, window) = try backdropWindow()
-    defer { window.close() }
-    let w = Window(platformWindow: appKit, startsDisplayLink: false) { Box().frame(width: Pixels(50), height: Pixels(20)) }
-    var requests = -1
-    w.testingOnFrameAdopted { requests = $0.elementRequests }
-    for _ in 0..<3 { w.setNeedsRedraw(); w.drawFrameIfNeeded() }
-    var least = Int.max
-    for _ in 0..<8 {
-        w.setNeedsRedraw()
-        let n = try #require(countAllocations { w.drawFrameIfNeeded() })
-        least = min(least, n)
+    let (shippedPlatform, shipped) = try backdropWindow()
+    let (controlPlatform, control) = try backdropWindow()
+    defer { shipped.close(); control.close() }
+    control.contentView = controlPlatform.hostView   // master's shape: no container
+    #expect(control.contentView === controlPlatform.hostView && shipped.contentView !== shippedPlatform.hostView)
+    func make(_ platform: AppKitWindow) -> (Window, Counted) {
+        let counted = Counted()
+        let w = Window(platformWindow: platform, startsDisplayLink: false) { Box().frame(width: Pixels(50), height: Pixels(20)) }
+        w.testingOnFrameAdopted { counted.requests = $0.elementRequests }
+        for _ in 0..<6 { w.setNeedsRedraw(); w.drawFrameIfNeeded() }
+        return (w, counted)
     }
-    print("STEADY", requests, least)
-    #expect(requests == 1)
-    #expect(least == 144)
+    let (a, ac) = make(shippedPlatform)
+    let (b, bc) = make(controlPlatform)
+    var least = (shipped: Int.max, control: Int.max)
+    for _ in 0..<8 {
+        least.shipped = min(least.shipped, try #require(countAllocations { a.setNeedsRedraw(); a.drawFrameIfNeeded() }))
+        least.control = min(least.control, try #require(countAllocations { b.setNeedsRedraw(); b.drawFrameIfNeeded() }))
+    }
+    #expect(ac.requests == bc.requests && ac.requests > 0, "\(ac.requests) against \(bc.requests)")
+    #expect(least.shipped <= least.control, "allocations: container \(least.shipped), control \(least.control)")
 }
+
+@MainActor private final class Counted { var requests = -1 }
