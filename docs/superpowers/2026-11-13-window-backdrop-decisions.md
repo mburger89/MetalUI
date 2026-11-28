@@ -1,6 +1,6 @@
 # Window container background - decisions (prefix `WB-`)
 
-Alloy gap G40: the desktop shows through the window, blurred by macOS, behind the app's own translucent panels. Branch `feat/window-container-background` from master `e852cb12`; record 285. Class `A` for the spelling (SwiftUI's macOS 15 `containerBackground(_:for:)` with `.window`); divergence 241 (SDL). Next unused: `WB-I`.
+Alloy gap G40: the desktop shows through the window, blurred by macOS, behind the app's own translucent panels. Branch `feat/window-container-background` from master `e852cb12`; record 285. Class `A` for the spelling (SwiftUI's macOS 15 `containerBackground(_:for:)` with `.window`); divergence 241 (SDL). Next unused: `WB-J`.
 
 Verified against the SDK: `ContainerBackgroundPlacement` is `@available(macOS 15.0)` for `.window` alone (`.tabView`, `.navigation`, `.navigationSplitView` are unavailable on macOS); `containerBackground<S: ShapeStyle>(_ style: S, for:)` and a `ViewBuilder` overload `containerBackground(for:alignment:content:)` exist. No on-screen SwiftUI probe was run (an agent cannot look at a screen): the mappings below are rulings, and human check WB1 compares them.
 
@@ -35,3 +35,7 @@ A material: one `NSVisualEffectView` (`blendingMode = .behindWindow`, `state = .
 ## WB-H: the requirement has a default
 
 `setWindowBackdrop` is declared in `PlatformWindow` with a protocol-extension default of `false`, unlike the neighbouring requirements, so the ten test conformers and any outside conformer compile unchanged and get the SDL behaviour. `HeadlessPlatformWindow.Options.appliesWindowBackdrop` (default `true`) and `windowBackdropRequests` record and answer it.
+
+## WB-I: the effect view lives in a container content view (amends `WB-E`)
+
+On macOS 27.2 inserting into `contentView.superview` logs `adding an unknown subview: NSVisualEffectView` (Alloy, run from Xcode): the frame view (`NSThemeFrame`) is private and not a supported parent. `AppKitWindow` now installs, once at creation and never reparented at runtime, a plain `HostContainerView` as the window's content view with the `MetalHostView` as its only subview, filling it (`autoresizingMask = [.width, .height]`); the container is not an accessibility element, so the window's accessibility children are the same as with the host as content view (the host, then the title bar's cells). A material inserts the effect view into the container `.below` the host view; `.color` and `.none` remove it. `initialFirstResponder` and the first responder are set to the host view at creation, so key events, the text input client, tracking, cursor rects, drag and drop and the accessibility tree are unchanged. `WB-A`'s reasons hold: the host view's responder state and layer are untouched (it only has a new superview). Under the hidden title bar (`fullSizeContentView`) the container fills the frame view like the host did; `AppKitTitleBarPlacement` reaches the frame view through the standard buttons, not `contentView`, and is unchanged. Cost: one extra `NSView` per window; no per-frame work (`aWindowWithNoBackdropCostsTheSameSteadyFrameAsBefore`: 1 element request, 144 allocations, equal to master).
