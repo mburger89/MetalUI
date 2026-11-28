@@ -341,7 +341,7 @@ private let fgSpinnerOnMaster = (focused: 19_030, unfocused: 28_182)
 /// What the retaining window costs over the retention-off one in one step, unfocused and steady (`fgRetentionDeltas`: the least of 24 steps' differences, both windows in
 /// one process; an absolute count moves by 40 or more from one invocation to the next, the difference by about 20 for one fixture), measured on master the same way
 /// (the largest of its in-process runs): see `fgRetentionDeltaOnMaster`.
-private let fgRetentionDeltaOnMaster = (wheel: 0, glide: 0, stream: 0)
+private let fgRetentionDeltaOnMaster = (wheel: 9_788, glide: 10_007, stream: 1_859)
 
 /// **12b** The allocations of an unfocused chat's steps, as a delta against the retention-off window: the branch's is no more than master's. The refusal names, the taint
 /// classification, the ping-pong of the names and the backoff lift add none. **Mutation:** M11b (the trace line's autoclosure built eagerly), M11a.
