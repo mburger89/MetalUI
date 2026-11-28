@@ -254,15 +254,9 @@ private struct FGBlinkOuter: Component, @MainActor Equatable {
 
 // MARK: 10 - a perpetual animation
 
-#if canImport(Darwin)
-/// Master's allocations a step (least of 8, wheel, graft on, a `ProgressView` beside the composer), measured on master in the shape of this test (a run with the other
-/// focus tests): focused 19,030 (the backoff holds the chain plain), unfocused 28,182.
-private let fgSpinnerOnMaster = (focused: 19_030, unfocused: 28_182)
-#endif
-
 /// **10** A `ProgressView` beside the focused composer raises a transient taint on every frame: the backoff holds the chain plain, as on master, and the window equals the
-/// retention-off one; requests equal the unfocused chat's, and on Darwin allocations a step (the least of eight) are no more than master's, focused and unfocused.
-/// **Mutation:** M5 (the lift removed: no, the lift is not what holds it; the backoff removed reddens it: M6).
+/// retention-off one; requests equal the unfocused chat's, and on Darwin (10b) allocations are no more than master's, in a child process with a fixed hash seed (below).
+/// **Mutation:** M6 (the backoff removed: focused 28,309 against 19,0xx).
 @Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aPerpetualAnimationBesideAFocusedFieldCostsWhatItCostsOnMaster() throws {
     let focused = try chat(focused: true, glide: false, spinner: true), plain = try chat(focused: false, glide: false, spinner: true)
     for step in 0..<6 {
@@ -271,17 +265,27 @@ private let fgSpinnerOnMaster = (focused: 19_030, unfocused: 28_182)
         #expect(a.requests == b.requests && a.redos == b.redos, "step \(step): focused \(a) against unfocused \(b)")
     }
     try focused.pair.compare("spinner")
-    #if canImport(Darwin)
-    func least(_ fg: FGPair<some Element>) throws -> Int {
-        var counts: [Int] = []
-        for step in 6..<14 { counts.append(try #require(countAllocations { fgStep(fg, step, glide: false, retainingOnly: true) })) }
-        return counts.min() ?? 0
-    }
-    let a = try least(focused), b = try least(plain)
-    #expect(a <= fgSpinnerOnMaster.focused, "allocations a step, focused: \(a) against master's \(fgSpinnerOnMaster.focused)")
-    #expect(b <= fgSpinnerOnMaster.unfocused, "allocations a step, unfocused: \(b) against master's \(fgSpinnerOnMaster.unfocused)")
-    #endif
 }
+
+#if canImport(Darwin)
+/// What master measures in `fgChildMeasures`' form (a child process with `SWIFT_DETERMINISTIC_HASHING=1`; the largest of ten runs for the differences, which still move by
+/// one or two, the one value for the focused count, which did not move in ten): see record 443. Relative or fixed-seed forms, so a different machine's allocator moves the
+/// retaining and retention-off windows together.
+let fgMastersMeasures = FGMeasures()
+
+/// **10b** and **12b** The allocations of the unfocused chats' steps, as the difference between the retaining window and the retention-off one (least of eight steps, least of
+/// three fresh fixtures), and the focused spinner chain's, no more than master's. The refusal names, the taint classification, the ping-pong of the names and the backoff lift
+/// add none. **Mutation:** the trace line's autoclosure built eagerly (M11b), the backoff removed (M6: focused spinner 28,309).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func theChatsStepsAllocateNoMoreThanMastersInAFixedSeedChild() async {
+    guard let m = await fgChildMeasures() else { Issue.record("the child did not see SWIFT_DETERMINISTIC_HASHING"); return }
+    let master = fgMastersMeasures
+    #expect(m.spinnerFocused <= master.spinnerFocused, "focused spinner: \(m.spinnerFocused) against master's \(master.spinnerFocused)")
+    #expect(m.spinnerDelta <= master.spinnerDelta, "spinner, retaining over retention off: \(m.spinnerDelta) against master's \(master.spinnerDelta)")
+    #expect(m.wheel <= master.wheel, "wheel: \(m.wheel) against master's \(master.wheel)")
+    #expect(m.glide <= master.glide, "glide: \(m.glide) against master's \(master.glide)")
+    #expect(m.stream <= master.stream, "stream: \(m.stream) against master's \(master.stream)")
+}
+#endif
 
 // MARK: 11 - the names
 
@@ -313,7 +317,7 @@ private let fgSpinnerOnMaster = (focused: 19_030, unfocused: 28_182)
 // MARK: 12 - an unfocused chat costs what it did
 
 /// **12** An unfocused chat, graft on, costs what it did on master: the work literals of the fixture's wheel and glide and of Alloy's markdown transcript
-/// (`AlloyTranscriptFixture`). 12b below holds its allocations. **Mutation:** M11.
+/// (`AlloyTranscriptFixture`). The allocations are 10b's. **Mutation:** M11.
 @Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func anUnfocusedChatsSteadyFrameCostsWhatItDid() async throws {
     for glide in [false, true] {
         let fg = try chat(focused: false, glide: glide)
@@ -336,22 +340,6 @@ private let fgSpinnerOnMaster = (focused: 19_030, unfocused: 28_182)
         }
     }
 }
-
-#if canImport(Darwin)
-/// What the retaining window costs over the retention-off one in one step, unfocused and steady (`fgRetentionDeltas`: the least of 24 steps' differences, both windows in
-/// one process; an absolute count moves by 40 or more from one invocation to the next, the difference by about 20 for one fixture), measured on master the same way
-/// (the largest of its in-process runs): see `fgRetentionDeltaOnMaster`.
-private let fgRetentionDeltaOnMaster = (wheel: 9_788, glide: 10_007, stream: 1_859)
-
-/// **12b** The allocations of an unfocused chat's steps, as a delta against the retention-off window: the branch's is no more than master's. The refusal names, the taint
-/// classification, the ping-pong of the names and the backoff lift add none. **Mutation:** M11b (the trace line's autoclosure built eagerly), M11a.
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func anUnfocusedChatsStepAllocatesNoMoreOverRetentionOffThanMasterDid() async throws {
-    let d = try await fgRetentionDeltas()
-    #expect(d.wheel <= fgRetentionDeltaOnMaster.wheel, "wheel: \(d.wheel) against master's \(fgRetentionDeltaOnMaster.wheel)")
-    #expect(d.glide <= fgRetentionDeltaOnMaster.glide, "glide: \(d.glide) against master's \(fgRetentionDeltaOnMaster.glide)")
-    #expect(d.stream <= fgRetentionDeltaOnMaster.stream, "stream: \(d.stream) against master's \(fgRetentionDeltaOnMaster.stream)")
-}
-#endif
 
 // MARK: 13 - idle
 

@@ -166,14 +166,38 @@ struct FGHost: Component, @MainActor Equatable {
 }
 
 #if canImport(Darwin)
-/// The least over three fresh fixtures of the least of eight steps' difference in allocations between the retaining window and the retention-off one, unfocused and steady,
-/// graft on: the fixture's wheel and glide, and Alloy's transcript while it streams (`RK-AS`, `anUnfocusedChatsStepAllocatesNoMoreOverRetentionOffThanMasterDid`).
-@MainActor func fgRetentionDeltas() async throws -> (wheel: Int, glide: Int, stream: Int) {
+/// The allocation measures `RK-AS` pins against master (`FocusKeyedGraftTests` 10 and 12b), taken in a child process with `SWIFT_DETERMINISTIC_HASHING=1` (`fgChildMeasures`):
+/// per-process hash seeding alone moved a count by 40 or more between runs, with it fixed the same arm reads within one or two.
+struct FGMeasures: Equatable {
+    /// A `ProgressView` beside the focused composer, wheel steps, graft on: the least of eight steps' allocations on the retaining window.
+    var spinnerFocused = 0
+    /// The same, unfocused: the retaining window's least step over the retention-off window's, least over three fresh fixtures.
+    var spinnerDelta = Int.max
+    /// The fixture's wheel and glide and Alloy's transcript stream, unfocused: the same difference.
+    var wheel = Int.max, glide = Int.max, stream = Int.max
+    var line: String { "FGM spinnerFocused=\(spinnerFocused) spinnerDelta=\(spinnerDelta) wheel=\(wheel) glide=\(glide) stream=\(stream)" }
+    init() {}
+    init?(line: String) {
+        var values: [String: Int] = [:]
+        for part in line.split(separator: " ") { let kv = part.split(separator: "="); if kv.count == 2, let v = Int(kv[1]) { values[String(kv[0])] = v } }
+        guard let a = values["spinnerFocused"], let b = values["spinnerDelta"], let c = values["wheel"], let d = values["glide"], let e = values["stream"] else { return nil }
+        spinnerFocused = a; spinnerDelta = b; wheel = c; glide = d; stream = e
+    }
+}
+
+@MainActor func fgMeasures() async throws -> FGMeasures {
     func least(_ on: [Int], _ off: [Int]) -> Int { zip(on, off).map { $0 - $1 }.min() ?? 0 }
-    var result = (wheel: Int.max, glide: Int.max, stream: Int.max)
+    var result = FGMeasures()
+    do {
+        let fg = try fgPair(focused: true, spinner: true)
+        for step in 0..<6 { fgStep(fg, step, glide: false, retainingOnly: true) }
+        var counts: [Int] = []
+        for step in 6..<14 { counts.append(try #require(countAllocations { fgStep(fg, step, glide: false, retainingOnly: true) })) }
+        result.spinnerFocused = counts.min() ?? 0
+    }
     for _ in 0..<3 {
-        for glide in [false, true] {
-            let fg = try fgPair(focused: false)
+        for (kind, spinner, glide) in [(0, true, false), (1, false, false), (2, false, true)] {
+            let fg = try fgPair(focused: false, spinner: spinner)
             if glide { fgStartGlide(fg) }
             let pair = fg.pair
             func step(_ w: TestWindow, _ i: Int) {
@@ -185,7 +209,12 @@ struct FGHost: Component, @MainActor Equatable {
                 on.append(try #require(countAllocations { step(pair.on, i) }))
                 off.append(try #require(countAllocations { step(pair.off, i) }))
             }
-            if glide { result.glide = min(result.glide, least(on, off)) } else { result.wheel = min(result.wheel, least(on, off)) }
+            let d = least(on, off)
+            switch kind {
+            case 0: result.spinnerDelta = min(result.spinnerDelta, d)
+            case 1: result.wheel = min(result.wheel, d)
+            default: result.glide = min(result.glide, d)
+            }
         }
         let pair = try atPair(focused: false, graft: true)
         func tick(_ w: TestWindow, _ s: RPSide) async { s.inputs.offset += 1; await rsSettle(); w.window.setNeedsRedraw(); w.tick() }
@@ -200,5 +229,18 @@ struct FGHost: Component, @MainActor Equatable {
         result.stream = min(result.stream, least(on, off))
     }
     return result
+}
+
+/// `fgMeasures()` taken in a child process whose hash seed is fixed: the variable is set before the spawn and the child reports whether it sees it (`nil`: it did not).
+@MainActor func fgChildMeasures() async -> FGMeasures? {
+    setTestEnvironment("SWIFT_DETERMINISTIC_HASHING", "1")
+    let result = await #expect(processExitsWith: .success, observing: [\.standardErrorContent]) {
+        let seen = ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == "1"
+        let m = try await fgMeasures()
+        FileHandle.standardError.write(Data(((seen ? "" : "NOT-DETERMINISTIC ") + m.line + "\n").utf8))
+    }
+    let text = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    guard !text.contains("NOT-DETERMINISTIC") else { return nil }
+    return text.split(separator: "\n").compactMap { $0.hasPrefix("FGM ") ? FGMeasures(line: String($0)) : nil }.last
 }
 #endif
