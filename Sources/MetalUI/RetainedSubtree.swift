@@ -1668,7 +1668,9 @@ extension Frame {
             RetainedTrace.emit("retained paint ineligible \(RetainedTrace.path(phase.build.key.id)) because \(reason)\(phaseFlags(phase))")
             phase.entry.record = nil
             memos.retained.noteIneligible(.paint, reason: reason)
-            if let focus = phase.paintFocus, let standing = recorder.standingTaint { memos.noteFocusedIneligible(phase.build.key.id, focus: focus, reason: standing) }
+            if let focus = phase.paintFocus {
+                memos.noteFocusedIneligible(phase.build.key.id, focus: focus, reason: recorder.standingTaint ?? reason, standing: recorder.standingTaint != nil)
+            }
             return
         }
         memos.retained.misses += 1

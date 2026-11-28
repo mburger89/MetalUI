@@ -48,7 +48,8 @@ private struct StepWork: Equatable, CustomStringConvertible {
         fgStep(fg, step, glide: glide)
         RetainedTrace.sink = nil
         let frames = fg.pair.on.frameWork
-        let tainted = lines.contains { $0.contains("ineligible") && ($0.contains("because activeAnimation") || $0.contains("because stateWrite")) }
+        // Held plain by a backoff (a transient taint under the focus, as on master) or recorded and refused: either way the scroller's taint is the reason.
+        let tainted = lines.contains { ($0.contains("ineligible") || $0.contains("focusBackoff")) && ($0.contains("because activeAnimation") || $0.contains("because stateWrite")) }
         #expect(tainted, "step \(step): the column is tainted by the scroller")
         #expect(sum(frames, \.retainedGrafts) >= 17, "step \(step): grafts \(sum(frames, \.retainedGrafts))")
         #expect(sum(frames, \.retainedRedos) == 0, "step \(step): redos")
@@ -73,28 +74,24 @@ private struct StepWork: Equatable, CustomStringConvertible {
 
 // MARK: 3 - the backoff
 
-/// **3** A transient taint (a fade, a glide) is not a failure under a focus: during the scroll no occurrence is held plain (`testingFocusBackoffCount` 0, no
-/// `focusBackoff` line; master: 40 lines in 12 steps), and the frame the fade ends in records as the unfocused window's does. **Mutation:** M5.
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func theFocusedChainRecordsTheFrameTheFadeEnds() throws {
+/// **3** A backoff made for a transient taint (a fade, a glide, a state write) is lifted by the first quiet frame (`RK-AS`): during a scroll the tainted chain may be held
+/// plain, as on master (the unfocused window records instead, so requests may differ by nothing: the composer grafts either way); after it the first quiet frame leaves
+/// no backoff (`testingFocusBackoffCount == 0`), the focused window lags the unfocused one by two frames (frame 0 builds, frame 1 captures from the record frame 0 made, frame 2 grafts: measured 5, 5, 0 requests against 0, 0, 0), and then every frame equals it. **Mutation:** M5 (the lift removed).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func theFocusedChainRecordsTheFrameAfterTheFadeEnds() throws {
     let focused = try chat(focused: true, glide: false), plain = try chat(focused: false, glide: false)
-    var lines: [String] = []
-    RetainedTrace.sink = { lines.append($0) }
-    for step in 0..<6 {
-        fgStep(focused, step, glide: false); fgStep(plain, step, glide: false)
-        #expect(focused.pair.on.window.testingFocusBackoffCount == 0, "step \(step)")
-    }
-    RetainedTrace.sink = nil
-    #expect(!lines.contains { $0.contains("focusBackoff") }, "no backoff line: \(lines.filter { $0.contains("focusBackoff") }.prefix(2))")
-    for _ in 0..<2 { for w in [focused.pair.on, plain.pair.on, focused.pair.off, plain.pair.off] { w.advance(by: 0.5) } }
-    for w in [focused.pair.on, plain.pair.on, focused.pair.off, plain.pair.off] { w.advance(by: 2) }
-    for frame in 0..<4 {
+    for step in 0..<6 { fgStep(focused, step, glide: false); fgStep(plain, step, glide: false) }
+    for w in [focused.pair.on, plain.pair.on, focused.pair.off, plain.pair.off] { w.advance(by: 0.5); w.advance(by: 2) }
+    var table: [String] = []
+    for frame in 0..<7 {
         focused.pair.on.resetFrameWork(); plain.pair.on.resetFrameWork()
         focused.pair.redraw(); plain.pair.redraw()
         let a = StepWork(focused.pair.on.frameWork), b = StepWork(plain.pair.on.frameWork)
-        // The frame the fade ends in stores the column's record in both windows; under a focus the capture waits for a frame that hits it (`RK-AS`, c2): one frame later.
-        if frame == 0 { #expect(a.requests <= 5 && a.redos == 0, "the frame the fade ends in: focused \(a)") }
-        else { #expect(a == b, "settled frame \(frame): focused \(a) against unfocused \(b)") }
+        table.append("frame \(frame): focused \(a) | unfocused \(b) | backoffs \(focused.pair.on.window.testingFocusBackoffCount)")
+        if frame < 2 { #expect(a.requests <= 5 && a.redos == 0, "the lag is two frames (the first quiet frame lifts the backoff and builds, the second captures from the record it made): focused \(a)") }
+        else { #expect(a == b, "frame \(frame): focused \(a) against unfocused \(b)") }
+        #expect(focused.pair.on.window.testingFocusBackoffCount == 0, "no transient backoff survives the first quiet frame (frame \(frame))")
     }
+    #expect(table.count == 7, "\(table.joined(separator: "\n"))")
     try focused.pair.compare("settled")
 }
 
@@ -257,15 +254,23 @@ private struct FGBlinkOuter: Component, @MainActor Equatable {
 
 // MARK: 10 - a perpetual animation
 
-/// **10** A `ProgressView` beside the focused composer animates on every frame (a standing taint in effect: it never ends): the focused chat does what the unfocused one
-/// does, in requests and allocations, which prices the choice to back off only standing taints. **Mutation:** M5.
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aPerpetualAnimationBesideAFocusedFieldCostsWhatItCostsUnfocused() throws {
+#if canImport(Darwin)
+/// Master's allocations a step (least of 8, wheel, graft on, a `ProgressView` beside the composer), measured on master in the shape of this test (a run with the other
+/// focus tests): focused 19,030 (the backoff holds the chain plain), unfocused 28,182.
+private let fgSpinnerOnMaster = (focused: 19_030, unfocused: 28_182)
+#endif
+
+/// **10** A `ProgressView` beside the focused composer raises a transient taint on every frame: the backoff holds the chain plain, as on master, and the window equals the
+/// retention-off one; requests equal the unfocused chat's, and on Darwin allocations a step (the least of eight) are no more than master's, focused and unfocused.
+/// **Mutation:** M5 (the lift removed: no, the lift is not what holds it; the backoff removed reddens it: M6).
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aPerpetualAnimationBesideAFocusedFieldCostsWhatItCostsOnMaster() throws {
     let focused = try chat(focused: true, glide: false, spinner: true), plain = try chat(focused: false, glide: false, spinner: true)
     for step in 0..<6 {
         fgStep(focused, step, glide: false); fgStep(plain, step, glide: false)
         let a = StepWork(focused.pair.on.frameWork), b = StepWork(plain.pair.on.frameWork)
-        #expect(a.requests <= b.requests && a.redos == b.redos, "step \(step): focused \(a) against unfocused \(b)")
+        #expect(a.requests == b.requests && a.redos == b.redos, "step \(step): focused \(a) against unfocused \(b)")
     }
+    try focused.pair.compare("spinner")
     #if canImport(Darwin)
     func least(_ fg: FGPair<some Element>) throws -> Int {
         var counts: [Int] = []
@@ -273,7 +278,8 @@ private struct FGBlinkOuter: Component, @MainActor Equatable {
         return counts.min() ?? 0
     }
     let a = try least(focused), b = try least(plain)
-    #expect(a <= b, "allocations a step: focused \(a) against unfocused \(b)")
+    #expect(a <= fgSpinnerOnMaster.focused, "allocations a step, focused: \(a) against master's \(fgSpinnerOnMaster.focused)")
+    #expect(b <= fgSpinnerOnMaster.unfocused, "allocations a step, unfocused: \(b) against master's \(fgSpinnerOnMaster.unfocused)")
     #endif
 }
 
@@ -306,46 +312,8 @@ private struct FGBlinkOuter: Component, @MainActor Equatable {
 
 // MARK: 12 - an unfocused chat costs what it did
 
-#if canImport(Darwin)
-private let fgAllocationsOnMaster = (wheel: 27_026, glide: 27_145, atWheel: 28_196, atStream: 29_395)
-
-/// The allocations of an unfocused chat's steps, the least of eight, against master's; `nil` when none is over. Run in a child process: an allocation count depends on
-/// what the process shaped and cached before (the same steps measure 36 more after a dozen other windows have drawn), and master's literals were measured in a fresh one.
-@MainActor private func fgAllocationsOverMaster() async throws -> String? {
-    var over: [String] = []
-    for glide in [false, true] {
-        let fg = try chat(focused: false, glide: glide)
-        for step in 0..<6 { fgStep(fg, step, glide: glide, retainingOnly: true) }
-        var counts: [Int] = []
-        for step in 6..<14 { counts.append(try #require(countAllocations { fgStep(fg, step, glide: glide, retainingOnly: true) })) }
-        let limit = glide ? fgAllocationsOnMaster.glide : fgAllocationsOnMaster.wheel
-        if (counts.min() ?? .max) > limit { over.append("glide \(glide): \(counts) against master's \(limit)") }
-    }
-    for wheel in [true, false] {
-        let pair = try atPair(focused: false, graft: true)
-        func step(_ i: Int) async {
-            if wheel { pair.on.scroll(at: pt(4, 300), byDeltaX: 0, deltaY: i.isMultiple(of: 2) ? 24 : -16) }
-            else { pair.onSide.inputs.offset += 1; await rsSettle(); pair.on.window.setNeedsRedraw(); pair.on.tick() }
-        }
-        for i in 0..<6 { await step(i) }
-        var counts: [Int] = []
-        for i in 6..<14 {
-            var c: Int?
-            if wheel { c = countAllocations { pair.on.scroll(at: pt(4, 300), byDeltaX: 0, deltaY: i.isMultiple(of: 2) ? 24 : -16) } }
-            else { pair.onSide.inputs.offset += 1; await rsSettle(); c = countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() } }
-            if let c { counts.append(c) }
-        }
-        let limit = wheel ? fgAllocationsOnMaster.atWheel : fgAllocationsOnMaster.atStream
-        if (counts.min() ?? .max) > limit { over.append("transcript wheel \(wheel): \(counts) against master's \(limit)") }
-    }
-    return over.isEmpty ? nil : over.joined(separator: "; ")
-}
-#endif
-
 /// **12** An unfocused chat, graft on, costs what it did on master: the work literals of the fixture's wheel and glide and of Alloy's markdown transcript
-/// (`AlloyTranscriptFixture`), and (12b, Darwin) allocations a step, the least of eight, no more than master's measured at step 0 in a fresh process: the fixture 27,026 and
-/// 27,145, Alloy's transcript 28,196 and 29,395. The refusal names, the taint classification and the ping-pong of the names add none. **Mutation:** M11 (the ping-pong back
-/// to `= []`, or the trace line's autoclosure built eagerly: +19 a frame).
+/// (`AlloyTranscriptFixture`). 12b below holds its allocations. **Mutation:** M11.
 @Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func anUnfocusedChatsSteadyFrameCostsWhatItDid() async throws {
     for glide in [false, true] {
         let fg = try chat(focused: false, glide: glide)
@@ -370,14 +338,41 @@ private let fgAllocationsOnMaster = (wheel: 27_026, glide: 27_145, atWheel: 28_1
 }
 
 #if canImport(Darwin)
-/// **12b** The allocation half of 12, in a child process (see `fgAllocationsOverMaster`).
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func anUnfocusedChatsStepAllocatesNoMoreThanMasterDid() async {
-    let result = await #expect(processExitsWith: .success, observing: [\.standardErrorContent]) {
-        let over = try await fgAllocationsOverMaster()
-        FileHandle.standardError.write(Data(("FG-ALLOCATIONS " + (over.map { "OVER " + $0 } ?? "OK")).utf8))
+/// What the retaining window costs over the retention-off one in one step, unfocused and steady (the least of eight steps' differences, both windows in one process: an
+/// absolute count moves by 40 or more from one invocation to the next, the difference by about 20), measured on master the same way (the larger of two in-process
+/// runs): the fixture's wheel 9,790 and glide 10,011, Alloy's transcript stream 1,859.
+private let fgRetentionDeltaOnMaster = (wheel: 9_790, glide: 10_011, stream: 1_859)
+
+/// **12b** The allocations of an unfocused chat's steps, as a delta against the retention-off window: the branch's is no more than master's. The refusal names, the taint
+/// classification, the ping-pong of the names and the backoff lift add none. **Mutation:** M11b (the trace line's autoclosure built eagerly), M11a.
+@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func anUnfocusedChatsStepAllocatesNoMoreOverRetentionOffThanMasterDid() async throws {
+    func delta(_ on: [Int], _ off: [Int]) -> Int { zip(on, off).map { $0 - $1 }.min() ?? 0 }
+    for glide in [false, true] {
+        let fg = try chat(focused: false, glide: glide)
+        let pair = fg.pair
+        func step(_ w: TestWindow, _ i: Int) {
+            if glide { w.advance(by: 1.0 / 60.0) } else { w.scroll(at: pt(4, 300), byDeltaX: 0, deltaY: i.isMultiple(of: 2) ? 24 : -16) }
+        }
+        for i in 0..<6 { step(pair.on, i); step(pair.off, i) }
+        var on: [Int] = [], off: [Int] = []
+        for i in 6..<14 {
+            on.append(try #require(countAllocations { step(pair.on, i) }))
+            off.append(try #require(countAllocations { step(pair.off, i) }))
+        }
+        let limit = glide ? fgRetentionDeltaOnMaster.glide : fgRetentionDeltaOnMaster.wheel
+        #expect(delta(on, off) <= limit, "glide \(glide): retaining \(on) retention off \(off), delta \(delta(on, off)) against master's \(limit)")
     }
-    let report = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
-    #expect(report.contains("FG-ALLOCATIONS OK"), "\(report.suffix(600))")
+    let pair = try atPair(focused: false, graft: true)
+    func tick(_ w: TestWindow, _ s: RPSide) async { s.inputs.offset += 1; await rsSettle(); w.window.setNeedsRedraw(); w.tick() }
+    for _ in 0..<6 { await tick(pair.on, pair.onSide); await tick(pair.off, pair.offSide) }
+    var on: [Int] = [], off: [Int] = []
+    for _ in 6..<14 {
+        pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
+        await rsSettle()
+        on.append(try #require(countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }))
+        off.append(try #require(countAllocations { pair.off.window.setNeedsRedraw(); pair.off.tick() }))
+    }
+    #expect(delta(on, off) <= fgRetentionDeltaOnMaster.stream, "transcript stream: retaining \(on) retention off \(off), delta \(delta(on, off)) against master's \(fgRetentionDeltaOnMaster.stream)")
 }
 #endif
 

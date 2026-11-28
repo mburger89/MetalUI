@@ -791,6 +791,7 @@ final class StateTable {
     func withState<S>(_ id: GlobalElementID,
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
+        if retainLog != nil { contentMemos.transientTaintThisFrame = true }   // a paint that writes state: not the routine writes of build and prepaint
         retainLog?.taint("stateWrite", transient: true)   // a paint that rewrites an entry cannot be replayed (`SB-U`)
         if let log = prepaintLog, log.allowedStateWrites == 0 { log.taint("stateWrite") }
         // A build that writes an entry cannot be grafted, except an animation baseline, whose value is a function
@@ -1102,6 +1103,7 @@ final class StateTable {
     /// was never anchored to the slot's stored type there either — so this
     /// is not a new hazard `write` introduces, only one it inherits.
     func write<S>(_ id: GlobalElementID, _ value: S, by owner: DirtyOwner? = nil) {
+        if retainLog != nil { contentMemos.transientTaintThisFrame = true }   // a paint that writes state: not the routine writes of build and prepaint
         retainLog?.taint("stateWrite", transient: true)
         prepaintLog?.taint("stateWrite")
         contentMemos.journal.taint("stateWrite")   // `RK-F`

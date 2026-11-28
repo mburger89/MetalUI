@@ -92,6 +92,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     func requestAnotherFrame() {
         wantsAnotherFrame = true
         timeVaryingNotes &+= 1
+        stateTable.contentMemos.transientTaintThisFrame = true
         retainLog?.taint("requestAnotherFrame", transient: true)
     }
 
@@ -494,6 +495,7 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     func noteActiveAnimation() {
         hasActiveAnimations = true
         timeVaryingNotes &+= 1
+        stateTable.contentMemos.transientTaintThisFrame = true
         retainLog?.taint("activeAnimation", transient: true)
     }
 

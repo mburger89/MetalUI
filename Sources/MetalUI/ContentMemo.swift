@@ -256,16 +256,21 @@ package final class ContentMemoStore {
     /// The most scopes kept; the soonest to expire goes first.
     static let quarantinedScopeLimit = 64
 
-    /// An occurrence whose paint record could not be stored while the focused element was under it for a **standing** reason (`RK-AQ`, `RK-AS`): a focused `CodeView`'s
-    /// caret blink taints every paint record, so every enclosing occurrence would make a ledger and a record each frame and store neither. It is left to run as it
-    /// did before the focus was a key (prepaint unrecorded, paint plain) until `retryAt`, then tried again; each failure doubles the wait, 8 builds to 256. A **transient**
-    /// taint (a glide or a fade, a state write: `SubtreeRecorder.standingTaint` is `nil`) ends without input and is not a failure: the unfocused window records the frame it ends in.
+    /// An occurrence whose paint record could not be stored while the focused element was under it (`RK-AQ`): a focused `CodeView`'s caret blink
+    /// taints every paint record, so every enclosing occurrence would make a ledger and a record each frame and store neither. It is left to run as it
+    /// did before the focus was a key (prepaint unrecorded, paint plain) until `retryAt`, then tried again; each failure doubles the wait, 8 builds to 256.
+    /// **Standing or transient** (`RK-AS`): a backoff made for a taint that ends without input (a glide or a fade, a state write: the recorder had no `standingTaint`)
+    /// is lifted by the first frame that raised no transient taint (`transientTaintThisFrame`, `endFrame`); one made for a standing taint is never lifted by a quiet frame.
     struct FocusBackoff {
         let occurrence: GlobalElementID
         let reason: String
         var retryAt: Int
         var exponent: UInt8
+        /// Made for a standing taint (`RK-AS`): not lifted by a quiet frame.
+        var standing: Bool
     }
+    /// Whether a transient taint (`requestAnotherFrame`, `activeAnimation`, a state write) was raised in the frame being built (`RK-AS`): one Bool, reset by `endFrame`.
+    var transientTaintThisFrame = false
     var focusBackoffs: [FocusBackoff] = []
     /// The focused element the table was made under: it is cleared whenever the focus differs.
     var focusBackoffOwner: GlobalElementID?
@@ -280,7 +285,7 @@ package final class ContentMemoStore {
     }
 
     /// `id` could not store the paint record it made under `focus`: wait 8 builds, then 16, doubling to 256 (`RK-AQ`).
-    func noteFocusedIneligible(_ id: GlobalElementID, focus: GlobalElementID, reason: String) {
+    func noteFocusedIneligible(_ id: GlobalElementID, focus: GlobalElementID, reason: String, standing: Bool) {
         if focusBackoffOwner != focus { focusBackoffs.removeAll(); focusBackoffOwner = focus }
         var exponent: UInt8 = 0
         if let index = focusBackoffs.firstIndex(where: { $0.occurrence == id }) {
@@ -290,7 +295,7 @@ package final class ContentMemoStore {
             focusBackoffs.removeFirst()
         }
         focusBackoffs.append(FocusBackoff(occurrence: id, reason: reason,
-                                          retryAt: buildSerial + 1 + (8 << Int(exponent)), exponent: exponent))
+                                          retryAt: buildSerial + 1 + (8 << Int(exponent)), exponent: exponent, standing: standing))
     }
 
     /// `id` stored a record made under a focus: its backoff is forgotten.
@@ -572,6 +577,9 @@ package final class ContentMemoStore {
     /// every entry no component touched, firing its session so it is spent.
     func endFrame() {
         if replaysPrepaint, retainsSubtrees, buildSerial < prepaintSuspendedUntil { retained.backoffFrames = 1 }
+        // `RK-AS`: the first frame with no transient taint lifts the backoffs made for one (at most `focusBackoffLimit` entries, and only on a frame that lifts).
+        if !transientTaintThisFrame, !focusBackoffs.isEmpty { focusBackoffs.removeAll { !$0.standing } }
+        transientTaintThisFrame = false
         buildSerial &+= 1
         lastEvaluations = evaluations + carriedEvaluations; lastSkips = skips; lastRefusals = refusals
         carriedEvaluations = 0
