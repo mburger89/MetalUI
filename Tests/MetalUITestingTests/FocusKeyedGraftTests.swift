@@ -338,41 +338,18 @@ private let fgSpinnerOnMaster = (focused: 19_030, unfocused: 28_182)
 }
 
 #if canImport(Darwin)
-/// What the retaining window costs over the retention-off one in one step, unfocused and steady (the least of eight steps' differences, both windows in one process: an
-/// absolute count moves by 40 or more from one invocation to the next, the difference by about 20), measured on master the same way (the larger of two in-process
-/// runs): the fixture's wheel 9,790 and glide 10,011, Alloy's transcript stream 1,859.
-private let fgRetentionDeltaOnMaster = (wheel: 9_790, glide: 10_011, stream: 1_859)
+/// What the retaining window costs over the retention-off one in one step, unfocused and steady (`fgRetentionDeltas`: the least of 24 steps' differences, both windows in
+/// one process; an absolute count moves by 40 or more from one invocation to the next, the difference by about 20 for one fixture), measured on master the same way
+/// (the largest of its in-process runs): see `fgRetentionDeltaOnMaster`.
+private let fgRetentionDeltaOnMaster = (wheel: 0, glide: 0, stream: 0)
 
 /// **12b** The allocations of an unfocused chat's steps, as a delta against the retention-off window: the branch's is no more than master's. The refusal names, the taint
 /// classification, the ping-pong of the names and the backoff lift add none. **Mutation:** M11b (the trace line's autoclosure built eagerly), M11a.
 @Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func anUnfocusedChatsStepAllocatesNoMoreOverRetentionOffThanMasterDid() async throws {
-    func delta(_ on: [Int], _ off: [Int]) -> Int { zip(on, off).map { $0 - $1 }.min() ?? 0 }
-    for glide in [false, true] {
-        let fg = try chat(focused: false, glide: glide)
-        let pair = fg.pair
-        func step(_ w: TestWindow, _ i: Int) {
-            if glide { w.advance(by: 1.0 / 60.0) } else { w.scroll(at: pt(4, 300), byDeltaX: 0, deltaY: i.isMultiple(of: 2) ? 24 : -16) }
-        }
-        for i in 0..<6 { step(pair.on, i); step(pair.off, i) }
-        var on: [Int] = [], off: [Int] = []
-        for i in 6..<14 {
-            on.append(try #require(countAllocations { step(pair.on, i) }))
-            off.append(try #require(countAllocations { step(pair.off, i) }))
-        }
-        let limit = glide ? fgRetentionDeltaOnMaster.glide : fgRetentionDeltaOnMaster.wheel
-        #expect(delta(on, off) <= limit, "glide \(glide): retaining \(on) retention off \(off), delta \(delta(on, off)) against master's \(limit)")
-    }
-    let pair = try atPair(focused: false, graft: true)
-    func tick(_ w: TestWindow, _ s: RPSide) async { s.inputs.offset += 1; await rsSettle(); w.window.setNeedsRedraw(); w.tick() }
-    for _ in 0..<6 { await tick(pair.on, pair.onSide); await tick(pair.off, pair.offSide) }
-    var on: [Int] = [], off: [Int] = []
-    for _ in 6..<14 {
-        pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
-        await rsSettle()
-        on.append(try #require(countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }))
-        off.append(try #require(countAllocations { pair.off.window.setNeedsRedraw(); pair.off.tick() }))
-    }
-    #expect(delta(on, off) <= fgRetentionDeltaOnMaster.stream, "transcript stream: retaining \(on) retention off \(off), delta \(delta(on, off)) against master's \(fgRetentionDeltaOnMaster.stream)")
+    let d = try await fgRetentionDeltas()
+    #expect(d.wheel <= fgRetentionDeltaOnMaster.wheel, "wheel: \(d.wheel) against master's \(fgRetentionDeltaOnMaster.wheel)")
+    #expect(d.glide <= fgRetentionDeltaOnMaster.glide, "glide: \(d.glide) against master's \(fgRetentionDeltaOnMaster.glide)")
+    #expect(d.stream <= fgRetentionDeltaOnMaster.stream, "stream: \(d.stream) against master's \(fgRetentionDeltaOnMaster.stream)")
 }
 #endif
 

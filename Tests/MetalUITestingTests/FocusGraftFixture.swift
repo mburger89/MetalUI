@@ -3,6 +3,9 @@ import Foundation
 import MetalUIScene
 import MetalUITesting
 import Testing
+#if canImport(Darwin)
+import MetalUITestSupport
+#endif
 
 // The fixture of record 443 (`RK-AS`): Alloy's chat without its markdown. A transcript of equatable paragraph rows in a bottom-anchored
 // `ScrollViewReader > ScrollView > LazyVStack`, over a composer (a `TextField` with a placeholder and a `@FocusState`), both under one column
@@ -161,3 +164,41 @@ struct FGHost: Component, @MainActor Equatable {
     var content: some ElementGroup { FGComposer(side: side) }
     static func == (l: FGHost, r: FGHost) -> Bool { l.side === r.side }
 }
+
+#if canImport(Darwin)
+/// The least over three fresh fixtures of the least of eight steps' difference in allocations between the retaining window and the retention-off one, unfocused and steady,
+/// graft on: the fixture's wheel and glide, and Alloy's transcript while it streams (`RK-AS`, `anUnfocusedChatsStepAllocatesNoMoreOverRetentionOffThanMasterDid`).
+@MainActor func fgRetentionDeltas() async throws -> (wheel: Int, glide: Int, stream: Int) {
+    func least(_ on: [Int], _ off: [Int]) -> Int { zip(on, off).map { $0 - $1 }.min() ?? 0 }
+    var result = (wheel: Int.max, glide: Int.max, stream: Int.max)
+    for _ in 0..<3 {
+        for glide in [false, true] {
+            let fg = try fgPair(focused: false)
+            if glide { fgStartGlide(fg) }
+            let pair = fg.pair
+            func step(_ w: TestWindow, _ i: Int) {
+                if glide { w.advance(by: 1.0 / 60.0) } else { w.scroll(at: pt(4, 300), byDeltaX: 0, deltaY: i.isMultiple(of: 2) ? 24 : -16) }
+            }
+            for i in 0..<6 { step(pair.on, i); step(pair.off, i) }
+            var on: [Int] = [], off: [Int] = []
+            for i in 6..<14 {
+                on.append(try #require(countAllocations { step(pair.on, i) }))
+                off.append(try #require(countAllocations { step(pair.off, i) }))
+            }
+            if glide { result.glide = min(result.glide, least(on, off)) } else { result.wheel = min(result.wheel, least(on, off)) }
+        }
+        let pair = try atPair(focused: false, graft: true)
+        func tick(_ w: TestWindow, _ s: RPSide) async { s.inputs.offset += 1; await rsSettle(); w.window.setNeedsRedraw(); w.tick() }
+        for _ in 0..<6 { await tick(pair.on, pair.onSide); await tick(pair.off, pair.offSide) }
+        var on: [Int] = [], off: [Int] = []
+        for _ in 6..<14 {
+            pair.onSide.inputs.offset += 1; pair.offSide.inputs.offset += 1
+            await rsSettle()
+            on.append(try #require(countAllocations { pair.on.window.setNeedsRedraw(); pair.on.tick() }))
+            off.append(try #require(countAllocations { pair.off.window.setNeedsRedraw(); pair.off.tick() }))
+        }
+        result.stream = min(result.stream, least(on, off))
+    }
+    return result
+}
+#endif
