@@ -668,7 +668,7 @@ private struct RetainedCard: Component, @MainActor Equatable {
 
 /// **5b.1** A selectable `Text` inside a retained (`.equatable()`) subtree repaints its highlight: the occurrence misses
 /// while its `Text` is selected, and once the selection drops it records and replays again, with no highlight.
-/// **Mutation:** `retainedSubtreeHasPointerPressOrFocus` ignores the session (the selected frame replays without it).
+/// **Mutation:** `retainedSubtreeHasPressOrSelection` ignores the session (the selected frame replays without it).
 @Test @MainActor func aRetainedSubtreeRepaintsTheHighlight() async throws {
     let w = try harnessWindow(size: sz(400, 300)) { Column { RetainedCard().equatable() } }
     try await w.runUntilIdle()

@@ -180,6 +180,7 @@ public struct EquatableComponent<C: Component & Equatable>: ElementGroup {
         }
         switch frame.retainedPaintDecision(phase) {
         case .hit(let record):
+            frame.noteReplayedHoverReads(phase.entry.recordHover)   // `RK-AR`: an enclosing recorder read what this one read
             frame.replayPaint(record, translated: phase.translatedPaint, scene: phase.translatedCopy?.scene, clips: phase.translatedCopy?.clips,
                               layoutOrigin: phase.rects.count >= 2 ? (phase.rects[0], phase.rects[1]) : nil)
         case .plain:

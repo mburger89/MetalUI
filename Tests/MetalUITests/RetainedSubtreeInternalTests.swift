@@ -19,7 +19,7 @@ import MetalUITesting
 private enum Channel: String {
     /// Recorded and replayed (the scene, the marks and touches paint makes).
     case recorded
-    /// In the replay key, or the pointer/press rule, or keyed by the focused element under the occurrence (`RK-AQ`).
+    /// In the replay key, or the press rule, or keyed by the focused element under the occurrence (`RK-AQ`) or by what the paint reads of hover (`RK-AR`).
     case keyed
     /// A change in a paint makes the occurrence ineligible.
     case ledger
@@ -105,6 +105,8 @@ private let frameChannels: [String: Channel] = [
     "namedSpaceSnapshots": .prepaintOnly, "accessibilitySuppressionExceptions": .prepaintOnly,
     "restoreScopeStack": .prepaintOnly, "restoreLayoutDepth": .buildOnly, "restoreInput": .frameLocal, "restoredFocus": .frameLocal,   // KF-AM: a scope refuses retention by taint
     "focusRegistry": .prepaintOnly, "focusedElement": .keyed, "focusedElementProducedThisFrame": .prepaintOnly,
+    // `RK-AR`: the hovered hitbox is read by paint only, through `isHovered`; a record keeps the element ids its paint asked about and
+    // the one of them that was hovered (`HoverReads`), and replays only while the answer is the same.
     "hoveredHitbox": .keyed, "stackAxes": .buildOnly,
     // `BY-D`: the previous frame's pointer owner, stamped by `Window` before the build; read by a custom button
     // style's body at layout and nothing else, and a press under a retained subtree already refuses a replay (`SB-X`).
@@ -158,7 +160,7 @@ private let frameChannels: [String: Channel] = [
     "scopeCaptureHints": .frameLocal, "scopeCaptureCounts": .frameLocal,
     // `TXS-B`, `TXS-C`: the selectable `Text`s' regions are registered by prepaint (an occurrence holding one leaves no prepaint
     // ledger, `taint("textSelection")`), and the window's session is handed in before the build and read by the selected `Text`'s
-    // prepaint and paint: a subtree holding it misses retained replay (`retainedSubtreeHasPointerPressOrFocus`).
+    // prepaint and paint: a subtree holding it misses retained replay (`retainedSubtreeHasPressOrSelection`).
     "selectableTextRegions": .prepaintOnly, "textSelection": .keyed,
     // `G47`: the fingerprint of `environmentTop`, cleared by every write to the top and put back by the scope that restores one; a
     // derived value of a channel already classified (`environmentTop`), never replayed.

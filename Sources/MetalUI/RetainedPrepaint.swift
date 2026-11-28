@@ -325,14 +325,6 @@ extension Frame {
                     ambient: retainedAmbientKey(), extras: prepaintExtras())
     }
 
-    /// Whether the pointer is inside a hitbox the ledger registered (`RK-C`'s prepaint half of `SB-X`): hover
-    /// resolves after prepaint, so the decision reads the pointer position against the record's own hitboxes, a
-    /// superset of the paint rule's "the hovered element is under me".
-    func retainedPointerIsInside(_ ledger: PrepaintLedger) -> Bool {
-        guard let point = mousePosition else { return false }
-        return ledger.hitboxes.contains { $0.contains(point) }
-    }
-
     /// The decision of `EquatableComponent.prepaintGroup` (`RK-C`, `RK-E`): replay, run and record, or run. A decision that does
     /// not replay prints one `retained prepaint miss` line naming why (`DM-F`).
     func retainedPrepaintDecision(_ phase: RetainedPhase) -> RetainedPrepaintMode {
@@ -373,8 +365,8 @@ extension Frame {
             memos.retained.noteIneligible(.prepaint, reason: reason)
             return .run(nil)
         }
-        if retainedSubtreeHasPointerOrPress(under: build.key.id) {
-            noteRun(phase, "pointer/press under the occurrence")
+        if retainedSubtreeHasPressOrSelection(under: build.key.id) {
+            noteRun(phase, "press under the occurrence")
             return .run(nil)
         }
         // `RK-AQ`: the focused element under the occurrence is a decision input, not a refusal.
@@ -399,7 +391,7 @@ extension Frame {
         inputs.coveragePrepaint = old?.coveragePrepaint ?? true
         inputs.serialMatches = old.map { $0.contentSerial == entry.serial } ?? true
         inputs.versionsUnchanged = old.map { retainedVersionsUnchanged($0.versions) } ?? true
-        inputs.pointerInLedger = ledgerOfRecord.map { retainedPointerIsInside($0) } ?? false
+        inputs.pointerInLedger = retainedHoverNeedsPrepaint(old == nil ? nil : entry.recordHover, ledger: ledgerOfRecord)   // `RK-AR`
         // Both must equal the focus now: a record whose frame moved focus at the boundary (ledger and record disagree) never replays its prepaint,
         // so this cause cannot produce a redo (`RK-AQ`).
         inputs.focusMoved = old != nil && (entry.recordFocus != focusNow || (ledgerOfRecord.map { $0.focusedUnder != focusNow } ?? false))
@@ -432,7 +424,7 @@ extension Frame {
                 switch movedPrepaintLedger(ledger, shift: shift, clip: key.ambient.clip, to: key) {
                 case .moved(let translation):
                     // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand, not where they stood.
-                    if let point = mousePosition, translation.hitboxes.contains(where: { $0.contains(point) }) {
+                    if !phase.grafted, retainedHoverReaderUnderPointer(translation.hitboxes, reads: entry.recordHover) {
                         noteRun(phase, "pointerInMovedLedger")
                         return .run(phase.grafted ? nil : openPrepaintWindow())
                     }
@@ -483,7 +475,7 @@ extension Frame {
                 case .success(let accessibility):
                     if let moved = translatedHitboxes(of: ledger, by: delta) {
                         // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand (`RZ-D`).
-                        if let point = mousePosition, moved.contains(where: { $0.contains(point) }) {
+                        if !phase.grafted, retainedHoverReaderUnderPointer(moved, reads: entry.recordHover) {
                             noteRun(phase, "pointerInMovedLedger")
                             return .run(phase.grafted ? nil : openPrepaintWindow())
                         }
@@ -525,7 +517,7 @@ extension Frame {
             return refuseEffect(reason, build: build, phase: phase)
         case .moved(let translation):
             // Hover resolves after prepaint: the pointer is read against the hitboxes where they will stand (`FS-P`, `RZ-D`).
-            if let point = mousePosition, translation.hitboxes.contains(where: { $0.contains(point) }) {
+            if !phase.grafted, retainedHoverReaderUnderPointer(translation.hitboxes, reads: phase.entry.recordHover) {
                 noteRun(phase, "pointerInMovedLedger")
                 return .run(phase.grafted ? nil : openPrepaintWindow())
             }
@@ -756,6 +748,9 @@ struct RetainedVerifySnapshot {
     /// The unit ranges the frame noted (`animationStore.transitions.ranges`, `XF-H`): a replay that drops them loses the default fade of the next removal (`FS-Z`).
     let unitRanges: [String]
     let hitboxes: [String]
+    /// The pointer's static outputs at the frame's pointer over its hitboxes (`RK-AR`): the style and visibility regions the window's cover rule reaches and the help text
+    /// of the region it finds, with whether a provider is present (providers are never called). `Hitbox.fingerprint` records only which handler members exist.
+    let pointer: String
     let tabOrder: [GlobalElementID]
     /// The focused element after `resolveFocus` (`RK-AQ`): a replayed ledger must leave focus where a fresh prepaint leaves it.
     let focused: GlobalElementID?
@@ -805,6 +800,7 @@ struct RetainedVerifySnapshot {
             let first = zip(hitboxes.indices, zip(hitboxes, other.hitboxes)).first { $0.1.0 != $0.1.1 }
             return "hitboxes (\(hitboxes.count) vs \(other.hitboxes.count)) first difference \(String(describing: first))"
         }
+        if pointer != other.pointer { return "pointer outputs \(pointer) vs \(other.pointer)" }
         if tabOrder != other.tabOrder { return "tab order" }
         if focused != other.focused { return "focused element \(String(describing: focused)) vs \(String(describing: other.focused))" }
         if accessibility != other.accessibility { return "accessibility records (\(accessibility.count) vs \(other.accessibility.count))" }
@@ -861,6 +857,21 @@ extension Frame {
         elementPaints = other.elementPaints
     }
 
+    /// `RetainedVerifySnapshot.pointer`: what the window would resolve for the pointer from this frame's hitboxes, read through the window's own rules.
+    private func pointerOutputs() -> String {
+        guard let point = mousePosition else { return "" }
+        let boxes = hitboxes(from: 0)
+        var out = ""
+        _ = Window.forEachPointerStyleRegion(in: boxes, at: point) { region, pointer in
+            out += "[\(sbPath(region.id).suffix(40)) style \(String(describing: pointer.style)) visibility \(String(describing: pointer.visibility)) provider \(pointer.styleProvider != nil)]"
+        }
+        if let index = Window.contextualTarget(in: boxes, at: point, where: { $0.help != nil || $0.helpProvider != nil }),
+           let attachment = boxes[index].handlers.contextual {
+            out += "{help \(String(describing: attachment.help)) provider \(attachment.helpProvider != nil) at \(sbPath(boxes[index].id).suffix(40))}"
+        }
+        return out
+    }
+
     func captureRetainedVerifySnapshot() -> RetainedVerifySnapshot {
         let s = finalizedScene()
         return RetainedVerifySnapshot(
@@ -868,7 +879,7 @@ extension Frame {
             counts: [s.rects.count, s.glyphs.count, s.images.count, s.surfaces.count, s.textures.count, s.drawList.count],
             groups: Self.groupDigest(of: s, path: ""),
             unitRanges: animationStore.transitions.ranges.map { "\(sbPath($0.unit)) \($0.start) \($0.end)" },
-            hitboxes: hitboxes(from: 0).map(\.fingerprint), tabOrder: focusRegistry.tabOrder, focused: focusedElement,
+            hitboxes: hitboxes(from: 0).map(\.fingerprint), pointer: pointerOutputs(), tabOrder: focusRegistry.tabOrder, focused: focusedElement,
             accessibility: axEmissions(from: 0).map {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },

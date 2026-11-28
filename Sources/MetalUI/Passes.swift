@@ -853,7 +853,8 @@ public struct PaintPass {
     /// below, which must survive frames `HitboxID` cannot (see `HitboxID`'s own
     /// doc comment).
     public func isHovered(_ id: HitboxID) -> Bool {
-        frame.hoveredHitbox == id
+        frame.noteHoverReadByHitbox()   // `RK-AR`: an index is not a function of the hovered element
+        return frame.hoveredHitbox == id
     }
 
     /// Whether the pointer is over the hitbox `id` registered — the same
@@ -877,7 +878,8 @@ public struct PaintPass {
     /// The two keys coincide only because an element registers at most one
     /// hitbox — see `Frame.hoveredElement` for the whole of that argument.
     public func isHovered(_ id: GlobalElementID) -> Bool {
-        frame.hoveredElement == id
+        frame.noteHoverRead(id)   // `RK-AR`: a retained occurrence's paint is keyed on what it reads here
+        return frame.hoveredElement == id
     }
 
     /// Whether `id` is holding "active" state — the element whose hitbox

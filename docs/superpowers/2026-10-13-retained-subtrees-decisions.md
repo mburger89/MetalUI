@@ -163,6 +163,8 @@ so five neighbours of every dragged node would miss every frame).
 test 1.3 has one separating arm per component and the differential runs a script that moves every
 one. A component that is in the key and need not be costs a miss, never a wrong frame.
 
+**Amended by `RK-AQ` and `RK-AR` (records 440, 442): item 4's three booleans are two.** Focus is keyed on the focused element under the occurrence (`RK-AQ`); hover is keyed on what the occurrence's paint reads of it (`RK-AR`: the element ids it passed to `isHovered`, and which of them was hovered), so a hovered element nothing under the occurrence asks about costs the occurrence nothing. The pressed element and the selected `Text` still refuse (`retainedSubtreeHasPressOrSelection`).
+
 ## SB-G — The environment: a fingerprint of the built-in fields; a custom key is a refusal
 
 **Question.** A subtree's build reads `frame.environmentTop`; the content memo refused
@@ -479,6 +481,8 @@ costs the occurrence nothing, and a record made while one of the three is inside
 pointer just left re-paints once). The predictions of `RetainedSubtreeWindowTests` hold in every drag frame.
 
 **Amended by `RK-AQ` (record 440): focus is no longer in this rule.** The hovered or pressed element (and the selected `Text`) still refuses; the focused element under the occurrence is stored in the ledger and the record (`focusedUnder`) and keys their replay, because only the focused element reads focus.
+
+**Amended by `RK-AR` (record 442): hover is no longer in this rule either.** The hovered element refuses nothing by itself; a paint's hover reads are the key (`HoverReads`), and `retainedSubtreeHasPointerOrPress(under:)` is `retainedSubtreeHasPressOrSelection(under:)`, press and a selected `Text` only. The hover clause was dead at prepaint and at the graft (hover resolves between prepaint and paint, so `hoveredElement` is `nil` there); the graft's live guard was the pointer against the hitboxes where they stood.
 
 ## SB-Y — The lane 1 ineligible set as built, and what is carried
 

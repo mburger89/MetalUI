@@ -162,6 +162,10 @@ final class RetainLog {
     var lives: [GlobalElementID] = []
     /// The surface calls of paint (`TRM-BB`).
     var surfaces: [SurfaceNote] = []
+    /// The ids paint asked `isHovered` about, in order (`RK-AR`, `RetainedHover.swift`): empty, so allocating nothing, for a frame none reads. At most `HoverReads.logLimit`.
+    var hoverReads: [GlobalElementID] = []
+    /// The log took `HoverReads.logLimit` reads or an index-keyed one: every recorder open or opened from here reads the whole subtree.
+    var hoverSaturated = false
 
     var current: Marks {
         Marks(scene: scene.count, marks: marks.count, touches: touches.count, lives: lives.count, surfaces: surfaces.count)
@@ -424,6 +428,9 @@ final class SubtreeRecorder {
     var openClips: [Int32] = []
     /// The ops this recorder's scene holds so far (those at its entry height): what a push's range counts.
     var opCount = 0
+    /// `RetainLog.hoverReads.count` where the paint window opened, and whether the paint read hover in a way an id cannot name (`RK-AR`).
+    var hoverFrom = 0
+    var hoverByHitbox = false
 }
 
 /// One clip pushed inside a recorded occurrence, as `Frame.pushClip` was given it (`FS-V`): what a moved record folds again from the
@@ -1067,30 +1074,11 @@ extension Frame {
         phase.nodeCount = signatures.count
     }
 
-    /// Whether the hovered element or the pressed one is the component or under it, or the selected `Text` is (`SB-F` item 4): identity is
-    /// structural, so an element inside the occurrence has its component's id as an ancestor. Exact where the design's "pointer inside an
-    /// owned hitbox" was conservative: a hover that is elsewhere (another node on top of this one) costs this occurrence nothing. Focus is
-    /// not in this rule since `RK-AQ`: a retained occurrence is keyed on `retainedFocus(under:)` instead.
-    func retainedSubtreeHasPointerOrPress(under id: GlobalElementID) -> Bool {
-        if let hovered = hoveredElement, hovered.isOrDescends(from: id) { return true }
-        if let active = activeElement, active.isOrDescends(from: id) { return true }
-        // The selected `Text` misses retained replay as a focused element did (`TXS-B`, `TXS-H`): its highlight and its
-        // pending press are state a recorded paint knows nothing of.
-        if let selected = textSelection?.id, selected.isOrDescends(from: id) { return true }
-        return false
-    }
-
     /// The focused element when it is `id` or under it (`RK-AQ`): the one id every focus read inside the occurrence is a function of, since only
     /// the focused element reads focus. Stored in the ledger (prepaint time) and the record (paint time) and compared as a decision input.
     func retainedFocus(under id: GlobalElementID) -> GlobalElementID? {
         guard let focused = focusedElement, focused.isOrDescends(from: id) else { return nil }
         return focused
-    }
-
-    /// Whether the hovered, pressed, selected or focused element is the component or under it: the rule before `RK-AQ`, kept for the graft
-    /// (a graft under a steady focus is carried over).
-    func retainedSubtreeHasPointerPressOrFocus(under id: GlobalElementID) -> Bool {
-        retainedSubtreeHasPointerOrPress(under: id) || retainedFocus(under: id) != nil
     }
 
     // MARK: Windows
@@ -1112,6 +1100,8 @@ extension Frame {
         recorder.sequenceFrom = scene.nextEmissionSequence
         recorder.virtualFrom = log.virtualSequence(recorder.sequenceFrom)
         recorder.matchedFrom = animationStore.matched.noted.count
+        recorder.hoverFrom = log.hoverReads.count
+        recorder.hoverByHitbox = log.hoverSaturated
         stateTable.contentMemos.retained.ledgerSnapshots += 1
         log.recorders.append(recorder)
     }
@@ -1409,7 +1399,7 @@ extension Frame {
             memos.retained.noteIneligible(.paint, reason: backoff.reason)
             return .plain
         }
-        let underPointer = retainedSubtreeHasPointerOrPress(under: build.key.id)
+        let underPress = retainedSubtreeHasPressOrSelection(under: build.key.id)
         if let old = entry.record {
             var inputs = PaintInvalidation.Inputs()
             inputs.observedChange = entry.observedChange
@@ -1417,7 +1407,8 @@ extension Frame {
             inputs.coveragePrepaint = old.coveragePrepaint
             inputs.serialMatches = old.contentSerial == entry.serial
             inputs.versionsUnchanged = retainedVersionsUnchanged(old.versions)
-            inputs.underPointer = underPointer
+            inputs.underPress = underPress
+            if let reads = entry.recordHover { inputs.hoverMoved = reads.answer(hovered: hoveredElement, under: build.key.id) != reads.hovered }   // `RK-AR`
             inputs.focusMoved = entry.recordFocus != phase.paintFocus
             inputs.ledgerIdentityDiffers = phase.replayed != nil && old.prepaint !== phase.replayed
             inputs.ledgerGain = old.prepaint == nil && phase.ledger != nil   // `RW-S`: a record made while the prepaint could leave no ledger takes this frame's
@@ -1538,6 +1529,9 @@ extension Frame {
         }
         let from = recorder.from, before = recorder.before
         let record = RetainedRecord(key: key)
+        // `RK-AR`: what the paint read of hover, nested replays included. An element asked about outside the occurrence is a read this record cannot be keyed on.
+        let hover = closedHoverReads(recorder, occurrence: phase.build.key.id)
+        if hover.outside, recorder.taint == nil { recorder.taint = "hoverReadOutside" }
         var seen = Set<GlobalElementID>()
         for id in stateTable.markJournal[phase.build.journal] where seen.insert(id).inserted {
             record.versions.append((id, stateTable.entryVersion(id)))
@@ -1650,6 +1644,9 @@ extension Frame {
             if phase.entry.recordFocus != phase.paintFocus {
                 preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)): focusedUnder \(String(describing: phase.entry.recordFocus)) vs \(String(describing: phase.paintFocus))")
             }
+            if phase.entry.recordHover != hover.reads {
+                preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)): hoverReads \(String(describing: phase.entry.recordHover)) vs \(String(describing: hover.reads))")
+            }
             if let difference = old.differences(from: record, ignoringFinalStream: phase.translatedPaint) {
                 preconditionFailure("METALUI_VERIFY_RETAINED: replay differs from a fresh run at \(sbPath(phase.build.key.id).suffix(80)) (observed \(phase.entry.observedChange), serial \(phase.entry.serial)): \(difference)")
             }
@@ -1664,11 +1661,12 @@ extension Frame {
             return
         }
         memos.retained.misses += 1
-        if retainedSubtreeHasPointerOrPress(under: phase.build.key.id) {
+        if retainedSubtreeHasPressOrSelection(under: phase.build.key.id) {
             phase.entry.record = nil
         } else {
             phase.entry.record = record
             phase.entry.recordFocus = phase.paintFocus
+            phase.entry.recordHover = hover.reads
             if phase.paintFocus != nil { memos.clearFocusBackoff(phase.build.key.id) }
             if memos.recordsAttempt { memos.attemptRecorded.append(phase.entry) }   // `GL-K`
             RetainedTestingHooks.beforeRecordClear?()

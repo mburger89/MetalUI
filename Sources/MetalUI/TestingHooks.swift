@@ -260,6 +260,8 @@ extension Window {
     package var testingStateEntries: [String] { stateTable.entryDigest }
     /// The paint records the window holds, for a test of what a record stores (`FS-V`).
     func testingRetainedRecords() -> [RetainedRecord] { stateTable.contentMemos.records }
+    /// What the paint of each record read of hover (`RK-AR`).
+    func testingRecordHovers() -> [(id: GlobalElementID, reads: HoverReads)] { stateTable.contentMemos.recordHovers }
     /// Forgets every paint record: the next frame makes them again, at the position the occurrences stand at (`FS-Z`).
     func testingDropRetainedRecords() { stateTable.contentMemos.dropRecords() }
     /// The unit ranges the last frame noted, as `unit start end` lines (`FS-Z`).
@@ -350,8 +352,32 @@ extension Window {
             case "contextMenus": ledger.contextMenus.removeAll()
             case "pressOnly": ledger.pressOnly.removeAll()
             case "inertBlockers": ledger.inertBlockers.removeAll()
+            case "pointerStyle":   // `RK-AR`: the cursor a stale ledger would leave (the fingerprint holds only that a member exists)
+                for index in ledger.hitboxes.indices {
+                    guard let pointer = ledger.hitboxes[index].handlers.pointer, let style = pointer.style else { continue }
+                    ledger.hitboxes[index].handlers.pointer = PointerAttachment(
+                        scrollWheel: pointer.scrollWheel, style: style == .link ? .default : .link, visibility: pointer.visibility,
+                        styleProvider: pointer.styleProvider, modifiersChanged: pointer.modifiersChanged)
+                }
+            case "help":   // `RK-AR`: the tooltip text a stale ledger would show
+                for index in ledger.hitboxes.indices {
+                    guard let contextual = ledger.hitboxes[index].handlers.contextual, let help = contextual.help else { continue }
+                    ledger.hitboxes[index].handlers.contextual = ContextualAttachment(
+                        locatedMenu: contextual.menu, help: help + " (stale)", helpProvider: contextual.helpProvider, selection: contextual.selection)
+                }
             default: preconditionFailure("unknown ledger channel \(channel)")
             }
+        }
+    }
+
+    /// Damages every stored record's hover reads (`RK-AR`) and answers how many it damaged: a record made with no reader is given one, so verify mode's
+    /// per-record comparison sees a replay that differs from a fresh paint.
+    @discardableResult
+    package func testingCorruptHoverReads() -> Int {
+        stateTable.contentMemos.mutateRecordHovers { reads in
+            var damaged = reads ?? HoverReads()
+            damaged.wholeSubtree.toggle()
+            reads = damaged
         }
     }
 }

@@ -533,23 +533,30 @@ extension Window {
 
     /// The innermost style and visibility regions at `point` their cover reaches (`CI-H` item 4, `PH-F`).
     private func pointerUnderPointer(_ point: Point<Pixels>) -> ResolvedPointer {
-        guard let cover = topmostHitbox(in: lastHitboxes, at: point, where: {
-            $0.opaque || $0.handlers.hover != nil || $0.handlers.pointer?.style != nil
-                || $0.handlers.pointer?.visibility != nil || $0.handlers.pointer?.styleProvider != nil
-        }) else { return ResolvedPointer() }
-        let top = lastHitboxes[cover]
         var found = ResolvedPointer()
-        for region in lastHitboxes {
-            pointerStyleVisits += 1
-            guard let pointer = region.handlers.pointer,
-                  pointer.style != nil || pointer.visibility != nil || pointer.styleProvider != nil else { continue }
-            if region.layer == top.layer, region.contains(point), top.id.isOrDescends(from: region.id) {
-                if let style = pointer.style { found.style = style }
-                if let provider = pointer.styleProvider, let style = provider(region.elementLocalPoint(point)) { found.style = style }
-                if let visibility = pointer.visibility { found.visibility = visibility }
-            }
+        pointerStyleVisits += Self.forEachPointerStyleRegion(in: lastHitboxes, at: point) { region, pointer in
+            if let style = pointer.style { found.style = style }
+            if let provider = pointer.styleProvider, let style = provider(region.elementLocalPoint(point)) { found.style = style }
+            if let visibility = pointer.visibility { found.visibility = visibility }
         }
         return found
+    }
+
+    /// Calls `body` for every style or visibility region at `point` their cover reaches, in registration order, and answers the hitboxes visited (`0` with no
+    /// cover): the one rule the window resolves the pointer by and the verify snapshot reads (`RK-AR`), so the two cannot differ.
+    static func forEachPointerStyleRegion(in boxes: [Hitbox], at point: Point<Pixels>,
+                                          _ body: (Hitbox, PointerAttachment) -> Void) -> Int {
+        guard let cover = topmostHitbox(in: boxes, at: point, where: {
+            $0.opaque || $0.handlers.hover != nil || $0.handlers.pointer?.style != nil
+                || $0.handlers.pointer?.visibility != nil || $0.handlers.pointer?.styleProvider != nil
+        }) else { return 0 }
+        let top = boxes[cover]
+        for region in boxes {
+            guard let pointer = region.handlers.pointer,
+                  pointer.style != nil || pointer.visibility != nil || pointer.styleProvider != nil else { continue }
+            if region.layer == top.layer, region.contains(point), top.id.isOrDescends(from: region.id) { body(region, pointer) }
+        }
+        return boxes.count
     }
 
     /// The innermost style and visibility on the pressed target's layer whose id the

@@ -295,12 +295,12 @@ private struct GutterCard: Component, @MainActor Equatable {
     return Cost(totalWork(w), frames: w.frameWork.count)
 }
 
-/// **10** A view with a fold gutter costs what the same view without one costs: steady (the literal master's: 2 requests,
-/// 0/1/0 retention) and keystroke, with a fold state attached and foldable ranges set. **Mutation:** an element or a
+/// **10** A view with a fold gutter costs what the same view without one costs: steady (2 requests, 1/0/0 retention: master's 0/1/0 while the
+/// pointer rested in the view, a miss `RK-AR` made a hit) and keystroke, with a fold state attached and foldable ranges set. **Mutation:** an element or a
 /// retention taint added for the lane (requests or misses move); the chevron glyphs shaped per row (checked in 11).
 @Test @MainActor func aFoldGutterCostsWhatNoFoldGutterCosts() async throws {
     let none = try await steadyCost(gutter: false), with = try await steadyCost(gutter: true)
-    #expect(none == Cost(requests: 2, hits: 0, misses: 1, ineligible: 0, frames: 1), "steady, no gutter: \(none)")
+    #expect(none == Cost(requests: 2, hits: 1, misses: 0, ineligible: 0, frames: 1), "steady, no gutter: \(none)")
     #expect(with == none, "steady: \(with) vs \(none)")
     let keyNone = try await keystrokeCost(gutter: false), keyWith = try await keystrokeCost(gutter: true)
     #if canImport(Darwin)

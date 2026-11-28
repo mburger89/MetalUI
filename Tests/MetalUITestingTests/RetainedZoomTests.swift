@@ -217,11 +217,11 @@ func aHitboxInsideAnEffectTheOccurrenceOpenedFollowsTheZoom() async throws {
 
 /// Z8 — a stationary pointer, a zoom that carries a node under it: the frame equals fresh at every step and is **not redone**.
 /// Scale 1 to 1.5 puts the pointer on node 7's button (blank at 1). Hover resolves after prepaint and before paint, so a prepaint
-/// that replayed would leave that node's paint (it misses under the pointer) with no element prepaint state: a redo. The pointer is
-/// read against the **moved** hitboxes (`RZ-D`, `FS-P`'s rule), so node 7's prepaint runs instead (9 of 10 replay) and the paint
-/// follows it. With a graft (`graft: true`) the node has no element to prepaint either way and the frame is redone once whether
-/// or not the read is made, which is why this arm builds without grafts. Mutation: the moved-hitbox pointer read skipped
-/// (10 replays, one redo).
+/// that replayed would leave that node's paint (it misses under the pointer) with no element prepaint state: a redo. Until `RK-AR` the pointer was
+/// read against the **moved** hitboxes (`RZ-D`, `FS-P`'s rule) and node 7's prepaint ran (9 of 10 replayed). The button reads no hover, so its paint
+/// is the same under the pointer and the whole row replays (10 of 10) with no redo; the moved-hitbox read is kept for a reader (`HoverKeyedReplayTests`).
+/// With a graft (`graft: true`) the node has no element to prepaint either way, which is why this arm builds without grafts. The frame equals the
+/// retention-off window's at every step.
 @Test(.enabled(if: !rsVerifying, zVerifyingNote)) @MainActor
 func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async throws {
     let pair = try zoomPair(warm: 6, graft: false)
@@ -241,7 +241,7 @@ func aZoomThatCarriesTheContentUnderAStationaryPointerRunsThePrepaint() async th
         try pair.compare("zoom step \(step) under a stationary pointer")
     }
     let first = try #require(carried)
-    #expect(first.retainedPrepaintHits == 9, "all but the carried node replay their prepaint: \(first.retainedPrepaintHits) of 10")
+    #expect(first.retainedPrepaintHits == 10, "every node replays its prepaint, the carried one's button reading no hover: \(first.retainedPrepaintHits) of 10")
     #expect(redos == 0, "no frame is redone: \(redos)")
 }
 

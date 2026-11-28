@@ -331,7 +331,7 @@ func resolvedForPointerState<T>(_ focused: T?, _ hovered: T?, _ plain: T?,
                                 for id: GlobalElementID,
                                 pass: PaintPass) -> (value: T, slot: PointerStateSlot)? {
     if pass.isFocused(id), let focused { return (focused, .focus) }
-    if pass.isHovered(id), let hovered { return (hovered, .hover) }
+    if let hovered, pass.isHovered(id) { return (hovered, .hover) }   // `RK-AR`: asked only where a hover value is declared
     if let plain { return (plain, .plain) }
     return nil
 }

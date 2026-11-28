@@ -576,11 +576,11 @@ func aPrepaintInEachIneligibleKindRunsAsBefore(kind: RPKind) async throws {
 
 // MARK: 8 — the pointer, press and focus
 
-/// 8 — a subtree the pointer is inside or focus is in runs its prepaint (`SB-X` extended to prepaint): the
-/// decision is taken at prepaint from the pointer position against the record's own hitboxes (the hover resolves
-/// after prepaint), so entering a card costs neither a redo nor a stale hitbox. The other three replay prepaint.
-/// Mutation: the pointer rule dropped (the hovered card replays a prepaint whose hover regions miss the
-/// registration the paint then expects; the differential reddens) or forced true (a quiet frame replays nothing).
+/// 8 — a subtree focus is in runs its prepaint (`SB-X` extended to prepaint); a pointer inside a card that reads no hover does not (`RK-AR`, was: the
+/// pointer inside a card's hitbox ran its prepaint, 3 of 4 replayed): the cards here have a button and `onHover` regions but no hover background, so the
+/// paint reads no hover, all four replay, and entering a card costs neither a redo nor a stale hitbox (`HoverKeyedReplayTests` holds the readers).
+/// Mutation: the focus rule dropped (the focused card replays a prepaint whose focus registration the paint then expects; the differential reddens)
+/// or forced true (a quiet frame replays nothing).
 @Test(.enabled(if: !rsVerifying, "METALUI_VERIFY_RETAINED=1 builds a prepaint-replayed frame twice and presents the second: the prepaint counts this test pins are not its to read")) @MainActor func aFocusedOrHoveredElementUnderTheOccurrenceRunsPrepaint() throws {
     let pair = try RPPair(size: sz(420, 120), warm: 4) { side in
         HStack(spacing: 6) {
@@ -598,11 +598,11 @@ func aPrepaintInEachIneligibleKindRunsAsBefore(kind: RPKind) async throws {
     }
     for w in [pair.on, pair.off] { w.hover(at: try centre(w, "go B")) }
     var f = pair.on.lastFrameWork
-    #expect(f.retainedPrepaintHits == 3 && f.retainedRedos == 0, "the pointer is inside card B: \(f.retainedPrepaintHits)/\(f.retainedRedos)")
+    #expect(f.retainedPrepaintHits == 4 && f.retainedRedos == 0, "the pointer is inside card B, which reads no hover: \(f.retainedPrepaintHits)/\(f.retainedRedos)")
     try pair.compare("hover")
     pair.redraw()
     f = pair.on.lastFrameWork
-    #expect(f.retainedPrepaintHits == 3 && f.retainedRedos == 0, "and stays inside: \(f.retainedPrepaintHits)")
+    #expect(f.retainedPrepaintHits == 4 && f.retainedRedos == 0, "and stays inside: \(f.retainedPrepaintHits)")
     for w in [pair.on, pair.off] { w.hover(at: pt(2, 2)) }
     try pair.compare("the pointer leaves")
     pair.redraw()

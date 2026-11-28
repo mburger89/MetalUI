@@ -141,6 +141,8 @@ package final class ContentMemoStore {
         /// The focused element under the occurrence when `record` was painted, `nil` when none was (`RK-AQ`): the record replays only while the focus
         /// under the occurrence is this one. Here, not on the record, whose instance size a test pins.
         var recordFocus: GlobalElementID?
+        /// What the paint of `record` read of hover (`RK-AR`, `RetainedHover.swift`): `nil` when it read none. Here, not on the record, whose instance size a test pins.
+        var recordHover: HoverReads?
         var observedChange: Bool {
             get { flags.observedChange }
             set { flags.observedChange = newValue }
@@ -353,6 +355,14 @@ package final class ContentMemoStore {
     /// Every paint record the store holds (test support: the clips a record stores, `FS-V`).
     var records: [RetainedRecord] { entries.values.compactMap(\.record) }
 
+    /// What the paint of every record read of hover, by occurrence, for the tests of `RK-AR`; an occurrence that read none is not listed.
+    var recordHovers: [(id: GlobalElementID, reads: HoverReads)] {
+        entries.values.compactMap { entry in
+            guard entry.record != nil, let id = entry.id, let reads = entry.recordHover else { return nil }
+            return (id, reads)
+        }
+    }
+
     /// The ops that reach the scene while a replay captures the final stream of a record that crosses (`FS-Z`): set and cleared inside `replayPaint`. Here and not on
     /// `Frame`, so a frame, made every draw, holds no word for it.
     var finalTap: [RetainLog.SceneOp]?
@@ -514,6 +524,13 @@ package final class ContentMemoStore {
         }
     }
     package private(set) var lastGraftRefusals: [String] = []
+
+    /// Hands every entry that holds a paint record to `body` (`RK-AR`'s test hook): its hover reads, which `body` may change.
+    func mutateRecordHovers(_ body: (inout HoverReads?) -> Void) -> Int {
+        var count = 0
+        for entry in entries.values where entry.record != nil { body(&entry.recordHover); count += 1 }
+        return count
+    }
 
     /// Calls `body` on every stored prepaint ledger and answers how many there were (`RK-N`'s exit tests).
     func mutatePrepaintLedgers(_ body: (PrepaintLedger) -> Void) -> Int {
