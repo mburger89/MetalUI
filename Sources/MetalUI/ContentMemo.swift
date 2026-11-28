@@ -141,6 +141,8 @@ package final class ContentMemoStore {
         /// The focused element under the occurrence when `record` was painted, `nil` when none was (`RK-AQ`): the record replays only while the focus
         /// under the occurrence is this one. Here, not on the record, whose instance size a test pins.
         var recordFocus: GlobalElementID?
+        /// `buildSerial` of the build whose paint stored `record` (`RK-AS`): a record stored this frame is new, one stored earlier was hit. Here, not on the record, whose instance size a test pins.
+        var recordStoredAt = -1
         /// What the paint of `record` read of hover (`RK-AR`, `RetainedHover.swift`): `nil` when it read none. Here, not on the record, whose instance size a test pins.
         var recordHover: HoverReads?
         var observedChange: Bool {
@@ -257,12 +259,20 @@ package final class ContentMemoStore {
     /// An occurrence whose paint record could not be stored while the focused element was under it (`RK-AQ`): a focused `CodeView`'s caret blink
     /// taints every paint record, so every enclosing occurrence would make a ledger and a record each frame and store neither. It is left to run as it
     /// did before the focus was a key (prepaint unrecorded, paint plain) until `retryAt`, then tried again; each failure doubles the wait, 8 builds to 256.
+    /// **Standing or transient** (`RK-AS`): a backoff made for a taint that ends without input (a glide or a fade, a state write: the recorder had no `standingTaint`)
+    /// is lifted by the first frame that raised no transient taint (`transientTaintThisFrame`, `endFrame`); one made for a standing taint is never lifted by a quiet frame.
     struct FocusBackoff {
         let occurrence: GlobalElementID
         let reason: String
         var retryAt: Int
         var exponent: UInt8
+        /// Made for a standing taint (`RK-AS`): not lifted by a quiet frame.
+        var standing: Bool
     }
+    /// Whether a transient taint (`requestAnotherFrame`, `activeAnimation`, a state write) was raised in the frame being built (`RK-AS`): one Bool, reset by `endFrame`.
+    var transientTaintThisFrame = false
+    /// How many paints held plain by a backoff are open (`RK-AS`): a state write under one counts as a transient taint though no recorder is open.
+    var heldPaintDepth = 0
     var focusBackoffs: [FocusBackoff] = []
     /// The focused element the table was made under: it is cleared whenever the focus differs.
     var focusBackoffOwner: GlobalElementID?
@@ -277,7 +287,7 @@ package final class ContentMemoStore {
     }
 
     /// `id` could not store the paint record it made under `focus`: wait 8 builds, then 16, doubling to 256 (`RK-AQ`).
-    func noteFocusedIneligible(_ id: GlobalElementID, focus: GlobalElementID, reason: String) {
+    func noteFocusedIneligible(_ id: GlobalElementID, focus: GlobalElementID, reason: String, standing: Bool) {
         if focusBackoffOwner != focus { focusBackoffs.removeAll(); focusBackoffOwner = focus }
         var exponent: UInt8 = 0
         if let index = focusBackoffs.firstIndex(where: { $0.occurrence == id }) {
@@ -287,7 +297,7 @@ package final class ContentMemoStore {
             focusBackoffs.removeFirst()
         }
         focusBackoffs.append(FocusBackoff(occurrence: id, reason: reason,
-                                          retryAt: buildSerial + 1 + (8 << Int(exponent)), exponent: exponent))
+                                          retryAt: buildSerial + 1 + (8 << Int(exponent)), exponent: exponent, standing: standing))
     }
 
     /// `id` stored a record made under a focus: its backoff is forgotten.
@@ -513,7 +523,8 @@ package final class ContentMemoStore {
         return count
     }
 
-    /// Why occurrences could leave no graft record in the build in progress and in the last one, one name each (`RK-F`).
+    /// Why occurrences could leave no graft record, or could not stand on the one they had, in the build in progress and in the last one, one name each (`RK-F`, `RK-AS`).
+    /// At most two names an occurrence the build reaches; the arrays keep the capacity of one frame's peak.
     var graftRefusals: [String] = []
     /// The occurrences whose graft windows closed this frame and whose records `Frame.flushPendingGrafts` makes (`RK-AG`).
     var pendingGrafts: [PendingGraft] = [] {
@@ -559,7 +570,7 @@ package final class ContentMemoStore {
     /// Starts this build's counters over (`RK-D`): the abandoned attempt's work was thrown away.
     func resetBuildCounters() {
         retained = RetainedCounters()
-        graftRefusals = []
+        graftRefusals.removeAll(keepingCapacity: true)   // `RK-AS`: the names are made every frame under a steady scroll, so the two arrays keep their capacity
         pendingGrafts = []
         evaluations = 0; skips = 0; refusals = 0
     }
@@ -568,11 +579,14 @@ package final class ContentMemoStore {
     /// every entry no component touched, firing its session so it is spent.
     func endFrame() {
         if replaysPrepaint, retainsSubtrees, buildSerial < prepaintSuspendedUntil { retained.backoffFrames = 1 }
+        // `RK-AS`: the first frame with no transient taint lifts the backoffs made for one (at most `focusBackoffLimit` entries, and only on a frame that lifts).
+        if !transientTaintThisFrame, !focusBackoffs.isEmpty { focusBackoffs.removeAll { !$0.standing } }
+        transientTaintThisFrame = false
         buildSerial &+= 1
         lastEvaluations = evaluations + carriedEvaluations; lastSkips = skips; lastRefusals = refusals
         carriedEvaluations = 0
         lastRetained = retained; retained = RetainedCounters()
-        lastGraftRefusals = graftRefusals; graftRefusals = []
+        swap(&lastGraftRefusals, &graftRefusals); graftRefusals.removeAll(keepingCapacity: true)   // `RK-AS`: a ping-pong, no array made a frame
         evaluations = 0; skips = 0; refusals = 0
         guard !entries.isEmpty else { ledgerEntries = 0; return }
         var gone: [Key] = []

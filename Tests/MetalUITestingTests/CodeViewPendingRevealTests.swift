@@ -152,6 +152,6 @@ private struct Steady: Equatable { var requests = 0, hits = 0, misses = 0, ineli
         return Steady(requests: f.elementRequests, hits: f.retainedHits, misses: f.retainedMisses, ineligible: f.retainedIneligible)
     }
     let one = try run(views: 1), two = try run(views: 2)
-    #expect(one == Steady(requests: 4, hits: 1, misses: 0, ineligible: 0), "\(one)")
-    #expect(two == Steady(requests: 5, hits: 2, misses: 0, ineligible: 0), "\(two)")
+    #expect(one == Steady(requests: 3, hits: 1, misses: 0, ineligible: 0), "\(one)")
+    #expect(two == Steady(requests: 4, hits: 2, misses: 0, ineligible: 0), "\(two)")
 }

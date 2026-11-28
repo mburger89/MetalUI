@@ -92,7 +92,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     func requestAnotherFrame() {
         wantsAnotherFrame = true
         timeVaryingNotes &+= 1
-        retainLog?.taint("requestAnotherFrame")
+        stateTable.contentMemos.transientTaintThisFrame = true
+        retainLog?.taint("requestAnotherFrame", transient: true)
     }
 
     /// Times this frame's build or paint noted a live animation or another-frame request
@@ -494,7 +495,8 @@ public final class Frame { // swiftlint:disable:this type_body_length - the fram
     func noteActiveAnimation() {
         hasActiveAnimations = true
         timeVaryingNotes &+= 1
-        retainLog?.taint("activeAnimation")
+        stateTable.contentMemos.transientTaintThisFrame = true
+        retainLog?.taint("activeAnimation", transient: true)
     }
 
     /// The transaction this build inherited from a `withAnimation` that ran

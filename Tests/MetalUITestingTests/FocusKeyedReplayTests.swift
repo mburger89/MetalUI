@@ -235,8 +235,13 @@ private struct FKHidden: Component, @MainActor Equatable {
 /// **9** A header above a hit-test-disabled field grows by 4: the occurrence moves, its ledger holds a text input's focus stop (the field has no
 /// hitbox to refuse the move), so the move is refused by name (`focusTextInput`) and the input method's caret rect is the one a fresh window reports.
 /// **Mutation:** the `focusTextInput` refusal removed (a stale caret rect).
-@Test(.enabled(if: !rsVerifying, verifyNote)) @MainActor func aMovedAncestorOfAHitTestDisabledFieldRefusesFocusTextInput() throws {
-    let pair = try RPPair(size: sz(260, 140), accessibility: false) { side in
+///
+/// **`graft: true` (`RK-AS`, record 443: a deliberate trade)**: the focused occurrence now grafts, so the refused move is one scoped redo at `graftedPrepaint`
+/// (the refusal is counted by the abandoned attempt) instead of a replay-run, which is what a grafted *unfocused* field costs on master. The frame still equals
+/// the retention-off window's, the move costs no more than the same move unfocused (`fkUnfocusedMove`: 4 requests and 2 redone, 6, measured with the focus left out: the
+/// focus is not an input of that path), and a second move inside the redo's quarantine redoes nothing.
+@Test(.enabled(if: !rsVerifying, verifyNote), arguments: [false, true]) @MainActor func aMovedAncestorOfAHitTestDisabledFieldRefusesFocusTextInput(graft: Bool) throws {
+    let pair = try RPPair(size: sz(260, 140), accessibility: false, graft: graft) { side in
         VStack(spacing: 0) {
             Box().frame(width: Pixels(100), height: Pixels(20 + side.inputs.offset))
             FKHidden(side: side).equatable()
@@ -246,12 +251,33 @@ private struct FKHidden: Component, @MainActor Equatable {
     for _ in 0..<3 { pair.redraw() }
     #expect(pair.on.window.focusedElement != nil, "the tab reached the field without a hitbox")
     pair.on.resetFrameWork()
+    var lines: [String] = []
+    RetainedTrace.sink = { lines.append($0) }
     pair.onSide.inputs.offset = 4; pair.offSide.inputs.offset = 4
     pair.redraw()
-    #expect(pair.on.frameWork.reduce(0) { $0 + ($1.retainedTranslationRefusedReasons["focusTextInput"] ?? 0) } >= 1, "the move is refused by name")
+    RetainedTrace.sink = nil
+    let moved = pair.on.frameWork
+    if graft {
+        #expect(sum(moved, \.retainedRedos) == 1, "one scoped redo: \(sum(moved, \.retainedRedos))")
+        #expect(lines.contains { $0.contains("retained redo requested") && $0.contains("graftedPrepaint") && $0.contains("translationRefused: focusTextInput") }, "the redo names its cause: \(lines.filter { $0.contains("redo") }.map { $0.prefix(160) })")
+        #expect(sum(moved, \.elementRequests) + sum(moved, \.redoneElementRequests) <= fkUnfocusedMove, "no dearer than the unfocused grafted move: \(sum(moved, \.elementRequests)) + \(sum(moved, \.redoneElementRequests))")
+    } else {
+        #expect(moved.reduce(0) { $0 + ($1.retainedTranslationRefusedReasons["focusTextInput"] ?? 0) } >= 1, "the move is refused by name")
+    }
     #expect(pair.on.platformWindow.textInputAreas.last == pair.off.platformWindow.textInputAreas.last, "the caret rect follows the field: \(String(describing: pair.on.platformWindow.textInputAreas.last)) vs \(String(describing: pair.off.platformWindow.textInputAreas.last))")
     try pair.compare("moved")
+    if graft {   // a second move inside the quarantine (8 builds) is a plain build of the occurrence: no second redo
+        pair.on.resetFrameWork()
+        pair.onSide.inputs.offset = 8; pair.offSide.inputs.offset = 8
+        pair.redraw()
+        #expect(sum(pair.on.frameWork, \.retainedRedos) == 0, "no second redo: \(sum(pair.on.frameWork, \.retainedRedos))")
+        try pair.compare("moved again")
+    }
 }
+
+/// What the move of test 9 costs with nothing focused and the graft on (requests plus the redone attempt's): the cost `graft: true` is held to. The focus is not an input of the
+/// grafted prepaint's refusal (`ledger.registersTextInput`), so this is master's number.
+let fkUnfocusedMove = 6
 
 // MARK: 10 - idle
 

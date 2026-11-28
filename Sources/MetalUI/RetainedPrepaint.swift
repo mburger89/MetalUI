@@ -751,6 +751,11 @@ struct RetainedVerifySnapshot {
     /// The pointer's static outputs at the frame's pointer over its hitboxes (`RK-AR`): the style and visibility regions the window's cover rule reaches and the help text
     /// of the region it finds, with whether a provider is present (providers are never called). `Hitbox.fingerprint` records only which handler members exist.
     let pointer: String
+    /// The focused element's text input target (`RK-AS`): its text, caret offsets, origin, caret rect, and whether it is secure and carries a submit, a selection sink and a
+    /// code session (closures are never called); a graft or a replayed ledger that leaves the input method a different target differs here.
+    let textInput: String
+    /// Every `.focused(_:equals:)` binding the frame registered: element, slot and value (`RK-AS`).
+    let focusBindings: [String]
     let tabOrder: [GlobalElementID]
     /// The focused element after `resolveFocus` (`RK-AQ`): a replayed ledger must leave focus where a fresh prepaint leaves it.
     let focused: GlobalElementID?
@@ -801,6 +806,8 @@ struct RetainedVerifySnapshot {
             return "hitboxes (\(hitboxes.count) vs \(other.hitboxes.count)) first difference \(String(describing: first))"
         }
         if pointer != other.pointer { return "pointer outputs \(pointer) vs \(other.pointer)" }
+        if textInput != other.textInput { return "text input \(textInput) vs \(other.textInput)" }
+        if focusBindings != other.focusBindings { return "focus bindings \(focusBindings) vs \(other.focusBindings)" }
         if tabOrder != other.tabOrder { return "tab order" }
         if focused != other.focused { return "focused element \(String(describing: focused)) vs \(String(describing: other.focused))" }
         if accessibility != other.accessibility { return "accessibility records (\(accessibility.count) vs \(other.accessibility.count))" }
@@ -872,6 +879,14 @@ extension Frame {
         return out
     }
 
+    /// `RetainedVerifySnapshot.textInput`: the focused element's target as the input method would read it.
+    private func textInputOutputs() -> String {
+        guard let focused = focusedElement, let target = focusRegistry.textTarget(for: focused) else { return "" }
+        let hooks = "secure \(target.secure)|submit \(target.onSubmit != nil)|sink \(target.selectionSink != nil)|code \(target.codeSession != nil)|vertical \(target.verticalField)"
+        let lines = "lines \(target.lines != nil) \(target.originY) \(target.lineHeight) \(target.maxScrollY)"
+        return "\(sbPath(focused).suffix(40))|\(target.text)|\(target.caretOffsets)|\(target.originX)|\(target.caretRect)|\(hooks)|\(lines)"
+    }
+
     func captureRetainedVerifySnapshot() -> RetainedVerifySnapshot {
         let s = finalizedScene()
         return RetainedVerifySnapshot(
@@ -879,7 +894,7 @@ extension Frame {
             counts: [s.rects.count, s.glyphs.count, s.images.count, s.surfaces.count, s.textures.count, s.drawList.count],
             groups: Self.groupDigest(of: s, path: ""),
             unitRanges: animationStore.transitions.ranges.map { "\(sbPath($0.unit)) \($0.start) \($0.end)" },
-            hitboxes: hitboxes(from: 0).map(\.fingerprint), pointer: pointerOutputs(), tabOrder: focusRegistry.tabOrder, focused: focusedElement,
+            hitboxes: hitboxes(from: 0).map(\.fingerprint), pointer: pointerOutputs(), textInput: textInputOutputs(), focusBindings: focusRegistry.bindingFingerprint, tabOrder: focusRegistry.tabOrder, focused: focusedElement,
             accessibility: axEmissions(from: 0).map {
                 "\($0.id)|\($0.declared)|\(String(describing: $0.text))|\($0.isClickable)|\($0.isEnabled)|\($0.synthesizes)|\($0.portal)|\($0.geometry)|\($0.declaresAction)"
             },

@@ -791,7 +791,8 @@ final class StateTable {
     func withState<S>(_ id: GlobalElementID,
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
-        retainLog?.taint("stateWrite")   // a paint that rewrites an entry cannot be replayed (`SB-U`)
+        if retainLog != nil || contentMemos.heldPaintDepth > 0 { contentMemos.transientTaintThisFrame = true }   // a paint that writes state: not the routine writes of build and prepaint
+        retainLog?.taint("stateWrite", transient: true)   // a paint that rewrites an entry cannot be replayed (`SB-U`)
         if let log = prepaintLog, log.allowedStateWrites == 0 { log.taint("stateWrite") }
         // A build that writes an entry cannot be grafted, except an animation baseline, whose value is a function
         // of what the graft's key holds: it stays live (`RK-F`).
@@ -1102,7 +1103,8 @@ final class StateTable {
     /// was never anchored to the slot's stored type there either — so this
     /// is not a new hazard `write` introduces, only one it inherits.
     func write<S>(_ id: GlobalElementID, _ value: S, by owner: DirtyOwner? = nil) {
-        retainLog?.taint("stateWrite")
+        if retainLog != nil || contentMemos.heldPaintDepth > 0 { contentMemos.transientTaintThisFrame = true }   // a paint that writes state: not the routine writes of build and prepaint
+        retainLog?.taint("stateWrite", transient: true)
         prepaintLog?.taint("stateWrite")
         contentMemos.journal.taint("stateWrite")   // `RK-F`
         if departedOverlay?.roots.contains(where: { id.isOrDescends(from: $0) }) == true {
@@ -1328,6 +1330,8 @@ struct BuildChannels: Equatable {
     var windowed: Set<GlobalElementID> = []
     var memoKept: Set<ContentMemoStore.Key> = []
     var animationTouched: Set<GlobalElementID> = []
+    /// The slots of the `@FocusState`s bound this build, read before `Window` takes them (`RK-AS`).
+    var focusStates: Set<GlobalElementID> = []
     /// The lifecycle store's notes this build (`RL-D`).
     var lifecycle: [String] = []
 
@@ -1341,6 +1345,7 @@ struct BuildChannels: Equatable {
         if windowed != other.windowed { return "windowed parents" }
         if memoKept != other.memoKept { return "memo entries kept" }
         if animationTouched != other.animationTouched { return "animation entries touched" }
+        if focusStates != other.focusStates { return "focus states" }
         if lifecycle != other.lifecycle { return "lifecycleStore: \(Set(lifecycle).symmetricDifference(other.lifecycle).sorted().prefix(3))" }
         return nil
     }
@@ -1350,7 +1355,7 @@ extension StateTable {
     func buildChannels(animation: AnimationStore) -> BuildChannels {
         BuildChannels(marked: marked, produced: producedSlots, names: producedNames, positions: namedPositions,
                       loops: loopExtents, windowed: windowedParents, memoKept: contentMemos.keptKeys,
-                      animationTouched: animation.touchedIDs, lifecycle: animation.lifecycle.currentDigest)
+                      animationTouched: animation.touchedIDs, focusStates: Set(focusStates.keys), lifecycle: animation.lifecycle.currentDigest)
     }
 
     /// The `@State` entries and their versions and liveness, sorted: what a test compares across two windows.

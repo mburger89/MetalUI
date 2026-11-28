@@ -350,7 +350,10 @@ extension Frame {
     /// a record a later frame cannot graft from is not made. **Exact:** `graftRecord` answers `nil` unless the entry holds a paint
     /// record with a prepaint ledger and complete coverage, and nothing writes those between this point and that call but the
     /// paint of an occurrence the later build has already passed; an entry that holds none now cannot graft in the frame after
-    /// this one, whether a graft record exists or not.
+    /// this one, whether a graft record exists or not. **The focus exception** (`RK-AS`): `graftRecord` stands under a focus when the record's, the ledger's
+    /// and the build's focus are one element, so the capture is made under a focus too; there it is made only from a record this frame's paint hit
+    /// (`Entry.recordStoredAt`; not a reference held to the record the build saw, which would make a translation copy what it moves in place), because six keys into a focused field would otherwise copy the field's segment on every key. A record
+    /// the frame made new is captured from one frame later, and a capture the rule skips is the master's exactness argument unchanged where the focus is `nil`.
     func flushPendingGrafts() {
         let memos = stateTable.contentMemos
         guard !memos.pendingGrafts.isEmpty else { return }
@@ -359,8 +362,11 @@ extension Frame {
         defer { memos.pendingGrafts = [] }
         for item in pending {
             let entry = item.entry
+            // `RK-AS`: under a focus a record is captured from only when this frame's paint hit it (stored in an earlier build): a key's frame made its records new.
             guard let record = entry.record, record.prepaint != nil, record.coverageComplete,
-                  entry.recordFocus == nil, record.prepaint?.focusedUnder == nil, entry.recordHover?.hovered == nil else {
+                  entry.recordFocus == record.prepaint?.focusedUnder,
+                  entry.recordFocus == nil || entry.recordStoredAt != memos.buildSerial,
+                  entry.recordHover?.hovered == nil else {
                 memos.retained.graftCapturesSkipped += 1
                 continue
             }
@@ -443,39 +449,25 @@ final class RetainedGraft {
 
 extension Frame {
     /// The graft record this occurrence may stand on in this build, or `nil` (`RK-B`, `RK-C`): its paint record, prepaint
-    /// ledger and graft record all describe the content it holds now, nothing it reads moved, and the prepaint
-    /// and paint decisions the occurrence will face cannot be known to fail. The rects and the paint-only
+    /// ledger and graft record all describe the content it holds now, nothing it reads moved, the focused element under it is the one its record and
+    /// ledger were made with (`RK-AS`), and the prepaint and paint decisions the occurrence will face cannot be known to fail. The rects and the paint-only
     /// ambient are **not** known here: a mismatch is the redo (`RK-C`, `RK-D`).
     func graftRecord(for entry: ContentMemoStore.Entry, id: GlobalElementID, key: BuildKey) -> GraftRecord? {
         let memos = stateTable.contentMemos
-        guard memos.graftAllowed, let graft = entry.graft, let old = entry.record, let ledger = old.prepaint else {
-            return nil
-        }
-
-        // A ledger holding a geometry note a translation cannot recompute would redo the whole frame and back replay off for eight
-        // builds (`RG-J`): the refusal stays for such a ledger only (`RL-G`); a recomputable one moves like any other.
-        if !geometryNotesRecomputable(ledger) { memos.graftRefusals.append("geometryGraft"); return nil }
-        // `RK-AM`, `RK-AN`: at, under or above the failing occurrences of a scoped redo, or under a scope still quarantined, the build runs.
-        if memos.isInRedoScope(id) || memos.isInQuarantinedScope(id) { memos.graftRefusals.append("scopedRedo"); return nil }
-        guard entry.quarantineUntil <= memos.buildSerial, !entry.observedChange, old.coverageComplete,
-              old.contentSerial == entry.serial, graft.contentSerial == entry.serial, graft.key == key else {
-            return nil
-        }
-        // No `uncomparableCustomCount` conjunct (C14-c4, `FS-H`): an uncomparable custom reading equals nothing, itself
-        // included, so `BuildKey.environment` never equals the key a record under it was made with (`graft.key == key`
-        // above), and the paint and prepaint refusals leave such an occurrence no record to stand on.
-        guard prepaintRefusal() == nil, transactionTop.animation == nil else {
-            return nil
-        }
-        guard old.versions.allSatisfy({ stateTable.entryVersion($0.0) == $0.1 }) else { return nil }
-        // `RK-AR`: a record painted with a hover reader hovered, or a reader under the pointer where it stands, is not a graft's to stand on; a reader that
-        // arrives under a resting pointer is the paint's exact redo (`paintRecord`).
-        guard !retainedSubtreeHasPressOrSelection(under: id), retainedFocus(under: id) == nil, entry.recordHover?.hovered == nil,
-              !retainedHoverReaderUnderPointer(ledger.hitboxes, reads: entry.recordHover) else { return nil }
-        // `RK-AQ`: a record or a ledger made under a focus is not a graft's to stand on (a graft under a steady focus is carried over).
-        guard entry.recordFocus == nil, ledger.focusedUnder == nil else { return nil }
-        guard graftDependenciesHold(graft) else { return nil }
+        // Not refusals but "no graft record" and "the content changed": nothing to name.
+        guard memos.graftAllowed, let graft = entry.graft, graft.contentSerial == entry.serial, !entry.observedChange else { return nil }
+        guard let old = entry.record else { return refuseGraft("paintRecord", id) }
+        guard let ledger = old.prepaint else { return refuseGraft("prepaintLedger", id) }
+        if let name = graftRefusal(entry: entry, graft: graft, old: old, ledger: ledger, id: id, key: key) { return refuseGraft(name, id) }
         return graft
+    }
+
+    /// Names a refusal: counted for `testingGraftRefusals` and traced (`RK-AS`: every graft refusal is named). Answers `nil`.
+    private func refuseGraft(_ name: String, _ id: GlobalElementID) -> GraftRecord? {
+        stateTable.contentMemos.graftRefusals.append(name)
+        // Guarded here: the autoclosure's context costs an allocation a refusal when it is built before `emit` looks (measured: +19 a frame on the unfocused wheel).
+        if RetainedTrace.active { RetainedTrace.emit("retained graft refused \(RetainedTrace.path(id)) because \(name)") }
+        return nil
     }
 
     /// Stands `record` in for the build recursion (`RK-B`): its rows are appended under this tree's generation, the
