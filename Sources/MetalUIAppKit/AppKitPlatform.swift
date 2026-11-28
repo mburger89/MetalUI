@@ -6,6 +6,13 @@ import MetalUICore
 import MetalUIPlatform
 import MetalUIRender
 
+/// The window's content view (`WB-I`): transparent to accessibility and to hit testing, it holds the host
+/// view filling it, with room for a backdrop's effect view below.
+@MainActor
+final class HostContainerView: NSView {
+    override func isAccessibilityElement() -> Bool { false }
+}
+
 /// Hosts the CAMetalLayer and funnels AppKit events into InputEvent.
 @MainActor
 final class MetalHostView: NSView {
@@ -711,9 +718,9 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
                 view.blendingMode = .behindWindow
                 view.state = .followsWindowActiveState
                 view.autoresizingMask = [.width, .height]
-                if let frame = window.contentView?.superview, let content = window.contentView {
-                    view.frame = frame.bounds
-                    frame.addSubview(view, positioned: .below, relativeTo: content)
+                if let container = hostView.superview {
+                    view.frame = container.bounds
+                    container.addSubview(view, positioned: .below, relativeTo: hostView)
                 }
                 backdropEffectView = view
             }
@@ -1241,7 +1248,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         // inside the WebKit layout-oracle tests and nowhere else. See the
         // practices doc, shape 11.
         window.isReleasedWhenClosed = false
-        window.contentView = hostView
+        // The content view is a plain container with the host view as its only subview (`WB-I`), so a
+        // backdrop's effect view goes inside the container, never into AppKit's private frame view.
+        let container = HostContainerView(frame: contentRect)
+        container.addSubview(hostView)
+        hostView.frame = container.bounds
+        hostView.autoresizingMask = [.width, .height]
+        window.contentView = container
+        hostView.frame = container.bounds
+        window.initialFirstResponder = hostView
+        window.makeFirstResponder(hostView)
         window.center()
         let nsWindow = window
         keyStatus = { (nsWindow.isKeyWindow, NSApplication.shared.isActive) }
